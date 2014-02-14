@@ -1,0 +1,51 @@
+
+<!-- Problema de exemplo 1.  Pedro Vasconcelos, 2014 
+     Este ficheiro é (X)HTML; a ordem dos elementos de topo
+     não é importante; no caso de repetidos, prevalece 
+     a última declaração.
+-->
+
+<!-- O título do problema; aparece na lista de problemas -->
+<problem>Problema 2</problem>
+
+<!-- A descrição do problema para o utilizador;
+     pode-se usar HTML e/ou MathJax.
+     O "parser" é menos flexível do que o de um browser: 
+     é necessário "casar" todos os abrir/fechar de tags.
+ -->
+<description>
+<p>Escreva uma função <code>raizes(a,b,c)</code> para calcular
+as raizes de uma equação de 2º graus \( ax^2+bx+c=0 \) usando a 
+<em>fórmula resolvente</em>:
+\[ x = \frac{-b \pm \sqrt{b^2-4ac}}{2a} \]
+</p>
+
+<p>Exemplos:</p>
+<pre>
+>>> raizes(1, 0, -1)
+[-1.0, 1.0]
+</pre>
+</description>
+
+
+<!-- Texto inicial para o programa a submeter 
+     (para exercícios tipo "complete o seguinte programa");
+     por omissão é vazio  -->
+<submitText>
+import math  # para usar math.sqrt
+
+def raizes(a,b,c):
+    #
+    # complete esta definição calculando x1 e x2
+    #
+    return [x1, x2]   # duas raizes
+</submitText>
+
+
+<!-- Limites temporais do problema; podemos omitir um ou ambos dos extremos.
+     Por omissão, o problema será visível e pode ser submitido fora deste 
+     intervalo, mas só será classificado como "Accepted" dentro destes limites.
+  -->
+<startTime>08:00 10/01/2014</startTime>
+
+<endTime>20:00 15/03/2014</endTime>
