@@ -9,7 +9,7 @@
    <ifSubmissions><numberOfSubmissions/> submissões já efetuadas.</ifSubmissions>
    <ifBefore>Submissões iniciam em <startTime/>.</ifBefore>
    <ifOpen>Submissões terminam em <endTime/>; tempo disponível: <em><timeLeft/></em>.</ifOpen>
-   <ifClosed>Submissões bloqueadas em <endTime/>.</ifClosed>
+   <ifClosed>Submissões terminaram em <endTime/>.</ifClosed>
 </span></dd>
 </problemList>
 </dl>

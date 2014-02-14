@@ -230,8 +230,8 @@ match re  = isJust . matchRegex (mkRegex re)
 -- trim a string to a maximum length
 trim :: Int -> String -> String
 trim size str 
-  = take size str ++ 
-    zipWith (\x y->y) (drop size str) "...\n***Output too long (truncated)***"
+  = take (size - length msg) str ++ zipWith (\_ y->y) (drop size str) msg
+  where msg = "...\n***Output too long (truncated)***"
 
 
 -------------------------------------------------------------------------------
@@ -248,7 +248,6 @@ readAllStatus = do top <- readDirectoryWithL readf "submissions"
                                return (reportStatus r)
           | otherwise = ioError $ userError "not a report file"
           where ext = takeExtension file
-                base= takeBaseName file
 
 
 

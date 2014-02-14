@@ -1,4 +1,4 @@
-{-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE OverloadedStrings, RecordWildCards #-}
 {-
   Data types and methods for problems and submissions
 -}
@@ -37,7 +37,7 @@ data Problem t = Problem {
   probSubmit :: Text,           -- optional default submission text
   probStart  :: Maybe t,        -- optional start time
   probEnd    :: Maybe t,        -- optional end time
-  probExam :: Bool              -- visible in the submission interval
+  probExam :: Bool              -- visible only during the above interval
   } deriving Show
 
 -- Functor instance for applying functions to the time fields
@@ -49,35 +49,14 @@ instance Functor Problem where
 instance Eq (Problem t) where
   p == p' = probID p == probID p'
 
-{-
-instance Ord (Problem t) where
-  compare p p' = compare (probID p) (probID p')  
-  -}
 
 -- ordering instance: lexicographically compare by times then by id
 instance Ord t => Ord (Problem t) where  
-  compare p p' = compare (f p) (f p')
-    where f x = (probStart x, probEnd x, probID x)
+  compare p p' = compare (tupl p) (tupl p')  
+    where tupl Problem{..} = (probEnd, probStart, probID) 
 
   
-
--- XML reader for problems
-  {-
-problemReader :: PID -> XMLReader (Problem LocalTime)
-problemReader pid = do
-  whitespace   
-  title <- tagged "problem" allText
-  whitespace   
-  descr <- tagged "description" (many anyToken)
-  whitespace   
-  subm <- option "" (tagged "submitText" allText)
-  whitespace
-  start <- optionMaybe (tagged "startTime" localTime)
-  whitespace   
-  end <- optionMaybe (tagged "endTime" localTime)
-  return (Problem pid title descr subm start end)
--}
-
+-- an empty problem
 newProblem :: PID -> Problem LocalTime
 newProblem pid = Problem { probID    = pid
                          , probTitle = T.pack ("Problem " ++ show pid)
