@@ -1,0 +1,82 @@
+body {
+    margin: 0;
+    padding: 0;
+    background-color: #ffffff;
+    font-family: Verdana, Helvetica, sans-serif;
+}
+
+a {
+   text-decoration: underline;
+}
+
+a :hover {
+   cursor: pointer;
+   text-decoration: underline;
+}
+
+img {
+   border: none;
+}
+
+.problemli {
+    padding-bottom: 2ex;
+}
+
+.submissions {
+    width: 80%;
+}
+
+.submissionli {
+    display: inline-block;
+    list-style-type: none;
+    padding-right: 1em;
+    padding-bottom: 0.5ex;
+}
+
+
+#content {
+   padding-left: 1em;
+}
+
+#topbar {
+    background-color: cyan;
+    width: 100%;
+    padding: 1em; 
+    font-size: 80%;
+}
+
+
+.info {
+   color: #0f0f0f;
+   font-size: 80%;
+   font-style: oblique;
+   /* vertical-align: text-top;*/
+}
+
+#error {
+  color: red;
+  /* font-size: 80%; */
+}
+
+#footer {
+    position: relative;
+    bottom: -5ex;
+    width: 100%;
+    font-size: 80%;
+    background-color: cyan;
+    padding: 2ex;
+}
+
+pre { background-color: #f0f0f0; 
+      padding: 1em;
+      width: 80%;
+    }
+
+
+#editor { 
+    width: 95%;
+    height: 40ex;
+}
+
+
+.hidden { display:none; }
