@@ -1,5 +1,5 @@
 Name:                pythondo
-Version:             0.4
+Version:             0.5
 Synopsis:            A simple web sandbox for the Python programming language
 Description:         A simple web sandbox for the Python programming language
 License:             AllRightsReserved
@@ -33,13 +33,13 @@ Executable pythondo
     transformers             >= 0.3,
     bytestring                >= 0.9.1   && < 0.11,
     utf8-string               >= 0.3, 
-    heist                     >= 0.12    && < 0.13,
+    heist                     >= 0.13    && < 0.14,
     MonadCatchIO-transformers >= 0.2.1   && < 0.4,
     mtl                       >= 2       && < 3,
-    snap                      >= 0.11    && < 0.13,
-    snap-core                 >= 0.9     && < 0.11,
-    snap-server               >= 0.9     && < 0.11,
-    snap-loader-static        >= 0.9     && < 0.10,
+    snap                      >= 0.12,
+    snap-core                 >= 0.9,
+    snap-server               >= 0.9,
+    snap-loader-static        >= 0.9,
     text                      >= 0.11    && < 0.12,
     time                      >= 1.1     && < 1.5,
     xmlhtml                   >= 0.1,

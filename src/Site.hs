@@ -54,8 +54,8 @@ import           Submission
 import           LdapAuth
 import           Printout
 
--- assoc lists of application handler splices
-type Splices = [(Text, I.Splice AppHandler)]
+-- my application splices
+type AppSplices = Splices (I.Splice AppHandler)
 
 
 ------------------------------------------------------------------------------
@@ -73,7 +73,7 @@ handleLogin = method GET (with auth $ handleLoginForm Nothing) <|>
 handleLoginForm :: Maybe Text -> Handler App (AuthManager App) ()
 handleLoginForm authError = heistLocal (I.bindSplices errs) $ render "login"
   where
-    errs = [("loginError", I.textSplice c) | c <- maybeToList authError]
+    errs = "loginError" ## maybe (return []) I.textSplice authError
 
 
 ------------------------------------------------------------------------------
@@ -139,40 +139,38 @@ handleProblem = method GET $ do
   when (not $ visible t prob) badRequest
   -- otherwise: show problem submissions
   subreps <- getSubmitReports uid prob 
-  renderWithSplices "problem" (submissionsSplice subreps ++ 
-                               pidSplice pid ++ 
-                               problemSplices prob ++
-                               numberSplices (length subreps) ++  
-                               acceptedSplices (map (reportStatus.snd) subreps)) 
+  renderWithSplices "problem" $ do submissionsSplice subreps 
+                                   pidSplice pid 
+                                   problemSplices prob 
+                                   numberSplices (length subreps) 
+                                   acceptedSplices (map (reportStatus.snd) subreps) 
 
 
-pidSplice :: PID -> Splices
-pidSplice pid = [("problemid", I.textSplice (T.pack $ show pid))]
+pidSplice :: PID -> AppSplices 
+pidSplice pid = "problemid" ## I.textSplice (T.pack $ show pid)
+
+sidSplice :: SID -> AppSplices
+sidSplice sid = "submitid" ## I.textSplice (T.pack $ show sid)
 
 
-sidSplice :: SID -> Splices
-sidSplice sid = [("submitid", I.textSplice (T.pack $ show sid))]
-
-
-problemSplices :: Problem UTCTime -> Splices
-problemSplices p = 
-  [("problem",   I.textSplice (probTitle p)),
-   ("description", return (probDescr p)),
-   ("submitText", I.textSplice (probSubmit p)),
-   ("startTime",   maybe (return []) timeSplice (probStart p)),
-   ("endTime",     maybe (return []) timeSplice (probEnd p)),
-   ("ifOpen", do t <- liftIO getCurrentTime
-                 ifISplice (inside t (probStart p) (probEnd p))),
-   ("ifBefore", do t <- liftIO getCurrentTime
-                   ifISplice (fmap (t<) (probStart p) == Just True)),
-   ("ifClosed", do t <- liftIO getCurrentTime
-                   ifISplice (fmap (t>) (probEnd p) == Just True)),
-   ("ifLimited", ifISplice (isJust $ probEnd p)),
-   ("timeLeft", case probEnd p of 
-       Nothing -> I.textSplice "N/A"
-       Just t' -> do t <- liftIO getCurrentTime
-                     I.textSplice $ T.pack $ formatNominalDiffTime $ diffUTCTime t' t)
-  ]
+problemSplices :: Problem UTCTime -> AppSplices
+problemSplices p = do
+  "problem" ## I.textSplice (probTitle p)
+  "description" ## return (probDescr p)
+  "submitText" ## I.textSplice (probSubmit p)
+  "startTime" ##  maybe (return []) timeSplice (probStart p)
+  "endTime" ##  maybe (return []) timeSplice (probEnd p)
+  "ifOpen" ## do t <- liftIO getCurrentTime
+                 ifISplice (inside t (probStart p) (probEnd p))
+  "ifBefore" ## do t <- liftIO getCurrentTime
+                   ifISplice (fmap (t<) (probStart p) == Just True)
+  "ifClosed" ## do t <- liftIO getCurrentTime
+                   ifISplice (fmap (t>) (probEnd p) == Just True)
+  "ifLimited" ## ifISplice (isJust $ probEnd p)
+  "timeLeft"  ## case probEnd p of 
+    Nothing -> I.textSplice "N/A"
+    Just t' -> do t <- liftIO getCurrentTime
+                  I.textSplice $ T.pack $ formatNominalDiffTime $ diffUTCTime t' t
   where
     -- convert UTC time to local time zone
     timeSplice t = do tz <- liftIO getCurrentTimeZone
@@ -196,34 +194,33 @@ formatNominalDiffTime secs
         
 
 
+submitSplice :: Submission -> AppSplices
+submitSplice s = "submitText" ## I.textSplice (submitText s)
 
-
-submitSplice :: Submission -> Splices
-submitSplice s = [ ("submitText", I.textSplice (submitText s)) ]
-
-submissionsSplice :: [(Submission,Report)] -> Splices
-submissionsSplice lst
-  = [("submissions", I.mapSplices (I.runChildrenWith . splices) lst)]
-  where splices (s,r) = sidSplice (submitID s) ++ reportSplice r
-
+submissionsSplice :: [(Submission,Report)] -> AppSplices
+submissionsSplice lst 
+  = "submissions" ## I.mapSplices (I.runChildrenWith . splices) lst
+  where splices (s,r) = do sidSplice (submitID s)
+                           reportSplice r
 
 
 -- | splices for a submission report
-reportSplice :: Report -> [(Text, I.Splice AppHandler)]
-reportSplice r =  [("status", I.textSplice (T.pack $ show $ reportStatus r)),
-                   ("stdout", I.textSplice (reportStdout r)),
-                   ("stderr", I.textSplice (reportStderr r)),
-                   ("ifAccepted", ifISplice (s == Accepted)),
-                   ("ifOverdue",  ifISplice (s == Overdue)),
-                   ("ifRejected", ifISplice (s/= Accepted && s/=Overdue))
-                   ]
+reportSplice :: Report -> AppSplices
+reportSplice r =  do 
+  "status" ## I.textSplice (T.pack $ show $ reportStatus r)
+  "stdout" ## I.textSplice (reportStdout r)
+  "stderr" ## I.textSplice (reportStderr r)
+  "ifAccepted" ## ifISplice (s == Accepted)
+  "ifOverdue" ##  ifISplice (s == Overdue)
+  "ifRejected" ## ifISplice (s/= Accepted && s/=Overdue)
   where s = reportStatus r
 
 
-acceptedSplices :: [Status] -> Splices
+acceptedSplices :: [Status] -> AppSplices
 acceptedSplices statuses 
-  = [("ifAccepted", ifISplice b), ("ifNotAccepted", ifISplice (not b))]
-  where b = any (==Accepted) statuses
+  = do "ifAccepted" ## ifISplice acpt                                      
+       "ifNotAccepted" ## ifISplice (not acpt)
+  where acpt = any (==Accepted) statuses
 
 
 
@@ -235,22 +232,21 @@ handleProblemList = method GET $ do
   t <- liftIO getCurrentTime
   probs <- filter (visible t) <$> liftIO getProblems
   subrepss <- mapM (getSubmitReports uid) probs
-  renderWithSplices "problemlist"  
-    [("problemList", 
-      I.mapSplices (I.runChildrenWith . splices) (zip probs subrepss))]
+  renderWithSplices "problemlist" $ do
+    "problemList" ##  I.mapSplices (I.runChildrenWith . splices) (zip probs subrepss)
   where splices (prob,subreps) 
-          = pidSplice (probID prob) ++ 
-            problemSplices prob ++
-            acceptedSplices (map (reportStatus.snd) subreps) ++
-            numberSplices (length subreps)
+          = do pidSplice (probID prob) 
+               problemSplices prob 
+               acceptedSplices (map (reportStatus.snd) subreps) 
+               numberSplices (length subreps)
             
 
 -- splices concerning the number of submissions
-numberSplices :: Int -> Splices
-numberSplices n = [("numberOfSubmissions", I.textSplice (T.pack $ show n)),
-                   ("ifSubmissions", ifISplice (n>0)),
-                   ("ifNoSubmissions", ifISplice (n==0))
-                  ]
+numberSplices :: Int -> AppSplices
+numberSplices n = do 
+  "numberOfSubmissions" ## I.textSplice (T.pack $ show n)
+  "ifSubmissions" ## ifISplice (n>0)
+  "ifNoSubmissions" ## ifISplice (n==0)
 
 
 handleGetSubmission, handlePostSubmission :: AppHandler ()
@@ -260,9 +256,11 @@ handleGetSubmission = method GET $ do
   sid <- read . B.toString <$> getRequiredParam "sid"
   prob <- liftIO $ getProblem pid
   (sub,rep) <- getSubmitReport uid prob sid
-  renderWithSplices "report" 
-    (pidSplice pid ++ sidSplice sid ++  problemSplices prob ++ 
-     submitSplice sub ++ reportSplice rep)
+  renderWithSplices "report" $ do pidSplice pid 
+                                  sidSplice sid 
+                                  problemSplices prob  
+                                  submitSplice sub 
+                                  reportSplice rep
 
 handlePostSubmission = method POST $ do
   uid <- getUser
@@ -272,11 +270,11 @@ handlePostSubmission = method POST $ do
   code <- T.decodeUtf8With T.ignore <$> getRequiredParam "code"
   sid <- liftMutexIO $ newSubmitID uid pid code
   (sub,report) <- getSubmitReport uid prob sid
-  renderWithSplices "report" (pidSplice pid ++ 
-                              sidSplice sid ++ 
-                              problemSplices prob ++ 
-                              submitSplice sub ++ 
-                              reportSplice report )
+  renderWithSplices "report" $ do pidSplice pid  
+                                  sidSplice sid  
+                                  problemSplices prob 
+                                  submitSplice sub 
+                                  reportSplice report 
 
 
 {-
@@ -317,12 +315,12 @@ handleFinalReport = method GET $ do
     probs <- liftIO getProblems
     subs <- sequence [getFinalReport uid p | p<-probs]
     let psubs = [(p,s,r) | (p, Just (s,r))<-zip probs subs]
-    renderWithSplices "finalrep" 
-      [("problemList", I.mapSplices (I.runChildrenWith . splices) psubs)]
-  where splices (prob,sub,rep) = problemSplices prob ++ 
-                                 acceptedSplices [reportStatus rep] ++
-                                 reportSplice rep ++
-                                 submitSplice sub
+    renderWithSplices "finalrep" $
+      "problemList" ## I.mapSplices (I.runChildrenWith . splices) psubs
+  where splices (prob,sub,rep) = do problemSplices prob 
+                                    acceptedSplices [reportStatus rep] 
+                                    reportSplice rep 
+                                    submitSplice sub
 
 
 
@@ -373,11 +371,16 @@ app =
     a <- nestSnaplet "auth" auth $
            initJsonFileAuthManager defAuthSettings sess "users.json"
     addAuthSplices h auth
-    addConfig h emptyConfig { hcInterpretedSplices = [("timeNow", nowSplice),
-                                                      ("loggedInName", loggedInName auth)] }
+    addConfig h emptyConfig { hcInterpretedSplices = do 
+                                 "timeNow" ## nowSplice
+                                 "loggedInName" ## loggedInName auth }
     addRoutes routes
     mv <- liftIO $ newMVar ()
     return $ App h s a mv conf ekg 
+
+
+emptyConfig :: HeistConfig m
+emptyConfig = HeistConfig noSplices noSplices noSplices noSplices []
 
 
 -- initialize EKG server (if configured)
@@ -390,8 +393,4 @@ initEkg conf = do enabled <- require conf "ekg.enabled"
                     else return Nothing
   
 
-
-
-emptyConfig :: HeistConfig m
-emptyConfig = HeistConfig [] [] [] [] []
 

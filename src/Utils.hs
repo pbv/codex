@@ -19,7 +19,9 @@ import Snap.Snaplet.Heist
 import Snap.Snaplet.Auth
 -- import Snap.Snaplet.Session
 
+import           Heist.SpliceAPI
 import qualified Heist.Interpreted as I
+
 
 import Data.Configurator
 import Data.Configurator.Types
@@ -151,7 +153,7 @@ notFound = render "_notfound" >> finishError 404 "Not found"
 
 internalError :: SomeException -> AppHandler a
 internalError e
-  = do renderWithSplices  "_internalerror" [("errorMsg", I.textSplice (T.pack $ show e))]
+  = do renderWithSplices  "_internalerror" ("errorMsg" ## I.textSplice (T.pack $ show e))
        finishError 500 "Internal Server Error"
 
 
