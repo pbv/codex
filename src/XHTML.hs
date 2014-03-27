@@ -1,26 +1,22 @@
 {-# LANGUAGE OverloadedStrings #-}
-{- Typeclasses for conversion to/from XHTML
+{- Helper functions for convertion to/from XHTML
    Pedro Vasconcelos, 2013
 -}
 module XHTML where
 
-import qualified Data.ByteString as B
+import qualified Data.ByteString.Char8 as B
 
 import           Data.Char
 import           Data.Text (Text)
 import qualified Data.Text             as T
 
 import           Text.XmlHtml 
+import           Blaze.ByteString.Builder
 
 import           Text.Parsec
+import           Text.Parsec.Pos
 
-class ToXHTML a where
-  toDocument :: a -> Document
-  
-class FromXHTML a where
-  fromDocument :: Document -> Maybe a
-  
-                 
+
 -- constructors for HTML and XML documents
 htmlDocument :: [Node] -> Document
 htmlDocument ns 
@@ -39,15 +35,17 @@ type XMLReader a = Parsec [Node] () a
 -- | apply a reader inside a tagged element
 -- ignores leading whitespace
 tagged :: Text -> XMLReader a -> XMLReader a
-tagged tag reader = do 
-  n <- satisfyNode (\n -> tagName n==Just tag) <?> "<"++ T.unpack tag ++ ">"
-  whitespace 
-  case parse reader "n/a" (childNodes n) of
-    Left msg -> fail (show msg)
-    Right result -> return result
+tagged tag reader = 
+  do --pos <- getPosition 
+     n <- satisfyNode (\n -> tagName n==Just tag) <?> "<"++ T.unpack tag ++ ">"
+     whitespace
+     case parse reader (T.unpack tag) (childNodes n) of
+       Left msg -> fail (show msg)
+       Right result -> return result
 
+    
 
--- | consume all text nodes, ignoring others
+-- | consume text nodes, returning all text content
 allText :: XMLReader Text
 allText = do ns <- many (satisfyNode isTextNode)
              return (T.concat $ map nodeText ns)
@@ -55,28 +53,46 @@ allText = do ns <- many (satisfyNode isTextNode)
 
 -- | consume all remaining nodes
 nodes :: XMLReader [Node]
-nodes = many anyToken
+nodes = many (satisfyNode (\_ -> True))
 
 
--- | parser that consumes whitespace nodes
+-- | parser that consumes `whitespace'
 -- i.e. empty text and comments
 whitespace :: XMLReader ()
-whitespace = many (satisfyNode white) >> return ()
-  where white (TextNode t) = T.all isSpace t
-        white (Comment _ ) = True
-        white _            = False
+whitespace = many (satisfyNode isBlankNode) >> return ()
         
+-- |  check if a node consist only with whitespace
+isBlankNode :: Node -> Bool
+isBlankNode (TextNode t) = T.all isSpace t
+isBlankNode (Comment _)  = True
+isBlankNode _            = False
+
         
 satisfyNode :: (Node -> Bool) -> XMLReader Node        
 satisfyNode f = tokenPrim showTok nextPos testTok
-  where showTok = show 
-        testTok x = if f x then Just x else Nothing
-        nextPos pos _ _ = pos  -- don't care about source position
-        
+  where testTok x = if f x then Just x else Nothing
+        nextPos pos n _ = updatePosString pos (nodeToString n)
 
--- | empty document        
-empty :: XMLReader ()        
-empty = eof
+-- | render a node to a string
+nodeToString :: Node -> String
+nodeToString (TextNode t) = T.unpack t
+nodeToString (Comment t)  = T.unpack t
+nodeToString n            = B.unpack $ toByteString $ renderHtmlFragment UTF8 [n]
+
+
+showTok :: Node -> String
+showTok (TextNode t)      = "text " ++ T.unpack t
+showTok (Comment t)       = "comment " ++ T.unpack t
+showTok (Element tag _ _) = "<" ++ T.unpack tag ++ ">"
+
+
+-- | no more nodes  
+empty :: XMLReader ()
+-- empty = eof
+empty = notFollowedBy (fmap showTok anyNode) <?> "end"
+  where
+    anyNode = tokenPrim showTok (\pos _ _ -> pos) Just 
+
 
 -- | Read an HTML document from a file
 -- throws an exception if parsing fails

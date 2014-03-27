@@ -22,7 +22,9 @@ import           Data.Text(Text)
 import qualified Data.Text as T
 import qualified Data.Text.IO as T
 import qualified Data.ByteString.Lazy as LB       -- for XML serialization
+import           Text.XmlHtml(Document)
 import qualified Text.XmlHtml as X
+
 import           Text.Regex
 import           Control.Exception
 import           XHTML
@@ -66,6 +68,7 @@ accepted :: Report -> Bool
 accepted r = reportStatus r == Accepted 
 
 
+{-
 -- | convertion to/from XHTML
 instance ToXHTML Report where
   toDocument Report{..} = htmlDocument [status, stdout, stderr]
@@ -74,7 +77,7 @@ instance ToXHTML Report where
           stdout = X.Element "stdout" [] [X.TextNode reportStdout]
           stderr = X.Element "stderr" [] [X.TextNode reportStderr]
           
-
+-}
 
 -- | XML reader for a report
 reportReader :: XMLReader Report
@@ -83,6 +86,16 @@ reportReader = do
   stdout <- tagged "stdout" allText
   stderr <- tagged "stderr" allText
   return (Report status stdout stderr)
+  
+reportToDocument :: Report -> Document
+reportToDocument Report{..} = htmlDocument [status, stdout, stderr]
+    where status = X.Element "status" [] 
+                    [X.TextNode (T.pack $ show reportStatus)]
+          stdout = X.Element "stdout" [] [X.TextNode reportStdout]
+          stderr = X.Element "stderr" [] [X.TextNode reportStderr]
+          
+
+  
                    
 
 statusReader :: XMLReader Status
@@ -177,7 +190,7 @@ getSubmitReport' sf uid prob sid =
           let _ = e :: IOException
           (_, stdout, stderr) <- runTests sf tst py
           let r = makeReport (acceptable t prob) stdout stderr
-          LB.writeFile out (toLazyByteString $ X.render $ toDocument r)
+          LB.writeFile out (toLazyByteString $ X.render $ reportToDocument r)
           return r)
     return (Submission {submitID=sid, submitText=txt, submitTime=t}, report)
             

@@ -71,9 +71,8 @@ newProblem pid = Problem { probID    = pid
 -- problem parser; top-level wrapper function
 problemReader :: PID -> XMLReader (Problem LocalTime)
 problemReader pid = 
-  do whitespace
+  do whitespace 
      p <- problemReader' (newProblem pid)
-     whitespace
      empty
      return p
         
