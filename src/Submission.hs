@@ -82,11 +82,17 @@ instance ToXHTML Report where
 -- | XML reader for a report
 reportReader :: XMLReader Report
 reportReader = do 
-  status <- tagged "status" statusReader
-  stdout <- tagged "stdout" allText
-  stderr <- tagged "stderr" allText
-  return (Report status stdout stderr)
+  status <- statusReader
+  stdout <- element "stdout" 
+  stderr <- element "stderr" 
+  return (Report status (X.nodeText stdout) (X.nodeText stderr))
   
+statusReader :: XMLReader Status
+statusReader = do n <- element "status" 
+                  case reads (T.unpack $ X.nodeText n) of
+                    [] -> fail "statusReader: no parse"
+                    ((s, _):_) -> return s
+
 reportToDocument :: Report -> Document
 reportToDocument Report{..} = htmlDocument [status, stdout, stderr]
     where status = X.Element "status" [] 
@@ -95,14 +101,6 @@ reportToDocument Report{..} = htmlDocument [status, stdout, stderr]
           stderr = X.Element "stderr" [] [X.TextNode reportStderr]
           
 
-  
-                   
-
-statusReader :: XMLReader Status
-statusReader = do t <- allText
-                  case reads (T.unpack t) of
-                    [] -> fail "statusReader: no parse"
-                    ((s, _):_) -> return s
 
 
 -- doctest file for a problem

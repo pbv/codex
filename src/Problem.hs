@@ -70,31 +70,39 @@ newProblem pid = Problem { probID    = pid
 
 -- problem parser; top-level wrapper function
 problemReader :: PID -> XMLReader (Problem LocalTime)
-problemReader pid = 
-  do whitespace 
-     p <- problemReader' (newProblem pid)
-     empty
-     return p
-        
--- worker function
-problemReader' :: Problem LocalTime -> XMLReader (Problem LocalTime)
-problemReader' p 
-  = do title <- tagged "problem" allText
-       problemReader' p {probTitle=title}
-  <|> do descr <- tagged "description" nodes
-         problemReader' p {probDescr=descr}
-  <|> do text <- tagged "submitText" allText
-         problemReader' p {probSubmit=text}
-  <|> do t <- tagged "startTime" localTime
-         problemReader' p {probStart=Just t}
-  <|> do t <- tagged "endTime" localTime
-         problemReader' p {probEnd=Just t}
-  <|> do tagged "exam" empty
-         problemReader' p {probExam=True}
-  <|> return p
+problemReader pid 
+  = do blankNodes; p<- problemElems (newProblem pid);  endDoc
+       return p
+
+-- | parse problem elements (worker function)
+problemElems :: Problem LocalTime -> XMLReader (Problem LocalTime)
+problemElems p  
+  =  do title <- element "problem" 
+        continue p{probTitle=X.nodeText title}
+     <|> do descr <- element "description" 
+            continue p{probDescr=X.childNodes descr}
+     <|> do text <- element "submitText" 
+            continue p{probSubmit=X.nodeText text}
+     <|> do t <- localTime "startTime" 
+            continue p{probStart=Just t}
+     <|> do t <- localTime "endTime"
+            continue p{probEnd=Just t}
+     <|> do element "exam" 
+            continue p{probExam=True}
+     <|> return p
+  where continue p = do blankNodes; problemElems p  
   
 
+localTime :: Text -> XMLReader LocalTime
+localTime tag = do
+  n <- element tag
+  let txt = T.unpack $ X.nodeText n
+  let opt = msum [parseTime defaultTimeLocale fmt txt | fmt<-dateFormats]
+  case opt of
+    Nothing -> fail ("invalid time format for " ++ T.unpack tag)
+    Just t -> return t
 
+{-
 -- read a local time
 localTime :: XMLReader LocalTime
 localTime = do txt <- allText 
@@ -103,7 +111,7 @@ localTime = do txt <- allText
                case mb of
                  Nothing -> fail "localTime: no parse"
                  Just t -> return t
-
+-}
 dateFormats :: [String]
 dateFormats = ["%H:%M %d/%m/%Y", "%d/%m/%Y", "%c"]
 
