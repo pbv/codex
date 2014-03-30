@@ -1,5 +1,8 @@
 {-# LANGUAGE RecordWildCards #-}
-module LdapAuth (ldapAuth, userName) where
+module LdapAuth 
+       (ldapAuth, 
+        userName
+       ) where
 
 import           Data.ByteString.UTF8 (ByteString)
 import qualified Data.ByteString.UTF8 as B
@@ -64,7 +67,7 @@ ldapAuth' r LdapConf{..} user passwd
                     either (const $ fail "no login") return r
   where 
         dns = ["uid=" ++ B.toString user ++ "," ++ base | base<-ldapBases]
-        login = T.pack $ B.toString user
+        login = T.pack $ B.toString user 
         newUser time attrs = 
           defAuthUser { userLogin = login'
                       , userPassword = Nothing
@@ -74,7 +77,8 @@ ldapAuth' r LdapConf{..} user passwd
                                                | (k,v:_)<-attrs, keepAttrs k]
                       }  
           -- lookup cannonical user login
-          where login' = maybe login T.pack $ lookup "uid" attrs >>= listToMaybe
+          where login' = maybe login T.pack $ 
+                         (lookup "uid" attrs >>= listToMaybe)
 
           
 

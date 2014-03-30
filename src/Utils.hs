@@ -43,8 +43,8 @@ import LdapAuth
 
 
 -- | run an IO action under mutual exclusion from other threads
-liftMutexIO :: IO a -> AppHandler a
-liftMutexIO action 
+mutexIO :: IO a -> AppHandler a
+mutexIO action 
   = do mvar<-gets appLock; liftIO $ withMVar mvar $ \_ -> action
 
 {-
@@ -119,16 +119,16 @@ incrCounter name
 -- | Get current logged in user; fail with unauthorized error if missing
 getUser :: AppHandler UID
 getUser = do 
-  mb <- with auth currentUser
-  case mb of
+  opt <- with auth currentUser
+  case opt of
     Nothing -> unauthorized
     Just au -> return (UID . B.fromString $ T.unpack $ userLogin au)
 
 
 getFullName :: AppHandler Text
 getFullName = do 
-  mb <- with auth currentUser
-  case mb of 
+  opt <- with auth currentUser
+  case opt of 
     Nothing -> unauthorized
     Just au -> return (userName au)
 
@@ -137,8 +137,8 @@ getFullName = do
 -- | Get a required parameter; fails if missing
 getRequiredParam :: ByteString -> AppHandler ByteString    
 getRequiredParam p = do 
-  mv <- getParam p
-  case mv of 
+  opt <- getParam p
+  case opt of 
     Nothing -> badRequest
     Just v -> return v
 
@@ -153,7 +153,8 @@ notFound = render "_notfound" >> finishError 404 "Not found"
 
 internalError :: SomeException -> AppHandler a
 internalError e
-  = do renderWithSplices  "_internalerror" ("errorMsg" ## I.textSplice (T.pack $ show e))
+  = do renderWithSplices  "_internalerror" 
+             ("errorMsg" ## I.textSplice (T.pack $ show e))
        finishError 500 "Internal Server Error"
 
 

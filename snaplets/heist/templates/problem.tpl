@@ -1,9 +1,10 @@
 <apply template="base">
-<h1><problem/>
-   <ifAccepted><img src="/icons/24x24/accepted.png" alt="Accepted"/></ifAccepted>
+<h1><problem/><ifAccepted><img src="/icons/24x24/accepted.png" alt="Accepted"/></ifAccepted>
 </h1>
 <description/>
-<p>Tempo disponível: <em><timeLeft/></em></p>
+<ifAcceptable>
+  <p>Tempo disponível: <em><timeLeft/></em></p>
+</ifAcceptable>
 
 <ifSubmissions>
 <h2>Submissões anteriores</h2>

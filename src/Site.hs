@@ -61,12 +61,13 @@ type AppSplices = Splices (I.Splice AppHandler)
 ------------------------------------------------------------------------------
 -- | Handle login requests 
 handleLogin :: AppHandler ()
-handleLogin = method GET (with auth $ handleLoginForm Nothing) <|>
-              method POST (do { user <- getRequiredParam "login"
-                              ; passwd <- getRequiredParam "password"
-                              ; ldapconf <- getLdapConf
-                              ; with auth $ handleLoginSubmit ldapconf user passwd
-                              })
+handleLogin 
+  = method GET (with auth $ handleLoginForm Nothing) <|>
+    method POST (do { user <- getRequiredParam "login"
+                    ; passwd <- getRequiredParam "password"
+                    ; ldapconf <- getLdapConf
+                    ; with auth $ handleLoginSubmit ldapconf user passwd
+                    })
 
 
 -- | Render login form
@@ -89,8 +90,8 @@ handleLoginSubmit =
 -}
 
 -- | Handle login submit using LDAP authentication
-handleLoginSubmit :: LdapConf -> ByteString -> ByteString 
-                     -> Handler App (AuthManager App) ()
+handleLoginSubmit :: 
+  LdapConf -> ByteString -> ByteString -> Handler App (AuthManager App) ()
 handleLoginSubmit ldapConf user passwd = do
   optAuth <- withBackend (\r -> liftIO $ ldapAuth r ldapConf user passwd)
   case optAuth of 
@@ -136,48 +137,49 @@ handleProblem = method GET $ do
   prob <- liftIO $ getProblem pid
   -- check if problem is available and deny request if so
   t <- liftIO getCurrentTime
-  when (not $ visible t prob) badRequest
-  -- otherwise: show problem submissions
-  subreps <- getSubmitReports uid prob 
-  renderWithSplices "problem" $ do submissionsSplice subreps 
-                                   pidSplice pid 
-                                   problemSplices prob 
-                                   numberSplices (length subreps) 
-                                   acceptedSplices (map (reportStatus.snd) subreps) 
+  when (not $ isVisible t prob) badRequest
+  -- otherwise: get all submission reports
+  subs <- getReports uid prob 
+  renderWithSplices "problem" $ 
+    do problemSplices prob 
+       numberSplices (length subs) 
+       acceptedSplices (any isAccepted subs) 
+       submissionsSplice subs 
 
 
-pidSplice :: PID -> AppSplices 
-pidSplice pid = "problemid" ## I.textSplice (T.pack $ show pid)
+-- pidSplice :: PID -> AppSplices 
+-- pidSplice pid = "problemid" ## I.textSplice (T.pack $ show pid)
 
-sidSplice :: SID -> AppSplices
-sidSplice sid = "submitid" ## I.textSplice (T.pack $ show sid)
+-- sidSplice :: SID -> AppSplices
+-- sidSplice sid = "submitid" ## I.textSplice (T.pack $ show sid)
 
 
 problemSplices :: Problem UTCTime -> AppSplices
 problemSplices p = do
+  "problemid" ## I.textSplice (T.pack $ show $ probID p)
   "problem" ## I.textSplice (probTitle p)
   "description" ## return (probDescr p)
   "submitText" ## I.textSplice (probSubmit p)
   "startTime" ##  maybe (return []) timeSplice (probStart p)
   "endTime" ##  maybe (return []) timeSplice (probEnd p)
-  "ifOpen" ## do t <- liftIO getCurrentTime
-                 ifISplice (inside t (probStart p) (probEnd p))
-  "ifBefore" ## do t <- liftIO getCurrentTime
-                   ifISplice (fmap (t<) (probStart p) == Just True)
-  "ifClosed" ## do t <- liftIO getCurrentTime
-                   ifISplice (fmap (t>) (probEnd p) == Just True)
+  "ifAcceptable" ## do t <- liftIO getCurrentTime
+                       ifISplice (isAcceptable t p)
+  "ifEarly" ## do t<-liftIO getCurrentTime; ifISplice (isEarly t p)
+  "ifLate" ## do t<-liftIO getCurrentTime; ifISplice (isLate t p)
   "ifLimited" ## ifISplice (isJust $ probEnd p)
   "timeLeft"  ## case probEnd p of 
     Nothing -> I.textSplice "N/A"
     Just t' -> do t <- liftIO getCurrentTime
                   I.textSplice $ T.pack $ formatNominalDiffTime $ diffUTCTime t' t
-  where
-    -- convert UTC time to local time zone
-    timeSplice t = do tz <- liftIO getCurrentTimeZone
-                      I.textSplice $ T.pack $ 
-                        formatTime defaultTimeLocale "%c" $ 
-                        utcToZonedTime tz t
 
+    
+-- convert UTC time to local time zone
+timeSplice :: UTCTime -> I.Splice AppHandler
+timeSplice t = do tz <- liftIO getCurrentTimeZone
+                  I.textSplice $ T.pack $ 
+                    formatTime defaultTimeLocale "%c" $ 
+                    utcToZonedTime tz t
+    
 
 -- format a time difference
 formatNominalDiffTime :: NominalDiffTime -> String
@@ -194,19 +196,21 @@ formatNominalDiffTime secs
         
 
 
-submitSplice :: Submission -> AppSplices
-submitSplice s = "submitText" ## I.textSplice (submitText s)
-
-submissionsSplice :: [(Submission,Report)] -> AppSplices
+submitSplices :: Submission -> AppSplices
+submitSplices s = do 
+  "submitid"   ## I.textSplice (T.pack $ show $ submitID s)
+  "submitText" ## I.textSplice (submitText s)
+  "submitTime" ## timeSplice  (submitTime s)
+  maybe (return ()) reportSplices (submitReport s)
+     
+submissionsSplice :: [Submission] -> AppSplices
 submissionsSplice lst 
-  = "submissions" ## I.mapSplices (I.runChildrenWith . splices) lst
-  where splices (s,r) = do sidSplice (submitID s)
-                           reportSplice r
+  = "submissions" ## I.mapSplices (I.runChildrenWith . submitSplices) lst
 
 
 -- | splices for a submission report
-reportSplice :: Report -> AppSplices
-reportSplice r =  do 
+reportSplices :: Report -> AppSplices
+reportSplices r =  do 
   "status" ## I.textSplice (T.pack $ show $ reportStatus r)
   "stdout" ## I.textSplice (reportStdout r)
   "stderr" ## I.textSplice (reportStderr r)
@@ -216,30 +220,28 @@ reportSplice r =  do
   where s = reportStatus r
 
 
-acceptedSplices :: [Status] -> AppSplices
-acceptedSplices statuses 
-  = do "ifAccepted" ## ifISplice acpt                                      
+acceptedSplices :: Bool -> AppSplices
+acceptedSplices acpt
+  = do "ifAccepted" ## ifISplice acpt
        "ifNotAccepted" ## ifISplice (not acpt)
-  where acpt = any (==Accepted) statuses
-
-
 
 
 handleProblemList :: AppHandler ()
 handleProblemList = method GET $ do
   uid <- getUser
-  -- filter currently available problems
-  t <- liftIO getCurrentTime
-  probs <- filter (visible t) <$> liftIO getProblems
-  subrepss <- mapM (getSubmitReports uid) probs
+  t <- liftIO getCurrentTime  
+  -- restrict list to currently visible problems
+  probs <- filter (isVisible t) <$> liftIO getProblems
+  -- get all submission reports
+  subss <- mapM (getReports uid) probs
   renderWithSplices "problemlist" $ do
-    "problemList" ##  I.mapSplices (I.runChildrenWith . splices) (zip probs subrepss)
-  where splices (prob,subreps) 
-          = do pidSplice (probID prob) 
-               problemSplices prob 
-               acceptedSplices (map (reportStatus.snd) subreps) 
-               numberSplices (length subreps)
-            
+    "problemList" ##  
+      I.mapSplices (I.runChildrenWith . splices) (zip probs subss)
+  where splices (prob,subs) 
+          = do problemSplices prob 
+               numberSplices (length subs)
+               acceptedSplices (any isAccepted subs) 
+               
 
 -- splices concerning the number of submissions
 numberSplices :: Int -> AppSplices
@@ -255,12 +257,10 @@ handleGetSubmission = method GET $ do
   pid <- PID <$> getRequiredParam "pid"
   sid <- read . B.toString <$> getRequiredParam "sid"
   prob <- liftIO $ getProblem pid
-  (sub,rep) <- getSubmitReport uid prob sid
-  renderWithSplices "report" $ do pidSplice pid 
-                                  sidSplice sid 
-                                  problemSplices prob  
-                                  submitSplice sub 
-                                  reportSplice rep
+  sub <- getReport uid prob sid
+  renderWithSplices "report" $ do problemSplices prob  
+                                  submitSplices sub 
+
 
 handlePostSubmission = method POST $ do
   uid <- getUser
@@ -268,13 +268,10 @@ handlePostSubmission = method POST $ do
   prob <- liftIO $ getProblem pid
   incrCounter "submissions"
   code <- T.decodeUtf8With T.ignore <$> getRequiredParam "code"
-  sid <- liftMutexIO $ newSubmitID uid pid code
-  (sub,report) <- getSubmitReport uid prob sid
-  renderWithSplices "report" $ do pidSplice pid  
-                                  sidSplice sid  
-                                  problemSplices prob 
-                                  submitSplice sub 
-                                  reportSplice report 
+  sid <- postSubmission uid pid code
+  sub <- getReport uid prob sid
+  renderWithSplices "report" $ do problemSplices prob 
+                                  submitSplices sub 
 
 
 {-
@@ -313,14 +310,16 @@ handleFinalReport :: AppHandler ()
 handleFinalReport = method GET $ do
     uid <- getUser  
     probs <- liftIO getProblems
-    subs <- sequence [getFinalReport uid p | p<-probs]
-    let psubs = [(p,s,r) | (p, Just (s,r))<-zip probs subs]
+    subs <- sequence [do subs<-getReports uid prob 
+                         return (lastSubmission subs)
+                     | prob<-probs]
+    let psubs = [(p,s) | (p, Just s)<-zip probs subs]
     renderWithSplices "finalrep" $
       "problemList" ## I.mapSplices (I.runChildrenWith . splices) psubs
-  where splices (prob,sub,rep) = do problemSplices prob 
-                                    acceptedSplices [reportStatus rep] 
-                                    reportSplice rep 
-                                    submitSplice sub
+  where splices (prob,sub) = do problemSplices prob 
+                                -- acceptedSplices (accepted sub)        
+                                submitSplices sub
+
 
 
 

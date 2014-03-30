@@ -2,7 +2,10 @@
 {-
    Produce printouts for exams, etc.
 -}
-module Printout(handlePrintout) where
+module Printout
+       (handlePrintout, 
+        lastSubmission
+       ) where
 import           Prelude hiding (catch)
 import           System.FilePath
 import           System.Directory
@@ -32,19 +35,29 @@ import           Submission
 
 
 
--- | handle printout when a user logs out
+-- | handle printout (before ending session)
 handlePrintout :: UID -> AppHandler ()
 handlePrintout uid = do 
   printout <- getPrintout  -- printout configuration
   fullname <- getFullName
-  probs <- liftIO getProblems
-  subreps <- sequence [getFinalReport uid prob | prob<-probs]
-  let psubs = [(p,s,r) | (p, Just (s,r))<-zip probs subreps]
+  probs <- liftIO getProblems  -- all problems
+  subs <- sequence [do subs<-getReports uid prob 
+                       return (lastSubmission subs)
+                   | prob<-probs]
+  let psubs = [(p,s) | (p, Just s)<-zip probs subs]
   liftIO $ makePrintout printout uid fullname psubs
 
-
-makePrintout :: Printout -> UID -> Text 
-                -> [(Problem UTCTime, Submission, Report)] 
+-- determine the final ("best") submission
+-- 1) the last accepted submission; or
+-- 2) the last overall submission (if none was accepted)
+lastSubmission :: [Submission] -> Maybe Submission
+lastSubmission subs = listToMaybe $ dropWhile (not.isAccepted) subs' ++ subs'
+  where subs' = reverse subs
+        
+makePrintout :: Printout 
+                -> UID 
+                -> Text 
+                -> [(Problem UTCTime, Submission)] 
                 -> IO () 
 makePrintout Printout{..} uid name psubs = do
   zonetime <- getCurrentTime >>= utcToLocalZonedTime
@@ -77,14 +90,14 @@ genLaTeX :: UID        -- user ID
             -> Text    -- header
             -> Text    -- full name
             -> Text    -- current time
-            -> [(Problem UTCTime, Submission, Report)] -- problems and final submission
-            -> Text                                    -- LaTeX report
+            -> [(Problem UTCTime, Submission)] -- problems and final submission
+            -> Text                            -- LaTeX report
 genLaTeX uid header name time psubs
   = T.concat (preamble uid header name time ++
               concatMap submission psubs ++
               closing)
 
-submission (prob,sub,rep) =
+submission (prob,sub) =
   ["\\section*{", probTitle prob, "}\n",
    "\\textbf{Resultado:} ", result, "\n",
    "\\begin{Verbatim}[frame=lines,numbers=left]\n",
@@ -96,7 +109,8 @@ submission (prob,sub,rep) =
     T.strip (reportStdout rep), "\n",
     T.strip (reportStderr rep), "\n",
     "\\end{Verbatim}\n" ]
-  where status = reportStatus rep
+  where rep = fromJust (submitReport sub)
+        status = reportStatus rep
         ok = status == Accepted || status == Overdue
         result
           | status == Accepted = "Passou todos os testes."
@@ -130,4 +144,3 @@ preamble uid header name time =
 closing = ["\\end{document}\n"]
 
 
-             

@@ -3,7 +3,16 @@
   Data types and methods for storing and evaluating submissions 
 -}
 
-module Submission where
+module Submission 
+       ( Submission(..),  
+         Report(..),
+         Status(..),
+         isAccepted,        -- * check if submission is accepted
+         listSubmissions,  -- * all submissions IDs for a problem
+         postSubmission,   -- * write a new submissions
+         getReport,    -- * fetch one submssion
+         getReports   -- * fetch all submissions
+       ) where
 
 import           Prelude hiding (catch)
 import           System.FilePath
@@ -15,13 +24,13 @@ import           Data.Time.Calendar
 import           System.Time
 import           System.Exit (ExitCode)
 import           Data.Maybe
-import           Data.Map(Map)
-import qualified Data.Map as Map
+--import           Data.Map(Map)
+--import qualified Data.Map as Map
 import           Data.List (sort)
 import           Data.Text(Text) 
 import qualified Data.Text as T
 import qualified Data.Text.IO as T
-import qualified Data.ByteString.Lazy as LB       -- for XML serialization
+import qualified Data.ByteString.Lazy as LB -- for XML serialization
 import           Text.XmlHtml(Document)
 import qualified Text.XmlHtml as X
 
@@ -39,9 +48,10 @@ import           Problem
 
 -- | submission to a programming problem
 data Submission = Submission {
-  submitID   :: SID,     -- unique id (derived from filepath)
-  submitText :: Text,    -- submission text (program code)
-  submitTime :: UTCTime  -- submission time
+  submitID   :: SID,           -- unique id (derived from filepath)
+  submitText :: Text,          -- submission text (program code)
+  submitTime :: UTCTime,       -- submission time
+  submitReport :: Maybe Report -- optional report 
   } deriving Show
 
 -- | submission report
@@ -62,10 +72,10 @@ data Status = Accepted          -- passed all tests, in time
             | MiscError
               deriving (Eq, Ord, Show, Read)
 
-
--- check if a submission was accepted
-accepted :: Report -> Bool
-accepted r = reportStatus r == Accepted 
+-- check if a submission is accepted
+isAccepted :: Submission -> Bool
+isAccepted Submission{..} 
+  = maybe False ((==Accepted).reportStatus) submitReport
 
 
 {-
@@ -79,76 +89,45 @@ instance ToXHTML Report where
           
 -}
 
--- | XML reader for a report
-reportReader :: XMLReader Report
-reportReader = do 
-  status <- statusReader
-  stdout <- element "stdout" 
-  stderr <- element "stderr" 
-  return (Report status (X.nodeText stdout) (X.nodeText stderr))
-  
-statusReader :: XMLReader Status
-statusReader = do n <- element "status" 
-                  case reads (T.unpack $ X.nodeText n) of
-                    [] -> fail "statusReader: no parse"
-                    ((s, _):_) -> return s
-
-reportToDocument :: Report -> Document
-reportToDocument Report{..} = htmlDocument [status, stdout, stderr]
-    where status = X.Element "status" [] 
-                    [X.TextNode (T.pack $ show reportStatus)]
-          stdout = X.Element "stdout" [] [X.TextNode reportStdout]
-          stderr = X.Element "stderr" [] [X.TextNode reportStderr]
-          
 
 
-
--- doctest file for a problem
-doctestFile ::  PID -> FilePath
-doctestFile pid = "problems" </> show pid <.> "tst"
-
--- submission directory associated for a user and problem
-submissionDir :: UID -> PID -> FilePath
-submissionDir uid pid = "submissions" </> show uid </> show pid
-
-
-
--- | Create a new submission 
--- this should be locked using an MVar to ensure thread safety
-newSubmitID :: UID -> PID -> Text -> IO SID
-newSubmitID uid pid text = 
-  let dir = submissionDir uid pid
-  in do
-    sids <- allSubmitIDs uid pid 
+-- | Post a new submission 
+-- use mutexIO to ensure thread safety
+postSubmission :: UID -> PID -> Text -> AppHandler SID
+postSubmission uid pid text = 
+  let dir = submissionDir uid pid 
+  in mutexIO $ do
+    sids <- listSubmissions' uid pid 
     let sid = head [SID n | n <- [1..], SID n`notElem`sids]
     T.writeFile (dir </> show sid <.> "py") text
     return sid
 
 
--- | fetch all submission IDs for a user and problem
--- in ascending order of submission time
-allSubmitIDs :: UID -> PID -> IO [SID]
-allSubmitIDs uid pid 
-  = let dir = submissionDir uid pid
-    in do 
-      createDirectoryIfMissing True dir
-      files <- getDirectoryContents dir
-      return (sort $ ids files)
-  where ids files
-          = [sid | f<-files, snd (splitExtension f)==".py", 
-             (sid, _)<-reads (dropExtension f) ]
 
-
+-- | list all submission IDs in ascending order for a user and problem
+listSubmissions ::  UID -> PID -> AppHandler [SID]
+listSubmissions uid pid = liftIO (listSubmissions' uid pid)
+    
+listSubmissions' :: UID -> PID -> IO [SID]
+listSubmissions' uid pid 
+  = do createDirectoryIfMissing True dir
+       files <- getDirectoryContents dir
+       return (sort $ ids files)
+  where dir = submissionDir uid pid
+        ids files = [sid | f<-files, 
+                     snd (splitExtension f)==".py", 
+                     (sid, _)<-reads (dropExtension f)]
+        
+{-
 -- | get the final submission report:
 -- the last accepted submission 
 -- or the last submission (if none was accepted)
-
 getFinalReport ::  UID -> Problem UTCTime -> AppHandler (Maybe (Submission,Report))
 getFinalReport uid prob 
   = do lst <- getSubmitReports uid prob 
        let lst' = reverse lst
        return $ listToMaybe $ dropWhile (not.accepted.snd) lst' ++ lst'
-
+-}
 
 {-
 finalSubmitReport :: [(Submission,Report)] -> Maybe (Submission,Report)
@@ -156,52 +135,59 @@ finalSubmitReport lst = listToMaybe (dropWhile (not.accepted.snd) lst' ++ lst')
   where lst' = reverse lst   -- process in reverse submission order
 -}
 
--- | get all submissions paired with reports in chronological order
-getSubmitReports ::  UID -> Problem UTCTime -> AppHandler [(Submission,Report)]
-getSubmitReports uid prob
+{-
+-- | get all submissions with reports in chronological order
+getReports ::  UID -> Problem UTCTime -> AppHandler [Submission]
+getReports uid prob
   = do sf <- getSafeExec
-       liftIO $ do sids <- allSubmitIDs uid (probID prob)
-                   mapM (getSubmitReport' sf uid prob) sids
+       liftIO $ do sids <- getSubmissions uid (probID prob)
+                   mapM (getReport' sf uid prob) sids
+-}            
+
+getReports :: UID -> Problem UTCTime -> AppHandler [Submission]
+getReports uid prob 
+  = listSubmissions uid (probID prob) >>= mapM (getReport uid prob) 
+
+-- | Get a submission together with report
+getReport :: UID -> Problem UTCTime -> SID -> AppHandler Submission
+getReport uid prob sid = do sf<-getSafeExec; liftIO (getReport' sf)
+  where
+    pid = probID prob
+    dir = submissionDir uid pid
+    tst = doctestFile pid
+    py = dir </> show sid <.> "py"
+    out = dir </> show sid <.> "out"
+    -- try reading the report file; run python tests if not available
+    getReport' sf = do
+      txt <- T.readFile py
+      t <- getUTCModificationTime py
+      report <- catch (readFromHTMLFile out reportReader) (\e -> do
+        -- ignore exception and generate report
+        let _ = e :: IOException
+        (_, stdout, stderr) <- runTests sf tst py
+        let r = makeReport (isAcceptable t prob) stdout stderr
+        LB.writeFile out (toLazyByteString $ X.render $ reportToDoc r)
+        return r)
+      return Submission {submitID=sid, 
+                         submitText=txt, 
+                         submitTime=t, 
+                         submitReport=Just report}
             
 
-
-getSubmitReport :: UID -> Problem UTCTime -> SID 
-                   -> AppHandler (Submission,Report)
-getSubmitReport uid prob sid 
-  = do sf<-getSafeExec; liftIO (getSubmitReport' sf uid prob sid)
-
--- | get the report for a submission
--- uses the report file if cached; runs python tests if not
-getSubmitReport' :: SafeExec -> UID -> Problem UTCTime -> SID 
-                   -> IO (Submission,Report)
-getSubmitReport' sf uid prob sid =
-  let pid = probID prob
-      dir = submissionDir uid pid
-      tst = doctestFile pid
-      py = dir </> show sid <.> "py"
-      out = dir </> show sid <.> "out"
-  in do 
-    txt <- T.readFile py
-    t <- getUTCModificationTime py
-    report <- catch (readFromHTMLFile out reportReader) 
-      (\e -> do -- ignore exception and generate report
-          let _ = e :: IOException
-          (_, stdout, stderr) <- runTests sf tst py
-          let r = makeReport (acceptable t prob) stdout stderr
-          LB.writeFile out (toLazyByteString $ X.render $ reportToDocument r)
-          return r)
-    return (Submission {submitID=sid, submitText=txt, submitTime=t}, report)
-            
-
--- | an hugly hack to work around old System.Directory 
+-- | quick and dirty hack around return time of old 
+--   System.Directory.getModificationTime
+{-      
 getUTCModificationTime :: FilePath -> IO UTCTime 
-getUTCModificationTime fp = 
-    getModificationTime fp >>= toCalendarTime >>= \t -> return (ctToUTC t)
+getUTCModificationTime fp 
+  = getModificationTime fp >>= toCalendarTime >>= (\t -> return (ctToUTC t))
 
 ctToUTC :: CalendarTime -> UTCTime
 ctToUTC ct = UTCTime day diff 
   where day = fromGregorian (fromIntegral $ ctYear ct) (1+fromEnum (ctMonth ct)) (ctDay ct)
         diff = secondsToDiffTime (fromIntegral $ ctHour ct*3600 + ctMin ct*60 + ctSec ct)
+-}
+
+getUTCModificationTime = getModificationTime
 
 
 -- | run python tests inside a safeexec sandbox
@@ -247,6 +233,7 @@ trim size str
 
 -------------------------------------------------------------------------------
 -- get the status of all user and problems 
+{-
 getAllStatus :: IO (Map UID (Map PID [Status]))
 getAllStatus =  fmap reportSummary readAllStatus
   
@@ -259,8 +246,6 @@ readAllStatus = do top <- readDirectoryWithL readf "submissions"
                                return (reportStatus r)
           | otherwise = ioError $ userError "not a report file"
           where ext = takeExtension file
-
-
 
 -- summary of all submission reports:
 reportSummary :: DirTree Status -> Map UID (Map PID [Status])
@@ -275,4 +260,38 @@ reportUser dir =
                  let pid = read name, 
                  let status = [stat | File _ stat <- dirs']]
   
+-}
   
+-- internal stuff
+-- convertion to/from XML
+
+-- | XML reader for a report
+reportReader :: XMLReader Report
+reportReader = do 
+  status <- statusReader
+  stdout <- element "stdout" 
+  stderr <- element "stderr" 
+  return (Report status (X.nodeText stdout) (X.nodeText stderr))
+  
+statusReader :: XMLReader Status
+statusReader = do n <- element "status" 
+                  case reads (T.unpack $ X.nodeText n) of
+                    [] -> fail "statusReader: no parse"
+                    ((s, _):_) -> return s
+
+-- convert a report into a document
+reportToDoc :: Report -> Document
+reportToDoc Report{..} = htmlDocument [status, stdout, stderr]
+    where status = X.Element "status" [] 
+                    [X.TextNode (T.pack $ show reportStatus)]
+          stdout = X.Element "stdout" [] [X.TextNode reportStdout]
+          stderr = X.Element "stderr" [] [X.TextNode reportStderr]
+          
+
+-- doctest file for a problem
+doctestFile ::  PID -> FilePath
+doctestFile pid = "problems" </> show pid <.> "tst"
+
+-- submission directory associated for a user and problem
+submissionDir :: UID -> PID -> FilePath
+submissionDir uid pid = "submissions" </> show uid </> show pid

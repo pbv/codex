@@ -1,9 +1,18 @@
 {-# LANGUAGE OverloadedStrings, RecordWildCards #-}
 {-
-  Data types and methods for problems and submissions
+  Data types and methods for problems 
 -}
 
-module Problem where
+module Problem ( 
+  Problem(..),
+  listProblems,  -- * list all problem ids
+  getProblems,   -- * get all problems
+  getProblem,    -- * get a single problem
+  isEarly,       -- * check problem's acceptance dates
+  isLate,
+  isAcceptable,    -- * check if a problem is acceptable
+  isVisible        -- * check if a problem is visible
+  ) where
 
 import           Prelude hiding(catch)
 import           Data.List(sort)
@@ -37,7 +46,7 @@ data Problem t = Problem {
   probSubmit :: Text,           -- optional default submission text
   probStart  :: Maybe t,        -- optional start time
   probEnd    :: Maybe t,        -- optional end time
-  probExam :: Bool              -- visible only during the above interval
+  probExam   :: Bool            -- visible only during the above interval
   } deriving Show
 
 -- Functor instance for applying functions to the time fields
@@ -57,21 +66,21 @@ instance Ord t => Ord (Problem t) where
 
   
 -- an empty problem
-newProblem :: PID -> Problem LocalTime
-newProblem pid = Problem { probID    = pid
-                         , probTitle = T.pack ("Problem " ++ show pid)
-                         , probDescr = []
-                         , probSubmit= ""
-                         , probStart = Nothing
-                         , probEnd   = Nothing
-                         , probExam  = False 
-                         }
+emptyProblem :: PID -> Problem LocalTime
+emptyProblem pid = Problem { probID    = pid
+                           , probTitle = T.pack ("Problem " ++ show pid)
+                           , probDescr = []
+                           , probSubmit= ""
+                           , probStart = Nothing
+                           , probEnd   = Nothing
+                           , probExam  = False 
+                           }
 
 
 -- problem parser; top-level wrapper function
 problemReader :: PID -> XMLReader (Problem LocalTime)
 problemReader pid 
-  = do blankNodes; p<- problemElems (newProblem pid);  endDoc
+  = do blankNodes; p<-problemElems (emptyProblem pid);  endDoc
        return p
 
 -- | parse problem elements (worker function)
@@ -92,7 +101,7 @@ problemElems p
      <|> return p
   where continue p = do blankNodes; problemElems p  
   
-
+-- parse an element wrapping a local time string 
 localTime :: Text -> XMLReader LocalTime
 localTime tag = do
   n <- element tag
@@ -101,6 +110,9 @@ localTime tag = do
   case opt of
     Nothing -> fail ("invalid time format for " ++ T.unpack tag)
     Just t -> return t
+
+dateFormats :: [String]
+dateFormats = ["%H:%M %d/%m/%Y", "%d/%m/%Y", "%c"]
 
 {-
 -- read a local time
@@ -112,23 +124,22 @@ localTime = do txt <- allText
                  Nothing -> fail "localTime: no parse"
                  Just t -> return t
 -}
-dateFormats :: [String]
-dateFormats = ["%H:%M %d/%m/%Y", "%d/%m/%Y", "%c"]
 
 
 
 
 -- get all problem IDs
 -- filter HTML files to get problem IDs
-getProblemIDs :: IO [PID]
-getProblemIDs = do
-  files <- filter ((==".html").snd.splitExtension) <$> getDirectoryContents "problems"
+listProblems :: IO [PID]
+listProblems = do
+  files <- filter ((==".html").snd.splitExtension) <$> 
+           getDirectoryContents "problems"
   return $ map (PID . B.fromString . dropExtension) files
 
 
 -- get all available problems 
 getProblems ::  IO [Problem UTCTime]
-getProblems  = getProblemIDs >>= fmap sort . mapM getProblem 
+getProblems  = listProblems >>= fmap sort . mapM getProblem 
 
 getProblem :: PID -> IO (Problem UTCTime)
 getProblem pid = readProblemFile pid fp
@@ -147,21 +158,24 @@ readProblemFile pid fp
                           return (fmap (localTimeToUTC z) prob)
   
     
--- check if a time is within the problem's acceptance interval 
-acceptable :: UTCTime -> Problem UTCTime -> Bool
-acceptable t p = inside t (probStart p) (probEnd p)
+-- tests for a problem's acceptance interval 
+isEarly, isLate, isAcceptable :: Ord t => t -> Problem t -> Bool  
+isEarly t Problem{..} = ((t<) <$> probStart) == Just True
+isLate t Problem{..} = ((t>) <$> probEnd) == Just True
+isAcceptable t p = not (isEarly t p || isLate t p)
+
 
 -- check if a problem is visible at a given time 
 -- * exam problems are visible only in the acceptance interval
 -- * other problems are always visible
-visible :: UTCTime -> Problem UTCTime -> Bool
-visible t p = not (probExam p) || acceptable t p 
+isVisible :: Ord t => t -> Problem t -> Bool
+isVisible t p@Problem{..} = not probExam || isAcceptable t p 
 
-
+{-
 inside :: UTCTime -> Maybe UTCTime -> Maybe UTCTime -> Bool
 inside t (Just t0) (Just t1) = t0<t && t<t1
 inside t (Just t0) _         = t0<t
 inside t _         (Just t1) = t<t1
 inside _ _        _          = True
-
+-}
 
