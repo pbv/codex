@@ -6,7 +6,8 @@ module Utils where
 
 import           Control.Concurrent.MVar
 import           Control.Monad.State
-import           Data.Text
+import           Data.Text(Text)
+-- import qualified Data.Text
 import           Data.ByteString.UTF8 (ByteString)
 import qualified Data.ByteString.UTF8 as B
 
@@ -19,8 +20,11 @@ import Snap.Snaplet.Heist
 import Snap.Snaplet.Auth
 -- import Snap.Snaplet.Session
 
-import           Heist.SpliceAPI
+import           Heist
+-- import           Heist.SpliceAPI
 import qualified Heist.Interpreted as I
+
+import qualified Text.XmlHtml as X
 
 
 import Data.Configurator
@@ -34,12 +38,11 @@ import Control.Exception (SomeException)
 import System.Remote.Monitoring
 import System.Remote.Counter as Counter
 
-import Paths_pythondo(version)
+-- import Paths_pythondo(version)
 
 import Application
 import Types
 import LdapAuth
-
 
 
 -- | run an IO action under mutual exclusion from other threads
@@ -107,7 +110,7 @@ getPrintout = do
               opts <- lookupDefault [] conf "printouts.options"
               return (Printout enabled header opts)
   where
-    defaultHeader = T.pack ("Pythondo "++show version)
+    defaultHeader = "Pythondo"
 
 -- | increment an EKG counter
 incrCounter :: Text -> AppHandler ()
@@ -165,3 +168,26 @@ finishError code msg = do
   r <- getResponse
   finishWith r
   
+
+
+
+-- | a splice for conditionals with a nested <else>...</else>
+conditionalSplice ::  Bool -> I.Splice AppHandler
+conditionalSplice cond = localParamNode rewrite I.runChildren
+  where rewrite 
+          = if cond then 
+              -- filter out any <else>... </else> node
+               filterChildren (\n -> X.tagName n/=Just "else")  
+            else
+              -- locate first <else>.. </else> child; 
+              -- return empty element if not found
+              \node -> case X.childElementTag "else" node of
+                Just node' -> node'   
+                Nothing -> X.Element "else" [] []
+
+        
+-- | filter children of a node          
+filterChildren :: (X.Node -> Bool) -> X.Node -> X.Node
+filterChildren f (X.Element tag attrs children) 
+  = X.Element tag attrs (filter f children)
+filterChildren _ node = node    

@@ -1,6 +1,7 @@
 {-# LANGUAGE RecordWildCards #-}
 module LdapAuth 
        (ldapAuth, 
+        dummyAuth,
         userName
        ) where
 
@@ -63,8 +64,8 @@ ldapAuth' r LdapConf{..} user passwd
        now <- liftIO getCurrentTime
        let au = newUser now attrs
        MaybeT (lookupByLogin r login) 
-         `mplus` do r <- liftIO (save r au)
-                    either (const $ fail "no login") return r
+         `mplus` do au' <- liftIO (save r au)
+                    either (const $ fail "no login") return au'
   where 
         dns = ["uid=" ++ B.toString user ++ "," ++ base | base<-ldapBases]
         login = T.pack $ B.toString user 
@@ -80,7 +81,6 @@ ldapAuth' r LdapConf{..} user passwd
           where login' = maybe login T.pack $ 
                          (lookup "uid" attrs >>= listToMaybe)
 
-          
 
 -- which LDAP attributes to keep?
 keepAttrs :: String -> Bool
@@ -99,4 +99,21 @@ userName au
     Just (String name) -> name
     _                  -> userLogin au  -- fallback: give the user login
 
+-----------------------------------------------------------
+-- dummy password-less login
+-- for development only!
 
+dummyAuth :: IAuthBackend r => r -> ByteString -> IO (Maybe AuthUser)
+dummyAuth r login
+  = do now <- getCurrentTime
+       let login' = T.pack $ B.toString login
+       let newuser = defAuthUser { userLogin = login'
+                                 , userPassword = Nothing
+                                 , userCreatedAt = Just now
+                                 , userUpdatedAt = Just now
+                                 }
+       opt <- lookupByLogin r login'
+       case opt of 
+         Nothing -> do opt' <- save r newuser
+                       return (either (\_ -> Nothing) Just opt')
+         Just au -> return (Just au)

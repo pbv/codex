@@ -14,7 +14,7 @@ module Problem (
   isVisible        -- * check if a problem is visible
   ) where
 
-import           Prelude hiding(catch)
+-- import           Prelude hiding(catch)
 import           Data.List(sort)
 import           System.Locale(defaultTimeLocale)
 import           Data.Time.Clock
@@ -99,7 +99,7 @@ problemElems p
      <|> do element "exam" 
             continue p{probExam=True}
      <|> return p
-  where continue p = do blankNodes; problemElems p  
+  where continue p' = do blankNodes; problemElems p'
   
 -- parse an element wrapping a local time string 
 localTime :: Text -> XMLReader LocalTime

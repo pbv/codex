@@ -14,14 +14,14 @@ module Submission
          getReports   -- * fetch all submissions
        ) where
 
-import           Prelude hiding (catch)
+-- import           Prelude hiding (catch)
 import           System.FilePath
 import           System.Directory
 import           System.Directory.Tree
 import           System.Process
 import           Data.Time.Clock
-import           Data.Time.Calendar
-import           System.Time
+-- import           Data.Time.Calendar
+-- import           System.Time
 import           System.Exit (ExitCode)
 import           Data.Maybe
 --import           Data.Map(Map)
@@ -160,7 +160,7 @@ getReport uid prob sid = do sf<-getSafeExec; liftIO (getReport' sf)
     -- try reading the report file; run python tests if not available
     getReport' sf = do
       txt <- T.readFile py
-      t <- getUTCModificationTime py
+      t <- getModificationTime py
       report <- catch (readFromHTMLFile out reportReader) (\e -> do
         -- ignore exception and generate report
         let _ = e :: IOException
@@ -173,10 +173,9 @@ getReport uid prob sid = do sf<-getSafeExec; liftIO (getReport' sf)
                          submitTime=t, 
                          submitReport=Just report}
             
-
+{-
 -- | quick and dirty hack around return time of old 
 --   System.Directory.getModificationTime
-{-      
 getUTCModificationTime :: FilePath -> IO UTCTime 
 getUTCModificationTime fp 
   = getModificationTime fp >>= toCalendarTime >>= (\t -> return (ctToUTC t))
@@ -187,7 +186,7 @@ ctToUTC ct = UTCTime day diff
         diff = secondsToDiffTime (fromIntegral $ ctHour ct*3600 + ctMin ct*60 + ctSec ct)
 -}
 
-getUTCModificationTime = getModificationTime
+
 
 
 -- | run python tests inside a safeexec sandbox
@@ -230,37 +229,7 @@ trim size str
   = take (size - length msg) str ++ zipWith (\_ y->y) (drop size str) msg
   where msg = "...\n***Output too long (truncated)***"
 
-
--------------------------------------------------------------------------------
--- get the status of all user and problems 
-{-
-getAllStatus :: IO (Map UID (Map PID [Status]))
-getAllStatus =  fmap reportSummary readAllStatus
-  
--- read all report status into a tree structure
-readAllStatus :: IO (DirTree Status)
-readAllStatus = do top <- readDirectoryWithL readf "submissions"
-                   return (filterDir (not.failed) $ dirTree top)
-  where readf file 
-          | ext == ".out" = do r <- readFromHTMLFile file reportReader
-                               return (reportStatus r)
-          | otherwise = ioError $ userError "not a report file"
-          where ext = takeExtension file
-
--- summary of all submission reports:
-reportSummary :: DirTree Status -> Map UID (Map PID [Status])
-reportSummary dir = 
-  Map.fromList [ (uid, reportUser dir')
-               | dir'<-contents dir, let uid = read (name dir')]
-    
-reportUser :: DirTree Status -> Map PID [Status]
-reportUser dir =
-  Map.fromList [(pid, status) 
-               | Dir name dirs'<-contents dir, 
-                 let pid = read name, 
-                 let status = [stat | File _ stat <- dirs']]
-  
--}
+---------------------------------------------------------------------------
   
 -- internal stuff
 -- convertion to/from XML
@@ -295,3 +264,104 @@ doctestFile pid = "problems" </> show pid <.> "tst"
 -- submission directory associated for a user and problem
 submissionDir :: UID -> PID -> FilePath
 submissionDir uid pid = "submissions" </> show uid </> show pid
+
+
+---------------------------------------------------------------
+-- Submissions Queries
+---------------------------------------------------------------
+-- | a row from the submission database
+data Row = Row { rowUID :: UID, 
+                 rowPID :: PID,
+                 rowSID :: SID,
+                 rowReport :: Report
+               } deriving Show
+           
+type Table = [Row] -- a table is a list of rows
+
+-- | query producing an `a'
+type Query a = Row -> a
+
+(|||) :: Query Bool -> Query Bool -> Query Bool
+q1 ||| q2 = \row -> q1 row || q2 row
+
+(&&&) :: Query Bool -> Query Bool -> Query Bool
+q1 &&& q2 = \row -> q1 row && q2 row
+
+
+rowStatus :: Query Status
+rowStatus =  reportStatus . rowReport
+
+accepted :: Query Bool
+accepted r = rowStatus r == Accepted
+
+overdue :: Query Bool
+overdue r = rowStatus r == Overdue
+
+wrongAnswer :: Query Bool
+wrongAnswer r = rowStatus r == WrongAnswer
+
+runtimeError :: Query Bool
+runtimeError r = rowStatus r == RuntimeError
+
+miscError :: Query Bool
+miscError r = rowStatus r == MiscError
+
+
+select :: Query Bool -> [Row] -> [Row]
+select = filter
+
+project :: Query a -> [Row] -> [a]
+project = map
+
+-------------------------------------------------------------------------------
+-- read the submission database lazily from disk
+-------------------------------------------------------------------------------
+readDB :: IO [Row]
+readDB = do top <- readDirectoryWithL readf "submissions"
+            return (mkRows $ filterDir (not.failed) $ dirTree top)
+  where readf file 
+          | ext == ".out" = readFromHTMLFile file reportReader
+          | otherwise = ioError $ userError "ignored file"
+          where ext = takeExtension file
+
+
+mkRows :: DirTree Report -> [Row]
+mkRows dir = [Row uid pid sid rep 
+             | dir' <- contents dir,
+               let uid = read (name dir'),
+               dir'' <- contents dir',
+               let pid = read (name dir''),
+               File fp rep <- contents dir'',
+               let sid = read (takeBaseName fp)
+             ]
+
+{-
+getAllStatus :: IO (Map UID (Map PID [Status]))
+getAllStatus =  fmap reportSummary readAllStatus
+  
+-- read all report status into a tree structure
+readAllStatus :: IO (DirTree Status)
+readAllStatus = do top <- readDirectoryWithL readf "submissions"
+                   return (filterDir (not.failed) $ dirTree top)
+  where readf file 
+          | ext == ".out" = do r <- readFromHTMLFile file reportReader
+                               return (reportStatus r)
+          | otherwise = ioError $ userError "not a report file"
+          where ext = takeExtension file
+
+-- summary of all submission reports:
+reportSummary :: DirTree Status -> Map UID (Map PID [Status])
+reportSummary dir = 
+  Map.fromList [ (uid, reportUser dir')
+               | dir'<-contents dir, let uid = read (name dir')]
+    
+reportUser :: DirTree Status -> Map PID [Status]
+reportUser dir =
+  Map.fromList [(pid, status) 
+               | Dir name dirs'<-contents dir, 
+                 let pid = read name, 
+                 let status = [stat | File _ stat <- dirs']]
+  
+-}
+        
+

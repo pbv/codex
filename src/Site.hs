@@ -34,6 +34,8 @@ import           Heist
 import           Heist.Splices
 import qualified Heist.Interpreted as I
 
+import qualified Text.XmlHtml as X
+
 import           Data.Time.Clock
 import           Data.Time.LocalTime
 import           Data.Time.Format
@@ -56,6 +58,7 @@ import           Printout
 
 -- my application splices
 type AppSplices = Splices (I.Splice AppHandler)
+
 
 
 ------------------------------------------------------------------------------
@@ -93,7 +96,8 @@ handleLoginSubmit =
 handleLoginSubmit :: 
   LdapConf -> ByteString -> ByteString -> Handler App (AuthManager App) ()
 handleLoginSubmit ldapConf user passwd = do
-  optAuth <- withBackend (\r -> liftIO $ ldapAuth r ldapConf user passwd)
+  --optAuth <- withBackend (\r -> liftIO $ ldapAuth r ldapConf user passwd)
+  optAuth <- withBackend (\r -> liftIO $ dummyAuth r user)
   case optAuth of 
     Nothing -> handleLoginForm err
     Just au -> forceLogin au >> redirect "/problems"
@@ -142,9 +146,9 @@ handleProblem = method GET $ do
   subs <- getReports uid prob 
   renderWithSplices "problem" $ 
     do problemSplices prob 
-       numberSplices (length subs) 
-       acceptedSplices (any isAccepted subs) 
        submissionsSplice subs 
+       numberSplices (length subs) 
+       acceptedSplice (any isAccepted subs) 
 
 
 -- pidSplice :: PID -> AppSplices 
@@ -163,10 +167,10 @@ problemSplices p = do
   "startTime" ##  maybe (return []) timeSplice (probStart p)
   "endTime" ##  maybe (return []) timeSplice (probEnd p)
   "ifAcceptable" ## do t <- liftIO getCurrentTime
-                       ifISplice (isAcceptable t p)
-  "ifEarly" ## do t<-liftIO getCurrentTime; ifISplice (isEarly t p)
-  "ifLate" ## do t<-liftIO getCurrentTime; ifISplice (isLate t p)
-  "ifLimited" ## ifISplice (isJust $ probEnd p)
+                       conditionalSplice (isAcceptable t p)
+  "ifEarly" ## do t<-liftIO getCurrentTime; conditionalSplice (isEarly t p)
+  "ifLate" ## do t<-liftIO getCurrentTime; conditionalSplice (isLate t p)
+  "ifLimited" ## conditionalSplice (isJust $ probEnd p)
   "timeLeft"  ## case probEnd p of 
     Nothing -> I.textSplice "N/A"
     Just t' -> do t <- liftIO getCurrentTime
@@ -208,22 +212,22 @@ submissionsSplice lst
   = "submissions" ## I.mapSplices (I.runChildrenWith . submitSplices) lst
 
 
+
 -- | splices for a submission report
 reportSplices :: Report -> AppSplices
 reportSplices r =  do 
   "status" ## I.textSplice (T.pack $ show $ reportStatus r)
   "stdout" ## I.textSplice (reportStdout r)
   "stderr" ## I.textSplice (reportStderr r)
-  "ifAccepted" ## ifISplice (s == Accepted)
-  "ifOverdue" ##  ifISplice (s == Overdue)
-  "ifRejected" ## ifISplice (s/= Accepted && s/=Overdue)
+  "ifAccepted" ## conditionalSplice (s == Accepted)
+  "ifOverdue" ##  conditionalSplice (s == Overdue)
+  "ifRejected" ## conditionalSplice (s/= Accepted && s/=Overdue)
   where s = reportStatus r
 
 
-acceptedSplices :: Bool -> AppSplices
-acceptedSplices acpt
-  = do "ifAccepted" ## ifISplice acpt
-       "ifNotAccepted" ## ifISplice (not acpt)
+acceptedSplice :: Bool -> AppSplices
+acceptedSplice acpt = "ifAccepted" ## conditionalSplice acpt
+
 
 
 handleProblemList :: AppHandler ()
@@ -240,15 +244,15 @@ handleProblemList = method GET $ do
   where splices (prob,subs) 
           = do problemSplices prob 
                numberSplices (length subs)
-               acceptedSplices (any isAccepted subs) 
+               acceptedSplice (any isAccepted subs) 
                
 
 -- splices concerning the number of submissions
 numberSplices :: Int -> AppSplices
 numberSplices n = do 
   "numberOfSubmissions" ## I.textSplice (T.pack $ show n)
-  "ifSubmissions" ## ifISplice (n>0)
-  "ifNoSubmissions" ## ifISplice (n==0)
+  "ifSubmissions" ## conditionalSplice (n>0)
+
 
 
 handleGetSubmission, handlePostSubmission :: AppHandler ()
@@ -267,8 +271,8 @@ handlePostSubmission = method POST $ do
   pid <-  PID <$> getRequiredParam "pid"
   prob <- liftIO $ getProblem pid
   incrCounter "submissions"
-  code <- T.decodeUtf8With T.ignore <$> getRequiredParam "code"
-  sid <- postSubmission uid pid code
+  text <- T.decodeUtf8With T.ignore <$> getRequiredParam "code"
+  sid <- postSubmission uid pid text
   sub <- getReport uid prob sid
   renderWithSplices "report" $ do problemSplices prob 
                                   submitSplices sub 
@@ -352,6 +356,11 @@ loggedInName authmgr = do
 nowSplice :: I.Splice AppHandler
 nowSplice = do t <- liftIO (getCurrentTime >>= utcToLocalZonedTime)
                I.textSplice (T.pack $ formatTime defaultTimeLocale "%c" t)
+
+
+
+
+
 
 ------------------------------------------------------------------------------
 -- | The application initializer.

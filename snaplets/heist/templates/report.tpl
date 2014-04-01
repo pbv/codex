@@ -6,12 +6,10 @@
 <ifAccepted>
 <p>Parabens! A sua submissão passou todos os testes.</p>
 </ifAccepted>
-
 <ifOverdue>
 A sua submissão passou todos os testes, mas foi enviada
 fora do tempo.
 </ifOverdue>
-
 <ifRejected>
 <p>A submissão foi <strong>rejeitada</strong>; o relatório  
 seguinte descreve o erro encontrado.</p>
