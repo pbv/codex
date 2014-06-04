@@ -7,11 +7,11 @@ module Submission
        ( Submission(..),  
          Report(..),
          Status(..),
-         isAccepted,       -- * check if submission is accepted
-         listSubmissions,  -- * all submissions IDs for a problem
-         postSubmission,   -- * write a new submissions
-         getReport,        -- * fetch one submssion
-         getReports        -- * fetch all submissions
+         isAccepted,       -- ^ check if submission is accepted
+         listSubmissions,  -- ^ all submissions IDs for a problem
+         postSubmission,   -- ^ write a new submissions
+         getReport,        -- ^ fetch one submssion
+         getReports        -- ^ fetch all submissions
        ) where
 
 -- import           Prelude hiding (catch)
@@ -160,17 +160,17 @@ getReport uid prob sid = do sf<-getSafeExec; liftIO (getReport' sf)
     -- try reading the report file; run python tests if not available
     getReport' sf = do
       txt <- T.readFile py
-      t <- getModificationTime py
+      time <- getModificationTime py
       report <- catch (readFromHTMLFile out reportReader) (\e -> do
         -- ignore exception and generate report
         let _ = e :: IOException
         (_, stdout, stderr) <- runTests sf tst py
-        let r = makeReport (isAcceptable t prob) stdout stderr
+        let r = makeReport time prob stdout stderr
         LB.writeFile out (toLazyByteString $ X.render $ reportToDoc r)
         return r)
       return Submission {submitID=sid, 
                          submitText=txt, 
-                         submitTime=t, 
+                         submitTime=time, 
                          submitReport=Just report}
             
 {-
@@ -199,23 +199,26 @@ runTests SafeExec{..} tstfile pyfile
                 "--exec", pythonExec, "python/pytest.py", tstfile, pyfile]
 
   
--- evaluate a submission 
--- first argument: True if submission is within deadline, False otherwise
-makeReport :: Bool -> String -> String -> Report
-makeReport ontime stdout stderr 
+
+-- | make the report for a submission
+makeReport :: UTCTime -> Problem UTCTime -> String -> String -> Report
+makeReport time prob stdout stderr 
   = Report { reportStatus = status
-           , reportStdout = T.pack $ trim 2000 stdout
-           , reportStderr = T.pack $ trim 2000 stderr 
+           , reportStdout = T.pack $ trim maxLen stdout
+           , reportStderr = T.pack $ trim maxLen stderr 
            }
-  where status 
-          | null stdout && match "OK" stderr   = if ontime then Accepted
-                                                 else Overdue
-          | match "Time Limit" stderr          = TimeLimitExceeded
-          | match "Memory Limit" stderr        = MemoryLimitExceeded
-          | match "Exception raised" stdout    = RuntimeError
-          | match "SyntaxError" stderr         = CompileError
-          | match "Failed" stdout              = WrongAnswer
-          | otherwise                          = MiscError
+  where 
+    maxLen = 2000 -- max.length of stdout/stdout transcriptions
+    status 
+      | null stdout && match "OK" stderr   = if isLate time prob 
+                                             then Overdue
+                                             else Accepted
+      | match "Time Limit" stderr          = TimeLimitExceeded
+      | match "Memory Limit" stderr        = MemoryLimitExceeded
+      | match "Exception raised" stdout    = RuntimeError
+      | match "SyntaxError" stderr         = CompileError
+      | match "Failed" stdout              = WrongAnswer
+      | otherwise                          = MiscError
 
 
 -- miscelaneous
@@ -269,7 +272,7 @@ submissionDir uid pid = "submissions" </> show uid </> show pid
 ---------------------------------------------------------------
 -- Submissions Queries
 ---------------------------------------------------------------
--- | a row from the submission database
+-- | a row of the submission database
 data Row = Row { rowUID :: UID, 
                  rowPID :: PID,
                  rowSID :: SID,
@@ -307,18 +310,14 @@ miscError :: Query Bool
 miscError r = rowStatus r == MiscError
 
 
-select :: Query Bool -> [Row] -> [Row]
-select = filter
-
-project :: Query a -> [Row] -> [a]
-project = map
 
 -------------------------------------------------------------------------------
 -- read the submission database lazily from disk
 -------------------------------------------------------------------------------
 readDB :: IO [Row]
 readDB = do top <- readDirectoryWithL readf "submissions"
-            return (mkRows $ filterDir (not.failed) $ dirTree top)
+            return (mkRows $ dirTree top) 
+              --  filterDir (not.failed) $ dirTree top)
   where readf file 
           | ext == ".out" = readFromHTMLFile file reportReader
           | otherwise = ioError $ userError "ignored file"

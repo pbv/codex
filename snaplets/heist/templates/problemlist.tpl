@@ -12,9 +12,8 @@
       </ifSubmissions>
       <ifEarly>Submissões iniciam em <startTime/>.</ifEarly>
       <ifLate>Submissões terminaram em <endTime/>.</ifLate>
-      <ifAcceptable>Submissões terminam em <endTime/>.<br/>
-         Tempo disponível: <em><timeLeft/></em>.
-      </ifAcceptable>
+      <ifLimited>Submissões terminam em <endTime/>; tempo disponível: <em><timeLeft/></em>.
+      </ifLimited>
   </span></dd>
 </problemList>
 </dl>

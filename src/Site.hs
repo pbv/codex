@@ -139,10 +139,10 @@ handleProblem = method GET $ do
   uid <- getUser -- ensure a user is logged in
   pid <- PID <$> getRequiredParam "pid"
   prob <- liftIO $ getProblem pid
-  -- check if problem is available and deny request if so
-  t <- liftIO getCurrentTime
-  when (not $ isVisible t prob) badRequest
-  -- otherwise: get all submission reports
+  -- check if problem is visible; deny request if not
+  time <- liftIO getCurrentTime
+  when (not $ isVisible time prob) badRequest
+  -- ok: get all submission reports
   subs <- getReports uid prob 
   renderWithSplices "problem" $ 
     do problemSplices prob 
@@ -166,8 +166,8 @@ problemSplices p = do
   "submitText" ## I.textSplice (probSubmit p)
   "startTime" ##  maybe (return []) timeSplice (probStart p)
   "endTime" ##  maybe (return []) timeSplice (probEnd p)
-  "ifAcceptable" ## do t <- liftIO getCurrentTime
-                       conditionalSplice (isAcceptable t p)
+  "ifAvailable" ## do t <- liftIO getCurrentTime
+                      conditionalSplice (isAvailable t p)
   "ifEarly" ## do t<-liftIO getCurrentTime; conditionalSplice (isEarly t p)
   "ifLate" ## do t<-liftIO getCurrentTime; conditionalSplice (isLate t p)
   "ifLimited" ## conditionalSplice (isJust $ probEnd p)
@@ -270,6 +270,9 @@ handlePostSubmission = method POST $ do
   uid <- getUser
   pid <-  PID <$> getRequiredParam "pid"
   prob <- liftIO $ getProblem pid
+  -- check that the problem is available for submission
+  time <- liftIO getCurrentTime
+  when (not $ isAvailable time prob) badRequest
   incrCounter "submissions"
   text <- T.decodeUtf8With T.ignore <$> getRequiredParam "code"
   sid <- postSubmission uid pid text

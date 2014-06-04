@@ -2,9 +2,9 @@
 <h1><problem/><ifAccepted><img src="/icons/24x24/accepted.png" alt="Accepted"/></ifAccepted>
 </h1>
 <description/>
-<ifAcceptable>
+<ifLimited>
   <p>Tempo disponível: <em><timeLeft/></em></p>
-</ifAcceptable>
+</ifLimited>
 
 <ifSubmissions>
 <h2>Submissões anteriores</h2>

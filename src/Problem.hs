@@ -10,8 +10,8 @@ module Problem (
   getProblem,    -- * get a single problem
   isEarly,       -- * check problem's acceptance dates
   isLate,
-  isAcceptable,    -- * check if a problem is acceptable
-  isVisible        -- * check if a problem is visible
+  isAvailable,     -- * can be submited
+  isVisible        -- * is shown in listing
   ) where
 
 -- import           Prelude hiding(catch)
@@ -24,7 +24,6 @@ import           Control.Monad
 import           Control.Applicative((<$>))
 import           System.FilePath
 import           System.Directory
--- import           Data.ByteString.UTF8(ByteString)
 import qualified Data.ByteString.UTF8 as B
 import           Text.XmlHtml(Node)
 import qualified Text.XmlHtml          as X
@@ -34,7 +33,7 @@ import qualified Data.Text             as T
 import           Types 
 import           XHTML
 import           Text.Parsec
---import           Text.Parsec.Combinator
+
 
 
 -- datatype for problems 
@@ -158,24 +157,21 @@ readProblemFile pid fp
                           return (fmap (localTimeToUTC z) prob)
   
     
--- tests for a problem's acceptance interval 
-isEarly, isLate, isAcceptable :: Ord t => t -> Problem t -> Bool  
+-- relations between problems and times
+isEarly, isLate :: UTCTime -> Problem UTCTime -> Bool  
 isEarly t Problem{..} = ((t<) <$> probStart) == Just True
-isLate t Problem{..} = ((t>) <$> probEnd) == Just True
-isAcceptable t p = not (isEarly t p || isLate t p)
+isLate t Problem{..}  = ((t>) <$> probEnd) == Just True
 
+
+-- a problem can be submited if it is not early
+isAvailable :: UTCTime -> Problem UTCTime -> Bool
+isAvailable t p  = not (isEarly t p)
 
 -- check if a problem is visible at a given time 
 -- * exam problems are visible only in the acceptance interval
 -- * other problems are always visible
-isVisible :: Ord t => t -> Problem t -> Bool
-isVisible t p@Problem{..} = not probExam || isAcceptable t p 
+isVisible :: UTCTime -> Problem UTCTime -> Bool
+isVisible t p@Problem{..} =  not (probExam && (isLate t p || isEarly t p))
+      
 
-{-
-inside :: UTCTime -> Maybe UTCTime -> Maybe UTCTime -> Bool
-inside t (Just t0) (Just t1) = t0<t && t<t1
-inside t (Just t0) _         = t0<t
-inside t _         (Just t1) = t<t1
-inside _ _        _          = True
--}
 
