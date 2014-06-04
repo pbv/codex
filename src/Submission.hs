@@ -7,17 +7,17 @@ module Submission
        ( Submission(..),  
          Report(..),
          Status(..),
-         isAccepted,        -- * check if submission is accepted
+         isAccepted,       -- * check if submission is accepted
          listSubmissions,  -- * all submissions IDs for a problem
          postSubmission,   -- * write a new submissions
-         getReport,    -- * fetch one submssion
-         getReports   -- * fetch all submissions
+         getReport,        -- * fetch one submssion
+         getReports        -- * fetch all submissions
        ) where
 
 -- import           Prelude hiding (catch)
 import           System.FilePath
 import           System.Directory
-import           System.Directory.Tree
+-- import           System.Directory.Tree
 import           System.Process
 import           Data.Time.Clock
 -- import           Data.Time.Calendar
