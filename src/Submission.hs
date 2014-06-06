@@ -17,7 +17,7 @@ module Submission
 -- import           Prelude hiding (catch)
 import           System.FilePath
 import           System.Directory
--- import           System.Directory.Tree
+import           System.Directory.Tree
 import           System.Process
 import           Data.Time.Clock
 -- import           Data.Time.Calendar
@@ -322,6 +322,7 @@ readDB = do top <- readDirectoryWithL readf "submissions"
           | ext == ".out" = readFromHTMLFile file reportReader
           | otherwise = ioError $ userError "ignored file"
           where ext = takeExtension file
+
 
 
 mkRows :: DirTree Report -> [Row]

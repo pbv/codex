@@ -1,103 +1,183 @@
-{-# LANGUAGE GADTs, DeriveFunctor #-}
-
--- A free-monad DSL for queries to the submission database
+{-# LANGUAGE OverloadedStrings #-}
+-- A DSL for queries to the submission database
 module Query where
 
-import           Prelude hiding (sum)
-import qualified Prelude (sum)
-import Data.Time
-import Types
-import Problem
-import Submission
+import           Data.ByteString.UTF8(ByteString)
+import qualified Data.ByteString.UTF8 as B
+
+import           Data.String
 
 {-
--- free monad stuff
-data Free f r = Free (f (Free f r)) | Pure r
+import           System.Directory
+import           System.Directory.Tree
 
-instance (Functor f) => Monad (Free f) where
-    return = Pure
-    (Free x) >>= f = Free (fmap (>>= f) x)
-    (Pure r) >>= f = f r
-    
-liftF :: (Functor f) => f r -> Free f r
-liftF command = Free (fmap Pure command)
--}  
+import qualified Data.List as List
+import Data.Time
+import Problem
+import Submission
+-}
 
--- * the query DSL
-data Query row result where
-  -- * selection
-  Select :: (row -> Bool) -> Query row ()
-  -- * projection
-  Project :: (row -> row') -> Query row' result -> Query row result
-  -- * agregation
-  Aggregate :: ([row] -> result) -> Query row result
-  -- * grouping
-  GroupBy :: (row -> row -> Bool) -> Query row ()
-  -- * sequence
-  Bind :: Query row result' -> (result' -> Query row result) -> Query row result
-  -- * unit 
-  Return :: result -> Query row result
+-- values
+data Value = IntVal !Int
+           | DoubleVal !Double
+           | BoolVal !Bool
+           | StringVal !String
+--         | TimeVal !UTCTime
+             deriving (Show, Eq, Ord)
+
+instance IsString Value where
+  fromString = StringVal 
 
 
-instance Monad (Query row) where
-  return  = Return
-  (>>=)   = Bind 
+instance Num Value where
+  fromInteger n = IntVal (fromIntegral n)
+  -- addition
+  IntVal x + IntVal y       = IntVal (x+y)
+  DoubleVal x + IntVal y    = DoubleVal (x+fromIntegral y)  
+  IntVal x + DoubleVal y    = DoubleVal (fromIntegral x+y)  
+  DoubleVal x + DoubleVal y = DoubleVal (x+y)
+  -- multiplication
+  IntVal x * IntVal y       = IntVal (x*y)
+  --
+  abs (IntVal x)            = IntVal (abs x)
+  signum (IntVal x)         = IntVal (signum x)
+  
+
+-- expressions
+data Expr = Lit Value
+          | App String [Expr]
+          | Var String
+          deriving Show
 
 
-select :: (row -> Bool) -> Query row ()
-select = Select
-
-project :: (row->row') -> Query row' result -> Query row result
-project = Project
-
-aggregate :: ([row]->result) -> Query row result
-aggregate = Aggregate
-
-groupBy :: (row -> row -> Bool) -> Query row ()
-groupBy = GroupBy
-
-group :: Eq row => Query row ()
-group = groupBy (==)
-
-count :: Query row Int
-count = aggregate length
-
-sum :: Num a => Query a a
-sum = aggregate Prelude.sum
+(.==.), (.<=.) :: Expr -> Expr -> Expr
+e1 .==. e2 = App "==" [e1, e2]
+e1 .<=. e2 = App "<=" [e1, e2]
 
 
--- * submission data base rows
+(.+.) :: Expr -> Expr -> Expr
+e1 .+. e2 = App "*" [e1, e2]
+
+-- queries
+data Query = Restrict Expr Query
+           | Select [(String,Expr)] Query
+           | SummarizeBy [String] [(String,Expr)] Query
+           | RelVar String
+             deriving Show
+
+
+-- tuples
+type Tuple = [Value]
+
+-- relations
+data Relation = Rel [String] [Tuple]
+                 deriving Show
+
+
+
+type ExprEnv = [(String,Value)]
+
+evalExpr :: ExprEnv -> Expr -> Value
+evalExpr env (Lit v) = v
+evalExpr env (Var x) = 
+  case lookup x env of 
+    Just v -> v
+    Nothing -> error ("unknown expr variable: "++show x)
+evalExpr env (App op exprs) 
+  = evalOp op (map (evalExpr env) exprs)
+
+
+evalOp "==" [v1, v2] = BoolVal (v1==v2)
+evalOp "/=" [v1, v2] = BoolVal (v1/=v2)
+evalOp "<=" [v1, v2] = BoolVal (v1<=v2)
+evalOp ">=" [v1, v2] = BoolVal (v1>=v2)
+evalOp "+" [v1,  v2] = v1+v2
+evalOp "*" [v1, v2]  = v1*v2
+evalOp op _ = error ("invalid op: "++show op)
+
+
+
+type QueryEnv = [(String,Relation)]
+
+evalQuery :: ExprEnv -> QueryEnv -> Query -> Relation
+evalQuery env qenv (RelVar x) 
+  = case lookup x qenv of
+  Just r -> r
+  Nothing -> error ("unknown relvar: "++show x)
+evalQuery env qenv (Restrict e q) 
+  = restrict env e (evalQuery env qenv q)
+evalQuery env qenv (Select binds q) 
+  = select env binds (evalQuery env qenv q)
+
+restrict :: ExprEnv -> Expr -> Relation -> Relation
+restrict env e (Rel cols tuples) = Rel cols tuples'
+  where tuples' = [tuple | tuple<-tuples, 
+                   let env' = zip cols tuple ++ env,
+                   evalExpr env' e == BoolVal True ]
+
+
+select :: ExprEnv -> [(String,Expr)] -> Relation -> Relation
+select env binds (Rel cols tuples) = Rel cols' tuples'
+  where cols' = map fst binds
+        exprs = map snd binds
+        tuples' = [ map (evalExpr env') exprs  | tuple<-tuples,
+                     let env' = zip cols tuple ++ env]
+                     
+        
+
+
+-- example
+phoneBook :: Relation
+phoneBook = Rel ["name", "number"] [
+  [StringVal "pedro", IntVal 12345],
+  [StringVal "pedro", IntVal 67898],
+  [StringVal "joão", IntVal 56789]
+  ]
+            
+example1 = Restrict (App "==" [Var "name", Lit (StringVal "Pedro")]) (RelVar "phoneBook")
+                                     
+example2 = Select [("name", Var "name"),
+                   ("number1", App "+" [Var "number", Lit (IntVal 1)])] (RelVar "phoneBook")
+
+
+
+{-
+-- * submission data rows
 type Row = (UID, Problem UTCTime, Submission)
+
+rowStatus :: Row -> Maybe Status
+rowStatus (_,_,s) = fmap reportStatus (submitReport s)
+
+accepted :: Row -> Bool
+accepted r = rowStatus r == Just Accepted
+
+accepted' :: Row -> Bool
+accepted' r = rowStatus r == Just Accepted || rowStatus r == Just Overdue
+
+rejected :: Row -> Bool
+rejected = not . accepted
+
 
 -- count the number of accepted submissions
 ex1 :: Query Row Int
-ex1 = project (\(u,p,s) -> fmap reportStatus (submitReport s)) $
-      do select (== Just Accepted)
-         count
+ex1 = project rowStatus $ do { select (== Just Accepted); count}
 
 -- count the number of students with accepted submissions
 ex2 :: Query Row Int         
-ex2 = do select (\(u,p,s) -> fmap reportStatus (submitReport s) == Just Accepted)
+ex2 = do select accepted 
          project (\(u,p,s) -> u) $ do {group ; count}
-
-{-
-instance Functor DSL where
-  fmap f (Select b next) = Select b (f next)
-  fmap f (Project g cont) = Project g (f . cont)
-  fmap f (Count g) = Count (f . g)
-
--- * the query free monad
-type Query next = Free DSL next
-
-select :: Bool -> Query ()
-select b = liftF (Select b ())
-
-project :: (Row -> a) -> Query a
-project f = liftF (Project f id)
-
-count :: Query Int
-count = liftF (Count id)
-
-equalUID uid = project (\(uid',_,_) -> uid'==uid)
 -}
 
+-- query language interpreter
+-- top-level queries should be over the Row type
+-- the result an 'a' plus a lazy list of rows
+{-
+runQuery :: Query Row a -> IO (a, [Row])
+runQuery q = do top <- readDirectoryWithL readf "submissions"
+                return (runQuery' q $ mkRows $ dirTree top)
+  where readf file 
+          | ext == ".out" = readFromHTMLFile file reportReader
+          | otherwise = ioError $ userError "ignored file"
+          where ext = takeExtension file
+                
+-}
