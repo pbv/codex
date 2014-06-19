@@ -17,7 +17,7 @@ module Submission
 -- import           Prelude hiding (catch)
 import           System.FilePath
 import           System.Directory
-import           System.Directory.Tree
+-- import           System.Directory.Tree
 import           System.Process
 import           Data.Time.Clock
 -- import           Data.Time.Calendar
@@ -314,6 +314,8 @@ miscError r = rowStatus r == MiscError
 -------------------------------------------------------------------------------
 -- read the submission database lazily from disk
 -------------------------------------------------------------------------------
+
+{-
 readDB :: IO [Row]
 readDB = do top <- readDirectoryWithL readf "submissions"
             return (mkRows $ dirTree top) 
@@ -334,6 +336,7 @@ mkRows dir = [Row uid pid sid rep
                File fp rep <- contents dir'',
                let sid = read (takeBaseName fp)
              ]
+-}
 
 {-
 getAllStatus :: IO (Map UID (Map PID [Status]))

@@ -1,5 +1,5 @@
 Name:                pythondo
-Version:             0.5
+Version:             0.6
 Synopsis:            A simple web sandbox for the Python programming language
 Description:         A simple web sandbox for the Python programming language
 License:             AllRightsReserved
@@ -25,7 +25,6 @@ Executable pythondo
   Build-depends:
     filepath                 >= 1.3,
     directory                >= 1.2,
-    directory-tree           >= 0.10,
     old-locale               >= 1.0,
     process                  >= 1.0,
     unix                     >= 2.5,
@@ -40,6 +39,8 @@ Executable pythondo
     snap-core                 >= 0.9,
     snap-server               >= 0.9,
     snap-loader-static        >= 0.9,
+    snaplet-sqlite-simple        >= 0.4,
+    sqlite-simple             >= 0.4,
     text                      >= 0.11    && < 0.12,
     time                      >= 1.1     && < 1.5,
     xmlhtml                   >= 0.1,
@@ -50,7 +51,6 @@ Executable pythondo
     aeson                     >= 0.6,
     unordered-containers      >= 0.2,
     containers                >= 0.4,
---    old-time                  >= 1.1,
     configurator              >= 0.2
 
   if flag(old-base)

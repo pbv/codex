@@ -26,7 +26,8 @@ import qualified Data.Text.Encoding.Error as T
 import           Snap.Core
 import           Snap.Snaplet
 import           Snap.Snaplet.Auth
-import           Snap.Snaplet.Auth.Backends.JsonFile
+import           Snap.Snaplet.Auth.Backends.SqliteSimple
+import           Snap.Snaplet.SqliteSimple
 import           Snap.Snaplet.Heist
 import           Snap.Snaplet.Session.Backends.CookieSession
 import           Snap.Util.FileServe
@@ -97,7 +98,7 @@ handleLoginSubmit ::
   LdapConf -> ByteString -> ByteString -> Handler App (AuthManager App) ()
 handleLoginSubmit ldapConf user passwd = do
   --optAuth <- withBackend (\r -> liftIO $ ldapAuth r ldapConf user passwd)
-  optAuth <- withBackend (\r -> liftIO $ dummyAuth r user)
+  optAuth <- withBackend (\r -> liftIO $ ldapAuth r ldapConf user passwd)
   case optAuth of 
     Nothing -> handleLoginForm err
     Just au -> forceLogin au >> redirect "/problems"
@@ -376,18 +377,15 @@ app =
     s <- nestSnaplet "sess" sess $
            initCookieSessionManager "site_key.txt" "sess" (Just 7200)
 
-    -- NOTE: We're using initJsonFileAuthManager here because it's easy and
-    -- doesn't require any kind of database server to run.  In practice,
-    -- you'll probably want to change this to a more robust auth backend.
-    a <- nestSnaplet "auth" auth $
-           initJsonFileAuthManager defAuthSettings sess "users.json"
+    d <- nestSnaplet "db" db sqliteInit
+    a <- nestSnaplet "auth" auth $ initSqliteAuth sess d
     addAuthSplices h auth
     addConfig h emptyConfig { hcInterpretedSplices = do 
                                  "timeNow" ## nowSplice
                                  "loggedInName" ## loggedInName auth }
     addRoutes routes
     mv <- liftIO $ newMVar ()
-    return $ App h s a mv conf ekg 
+    return $ App h s d a mv conf ekg 
 
 
 emptyConfig :: HeistConfig m
