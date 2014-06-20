@@ -39,9 +39,9 @@ import           Text.Parsec
 -- datatype for problems 
 -- parameterized by type of times for parsing flexibility 
 data Problem t = Problem {
-  probID     :: PID,            -- unique id (from filepath)
-  probTitle  :: Text,           -- title
-  probDescr  :: [Node],         -- description (HTML nodes)
+  probID     :: PID,            -- unique id name (filepath)
+  probTitle  :: Text,           -- short title
+  probDescr  :: [Node],         -- longer description (HTML nodes)
   probSubmit :: Text,           -- optional default submission text
   probStart  :: Maybe t,        -- optional start time
   probEnd    :: Maybe t,        -- optional end time
@@ -79,7 +79,7 @@ emptyProblem pid = Problem { probID    = pid
 -- problem parser; top-level wrapper function
 problemReader :: PID -> XMLReader (Problem LocalTime)
 problemReader pid 
-  = do blankNodes; p<-problemElems (emptyProblem pid);  endDoc
+  = do blankNodes; p<-problemElems (emptyProblem pid); endDoc
        return p
 
 -- | parse problem elements (worker function)
@@ -127,14 +127,15 @@ localTime = do txt <- allText
 
 
 
--- get all problem IDs
+-- get a list of all problem IDs
 -- filter HTML files to get problem IDs
 listProblems :: IO [PID]
 listProblems = do
-  files <- filter ((==".html").snd.splitExtension) <$> 
-           getDirectoryContents "problems"
-  return $ map (PID . B.fromString . dropExtension) files
-
+  files <- getDirectoryContents "problems"
+  return $ map toPID $ filter isHtml files
+  where
+    isHtml = (==".html").takeExtension
+    toPID = PID . B.fromString . dropExtension
 
 -- get all available problems 
 getProblems ::  IO [Problem UTCTime]

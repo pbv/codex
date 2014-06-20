@@ -1,0 +1,50 @@
+{-# LANGUAGE OverloadedStrings, ScopedTypeVariables #-}
+
+module Db where
+
+import           Control.Applicative
+import           Control.Monad
+import qualified Data.Text as T
+import           Data.Time (UTCTime)
+import qualified Database.SQLite.Simple as S
+import           Snap.Snaplet
+import           Snap.Snaplet.SqliteSimple
+------------------------------------------------------------------------------
+import           Application
+
+
+tableExists :: S.Connection -> String -> IO Bool
+tableExists conn tblName = do
+  r <- S.query conn "SELECT name FROM sqlite_master WHERE type='table' AND name=?" (Only tblName)
+  case r of
+    [Only (_ :: String)] -> return True
+    _ -> return False
+
+-- | Create the necessary database tables, if not already initialized.
+createTables :: S.Connection -> IO ()
+createTables conn =   mapM_ create tables
+  -- Note: for a bigger app, you probably want to create a 'version'
+  -- table too and use it to keep track of schema version and
+  -- implement your schema upgrade procedure here.
+  where create (tab,cmd) = do 
+          schemaCreated <- tableExists conn tab
+          unless schemaCreated $ S.execute_ conn (S.Query cmd)
+      
+tables  :: [(String,T.Text)]
+tables = [("submissions",  
+           T.concat [ "CREATE TABLE submissions ("
+                    , "id INTEGER PRIMARY KEY, "
+                    , "user TEXT NOT NULL, "
+                    , "problem TEXT NOT NULL, "
+                    , "time TIMESTAMP NOT NULL, "
+                    , "code TEXT)"])
+         , ("reports",
+            T.concat ["CREATE TABLE reports ("
+                     , "id INTEGER PRIMARY KEY, "
+                     , "submit_id INTEGER NOT NULL, "  -- FOREIGN KEY
+                     , "status TEXT NOT NULL, "
+                     , "stdout TEXT, "
+                     , "stderr TEXT)" 
+                     ])
+         ]
+          

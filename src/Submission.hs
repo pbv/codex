@@ -269,6 +269,7 @@ submissionDir :: UID -> PID -> FilePath
 submissionDir uid pid = "submissions" </> show uid </> show pid
 
 
+{-
 ---------------------------------------------------------------
 -- Submissions Queries
 ---------------------------------------------------------------
@@ -308,7 +309,7 @@ runtimeError r = rowStatus r == RuntimeError
 
 miscError :: Query Bool
 miscError r = rowStatus r == MiscError
-
+-}
 
 
 -------------------------------------------------------------------------------

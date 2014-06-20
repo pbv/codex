@@ -14,9 +14,11 @@ import           Control.Monad.CatchIO (catch)
 import           Control.Monad.State
 import           Control.Applicative
 import           Control.Concurrent.MVar
+import           Control.Lens
 
 import           Data.ByteString.UTF8 (ByteString)
 import qualified Data.ByteString.UTF8 as B
+import qualified Data.ByteString as B
 import           Data.Maybe
 import           Data.Text (Text)
 import qualified Data.Text as T
@@ -50,12 +52,15 @@ import           System.Remote.Monitoring
 
 ------------------------------------------------------------------------------
 import           Application
+import           Db
 import           Utils
 import           Types
 import           Problem
 import           Submission
 import           LdapAuth
 import           Printout
+
+  
 
 -- my application splices
 type AppSplices = Splices (I.Splice AppHandler)
@@ -138,6 +143,13 @@ handleNewUser = method GET handleForm <|> method POST handleFormSubmit
 handleProblem :: AppHandler ()
 handleProblem = method GET $ do
   uid <- getUser -- ensure a user is logged in
+  --
+  withRequest (\req -> do 
+                  logError $ B.append "rqPathInfo: " (rqPathInfo req)
+                  logError $ B.append "rqURI: " (rqURI req)
+                  logError $ B.append "rqContextPath: " (rqContextPath req)
+              )
+---
   pid <- PID <$> getRequiredParam "pid"
   prob <- liftIO $ getProblem pid
   -- check if problem is visible; deny request if not
@@ -383,6 +395,13 @@ app =
     addConfig h emptyConfig { hcInterpretedSplices = do 
                                  "timeNow" ## nowSplice
                                  "loggedInName" ## loggedInName auth }
+      
+      
+    -- Grab the DB connection pool from the sqlite snaplet and call
+    -- into the Model to create all the DB tables if necessary.
+    let c = sqliteConn $ d ^# snapletValue
+    liftIO $ withMVar c $ \conn -> Db.createTables conn
+
     addRoutes routes
     mv <- liftIO $ newMVar ()
     return $ App h s d a mv conf ekg 
