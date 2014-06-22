@@ -1,65 +1,57 @@
 {-# LANGUAGE OverloadedStrings, RecordWildCards #-}
+{-# LANGUAGE DeriveDataTypeable #-}
 {-
   Data types and methods for storing and evaluating submissions 
 -}
 
-module Submission 
-       ( Submission(..),  
-         Report(..),
-         Status(..),
-         isAccepted,       -- ^ check if submission is accepted
-         listSubmissions,  -- ^ all submissions IDs for a problem
-         postSubmission,   -- ^ write a new submissions
-         getReport,        -- ^ fetch one submssion
-         getReports        -- ^ fetch all submissions
-       ) where
+module Submission where
 
 -- import           Prelude hiding (catch)
 import           System.FilePath
 import           System.Directory
--- import           System.Directory.Tree
+import           System.IO
 import           System.Process
 import           Data.Time.Clock
--- import           Data.Time.Calendar
--- import           System.Time
 import           System.Exit (ExitCode)
 import           Data.Maybe
---import           Data.Map(Map)
---import qualified Data.Map as Map
-import           Data.List (sort)
+import           Data.Typeable
+
 import           Data.Text(Text) 
-import qualified Data.Text as T
+import qualified Data.Text    as T
 import qualified Data.Text.IO as T
-import qualified Data.ByteString.Lazy as LB -- for XML serialization
-import           Text.XmlHtml(Document)
-import qualified Text.XmlHtml as X
+-- import qualified Data.ByteString.Lazy as LB -- for XML serialization
 
 import           Text.Regex
 import           Control.Exception
-import           XHTML
-import           Blaze.ByteString.Builder
+-- import           Blaze.ByteString.Builder
 
+import           Control.Monad
 import           Control.Monad.State
+import           Control.Applicative
+
+import           Snap.Snaplet
+import           Snap.Snaplet.SqliteSimple
+import qualified Database.SQLite.Simple as S
+import           Database.SQLite.Simple.FromField 
+import           Database.SQLite.Simple.ToField 
 
 import           Application
 import           Utils
 import           Types
 import           Problem
 
--- | submission to a programming problem
-data Submission = Submission {
-  submitID   :: SID,           -- unique id (derived from filepath)
-  submitText :: Text,          -- submission text (program code)
-  submitTime :: UTCTime,       -- submission time
-  submitReport :: Maybe Report -- optional report 
-  } deriving Show
 
--- | submission report
-data Report = Report { 
-  reportStatus :: Status,  -- status of this submission (one of the below)
-  reportStdout :: Text,    -- stdout/stderr transcriptions
-  reportStderr :: Text
-  } deriving Show
+-- | single row in the submission DB
+data Submission = Submission {
+  submitID   :: SID,           -- unique id 
+  submitUID  :: UID,
+  submitPID  :: PID,
+  submitTime :: UTCTime,       -- submission time  
+  submitText :: Text,          -- submission text (program code)
+  submitStatus :: Status,
+  submitReport :: Text
+  }
+
 
 -- | result status of a submission
 data Status = Accepted          -- passed all tests, in time
@@ -70,28 +62,57 @@ data Status = Accepted          -- passed all tests, in time
             | TimeLimitExceeded
             | MemoryLimitExceeded
             | MiscError
-              deriving (Eq, Ord, Show, Read)
+              deriving (Eq, Ord, Show, Read, Typeable)
 
--- check if a submission is accepted
+-- | convertion to/from SQL data
+instance ToField Status where
+  toField s = toField (show s)
+
+instance FromField Status where
+  fromField f = do s <- fromField f 
+                   parse (reads s)
+    where 
+      parse ((s,""):_) = return s
+      parse _  = returnError ConversionFailed f "couldn't parse status field" 
+
+
+instance FromRow Submission where
+  fromRow = Submission <$> field <*> field <*> field <*> field <*> field <*> field <*> field
+
+
+-- | check if a submission is accepted
 isAccepted :: Submission -> Bool
-isAccepted Submission{..} 
-  = maybe False ((==Accepted).reportStatus) submitReport
+isAccepted Submission{..} = submitStatus==Accepted
+
+
+
+-- | insert a new submission into the DB
+insertSubmission ::  UID -> PID -> UTCTime -> Text -> Status -> Text 
+                  -> AppHandler Submission
+insertSubmission uid pid time code status report = do
+  sid <- withSqlite $ \conn -> do
+    S.execute conn "INSERT INTO submissions (user_id, problem_id, time, code, status, report) VALUES(?, ?, ?, ?, ?, ?)" (uid, pid, time, code, status, report)
+    fmap (SID . fromIntegral) (S.lastInsertRowId conn)
+  return (Submission sid uid pid time code status report)
+  
+
+-- | get all submissions for a user and problem
+getSubmissions :: UID -> PID -> AppHandler [Submission]  
+getSubmissions uid pid = 
+  query "SELECT * FROM submissions WHERE user_id = ? AND problem_id = ? ORDER BY time" (uid, pid)
+
+-- | get a single submission 
+getSubmission :: UID ->  SID -> AppHandler Submission
+getSubmission uid sid = do
+  r <- query "SELECT * FROM submissions WHERE id = ? AND user_id = ?" (sid,uid)
+  case r of
+    [s] -> return s
+    _   -> notFound
+
 
 
 {-
--- | convertion to/from XHTML
-instance ToXHTML Report where
-  toDocument Report{..} = htmlDocument [status, stdout, stderr]
-    where status = X.Element "status" [] 
-                    [X.TextNode (T.pack $ show reportStatus)]
-          stdout = X.Element "stdout" [] [X.TextNode reportStdout]
-          stderr = X.Element "stderr" [] [X.TextNode reportStderr]
-          
--}
-
-
-
--- | Post a new submission 
+-- | post a new submission 
 -- use mutexIO to ensure thread safety
 postSubmission :: UID -> PID -> Text -> AppHandler SID
 postSubmission uid pid text = 
@@ -101,9 +122,9 @@ postSubmission uid pid text =
     let sid = head [SID n | n <- [1..], SID n`notElem`sids]
     T.writeFile (dir </> show sid <.> "py") text
     return sid
+-}
 
-
-
+{-
 -- | list all submission IDs in ascending order for a user and problem
 listSubmissions ::  UID -> PID -> AppHandler [SID]
 listSubmissions uid pid = liftIO (listSubmissions' uid pid)
@@ -117,7 +138,8 @@ listSubmissions' uid pid
         ids files = [sid | f<-files, 
                      snd (splitExtension f)==".py", 
                      (sid, _)<-reads (dropExtension f)]
-        
+-}        
+
 {-
 -- | get the final submission report:
 -- the last accepted submission 
@@ -144,6 +166,7 @@ getReports uid prob
                    mapM (getReport' sf uid prob) sids
 -}            
 
+{-
 getReports :: UID -> Problem UTCTime -> AppHandler [Submission]
 getReports uid prob 
   = listSubmissions uid (probID prob) >>= mapM (getReport uid prob) 
@@ -173,6 +196,47 @@ getReport uid prob sid = do sf<-getSafeExec; liftIO (getReport' sf)
                          submitTime=time, 
                          submitReport=Just report}
             
+-}
+
+-- | post a new submission; top level function 
+postSubmission :: UID -> Problem UTCTime -> UTCTime -> Text -> AppHandler Submission
+postSubmission uid prob now code = do 
+  sf <- getSafeExec
+  (exitCode, stdout, stderr) <- liftIO $ runSubmission sf uid (probID prob) code 
+  let (status, report) = makeReport now prob stdout stderr
+  insertSubmission uid (probID prob) now code status report 
+
+
+-- | lower level I/O helper functions 
+
+-- | run doctest file for a submissions
+-- creates temp directory and file and cleanups afterwards
+runSubmission :: SafeExec -> UID -> PID -> Text -> IO (ExitCode,String,String)
+runSubmission sf uid pid code = 
+  let tmpdir = "tmp" </> show uid
+      tstfile = "problems" </> show pid <.> "tst"
+  in do
+    createDirectoryIfMissing True tmpdir
+    -- default permissions to allow safeexec reading
+    (pyfile,handle) <- openTempFileWithDefaultPermissions tmpdir "tmp.py"
+    T.hPutStr handle code
+    hClose handle
+    result <- runTests sf tstfile pyfile
+    removeFile pyfile
+    return result
+
+
+-- | run python tests inside a safeexec sandbox
+runTests :: SafeExec -> FilePath -> FilePath -> IO (ExitCode, String, String)
+runTests SafeExec{..} tstfile pyfile 
+  = readProcessWithExitCode safeExec args ""
+  where args = ["--cpu", show maxCpuTime,  
+                "--clock", show maxClockTime,
+                "--mem", show maxMemory, 
+                "--exec", pythonExec, 
+                "python/pytest.py", tstfile, pyfile]
+
+
 {-
 -- | quick and dirty hack around return time of old 
 --   System.Directory.getModificationTime
@@ -186,27 +250,13 @@ ctToUTC ct = UTCTime day diff
         diff = secondsToDiffTime (fromIntegral $ ctHour ct*3600 + ctMin ct*60 + ctSec ct)
 -}
 
-
-
-
--- | run python tests inside a safeexec sandbox
-runTests :: SafeExec -> FilePath -> FilePath -> IO (ExitCode, String, String)
-runTests SafeExec{..} tstfile pyfile 
-  = readProcessWithExitCode safeExec args ""
-  where args = ["--cpu", show maxCpuTime,  
-                "--clock", show maxClockTime,
-                "--mem", show maxMemory, 
-                "--exec", pythonExec, "python/pytest.py", tstfile, pyfile]
-
   
 
--- | make the report for a submission
-makeReport :: UTCTime -> Problem UTCTime -> String -> String -> Report
+-- | classify a submission and produce a text report
+-- WARNING: these rules are highly dependent on Python's doctest output 
+makeReport :: UTCTime -> Problem UTCTime -> String -> String -> (Status, Text)
 makeReport time prob stdout stderr 
-  = Report { reportStatus = status
-           , reportStdout = T.pack $ trim maxLen stdout
-           , reportStderr = T.pack $ trim maxLen stderr 
-           }
+  = (status, T.pack $ trim maxLen stdout ++ trim maxLen stderr)
   where 
     maxLen = 2000 -- max.length of stdout/stdout transcriptions
     status 
@@ -221,12 +271,12 @@ makeReport time prob stdout stderr
       | otherwise                          = MiscError
 
 
--- miscelaneous
--- string wrapper over Text.Regex interface
+-- | miscelaneous
+-- | string wrapper over Text.Regex interface
 match :: String -> String -> Bool
 match re  = isJust . matchRegex (mkRegex re) 
 
--- trim a string to a maximum length
+-- | trim a string to a maximum length
 trim :: Int -> String -> String
 trim size str 
   = take (size - length msg) str ++ zipWith (\_ y->y) (drop size str) msg
@@ -234,32 +284,7 @@ trim size str
 
 ---------------------------------------------------------------------------
   
--- internal stuff
--- convertion to/from XML
-
--- | XML reader for a report
-reportReader :: XMLReader Report
-reportReader = do 
-  status <- statusReader
-  stdout <- element "stdout" 
-  stderr <- element "stderr" 
-  return (Report status (X.nodeText stdout) (X.nodeText stderr))
-  
-statusReader :: XMLReader Status
-statusReader = do n <- element "status" 
-                  case reads (T.unpack $ X.nodeText n) of
-                    [] -> fail "statusReader: no parse"
-                    ((s, _):_) -> return s
-
--- convert a report into a document
-reportToDoc :: Report -> Document
-reportToDoc Report{..} = htmlDocument [status, stdout, stderr]
-    where status = X.Element "status" [] 
-                    [X.TextNode (T.pack $ show reportStatus)]
-          stdout = X.Element "stdout" [] [X.TextNode reportStdout]
-          stderr = X.Element "stderr" [] [X.TextNode reportStderr]
-          
-
+{-        
 -- doctest file for a problem
 doctestFile ::  PID -> FilePath
 doctestFile pid = "problems" </> show pid <.> "tst"
@@ -267,105 +292,5 @@ doctestFile pid = "problems" </> show pid <.> "tst"
 -- submission directory associated for a user and problem
 submissionDir :: UID -> PID -> FilePath
 submissionDir uid pid = "submissions" </> show uid </> show pid
-
-
-{-
----------------------------------------------------------------
--- Submissions Queries
----------------------------------------------------------------
--- | a row of the submission database
-data Row = Row { rowUID :: UID, 
-                 rowPID :: PID,
-                 rowSID :: SID,
-                 rowReport :: Report
-               } deriving Show
-           
-type Table = [Row] -- a table is a list of rows
-
--- | query producing an `a'
-type Query a = Row -> a
-
-(|||) :: Query Bool -> Query Bool -> Query Bool
-q1 ||| q2 = \row -> q1 row || q2 row
-
-(&&&) :: Query Bool -> Query Bool -> Query Bool
-q1 &&& q2 = \row -> q1 row && q2 row
-
-
-rowStatus :: Query Status
-rowStatus =  reportStatus . rowReport
-
-accepted :: Query Bool
-accepted r = rowStatus r == Accepted
-
-overdue :: Query Bool
-overdue r = rowStatus r == Overdue
-
-wrongAnswer :: Query Bool
-wrongAnswer r = rowStatus r == WrongAnswer
-
-runtimeError :: Query Bool
-runtimeError r = rowStatus r == RuntimeError
-
-miscError :: Query Bool
-miscError r = rowStatus r == MiscError
 -}
-
-
--------------------------------------------------------------------------------
--- read the submission database lazily from disk
--------------------------------------------------------------------------------
-
-{-
-readDB :: IO [Row]
-readDB = do top <- readDirectoryWithL readf "submissions"
-            return (mkRows $ dirTree top) 
-              --  filterDir (not.failed) $ dirTree top)
-  where readf file 
-          | ext == ".out" = readFromHTMLFile file reportReader
-          | otherwise = ioError $ userError "ignored file"
-          where ext = takeExtension file
-
-
-
-mkRows :: DirTree Report -> [Row]
-mkRows dir = [Row uid pid sid rep 
-             | dir' <- contents dir,
-               let uid = read (name dir'),
-               dir'' <- contents dir',
-               let pid = read (name dir''),
-               File fp rep <- contents dir'',
-               let sid = read (takeBaseName fp)
-             ]
--}
-
-{-
-getAllStatus :: IO (Map UID (Map PID [Status]))
-getAllStatus =  fmap reportSummary readAllStatus
-  
--- read all report status into a tree structure
-readAllStatus :: IO (DirTree Status)
-readAllStatus = do top <- readDirectoryWithL readf "submissions"
-                   return (filterDir (not.failed) $ dirTree top)
-  where readf file 
-          | ext == ".out" = do r <- readFromHTMLFile file reportReader
-                               return (reportStatus r)
-          | otherwise = ioError $ userError "not a report file"
-          where ext = takeExtension file
-
--- summary of all submission reports:
-reportSummary :: DirTree Status -> Map UID (Map PID [Status])
-reportSummary dir = 
-  Map.fromList [ (uid, reportUser dir')
-               | dir'<-contents dir, let uid = read (name dir')]
-    
-reportUser :: DirTree Status -> Map PID [Status]
-reportUser dir =
-  Map.fromList [(pid, status) 
-               | Dir name dirs'<-contents dir, 
-                 let pid = read name, 
-                 let status = [stat | File _ stat <- dirs']]
-  
--}
-        
 

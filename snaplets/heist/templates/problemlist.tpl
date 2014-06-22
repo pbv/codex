@@ -2,13 +2,13 @@
 <h1>Problemas</h1>
 <dl>
 <problemList>
-  <dt><a href="/problems/${problemid}"><problem/></a> 
+  <dt><a href="/problems/${problemID}"><problemTitle/></a> 
     <ifAccepted><img src="/icons/16x16/accepted.png" alt="Accepted"/>
     </ifAccepted>
   </dt>
   <dd class="problemli"><span class="info">
       <ifSubmissions>
-	<numberOfSubmissions/> submissões já efetuadas.<br/>
+	<countSubmissions/> submissões já efetuadas.<br/>
       </ifSubmissions>
       <ifEarly>Submissões iniciam em <startTime/>.</ifEarly>
       <ifLate>Submissões terminaram em <endTime/>.</ifLate>

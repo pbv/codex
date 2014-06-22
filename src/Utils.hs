@@ -4,7 +4,7 @@
 -}
 module Utils where
 
-import           Control.Concurrent.MVar
+-- import           Control.Concurrent.MVar
 import           Control.Monad.State
 import           Data.Text(Text)
 -- import qualified Data.Text
@@ -45,10 +45,12 @@ import Types
 import LdapAuth
 
 
+{-
 -- | run an IO action under mutual exclusion from other threads
 mutexIO :: IO a -> AppHandler a
 mutexIO action 
   = do mvar<-gets appLock; liftIO $ withMVar mvar $ \_ -> action
+-}
 
 {-
 -- | run a command under safeexec sandbox
@@ -120,8 +122,8 @@ incrCounter name
 
 
 -- | Get current logged in user; fail with unauthorized error if missing
-getUser :: AppHandler UID
-getUser = do 
+getLoggedUser :: AppHandler UID
+getLoggedUser = do 
   opt <- with auth currentUser
   case opt of
     Nothing -> unauthorized

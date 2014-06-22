@@ -103,8 +103,9 @@ userName au
 -- dummy password-less login
 -- for development only!
 
-dummyAuth :: IAuthBackend r => r -> ByteString -> IO (Maybe AuthUser)
-dummyAuth r login
+dummyAuth :: IAuthBackend r => 
+             r -> LdapConf -> ByteString -> ByteString -> IO (Maybe AuthUser)
+dummyAuth r _ login _
   = do now <- getCurrentTime
        let login' = T.pack $ B.toString login
        let newuser = defAuthUser { userLogin = login'

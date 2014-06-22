@@ -5,29 +5,28 @@
 
 module Types where
 
--- import           System.FilePath
 import           Data.ByteString.UTF8(ByteString)
 import qualified Data.ByteString.UTF8 as B
 
 import           Data.Text (Text)
 import qualified Data.Text as T
 
--- import           Data.Configurator
 import           Data.Configurator.Types
 
+import           Database.SQLite.Simple.ToField
+import           Database.SQLite.Simple.FromField
 
--- users; obtained from an auth session
-newtype UID = UID { fromUID :: ByteString } deriving (Eq,Ord)
 
--- problems; parsed from URLs
-newtype PID = PID { fromPID :: ByteString } deriving (Eq,Ord)
+-- | user identifiers (login)
+newtype UID = UID ByteString deriving (Eq,Ord)
 
--- submission; obtained from URLs 
-newtype SID = SID { fromSID :: Int } deriving (Eq,Ord)
+-- | problem identifiers 
+newtype PID = PID ByteString deriving (Eq,Ord)
 
---
--- read and show instances
---
+-- | submission identifiers
+newtype SID = SID Int deriving (Eq,Ord)
+
+-- | read and show instances
 instance Show UID where
   showsPrec _ (UID s) = ((B.toString s)++)
   
@@ -41,11 +40,30 @@ instance Read PID where
   readsPrec _ xs = [(PID $ B.fromString xs, "")]
 
 instance Show SID where
-  showsPrec _ (SID n) = ('S':).shows n
+  showsPrec _ (SID n) = shows n
 
 instance Read SID where
-  readsPrec _ ('S':xs) = [(SID n,xs')| (n,xs')<-reads xs]
-  readsPrec _ _        = []
+  readsPrec _ xs = [(SID n,xs')| (n,xs')<-reads xs]
+  
+  
+-- | convertion to/from SQLite fields
+instance ToField UID where  
+  toField (UID uid) = toField uid
+  
+instance ToField PID where
+  toField (PID pid) = toField pid
+  
+instance ToField SID where
+  toField (SID sid) = toField sid
+  
+instance FromField UID where
+  fromField f = fmap UID (fromField f)
+  
+instance FromField PID where
+  fromField f = fmap PID (fromField f)
+
+instance FromField SID where
+  fromField f = fmap SID (fromField f)
   
   
 -- | safeexec parameters

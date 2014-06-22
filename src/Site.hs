@@ -58,7 +58,7 @@ import           Types
 import           Problem
 import           Submission
 import           LdapAuth
-import           Printout
+--import           Printout
 
   
 
@@ -103,7 +103,7 @@ handleLoginSubmit ::
   LdapConf -> ByteString -> ByteString -> Handler App (AuthManager App) ()
 handleLoginSubmit ldapConf user passwd = do
   --optAuth <- withBackend (\r -> liftIO $ ldapAuth r ldapConf user passwd)
-  optAuth <- withBackend (\r -> liftIO $ ldapAuth r ldapConf user passwd)
+  optAuth <- withBackend (\r -> liftIO $ dummyAuth r ldapConf user passwd)
   case optAuth of 
     Nothing -> handleLoginForm err
     Just au -> forceLogin au >> redirect "/problems"
@@ -115,17 +115,17 @@ handleLoginSubmit ldapConf user passwd = do
 -- | Logs out and redirects the user to the site index.
 handleLogout :: AppHandler ()
 handleLogout = method GET $ do 
-    uid <- getUser   --  ensure user is logged in   
+    uid <- getLoggedUser   --  ensure user is logged in   
     -- procedeed to printout in exam mode
-    exam <- getConfigured "exam" False
-    when exam $ handlePrintout uid
+    -- exam <- getConfigured "exam" False
+    -- when exam $ handlePrintout uid
     with auth logout 
     redirect "/" 
 
 
+{-
 ------------------------------------------------------------------------------
 -- | Handle new user form submit
-{-
 handleNewUser :: Handler App (AuthManager App) ()
 handleNewUser = method GET handleForm <|> method POST handleFormSubmit
   where
@@ -139,24 +139,17 @@ handleNewUser = method GET handleForm <|> method POST handleFormSubmit
 -}
 
 -----------------------------------------------------------------------------
--- | Handle problem description request 
+-- | problem description request 
 handleProblem :: AppHandler ()
 handleProblem = method GET $ do
-  uid <- getUser -- ensure a user is logged in
-  --
-  withRequest (\req -> do 
-                  logError $ B.append "rqPathInfo: " (rqPathInfo req)
-                  logError $ B.append "rqURI: " (rqURI req)
-                  logError $ B.append "rqContextPath: " (rqContextPath req)
-              )
----
+  uid <- getLoggedUser -- ensure a user is logged in
   pid <- PID <$> getRequiredParam "pid"
   prob <- liftIO $ getProblem pid
   -- check if problem is visible; deny request if not
-  time <- liftIO getCurrentTime
-  when (not $ isVisible time prob) badRequest
-  -- ok: get all submission reports
-  subs <- getReports uid prob 
+  now <- liftIO getCurrentTime
+  when (not $ isVisible now prob) badRequest
+  -- now list all submissions
+  subs <- getSubmissions uid (probID prob)
   renderWithSplices "problem" $ 
     do problemSplices prob 
        submissionsSplice subs 
@@ -164,17 +157,29 @@ handleProblem = method GET $ do
        acceptedSplice (any isAccepted subs) 
 
 
--- pidSplice :: PID -> AppSplices 
--- pidSplice pid = "problemid" ## I.textSplice (T.pack $ show pid)
+-- | problem listing handler
+handleProblemList :: AppHandler ()
+handleProblemList = method GET $ do
+  uid <- getLoggedUser
+  -- list currently-visible problems only
+  now <- liftIO getCurrentTime  
+  probs <- filter (isVisible now) <$> liftIO getProblems
+  -- get all submission reports
+  subs <- mapM (\p->getSubmissions uid (probID p)) probs
+  renderWithSplices "problemlist" $ do
+    "problemList" ##  
+      I.mapSplices (I.runChildrenWith . splices) (zip probs subs)
+  where splices (prob,subs) 
+          = do problemSplices prob 
+               numberSplices (length subs)
+               acceptedSplice (any isAccepted subs) 
 
--- sidSplice :: SID -> AppSplices
--- sidSplice sid = "submitid" ## I.textSplice (T.pack $ show sid)
 
 
 problemSplices :: Problem UTCTime -> AppSplices
 problemSplices p = do
-  "problemid" ## I.textSplice (T.pack $ show $ probID p)
-  "problem" ## I.textSplice (probTitle p)
+  "problemID" ## I.textSplice (T.pack $ show $ probID p)
+  "problemTitle" ## I.textSplice (probTitle p)
   "description" ## return (probDescr p)
   "submitText" ## I.textSplice (probSubmit p)
   "startTime" ##  maybe (return []) timeSplice (probStart p)
@@ -215,81 +220,57 @@ formatNominalDiffTime secs
 
 submitSplices :: Submission -> AppSplices
 submitSplices s = do 
-  "submitid"   ## I.textSplice (T.pack $ show $ submitID s)
+  "submitID"   ## I.textSplice (T.pack $ show $ submitID s)
+  "submitPID"  ## I.textSplice (T.pack $ show $ submitPID s)
+  "submitTime" ## timeSplice (submitTime s)
   "submitText" ## I.textSplice (submitText s)
-  "submitTime" ## timeSplice  (submitTime s)
-  maybe (return ()) reportSplices (submitReport s)
+  "submitStatus" ## I.textSplice (T.pack $ show r)
+  "submitReport" ## I.textSplice (submitReport s)
+  "ifAccepted" ## conditionalSplice (r == Accepted)
+  "ifOverdue" ##  conditionalSplice (r == Overdue)
+  "ifRejected" ## conditionalSplice (r/= Accepted && r/=Overdue)
+  where r = submitStatus s
+
      
 submissionsSplice :: [Submission] -> AppSplices
 submissionsSplice lst 
   = "submissions" ## I.mapSplices (I.runChildrenWith . submitSplices) lst
 
-
-
--- | splices for a submission report
-reportSplices :: Report -> AppSplices
-reportSplices r =  do 
-  "status" ## I.textSplice (T.pack $ show $ reportStatus r)
-  "stdout" ## I.textSplice (reportStdout r)
-  "stderr" ## I.textSplice (reportStderr r)
-  "ifAccepted" ## conditionalSplice (s == Accepted)
-  "ifOverdue" ##  conditionalSplice (s == Overdue)
-  "ifRejected" ## conditionalSplice (s/= Accepted && s/=Overdue)
-  where s = reportStatus r
-
-
 acceptedSplice :: Bool -> AppSplices
-acceptedSplice acpt = "ifAccepted" ## conditionalSplice acpt
+acceptedSplice b = "ifAccepted" ## conditionalSplice b
 
 
-
-handleProblemList :: AppHandler ()
-handleProblemList = method GET $ do
-  uid <- getUser
-  t <- liftIO getCurrentTime  
-  -- restrict list to currently visible problems
-  probs <- filter (isVisible t) <$> liftIO getProblems
-  -- get all submission reports
-  subss <- mapM (getReports uid) probs
-  renderWithSplices "problemlist" $ do
-    "problemList" ##  
-      I.mapSplices (I.runChildrenWith . splices) (zip probs subss)
-  where splices (prob,subs) 
-          = do problemSplices prob 
-               numberSplices (length subs)
-               acceptedSplice (any isAccepted subs) 
                
 
 -- splices concerning the number of submissions
 numberSplices :: Int -> AppSplices
 numberSplices n = do 
-  "numberOfSubmissions" ## I.textSplice (T.pack $ show n)
+  "countSubmissions" ## I.textSplice (T.pack $ show n)
   "ifSubmissions" ## conditionalSplice (n>0)
 
 
 
 handleGetSubmission, handlePostSubmission :: AppHandler ()
 handleGetSubmission = method GET $ do
-  uid <- getUser
+  uid <- getLoggedUser
   pid <- PID <$> getRequiredParam "pid"
   sid <- read . B.toString <$> getRequiredParam "sid"
   prob <- liftIO $ getProblem pid
-  sub <- getReport uid prob sid
+  sub <- getSubmission uid sid
   renderWithSplices "report" $ do problemSplices prob  
                                   submitSplices sub 
 
 
 handlePostSubmission = method POST $ do
-  uid <- getUser
+  uid <- getLoggedUser
   pid <-  PID <$> getRequiredParam "pid"
   prob <- liftIO $ getProblem pid
   -- check that the problem is available for submission
-  time <- liftIO getCurrentTime
-  when (not $ isAvailable time prob) badRequest
+  now <- liftIO getCurrentTime
+  when (not $ isAvailable now prob) badRequest
   incrCounter "submissions"
-  text <- T.decodeUtf8With T.ignore <$> getRequiredParam "code"
-  sid <- postSubmission uid pid text
-  sub <- getReport uid prob sid
+  code <- T.decodeUtf8With T.ignore <$> getRequiredParam "code"
+  sub <- postSubmission uid prob now code
   renderWithSplices "report" $ do problemSplices prob 
                                   submitSplices sub 
 
@@ -322,13 +303,14 @@ handleSubmissions = method GET $ do
 -- in exam mode show final report and confirm logout
 -- otherwise, logout immediately
 handleConfirmLogout :: AppHandler ()
-handleConfirmLogout = do
-  exam <- getConfigured "exam" False
-  if exam then handleFinalReport else handleLogout
+handleConfirmLogout = do handleLogout
+  --exam <- getConfigured "exam" False
+  --if exam then handleFinalReport else handleLogout
 
+{-
 handleFinalReport :: AppHandler ()
 handleFinalReport = method GET $ do
-    uid <- getUser  
+    uid <- getLoggedUser  
     probs <- liftIO getProblems
     subs <- sequence [do subs<-getReports uid prob 
                          return (lastSubmission subs)
@@ -339,7 +321,7 @@ handleFinalReport = method GET $ do
   where splices (prob,sub) = do problemSplices prob 
                                 -- acceptedSplices (accepted sub)        
                                 submitSplices sub
-
+-}
 
 
 
@@ -403,8 +385,7 @@ app =
     liftIO $ withMVar c $ \conn -> Db.createTables conn
 
     addRoutes routes
-    mv <- liftIO $ newMVar ()
-    return $ App h s d a mv conf ekg 
+    return $ App h s d a conf ekg 
 
 
 emptyConfig :: HeistConfig m

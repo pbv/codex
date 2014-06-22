@@ -4,13 +4,16 @@ module Db where
 
 import           Control.Applicative
 import           Control.Monad
+import           Data.Text (Text)
 import qualified Data.Text as T
-import           Data.Time (UTCTime)
+
 import qualified Database.SQLite.Simple as S
 import           Snap.Snaplet
 import           Snap.Snaplet.SqliteSimple
 ------------------------------------------------------------------------------
 import           Application
+
+
 
 
 tableExists :: S.Connection -> String -> IO Bool
@@ -30,21 +33,18 @@ createTables conn =   mapM_ create tables
           schemaCreated <- tableExists conn tab
           unless schemaCreated $ S.execute_ conn (S.Query cmd)
       
-tables  :: [(String,T.Text)]
+tables :: [(String,Text)]
 tables = [("submissions",  
            T.concat [ "CREATE TABLE submissions ("
                     , "id INTEGER PRIMARY KEY, "
-                    , "user TEXT NOT NULL, "
-                    , "problem TEXT NOT NULL, "
+                    , "user_id TEXT NOT NULL, "
+                    , "problem_id TEXT NOT NULL, "
                     , "time TIMESTAMP NOT NULL, "
-                    , "code TEXT)"])
-         , ("reports",
-            T.concat ["CREATE TABLE reports ("
-                     , "id INTEGER PRIMARY KEY, "
-                     , "submit_id INTEGER NOT NULL, "  -- FOREIGN KEY
-                     , "status TEXT NOT NULL, "
-                     , "stdout TEXT, "
-                     , "stderr TEXT)" 
-                     ])
-         ]
-          
+                    , "code TEXT NOT NULL, "
+                    , "status TEXT NOT NULL, "
+                    , "report TEXT NOT NULL)"])]
+
+
+
+
+
