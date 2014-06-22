@@ -9,7 +9,7 @@ module Site
   ) where
 
 ------------------------------------------------------------------------------
-import           Prelude hiding (catch)
+--import           Prelude hiding (catch)
 import           Control.Monad.CatchIO (catch)
 import           Control.Monad.State
 import           Control.Applicative
@@ -18,12 +18,13 @@ import           Control.Lens
 
 import           Data.ByteString.UTF8 (ByteString)
 import qualified Data.ByteString.UTF8 as B
-import qualified Data.ByteString as B
+--import qualified Data.ByteString as B
 import           Data.Maybe
 import           Data.Text (Text)
 import qualified Data.Text as T
 import qualified Data.Text.Encoding as T
 import qualified Data.Text.Encoding.Error as T
+import qualified Data.Map as Map
 
 import           Snap.Core
 import           Snap.Snaplet
@@ -34,10 +35,10 @@ import           Snap.Snaplet.Heist
 import           Snap.Snaplet.Session.Backends.CookieSession
 import           Snap.Util.FileServe
 import           Heist
-import           Heist.Splices
+--import           Heist.Splices
 import qualified Heist.Interpreted as I
 
-import qualified Text.XmlHtml as X
+-- import qualified Text.XmlHtml as X
 
 import           Data.Time.Clock
 import           Data.Time.LocalTime
@@ -161,14 +162,17 @@ handleProblem = method GET $ do
 handleProblemList :: AppHandler ()
 handleProblemList = method GET $ do
   uid <- getLoggedUser
-  -- list currently-visible problems only
+  -- list currently visible problems 
   now <- liftIO getCurrentTime  
   probs <- filter (isVisible now) <$> liftIO getProblems
-  -- get all submission reports
-  subs <- mapM (\p->getSubmissions uid (probID p)) probs
+  -- get all submissions for the user
+  allsubs <- getAllSubmissions uid 
+  -- group by problem ids
+  let pidsubs = Map.fromListWith (++) [(submitPID s, [s]) | s<-allsubs]
+  let list = [(p, Map.findWithDefault [] (probID p) pidsubs) | p<-probs]
+  
   renderWithSplices "problemlist" $ do
-    "problemList" ##  
-      I.mapSplices (I.runChildrenWith . splices) (zip probs subs)
+    "problemList" ##  I.mapSplices (I.runChildrenWith . splices) list
   where splices (prob,subs) 
           = do problemSplices prob 
                numberSplices (length subs)

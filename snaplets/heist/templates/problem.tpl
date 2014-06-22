@@ -12,7 +12,7 @@
 <submissions>
   <li class="submissionli">
   <a href="/submissions/${problemID}/${submitID}"
-   ><submitID/></a><span class="info"><status/></span>
+   ><submitID/></a><span class="info"><submitStatus/></span>
 </submissions>
 </ol>
 </ifSubmissions>
