@@ -7,7 +7,6 @@ module Application where
 
 ------------------------------------------------------------------------------
 import Control.Lens
-import Control.Concurrent.MVar
 import Control.Monad.State
 
 import Snap.Snaplet

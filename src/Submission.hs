@@ -19,13 +19,13 @@ import qualified Data.Text    as T
 import qualified Data.Text.IO as T
 
 import           Text.Regex
-import           Control.Exception
 
-import           Control.Monad
+import           Control.Exception(bracket)
+
 import           Control.Monad.State
 import           Control.Applicative
 
-import           Snap.Snaplet
+-- import           Snap.Snaplet
 import           Snap.Snaplet.SqliteSimple
 import qualified Database.SQLite.Simple as S
 import           Database.SQLite.Simple.FromField 
@@ -114,37 +114,49 @@ getAllSubmissions uid =
 
 
 -- | post a new submission; top level function 
-postSubmission :: UID -> Problem UTCTime -> UTCTime -> Text 
-                  -> AppHandler Submission
-postSubmission uid prob now code = do 
-  sf <- getSafeExec
-  (exitCode, stdout, stderr) <- liftIO $ runSubmission sf uid (probID prob) code 
-  let (status, report) = makeReport now prob stdout stderr
-  insertSubmission uid (probID prob) now code status report 
+postSubmission :: UID -> 
+                  Problem UTCTime -> 
+                  Text -> 
+                  AppHandler Submission
+postSubmission uid prob code = 
+  let pid = probID prob
+      tstfile = "problems" </> show pid <.> "tst"
+      tmpdir  = "tmp" </> show uid
+  in do 
+    now <- liftIO getCurrentTime
+    -- create a temporary directory for this user (if missing)
+    liftIO $ createDirectoryIfMissing True tmpdir 
+    (exitCode, out, err) <- runSubmission tmpdir tstfile code 
+    let (status, report) = makeReport now prob out err
+    insertSubmission uid pid now code status report 
 
-
--- | lower level I/O helper functions 
 
 -- | run doctest file for a submissions
 -- creates temp directory and file and cleanups afterwards
-runSubmission :: SafeExec -> UID -> PID -> Text -> IO (ExitCode,String,String)
-runSubmission sf uid pid code = 
-  let tmpdir = "tmp" </> show uid
-      tstfile = "problems" </> show pid <.> "tst"
-  in do
-    createDirectoryIfMissing True tmpdir
-    -- default permissions to allow safeexec reading
-    (pyfile,handle) <- openTempFileWithDefaultPermissions tmpdir "tmp.py"
-    T.hPutStr handle code
-    hClose handle
-    result <- runTests sf tstfile pyfile
-    removeFile pyfile
-    return result
+runSubmission :: FilePath -> FilePath -> Text -> AppHandler (ExitCode,String,String)
+runSubmission tmpdir tstfile code = do 
+  sf <- getSafeExec
+  liftIO $ withTempFile tmpdir code (runDoctests sf tstfile)
 
 
--- | run python tests inside a safeexec sandbox
-runTests :: SafeExec -> FilePath -> FilePath -> IO (ExitCode, String, String)
-runTests SafeExec{..} tstfile pyfile 
+-- | lower level I/O helper functions 
+  
+-- | make a python temporary file given a source code as text
+-- make sure file is cleaned up afterwards
+withTempFile :: FilePath -> Text -> (FilePath -> IO a) -> IO a
+withTempFile tmpdir txt = bracket create removeFile 
+  where 
+    create = do (file,handle) <- openTempFileWithDefaultPermissions tmpdir "tmp.py"
+                T.hPutStr handle txt
+                hClose handle
+                return file
+
+
+
+
+-- | run Python doctests inside a safeexec sandbox
+runDoctests :: SafeExec -> FilePath -> FilePath -> IO (ExitCode, String, String)
+runDoctests SafeExec{..} tstfile pyfile 
   = readProcessWithExitCode safeExec args ""
   where args = ["--cpu", show maxCpuTime,  
                 "--clock", show maxClockTime,

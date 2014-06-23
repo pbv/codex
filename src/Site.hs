@@ -103,8 +103,8 @@ handleLoginSubmit =
 handleLoginSubmit :: 
   LdapConf -> ByteString -> ByteString -> Handler App (AuthManager App) ()
 handleLoginSubmit ldapConf user passwd = do
-  --optAuth <- withBackend (\r -> liftIO $ ldapAuth r ldapConf user passwd)
-  optAuth <- withBackend (\r -> liftIO $ dummyAuth r ldapConf user passwd)
+  optAuth <- withBackend (\r -> liftIO $ ldapAuth r ldapConf user passwd)
+  --optAuth <- withBackend (\r -> liftIO $ dummyAuth r ldapConf user passwd)
   case optAuth of 
     Nothing -> handleLoginForm err
     Just au -> forceLogin au >> redirect "/problems"
@@ -274,7 +274,7 @@ handlePostSubmission = method POST $ do
   when (not $ isAvailable now prob) badRequest
   incrCounter "submissions"
   code <- T.decodeUtf8With T.ignore <$> getRequiredParam "code"
-  sub <- postSubmission uid prob now code
+  sub <- postSubmission uid prob code
   renderWithSplices "report" $ do problemSplices prob 
                                   submitSplices sub 
 

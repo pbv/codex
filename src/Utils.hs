@@ -45,27 +45,6 @@ import Types
 import LdapAuth
 
 
-{-
--- | run an IO action under mutual exclusion from other threads
-mutexIO :: IO a -> AppHandler a
-mutexIO action 
-  = do mvar<-gets appLock; liftIO $ withMVar mvar $ \_ -> action
--}
-
-{-
--- | run a command under safeexec sandbox
--- this is not really used for now
-runSafeExec :: FilePath      -- filename of executable
-               -> [String]   -- arguments
-               -> String     -- stdin
-               -> AppHandler (ExitCode,String,String) -- exitcode, stdout, stderr
-runSafeExec cmd args stdin 
-  = do safeexec <- getSafeExec 
-       let args' = ["--cpu", show (maxCpuTime safeexec),
-                    "--clock", show (maxClockTime safeexec),
-                    "--mem", show (maxMemory safeexec)] 
-       liftIO $ readProcessWithExitCode (safeExec safeexec) (args'++cmd:args) stdin
--}
 
 getConfigured :: Configured a => Name -> a -> AppHandler a
 getConfigured key def = do 
