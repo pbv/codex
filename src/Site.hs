@@ -161,21 +161,23 @@ handleProblem = method GET $ do
 handleProblemList :: AppHandler ()
 handleProblemList = method GET $ do
   uid <- getLoggedUser
+  -- get submissions summary for the user logged in 
+  summary <- getSubmissionsSummary uid 
   -- list currently visible problems 
   now <- liftIO getCurrentTime  
   probs <- filter (isVisible now) <$> liftIO getProblems
-  -- get all submissions for the user logged in 
-  allsubs <- getAllSubmissions uid 
-  -- group by problem ids
-  let pidsubs = Map.fromListWith (++) [(submitPID s, [s]) | s<-allsubs]
-  let list = [(p, Map.findWithDefault [] (probID p) pidsubs) | p<-probs]
-  
+  -- filter results for visible problems only
+  let list = [(p, sub, acc) | p<-probs,
+              let (sub, acc) = head ([(sub',acc') | (pid,sub',acc')<-summary,
+                                      pid == probID p] ++ [(0,0)])
+              ]
+  -- construct splices and render page
   renderWithSplices "problemlist" $ do
     "problemList" ##  I.mapSplices (I.runChildrenWith . splices) list
-  where splices (prob,subs) 
+  where splices (prob,sub,acc) 
           = do problemSplices prob 
-               numberSplices (length subs)
-               acceptedSplice (any isAccepted subs) 
+               numberSplices sub
+               acceptedSplice (acc>0) 
 
 
 

@@ -92,12 +92,8 @@ insertSubmission uid pid time code status report = do
   return (Submission sid uid pid time code status report)
   
 
--- | get all submissions for a user and problem
-getSubmissions :: UID -> PID -> AppHandler [Submission]  
-getSubmissions uid pid = 
-  query "SELECT * FROM submissions WHERE user_id = ? AND problem_id = ? ORDER BY time" (uid, pid)
 
--- | get a single submission 
+-- | get a single user's submission 
 getSubmission :: UID ->  SID -> AppHandler Submission
 getSubmission uid sid = do
   r <- query "SELECT * FROM submissions WHERE id = ? AND user_id = ?" (sid,uid)
@@ -106,17 +102,33 @@ getSubmission uid sid = do
     _   -> notFound
 
 
+-- | get all submissions for a user and problem
+getSubmissions :: UID -> PID -> AppHandler [Submission]  
+getSubmissions uid pid = 
+  query "SELECT * FROM submissions WHERE user_id = ? AND problem_id = ? ORDER BY time" (uid, pid)
+
+
+-- | get user's submissions summary aggreated by problem IDs
+-- result table rows : problem_id, #submissions, #accepted
+getSubmissionsSummary :: UID -> AppHandler [(PID, Int, Int)]
+getSubmissionsSummary uid =
+  query "SELECT problem_id, COUNT(*), SUM(status=='Accepted') FROM submissions WHERE user_id = ? GROUP BY problem_id" (Only uid)
+
+
+
+{- 
+-- ** deprecated **
 -- | get all the user submissions 
 getAllSubmissions :: UID -> AppHandler [Submission]
 getAllSubmissions uid = 
   query "SELECT * FROM submissions WHERE user_id = ? ORDER BY problem_id" (Only uid)
+-}
 
 
 -- | get the best submission for a problem for printouts, i.e.
--- the last Accepted submission; orthe last submission (if none was accepted)
+-- the last Accepted submission; or the last overall submission if none was accepted
 -- Note: the query below assumes that the ID key for submissions 
--- increases with time; this is the usual behaviour 
--- for auto-increment primary keys in SQLite
+-- increases with time; this is the usual behaviour for auto-increment primary keys
 getBestSubmission :: UID -> PID -> AppHandler (Maybe Submission)
 getBestSubmission uid pid = 
   listToMaybe <$> query "SELECT id,user_id,problem_id,time,code,status,report FROM (SELECT *,status=='Accepted' as accept FROM submissions WHERE user_id = ? AND problem_id = ? ORDER BY accept DESC, id DESC LIMIT 1)" (uid,pid) 
@@ -182,20 +194,20 @@ runDoctests SafeExec{..} tstfile pyfile
 -- | classify a submission and produce a text report
 -- these rules are highly dependent on Python's doctest output 
 makeReport :: UTCTime -> Problem UTCTime -> String -> String -> (Status, Text)
-makeReport time prob stdout stderr 
-  = (status, T.pack $ trim maxLen stdout ++ trim maxLen stderr)
+makeReport time prob out err 
+  = (status, T.pack $ trim maxLen out ++ trim maxLen err)
   where 
     maxLen = 2000 -- max.length of stdout/stdout transcriptions
     status 
-      | null stdout && match "OK" stderr   = if isLate time prob 
-                                             then Overdue
-                                             else Accepted
-      | match "Time Limit" stderr          = TimeLimitExceeded
-      | match "Memory Limit" stderr        = MemoryLimitExceeded
-      | match "Exception raised" stdout    = RuntimeError
-      | match "SyntaxError" stderr         = CompileError
-      | match "Failed" stdout              = WrongAnswer
-      | otherwise                          = MiscError
+      | null out && match "OK" err   = if isLate time prob 
+                                       then Overdue
+                                       else Accepted
+      | match "Time Limit" err          = TimeLimitExceeded
+      | match "Memory Limit" err        = MemoryLimitExceeded
+      | match "Exception raised" out    = RuntimeError
+      | match "SyntaxError" err         = CompileError
+      | match "Failed" out              = WrongAnswer
+      | otherwise                       = MiscError
 
 
 -- | miscelaneous
