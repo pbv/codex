@@ -35,10 +35,9 @@ import           Snap.Snaplet.Heist
 import           Snap.Snaplet.Session.Backends.CookieSession
 import           Snap.Util.FileServe
 import           Heist
---import           Heist.Splices
+
 import qualified Heist.Interpreted as I
 
--- import qualified Text.XmlHtml as X
 
 import           Data.Time.Clock
 import           Data.Time.LocalTime
@@ -59,7 +58,7 @@ import           Types
 import           Problem
 import           Submission
 import           LdapAuth
---import           Printout
+import           Printout
 
   
 
@@ -103,8 +102,8 @@ handleLoginSubmit =
 handleLoginSubmit :: 
   LdapConf -> ByteString -> ByteString -> Handler App (AuthManager App) ()
 handleLoginSubmit ldapConf user passwd = do
-  optAuth <- withBackend (\r -> liftIO $ ldapAuth r ldapConf user passwd)
-  --optAuth <- withBackend (\r -> liftIO $ dummyAuth r ldapConf user passwd)
+  --optAuth <- withBackend (\r -> liftIO $ ldapAuth r ldapConf user passwd)
+  optAuth <- withBackend (\r -> liftIO $ dummyAuth r ldapConf user passwd)
   case optAuth of 
     Nothing -> handleLoginForm err
     Just au -> forceLogin au >> redirect "/problems"
@@ -118,8 +117,8 @@ handleLogout :: AppHandler ()
 handleLogout = method GET $ do 
     uid <- getLoggedUser   --  ensure user is logged in   
     -- procedeed to printout in exam mode
-    -- exam <- getConfigured "exam" False
-    -- when exam $ handlePrintout uid
+    exam <- getConfigured "exam" False
+    when exam $ handlePrintout uid
     with auth logout 
     redirect "/" 
 
@@ -165,7 +164,7 @@ handleProblemList = method GET $ do
   -- list currently visible problems 
   now <- liftIO getCurrentTime  
   probs <- filter (isVisible now) <$> liftIO getProblems
-  -- get all submissions for the user
+  -- get all submissions for the user logged in 
   allsubs <- getAllSubmissions uid 
   -- group by problem ids
   let pidsubs = Map.fromListWith (++) [(submitPID s, [s]) | s<-allsubs]

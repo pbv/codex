@@ -1,5 +1,7 @@
 {-# LANGUAGE OverloadedStrings, ScopedTypeVariables #-}
-
+{- 
+  Initialize backend SQLite database tables 
+-}
 module Db where
 
 import           Control.Monad
@@ -20,24 +22,26 @@ tableExists conn tblName = do
 
 -- | Create the necessary database tables, if not already initialized.
 createTables :: S.Connection -> IO ()
-createTables conn =   mapM_ create tables
+createTables conn = do
+  schemaCreated <- tableExists conn "submissions"
+  unless schemaCreated $ mapM_ (S.execute_ conn . S.Query) initCmds
   -- Note: for a bigger app, you probably want to create a 'version'
   -- table too and use it to keep track of schema version and
   -- implement your schema upgrade procedure here.
-  where create (tab,cmd) = do 
-          schemaCreated <- tableExists conn tab
-          unless schemaCreated $ S.execute_ conn (S.Query cmd)
       
-tables :: [(String,Text)]
-tables = [("submissions",  
-           T.concat [ "CREATE TABLE submissions ("
-                    , "id INTEGER PRIMARY KEY, "
-                    , "user_id TEXT NOT NULL, "
-                    , "problem_id TEXT NOT NULL, "
-                    , "time TIMESTAMP NOT NULL, "
-                    , "code TEXT NOT NULL, "
-                    , "status TEXT NOT NULL, "
-                    , "report TEXT NOT NULL)"])]
+
+initCmds :: [Text]
+initCmds = [T.concat 
+            [ "CREATE TABLE submissions ("
+            , "id INTEGER PRIMARY KEY, "
+            , "user_id TEXT NOT NULL, "
+            , "problem_id TEXT NOT NULL, "
+            , "time TIMESTAMP NOT NULL, "
+            , "code TEXT NOT NULL, "
+            , "status TEXT NOT NULL, "
+            , "report TEXT NOT NULL)"],
+            "CREATE INDEX user_index ON submissions(user_id)"
+           ]
 
 
 

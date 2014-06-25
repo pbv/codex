@@ -48,19 +48,19 @@ instance Read SID where
   
 -- | convertion to/from SQLite fields
 instance ToField UID where  
-  toField (UID uid) = toField uid
+  toField (UID uid) = toField (B.toString uid)
   
 instance ToField PID where
-  toField (PID pid) = toField pid
+  toField (PID pid) = toField (B.toString pid)
   
 instance ToField SID where
   toField (SID sid) = toField sid
   
 instance FromField UID where
-  fromField f = fmap UID (fromField f)
+  fromField f = fmap (UID . B.fromString) (fromField f)
   
 instance FromField PID where
-  fromField f = fmap PID (fromField f)
+  fromField f = fmap (PID . B.fromString) (fromField f)
 
 instance FromField SID where
   fromField f = fmap SID (fromField f)

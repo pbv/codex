@@ -1,6 +1,6 @@
 {-# LANGUAGE OverloadedStrings, RecordWildCards, DeriveDataTypeable #-}
 --
--- Storing and evaluating submissions 
+-- Storing, fetching and evaluating submissions 
 --
 
 module Submission where
@@ -112,8 +112,20 @@ getAllSubmissions uid =
   query "SELECT * FROM submissions WHERE user_id = ? ORDER BY problem_id" (Only uid)
 
 
+-- | get the best submission for a problem for printouts, i.e.
+-- the last Accepted submission; orthe last submission (if none was accepted)
+-- Note: the query below assumes that the ID key for submissions 
+-- increases with time; this is the usual behaviour 
+-- for auto-increment primary keys in SQLite
+getBestSubmission :: UID -> PID -> AppHandler (Maybe Submission)
+getBestSubmission uid pid = 
+  listToMaybe <$> query "SELECT id,user_id,problem_id,time,code,status,report FROM (SELECT *,status=='Accepted' as accept FROM submissions WHERE user_id = ? AND problem_id = ? ORDER BY accept DESC, id DESC LIMIT 1)" (uid,pid) 
 
+  
+
+--
 -- | post a new submission; top level function 
+--
 postSubmission :: UID -> 
                   Problem UTCTime -> 
                   Text -> 
@@ -141,7 +153,7 @@ runSubmission tmpdir tstfile code = do
 
 -- | lower level I/O helper functions 
   
--- | make a python temporary file given a source code as text
+-- | make a python temporary file given a source code as Text
 -- make sure file is cleaned up afterwards
 withTempFile :: FilePath -> Text -> (FilePath -> IO a) -> IO a
 withTempFile tmpdir txt = bracket create removeFile 

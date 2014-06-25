@@ -3,8 +3,7 @@
    Produce printouts for exams, etc.
 -}
 module Printout
-       (handlePrintout, 
-        lastSubmission
+       (handlePrintout
        ) where
 import           Prelude hiding (catch)
 import           System.FilePath
@@ -41,25 +40,17 @@ handlePrintout uid = do
   printout <- getPrintout  -- printout configuration
   fullname <- getFullName
   probs <- liftIO getProblems  -- all problems
-  subs <- sequence [do subs<-getReports uid prob 
-                       return (lastSubmission subs)
-                   | prob<-probs]
-  let psubs = [(p,s) | (p, Just s)<-zip probs subs]
-  liftIO $ makePrintout printout uid fullname psubs
+  subs <- sequence [do sub<-getBestSubmission uid (probID prob) 
+                       return (prob,sub) | prob<-probs]
+  liftIO $ makePrintout printout uid fullname subs
 
--- determine the final ("best") submission
--- 1) the last accepted submission; or
--- 2) the last overall submission (if none was accepted)
-lastSubmission :: [Submission] -> Maybe Submission
-lastSubmission subs = listToMaybe $ dropWhile (not.isAccepted) subs' ++ subs'
-  where subs' = reverse subs
         
 makePrintout :: Printout 
                 -> UID 
                 -> Text 
-                -> [(Problem UTCTime, Submission)] 
+                -> [(Problem UTCTime, Maybe Submission)] 
                 -> IO () 
-makePrintout Printout{..} uid name psubs = do
+makePrintout Printout{..} uid name subs = do
   zonetime <- getCurrentTime >>= utcToLocalZonedTime
   let time = T.pack (formatTime defaultTimeLocale "%c" zonetime)
   -- LaTeX and PDF file paths 
@@ -68,7 +59,7 @@ makePrintout Printout{..} uid name psubs = do
   let logfile = show uid <.> "log"  
   let pdffile = show uid <.> "pdf"
   -- write LaTeX source
-  T.writeFile ("printouts"</>texfile) (genLaTeX uid printHeader name time psubs)
+  T.writeFile ("printouts"</>texfile) (genLaTeX uid printHeader name time subs)
   -- run pdflatex 
   (_,_,_,ph) <- createProcess (pdflatex texfile) {cwd=Just "printouts"}
   waitForProcess ph                    -- wait for it
@@ -90,32 +81,34 @@ genLaTeX :: UID        -- user ID
             -> Text    -- header
             -> Text    -- full name
             -> Text    -- current time
-            -> [(Problem UTCTime, Submission)] -- problems and final submission
-            -> Text                            -- LaTeX report
-genLaTeX uid header name time psubs
+            -> [(Problem UTCTime, Maybe Submission)] 
+            -- problems and final submission
+            -> Text                            -- LaTeX source
+genLaTeX uid header name time subs
   = T.concat (preamble uid header name time ++
-              concatMap submission psubs ++
+              concatMap submission subs ++
               closing)
 
-submission (prob,sub) =
-  ["\\section*{", probTitle prob, "}\n",
+submission (Problem{..}, Nothing) = 
+  ["\\section*{", probTitle, "}\n",
+   "(Nenhuma solução submetida.)\n"
+  ]
+submission (Problem{..}, Just Submission{..}) =
+  ["\\section*{", probTitle, "}\n",
    "\\textbf{Resultado:} ", result, "\n",
    "\\begin{Verbatim}[frame=lines,numbers=left]\n",
-   T.strip (submitText sub), "\n",
+   T.strip submitText, "\n",
    "\\end{Verbatim}\n"
   ] ++
   if ok then [] else
   [ "\\begin{Verbatim}[frame=leftline,fontshape=sl]\n",
-    T.strip (reportStdout rep), "\n",
-    T.strip (reportStderr rep), "\n",
+    T.strip submitReport, "\n",
     "\\end{Verbatim}\n" ]
-  where rep = fromJust (submitReport sub)
-        status = reportStatus rep
-        ok = status == Accepted || status == Overdue
+  where ok = submitStatus == Accepted || submitStatus == Overdue
         result
-          | status == Accepted = "Passou todos os testes."
-          | status == Overdue  = "Submitido fora do tempo."
-          | otherwise          = "Falhou algum(s) teste(s)."
+          | submitStatus == Accepted = "Passou todos os testes."
+          | submitStatus == Overdue  = "Submitido fora do tempo."
+          | otherwise                = "Falhou algum(s) teste(s)."
 
 preamble uid header name time = 
    ["\\documentclass[10pt,a4paper,twoside]{article}\n",

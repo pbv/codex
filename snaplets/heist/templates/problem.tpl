@@ -11,8 +11,8 @@
 <ol class="submissions">
 <submissions>
   <li class="submissionli">
-  <a href="/submissions/${problemID}/${submitID}"
-   ><submitID/></a><span class="info"><submitStatus/></span>
+  <a href="/submissions/${problemID}/${submitID}"><span class="info"><submitStatus/></span></a>
+  </li>
 </submissions>
 </ol>
 </ifSubmissions>
