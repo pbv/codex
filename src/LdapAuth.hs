@@ -16,6 +16,7 @@ import qualified Data.Text as T
 import qualified Data.HashMap.Strict as HM
 
 import           Data.Maybe
+import           Data.Char (isAlphaNum,toLower)
 
 import           Control.Monad.Trans.Maybe
 import           Control.Monad.Trans
@@ -24,8 +25,6 @@ import           Control.Monad
 import           Data.Aeson.Types 
 
 import           LDAP
--- import           LDAP.Init
--- import           LDAP.Exceptions
 
 import           Data.Time.Clock
 
@@ -54,32 +53,34 @@ ldapBindSearch con dn passwd
 -- attempt to authenticate using LDAP
 ldapAuth :: IAuthBackend r => 
             r -> LdapConf -> ByteString -> ByteString -> IO (Maybe AuthUser)
-ldapAuth r conf user passwd = runMaybeT (ldapAuth' r conf user passwd)
+ldapAuth r conf user passwd 
+  = runMaybeT (ldapAuth' r conf (sanitize user) passwd)
+  
+    
+-- keep only alphanumeric chars and lowercase all letters
+sanitize :: ByteString -> ByteString 
+sanitize  = B.fromString . map toLower . filter isAlphaNum . B.toString
 
 ldapAuth' :: IAuthBackend r => 
             r -> LdapConf -> ByteString -> ByteString -> MaybeIO AuthUser
 ldapAuth' r LdapConf{..} user passwd 
-  = do con <- liftIO $ ldapInit ldapHost ldapPort
+  = do now <- liftIO getCurrentTime
+       con <- liftIO $ ldapInit ldapHost ldapPort
        attrs <- msum [ldapBindSearch con dn (B.toString passwd) | dn<-dns]
-       now <- liftIO getCurrentTime
-       let au = newUser now attrs
        MaybeT (lookupByLogin r login) 
-         `mplus` do au' <- liftIO (save r au)
-                    either (const $ fail "no login") return au'
+         `mplus` do au <- liftIO (save r (newUser now attrs))
+                    either (const $ fail "no login") return au
   where 
         dns = ["uid=" ++ B.toString user ++ "," ++ base | base<-ldapBases]
         login = T.pack $ B.toString user 
         newUser time attrs = 
-          defAuthUser { userLogin = login'
+          defAuthUser { userLogin = login
                       , userPassword = Nothing
                       , userCreatedAt = Just time
                       , userUpdatedAt = Just time
                       , userMeta = HM.fromList [(T.pack k, String $ T.pack v) 
                                                | (k,v:_)<-attrs, keepAttrs k]
                       }  
-          -- lookup cannonical user login
-          where login' = maybe login T.pack $ 
-                         (lookup "uid" attrs >>= listToMaybe)
 
 
 -- which LDAP attributes to keep?
