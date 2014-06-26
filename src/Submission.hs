@@ -1,7 +1,7 @@
 {-# LANGUAGE OverloadedStrings, RecordWildCards, DeriveDataTypeable #-}
---
--- Storing, fetching and evaluating submissions 
---
+{-
+   Evaluating, storing and fetching and submissions in Db
+-}
 
 module Submission where
 
@@ -25,7 +25,6 @@ import           Control.Exception(bracket)
 import           Control.Monad.State
 import           Control.Applicative
 
--- import           Snap.Snaplet
 import           Snap.Snaplet.SqliteSimple
 import qualified Database.SQLite.Simple as S
 import           Database.SQLite.Simple.FromField 
@@ -105,7 +104,7 @@ getSubmission uid sid = do
 -- | get all submissions for a user and problem
 getSubmissions :: UID -> PID -> AppHandler [Submission]  
 getSubmissions uid pid = 
-  query "SELECT * FROM submissions WHERE user_id = ? AND problem_id = ? ORDER BY time" (uid, pid)
+  query "SELECT * FROM submissions WHERE user_id = ? AND problem_id = ? ORDER BY id" (uid, pid)
 
 
 -- | get user's submissions summary aggreated by problem IDs
@@ -125,10 +124,11 @@ getAllSubmissions uid =
 -}
 
 
--- | get the best submission for a problem for printouts, i.e.
--- the last Accepted submission; or the last overall submission if none was accepted
--- Note: the query below assumes that the ID key for submissions 
--- increases with time; this is the usual behaviour for auto-increment primary keys
+-- | get the best submission for a problem for printouts:.
+-- the last Accepted submission; or 
+-- the last overall submission (if none was accepted)
+-- Note: the query below assumes that the submissions ID key 
+-- is monotonically increasing with time i.e. later submissions have higher IDs
 getBestSubmission :: UID -> PID -> AppHandler (Maybe Submission)
 getBestSubmission uid pid = 
   listToMaybe <$> query "SELECT id,user_id,problem_id,time,code,status,report FROM (SELECT *,status=='Accepted' as accept FROM submissions WHERE user_id = ? AND problem_id = ? ORDER BY accept DESC, id DESC LIMIT 1)" (uid,pid) 

@@ -24,7 +24,6 @@ import           Data.Text (Text)
 import qualified Data.Text as T
 import qualified Data.Text.Encoding as T
 import qualified Data.Text.Encoding.Error as T
-import qualified Data.Map as Map
 
 import           Snap.Core
 import           Snap.Snaplet
@@ -106,7 +105,7 @@ handleLoginSubmit ldapConf user passwd = do
   optAuth <- withBackend (\r -> liftIO $ dummyAuth r ldapConf user passwd)
   case optAuth of 
     Nothing -> handleLoginForm err
-    Just au -> forceLogin au >> redirect "/problems"
+    Just u -> forceLogin u >> redirect "/problems"
   where 
     err = Just "Utilizador ou password incorreto"
 
