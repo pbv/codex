@@ -86,7 +86,10 @@ insertSubmission ::  UID -> PID -> UTCTime -> Text -> Status -> Text
                   -> AppHandler Submission
 insertSubmission uid pid time code status report = do
   sid <- withSqlite $ \conn -> do
-    S.execute conn "INSERT INTO submissions (user_id, problem_id, time, code, status, report) VALUES(?, ?, ?, ?, ?, ?)" (uid, pid, time, code, status, report)
+    S.execute conn 
+      "INSERT INTO submissions \
+      \(user_id, problem_id, time, code, status, report) \
+      \VALUES(?, ?, ?, ?, ?, ?)" (uid, pid, time, code, status, report)
     fmap (SID . fromIntegral) (S.lastInsertRowId conn)
   return (Submission sid uid pid time code status report)
   
@@ -104,24 +107,17 @@ getSubmission uid sid = do
 -- | get all submissions for a user and problem
 getSubmissions :: UID -> PID -> AppHandler [Submission]  
 getSubmissions uid pid = 
-  query "SELECT * FROM submissions WHERE user_id = ? AND problem_id = ? ORDER BY id" (uid, pid)
+  query "SELECT * FROM submissions \
+        \WHERE user_id = ? AND problem_id = ? ORDER BY id" (uid, pid)
 
 
 -- | get user's submissions summary aggreated by problem IDs
 -- result table rows : problem_id, #submissions, #accepted
 getSubmissionsSummary :: UID -> AppHandler [(PID, Int, Int)]
 getSubmissionsSummary uid =
-  query "SELECT problem_id, COUNT(*), SUM(status=='Accepted') FROM submissions WHERE user_id = ? GROUP BY problem_id" (Only uid)
+  query "SELECT problem_id, COUNT(*), SUM(status=='Accepted') \
+        \FROM submissions WHERE user_id = ? GROUP BY problem_id" (Only uid)
 
-
-
-{- 
--- ** deprecated **
--- | get all the user submissions 
-getAllSubmissions :: UID -> AppHandler [Submission]
-getAllSubmissions uid = 
-  query "SELECT * FROM submissions WHERE user_id = ? ORDER BY problem_id" (Only uid)
--}
 
 
 -- | get the best submission for a problem for printouts:.
@@ -131,7 +127,11 @@ getAllSubmissions uid =
 -- is monotonically increasing with time i.e. later submissions have higher IDs
 getBestSubmission :: UID -> PID -> AppHandler (Maybe Submission)
 getBestSubmission uid pid = 
-  listToMaybe <$> query "SELECT id,user_id,problem_id,time,code,status,report FROM (SELECT *,status=='Accepted' as accept FROM submissions WHERE user_id = ? AND problem_id = ? ORDER BY accept DESC, id DESC LIMIT 1)" (uid,pid) 
+  listToMaybe <$> 
+  query "SELECT id,user_id,problem_id,time,code,status,report \
+        \FROM (SELECT *,status=='Accepted' as accept \
+              \FROM submissions WHERE user_id = ? AND problem_id = ? \
+              \ORDER BY accept DESC, id DESC LIMIT 1)" (uid,pid) 
 
   
 

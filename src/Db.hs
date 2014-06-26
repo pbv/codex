@@ -24,22 +24,21 @@ tableExists conn tblName = do
 createTables :: S.Connection -> IO ()
 createTables conn = do
   schemaCreated <- tableExists conn "submissions"
-  unless schemaCreated $ mapM_ (S.execute_ conn . S.Query) initCmds
+  unless schemaCreated $ mapM_ (S.execute_ conn) initCmds
   -- Note: for a bigger app, you probably want to create a 'version'
   -- table too and use it to keep track of schema version and
   -- implement your schema upgrade procedure here.
       
 
-initCmds :: [Text]
-initCmds = [T.concat 
-            [ "CREATE TABLE submissions ("
-            , "id INTEGER PRIMARY KEY, "
-            , "user_id TEXT NOT NULL, "
-            , "problem_id TEXT NOT NULL, "
-            , "time TEXT NOT NULL, "
-            , "code TEXT NOT NULL, "
-            , "status TEXT NOT NULL, "
-            , "report TEXT NOT NULL)"],
+initCmds :: [S.Query]
+initCmds = ["CREATE TABLE submissions (\
+            \id INTEGER PRIMARY KEY, \
+            \user_id TEXT NOT NULL, \
+            \problem_id TEXT NOT NULL, \
+            \time TIMESTAMP NOT NULL, \
+            \code TEXT NOT NULL, \
+            \status TEXT NOT NULL, \
+            \report TEXT NOT NULL)",
             "CREATE INDEX user_index ON submissions(user_id)"
            ]
 
