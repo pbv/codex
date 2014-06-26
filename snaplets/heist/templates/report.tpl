@@ -1,7 +1,7 @@
 <apply template="base">
 <h1><problemTitle/></h1>
 <h2>Submissão <submitID/></h2>
-<h2>Resultado: <em><status/></em></h2>
+<h2>Resultado: <em><submitStatus/></em></h2>
 
 <ifAccepted>
 <p>Parabens! A sua submissão passou todos os testes.</p>
