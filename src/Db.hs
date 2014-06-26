@@ -36,7 +36,7 @@ initCmds = [T.concat
             , "id INTEGER PRIMARY KEY, "
             , "user_id TEXT NOT NULL, "
             , "problem_id TEXT NOT NULL, "
-            , "time TIMESTAMP NOT NULL, "
+            , "time TEXT NOT NULL, "
             , "code TEXT NOT NULL, "
             , "status TEXT NOT NULL, "
             , "report TEXT NOT NULL)"],
