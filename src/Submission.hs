@@ -13,6 +13,8 @@ import           Data.Time.Clock
 import           System.Exit (ExitCode)
 import           Data.Maybe
 import           Data.Typeable
+import           Data.Map (Map)
+import qualified Data.Map as Map
 
 import           Data.Text(Text) 
 import qualified Data.Text    as T
@@ -88,8 +90,8 @@ insertSubmission uid pid time code status report = do
   sid <- withSqlite $ \conn -> do
     S.execute conn 
       "INSERT INTO submissions \
-      \(user_id, problem_id, time, code, status, report) \
-      \VALUES(?, ?, ?, ?, ?, ?)" (uid, pid, time, code, status, report)
+     \ (user_id, problem_id, time, code, status, report) \
+     \ VALUES(?, ?, ?, ?, ?, ?)" (uid, pid, time, code, status, report)
     fmap (SID . fromIntegral) (S.lastInsertRowId conn)
   return (Submission sid uid pid time code status report)
   
@@ -108,15 +110,17 @@ getSubmission uid sid = do
 getSubmissions :: UID -> PID -> AppHandler [Submission]  
 getSubmissions uid pid = 
   query "SELECT * FROM submissions \
-        \WHERE user_id = ? AND problem_id = ? ORDER BY id" (uid, pid)
+       \ WHERE user_id = ? AND problem_id = ? ORDER BY id" (uid, pid)
 
 
 -- | get user's submissions summary aggreated by problem IDs
 -- result table rows : problem_id, #submissions, #accepted
-getSubmissionsSummary :: UID -> AppHandler [(PID, Int, Int)]
-getSubmissionsSummary uid =
-  query "SELECT problem_id, COUNT(*), SUM(status=='Accepted') \
-        \FROM submissions WHERE user_id = ? GROUP BY problem_id" (Only uid)
+getSubmissionsSummary :: UID -> AppHandler (Map PID (Int, Int))
+getSubmissionsSummary uid  = do
+  lst <- query "SELECT problem_id, COUNT(*), SUM(status='Accepted') \
+              \ FROM submissions WHERE user_id = ? GROUP BY problem_id" (Only uid)
+  return (Map.fromList [(pid,(count,accept)) | (pid,count,accept)<-lst])
+
 
 
 
@@ -129,9 +133,9 @@ getBestSubmission :: UID -> PID -> AppHandler (Maybe Submission)
 getBestSubmission uid pid = 
   listToMaybe <$> 
   query "SELECT id,user_id,problem_id,time,code,status,report \
-        \FROM (SELECT *,status=='Accepted' as accept \
-              \FROM submissions WHERE user_id = ? AND problem_id = ? \
-              \ORDER BY accept DESC, id DESC LIMIT 1)" (uid,pid) 
+       \ FROM (SELECT *,status='Accepted' as accept \
+             \ FROM submissions WHERE user_id = ? AND problem_id = ? \
+             \ ORDER BY accept DESC, id DESC LIMIT 1)" (uid,pid) 
 
   
 

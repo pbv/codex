@@ -11,7 +11,8 @@ module Problem (
   isEarly,       -- * check problem's acceptance dates
   isLate,
   isAvailable,     -- * can be submited
-  isVisible        -- * is shown in listing
+  isVisible,       -- * is shown in listing
+  isTagged
   ) where
 
 -- import           Prelude hiding(catch)
@@ -24,6 +25,7 @@ import           Control.Monad
 import           Control.Applicative((<$>))
 import           System.FilePath
 import           System.Directory
+import           Data.ByteString.UTF8(ByteString)
 import qualified Data.ByteString.UTF8 as B
 import           Text.XmlHtml(Node)
 import qualified Text.XmlHtml          as X
@@ -45,8 +47,12 @@ data Problem t = Problem {
   probSubmit :: Text,           -- optional default submission text
   probStart  :: Maybe t,        -- optional start time
   probEnd    :: Maybe t,        -- optional end time
+  probTags   :: [ByteString],    -- list of tags attached to this problem
   probExam   :: Bool            -- visible only during the above interval
   } deriving Show
+
+
+
 
 -- Functor instance for applying functions to the time fields
 instance Functor Problem where
@@ -72,6 +78,7 @@ emptyProblem pid = Problem { probID    = pid
                            , probSubmit= ""
                            , probStart = Nothing
                            , probEnd   = Nothing
+                           , probTags  = []
                            , probExam  = False 
                            }
 
@@ -95,10 +102,13 @@ problemElems p
             continue p{probStart=Just t}
      <|> do t <- localTime "endTime"
             continue p{probEnd=Just t}
+     <|> do tags <- (map toBS . T.words . X.nodeText) <$> element "tags"
+            continue p { probTags = tags }
      <|> do element "exam" 
             continue p{probExam=True}
      <|> return p
   where continue p' = do blankNodes; problemElems p'
+        toBS = B.fromString . T.unpack
   
 -- parse an element wrapping a local time string 
 localTime :: Text -> XMLReader LocalTime
@@ -176,3 +186,6 @@ isVisible t p@Problem{..} =  not (probExam && (isLate t p || isEarly t p))
       
 
 
+-- check if a problem has every tag in a list 
+isTagged :: [ByteString] -> Problem t -> Bool
+isTagged tags Problem{..} = all (`elem`probTags) tags

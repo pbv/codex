@@ -18,8 +18,9 @@ import           Control.Lens
 
 import           Data.ByteString.UTF8 (ByteString)
 import qualified Data.ByteString.UTF8 as B
---import qualified Data.ByteString as B
+import qualified Data.ByteString as B
 import           Data.Maybe
+import qualified Data.Map as Map
 import           Data.Text (Text)
 import qualified Data.Text as T
 import qualified Data.Text.Encoding as T
@@ -101,8 +102,8 @@ handleLoginSubmit =
 handleLoginSubmit :: 
   LdapConf -> ByteString -> ByteString -> Handler App (AuthManager App) ()
 handleLoginSubmit ldapConf user passwd = do
-  --optAuth <- withBackend (\r -> liftIO $ ldapAuth r ldapConf user passwd)
-  optAuth <- withBackend (\r -> liftIO $ dummyAuth r ldapConf user passwd)
+  optAuth <- withBackend (\r -> liftIO $ ldapAuth r ldapConf user passwd)
+  --optAuth <- withBackend (\r -> liftIO $ dummyAuth r ldapConf user passwd)
   case optAuth of 
     Nothing -> handleLoginForm err
     Just u -> forceLogin u >> redirect "/problems"
@@ -160,23 +161,33 @@ handleProblem = method GET $ do
 handleProblemList :: AppHandler ()
 handleProblemList = method GET $ do
   uid <- getLoggedUser
-  -- get submissions summary for the user logged in 
-  summary <- getSubmissionsSummary uid 
-  -- list currently visible problems 
   now <- liftIO getCurrentTime  
-  probs <- filter (isVisible now) <$> liftIO getProblems
-  -- filter results for visible problems only
-  let list = [(p, sub, acc) | p<-probs,
-              let (sub, acc) = head ([(sub',acc') | (pid,sub',acc')<-summary,
-                                      pid == probID p] ++ [(0,0)])
-              ]
+     -- all visible problems 
+  allprobs <- filter (isVisible now) <$> liftIO getProblems
+  -- filter problems by tags
+  tags <- getTags
+  let probs = filter (isTagged tags) allprobs
+  
+  -- get submissions summary
+  summary <- getSubmissionsSummary uid 
+  let list = [(p, r) | p<-probs,
+              let r = Map.findWithDefault (0,0) (probID p) summary]
   -- construct splices and render page
   renderWithSplices "problemlist" $ do
     "problemList" ##  I.mapSplices (I.runChildrenWith . splices) list
-  where splices (prob,sub,acc) 
+  where splices (prob,(sub,acc))
           = do problemSplices prob 
                numberSplices sub
                acceptedSplice (acc>0) 
+               
+               
+               
+-- fetch tag list from query string
+getTags :: AppHandler [ByteString]
+getTags = fmap (Map.findWithDefault [] "tag") getParams
+
+
+
 
 
 
@@ -343,8 +354,6 @@ routes = [ ("/login",                 handleLogin `catch` internalError)
          , ("/asklogout",             handleConfirmLogout `catch` internalError)        
          , ("",                       serveDirectory "static" <|> notFound)
          ]
-
-
 
 
 -- | current logged in full user name  
