@@ -1,6 +1,8 @@
 <apply template="base">
-<h1><problemTitle/><ifAccepted><img src="/icons/24x24/accepted.png" alt="Accepted"/></ifAccepted>
+<h1><problemTitle/><ifAccepted
+  ><img src="/icons/24x24/accepted.png" alt="Accepted"/></ifAccepted>
 </h1>
+<p>Etiquetas: <span class="info"><tags/></span></p>
 <description/>
 <ifLimited>
   <p>Tempo disponível: <em><timeLeft/></em></p>

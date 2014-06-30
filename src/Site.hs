@@ -21,6 +21,7 @@ import qualified Data.ByteString.UTF8 as B
 import qualified Data.ByteString as B
 import           Data.Maybe
 import qualified Data.Map as Map
+import qualified Data.Set as Set
 import           Data.Text (Text)
 import qualified Data.Text as T
 import qualified Data.Text.Encoding as T
@@ -35,9 +36,7 @@ import           Snap.Snaplet.Heist
 import           Snap.Snaplet.Session.Backends.CookieSession
 import           Snap.Util.FileServe
 import           Heist
-
 import qualified Heist.Interpreted as I
-
 
 import           Data.Time.Clock
 import           Data.Time.LocalTime
@@ -102,8 +101,8 @@ handleLoginSubmit =
 handleLoginSubmit :: 
   LdapConf -> ByteString -> ByteString -> Handler App (AuthManager App) ()
 handleLoginSubmit ldapConf user passwd = do
-  optAuth <- withBackend (\r -> liftIO $ ldapAuth r ldapConf user passwd)
-  --optAuth <- withBackend (\r -> liftIO $ dummyAuth r ldapConf user passwd)
+  --optAuth <- withBackend (\r -> liftIO $ ldapAuth r ldapConf user passwd)
+  optAuth <- withBackend (\r -> liftIO $ dummyAuth r ldapConf user passwd)
   case optAuth of 
     Nothing -> handleLoginForm err
     Just u -> forceLogin u >> redirect "/problems"
@@ -150,11 +149,9 @@ handleProblem = method GET $ do
   when (not $ isVisible now prob) badRequest
   -- now list all submissions
   subs <- getSubmissions uid (probID prob)
-  renderWithSplices "problem" $ 
-    do problemSplices prob 
-       submissionsSplice subs 
-       numberSplices (length subs) 
-       acceptedSplice (any isAccepted subs) 
+  renderWithSplices "problem" (problemSplices prob >> 
+                               submissionsSplice subs)
+
 
 
 -- | problem listing handler
@@ -165,28 +162,38 @@ handleProblemList = method GET $ do
      -- all visible problems 
   allprobs <- filter (isVisible now) <$> liftIO getProblems
   -- filter problems by tags
-  tags <- getTags
+  tags <- getQueryTags
   let probs = filter (isTagged tags) allprobs
   
   -- get submissions summary
   summary <- getSubmissionsSummary uid 
   let list = [(p, r) | p<-probs,
               let r = Map.findWithDefault (0,0) (probID p) summary]
+  
+  -- collect all available tags
+  let alltags = Set.toList $ Set.unions $ map (Set.fromList . probTags) allprobs
+  
+  -- splices relating to a single tag
+  let splices' tag 
+        = let txt = T.pack $ B.toString tag 
+              checked = tag`elem`tags
+              disabled = null (filter (isTagged (tag:tags)) allprobs)
+          in do "tagText" ## I.textSplice txt
+                "tagCheckbox" ## return (checkboxInput txt checked disabled)
+  
   -- construct splices and render page
   renderWithSplices "problemlist" $ do
+    "tagList" ## I.mapSplices (I.runChildrenWith . splices') alltags
     "problemList" ##  I.mapSplices (I.runChildrenWith . splices) list
-  where splices (prob,(sub,acc))
+  where splices (prob,(nsub,nacc))
           = do problemSplices prob 
-               numberSplices sub
-               acceptedSplice (acc>0) 
-               
+               counterSplices nsub
+               "ifAccepted" ## conditionalSplice (nacc>0) 
                
                
 -- fetch tag list from query string
-getTags :: AppHandler [ByteString]
-getTags = fmap (Map.findWithDefault [] "tag") getParams
-
-
+getQueryTags :: AppHandler [ByteString]
+getQueryTags = fmap (Map.findWithDefault [] "tag") getParams
 
 
 
@@ -197,6 +204,7 @@ problemSplices p = do
   "problemTitle" ## I.textSplice (probTitle p)
   "description" ## return (probDescr p)
   "submitText" ## I.textSplice (probSubmit p)
+  "tags" ## I.textSplice (T.pack $ unwords $ map B.toString (probTags p))
   "startTime" ##  maybe (return []) timeSplice (probStart p)
   "endTime" ##  maybe (return []) timeSplice (probEnd p)
   "ifAvailable" ## do t <- liftIO getCurrentTime
@@ -233,8 +241,9 @@ formatNominalDiffTime secs
         
 
 
-submitSplices :: Submission -> AppSplices
-submitSplices s = do 
+-- splices relating to a single submission
+submissionSplices :: Submission -> AppSplices
+submissionSplices s = do 
   "submitID"   ## I.textSplice (T.pack $ show $ submitID s)
   "submitPID"  ## I.textSplice (T.pack $ show $ submitPID s)
   "submitTime" ## timeSplice (submitTime s)
@@ -246,22 +255,20 @@ submitSplices s = do
   "ifRejected" ## conditionalSplice (r/= Accepted && r/=Overdue)
   where r = submitStatus s
 
-     
+-- splices relating to a list of submissions
 submissionsSplice :: [Submission] -> AppSplices
-submissionsSplice lst 
-  = "submissions" ## I.mapSplices (I.runChildrenWith . submitSplices) lst
+submissionsSplice lst = do
+  "submissions" ## I.mapSplices (I.runChildrenWith . submissionSplices) lst
+  "ifAccepted" ## conditionalSplice (any isAccepted lst)
+  counterSplices (length lst)
 
-acceptedSplice :: Bool -> AppSplices
-acceptedSplice b = "ifAccepted" ## conditionalSplice b
 
+-- splices concerning a counter (i.e. number of submissions)
+counterSplices :: Int -> AppSplices
+counterSplices n = do 
+  "count" ## I.textSplice (T.pack $ show n)
+  "ifCount" ## conditionalSplice (n>0)
 
-               
-
--- splices concerning the number of submissions
-numberSplices :: Int -> AppSplices
-numberSplices n = do 
-  "countSubmissions" ## I.textSplice (T.pack $ show n)
-  "ifSubmissions" ## conditionalSplice (n>0)
 
 
 
@@ -273,7 +280,7 @@ handleGetSubmission = method GET $ do
   prob <- liftIO $ getProblem pid
   sub <- getSubmission uid sid
   renderWithSplices "report" $ do problemSplices prob  
-                                  submitSplices sub 
+                                  submissionSplices sub 
 
 
 handlePostSubmission = method POST $ do
@@ -287,7 +294,7 @@ handlePostSubmission = method POST $ do
   code <- T.decodeUtf8With T.ignore <$> getRequiredParam "code"
   sub <- postSubmission uid prob code
   renderWithSplices "report" $ do problemSplices prob 
-                                  submitSplices sub 
+                                  submissionSplices sub 
 
 
 {-
