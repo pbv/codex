@@ -79,3 +79,18 @@ pre { background-color: #f0f0f0;
 
 
 .hidden { display:none; }
+
+
+.filterlist {
+    position: fixed;
+    left: 1em;
+    background-color: cyan;
+    width: 10%;
+    z-index: 300;
+}
+
+.problemlist {
+    position: relative;
+    left: 15%;
+    width: 85%;
+}

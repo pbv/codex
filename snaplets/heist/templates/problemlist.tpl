@@ -1,9 +1,18 @@
 <apply template="base">
 <h1>Problemas</h1>
-<form action="/problems" method="get">
-<p>Etiquetas: <tagList><tagCheckbox/></tagList>
-</form>
 
+<span>
+<div class="filterlist">
+<form action="/problems" method="get">
+<dl>
+<tagList>
+<dt><tagCheckbox/></dt>
+</tagList>
+</dl>
+</form>
+</div>
+
+<div class="problemlist">
 <dl>
 <problemList>
   <dt><a href="/problems/${problemID}"><problemTitle/></a> 
@@ -21,4 +30,6 @@
   </span></dd>
 </problemList>
 </dl>
+</div>
+</span>
 </apply>

@@ -177,7 +177,7 @@ handleProblemList = method GET $ do
   let splices' tag 
         = let txt = T.pack $ B.toString tag 
               checked = tag`elem`tags
-              disabled = null (filter (isTagged (tag:tags)) allprobs)
+              disabled = null (filter (isTagged [tag]) probs)
           in do "tagText" ## I.textSplice txt
                 "tagCheckbox" ## return (checkboxInput txt checked disabled)
   
