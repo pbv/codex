@@ -11,6 +11,7 @@ module Problem (
   isEarly,       -- * check problem's acceptance dates
   isLate,
   isAvailable,     -- * can be submited
+  isAcceptable,
   isVisible,       -- * is shown in listing
   isTagged
   ) where
@@ -47,7 +48,7 @@ data Problem t = Problem {
   probSubmit :: Text,           -- optional default submission text
   probStart  :: Maybe t,        -- optional start time
   probEnd    :: Maybe t,        -- optional end time
-  probTags   :: [ByteString],    -- list of tags attached to this problem
+  probTags   :: [Text],    -- list of tags attached to this problem
   probExam   :: Bool            -- visible only during the above interval
   } deriving Show
 
@@ -102,13 +103,13 @@ problemElems p
             continue p{probStart=Just t}
      <|> do t <- localTime "endTime"
             continue p{probEnd=Just t}
-     <|> do tags <- (map toBS . T.words . X.nodeText) <$> element "tags"
+     <|> do tags <- (T.words . X.nodeText) <$> element "tags"
             continue p { probTags = tags }
      <|> do element "exam" 
             continue p{probExam=True}
      <|> return p
   where continue p' = do blankNodes; problemElems p'
-        toBS = B.fromString . T.unpack
+
   
 -- parse an element wrapping a local time string 
 localTime :: Text -> XMLReader LocalTime
@@ -142,9 +143,9 @@ localTime = do txt <- allText
 listProblems :: IO [PID]
 listProblems = do
   files <- getDirectoryContents "problems"
-  return $ map toPID $ filter isHtml files
+  return $ map toPID $ filter isXml files
   where
-    isHtml = (==".html").takeExtension
+    isXml = (==".xml").takeExtension
     toPID = PID . B.fromString . dropExtension
 
 -- get all available problems 
@@ -153,7 +154,7 @@ getProblems  = listProblems >>= fmap sort . mapM getProblem
 
 getProblem :: PID -> IO (Problem UTCTime)
 getProblem pid = readProblemFile pid fp
-  where fp = "problems" </> show pid <.> "html"
+  where fp = "problems" </> show pid <.> "xml"
     
 
 
@@ -173,7 +174,6 @@ isEarly, isLate :: UTCTime -> Problem UTCTime -> Bool
 isEarly t Problem{..} = ((t<) <$> probStart) == Just True
 isLate t Problem{..}  = ((t>) <$> probEnd) == Just True
 
-
 -- a problem can be submited if it is not early
 isAvailable :: UTCTime -> Problem UTCTime -> Bool
 isAvailable t p  = not (isEarly t p)
@@ -185,7 +185,12 @@ isVisible :: UTCTime -> Problem UTCTime -> Bool
 isVisible t p@Problem{..} =  not (probExam && (isLate t p || isEarly t p))
       
 
+isAcceptable :: UTCTime -> Problem UTCTime -> Bool
+isAcceptable t Problem{..} 
+  = ((t>) <$> probStart) /= Just False &&
+    ((t<) <$> probEnd) /= Just False
+
 
 -- check if a problem has every tag in a list 
-isTagged :: [ByteString] -> Problem t -> Bool
+isTagged :: [Text] -> Problem t -> Bool
 isTagged tags Problem{..} = all (`elem`probTags) tags

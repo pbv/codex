@@ -3,6 +3,7 @@ body {
     padding: 0;
     background-color: #ffffff;
     font-family: Verdana, Helvetica, sans-serif;
+    overflow: auto;
 }
 
 a {
@@ -64,6 +65,7 @@ img {
     font-size: 80%;
     background-color: cyan;
     padding: 2ex;
+    clear: both;
 }
 
 pre { background-color: #f0f0f0; 
@@ -80,17 +82,12 @@ pre { background-color: #f0f0f0;
 
 .hidden { display:none; }
 
-
 .filterlist {
-    position: fixed;
-    left: 1em;
-    background-color: cyan;
-    width: 10%;
-    z-index: 300;
+    float: left;
+    width: 15%;
 }
 
 .problemlist {
-    position: relative;
-    left: 15%;
+    float: right;
     width: 85%;
 }

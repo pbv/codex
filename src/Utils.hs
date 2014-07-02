@@ -181,6 +181,9 @@ checkboxInput value checked disabled
   = [X.Element "label" [] [X.Element "input" attrs [], X.TextNode value]]
   where attrs = [ ("checked", "checked") | checked ] ++
                 [ ("disabled", "disabled") | disabled ] ++
-                [ ("type", "checkbox"), ("name", "tag"), ("value", value), 
-                  ("onclick", "this.form.submit();") ]
+                [ ("type", "checkbox"), 
+                  ("name", "tag"), 
+                  ("value", value), 
+                  ("onclick", "this.form.submit();")
+                ]
                 

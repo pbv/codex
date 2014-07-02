@@ -1,9 +1,10 @@
 <apply template="base">
 <h1>Problemas</h1>
 
-<span>
+
 <div class="filterlist">
 <form action="/problems" method="get">
+Filtrar por:
 <dl>
 <tagList>
 <dt><tagCheckbox/></dt>
@@ -23,13 +24,17 @@
       <ifCount>
 	<count/> submissões já efetuadas.<br/>
       </ifCount>
-      <ifEarly>Submissões iniciam em <startTime/>.</ifEarly>
-      <ifLate>Submissões terminaram em <endTime/>.</ifLate>
+      <ifAcceptable>
       <ifLimited>Submissões terminam em <endTime/>; tempo disponível: <em><timeLeft/></em>.
       </ifLimited>
+	<else>
+	  <ifEarly>Submissões vão abrir em: <startTime/>.</ifEarly>
+	  <ifLate>Submissões fecharam em: <endTime/>.</ifLate>
+	</else>
+      </ifAcceptable>
   </span></dd>
 </problemList>
 </dl>
 </div>
-</span>
+
 </apply>

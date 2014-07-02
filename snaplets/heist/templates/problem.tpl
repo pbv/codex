@@ -2,13 +2,18 @@
 <h1><problemTitle/><ifAccepted
   ><img src="/icons/24x24/accepted.png" alt="Accepted"/></ifAccepted>
 </h1>
-<p>Etiquetas: <span class="info"><tags/></span></p>
 <description/>
-<ifLimited>
-  <p>Tempo disponível: <em><timeLeft/></em></p>
-</ifLimited>
+<ifAcceptable>
+  <ifLimited>
+    <p>Tempo disponível: <em><timeLeft/></em></p> 
+  </ifLimited>
+  <else>
+    <ifEarly>Submissões vão abrir em: <startTime/>.</ifEarly>
+    <ifLate>Submissões fecharam em: <endTime/>.</ifLate>
+  </else>
+</ifAcceptable>
 
-<ifSubmissions>
+<ifCount>
 <h2>Submissões anteriores</h2>
 <ol class="submissions">
 <submissions>
@@ -17,7 +22,7 @@
   </li>
 </submissions>
 </ol>
-</ifSubmissions>
+</ifCount>
 
 <ifEarly>
 <else>

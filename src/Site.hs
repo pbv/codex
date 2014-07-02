@@ -149,8 +149,8 @@ handleProblem = method GET $ do
   when (not $ isVisible now prob) badRequest
   -- now list all submissions
   subs <- getSubmissions uid (probID prob)
-  renderWithSplices "problem" (problemSplices prob >> 
-                               submissionsSplice subs)
+  renderWithSplices "problem" $ do problemSplices prob 
+                                   submissionsSplice subs
 
 
 
@@ -158,32 +158,33 @@ handleProblem = method GET $ do
 handleProblemList :: AppHandler ()
 handleProblemList = method GET $ do
   uid <- getLoggedUser
+  -- summary of all submissions 
+  summary <- getSubmissionsSummary uid 
+  -- filter visible problems & add completetion tag
   now <- liftIO getCurrentTime  
-     -- all visible problems 
-  allprobs <- filter (isVisible now) <$> liftIO getProblems
-  -- filter problems by tags
+  allprobs <- (map (completionTag summary) . 
+               filter (isVisible now)) <$> (liftIO getProblems)
+  -- filter problems by query tags
   tags <- getQueryTags
   let probs = filter (isTagged tags) allprobs
-  
-  -- get submissions summary
-  summary <- getSubmissionsSummary uid 
-  let list = [(p, r) | p<-probs,
-              let r = Map.findWithDefault (0,0) (probID p) summary]
   
   -- collect all available tags
   let alltags = Set.toList $ Set.unions $ map (Set.fromList . probTags) allprobs
   
-  -- splices relating to a single tag
-  let splices' tag 
-        = let txt = T.pack $ B.toString tag 
-              checked = tag`elem`tags
-              disabled = null (filter (isTagged [tag]) probs)
-          in do "tagText" ## I.textSplice txt
-                "tagCheckbox" ## return (checkboxInput txt checked disabled)
+  -- convert submissions summary into list
+  let list = [(p, r) | p<-probs,
+              let r = Map.findWithDefault (0,0) (probID p) summary]
   
-  -- construct splices and render page
+  -- context-dependent splices for each tag
+  let tagSplices tag = 
+        let checked = tag`elem`tags
+            disabled = null (filter (isTagged [tag]) probs)
+        in do "tagText" ## I.textSplice tag
+              "tagCheckbox" ## return (checkboxInput tag checked disabled)
+  
+  -- render problem list page
   renderWithSplices "problemlist" $ do
-    "tagList" ## I.mapSplices (I.runChildrenWith . splices') alltags
+    "tagList" ## I.mapSplices (I.runChildrenWith . tagSplices) alltags
     "problemList" ##  I.mapSplices (I.runChildrenWith . splices) list
   where splices (prob,(nsub,nacc))
           = do problemSplices prob 
@@ -192,10 +193,17 @@ handleProblemList = method GET $ do
                
                
 -- fetch tag list from query string
-getQueryTags :: AppHandler [ByteString]
-getQueryTags = fmap (Map.findWithDefault [] "tag") getParams
+getQueryTags :: AppHandler [Text]
+getQueryTags = fmap (map (T.pack . B.toString) . 
+                     Map.findWithDefault [] "tag") getParams
 
 
+completionTag summary prob = prob { probTags = tag : probTags prob }
+  where tag | nacc>0                 = "*accepted*"
+            | otherwise              = "*not-accepted*"
+        pid = probID prob
+        (_,nacc) = Map.findWithDefault (0,0) pid summary
+    
 
 
 problemSplices :: Problem UTCTime -> AppSplices
@@ -204,18 +212,23 @@ problemSplices p = do
   "problemTitle" ## I.textSplice (probTitle p)
   "description" ## return (probDescr p)
   "submitText" ## I.textSplice (probSubmit p)
-  "tags" ## I.textSplice (T.pack $ unwords $ map B.toString (probTags p))
+  "tags" ## I.textSplice (T.unwords $ probTags p)
   "startTime" ##  maybe (return []) timeSplice (probStart p)
   "endTime" ##  maybe (return []) timeSplice (probEnd p)
-  "ifAvailable" ## do t <- liftIO getCurrentTime
-                      conditionalSplice (isAvailable t p)
-  "ifEarly" ## do t<-liftIO getCurrentTime; conditionalSplice (isEarly t p)
-  "ifLate" ## do t<-liftIO getCurrentTime; conditionalSplice (isLate t p)
+  "ifAvailable" ## do now <- liftIO getCurrentTime
+                      conditionalSplice (isAvailable now p)
+  "ifEarly" ## do now <- liftIO getCurrentTime
+                  conditionalSplice (isEarly now p)
+  "ifLate" ## do now <- liftIO getCurrentTime
+                 conditionalSplice (isLate now p)
   "ifLimited" ## conditionalSplice (isJust $ probEnd p)
+  "ifAcceptable" ## do now <- liftIO getCurrentTime
+                       conditionalSplice (isAcceptable now p)
+                         
   "timeLeft"  ## case probEnd p of 
     Nothing -> I.textSplice "N/A"
-    Just t' -> do t <- liftIO getCurrentTime
-                  I.textSplice $ T.pack $ formatNominalDiffTime $ diffUTCTime t' t
+    Just t' -> do now <- liftIO getCurrentTime
+                  I.textSplice $ T.pack $ formatNominalDiffTime $ diffUTCTime t' now
 
     
 -- convert UTC time to local time zone
