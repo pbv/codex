@@ -4,7 +4,7 @@
 
 <div class="filterlist">
 <form action="/problems" method="get">
-Filtrar por:
+Filtros:
 <dl>
 <tagList>
 <dt><tagCheckbox/></dt>
