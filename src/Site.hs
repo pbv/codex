@@ -101,8 +101,8 @@ handleLoginSubmit =
 handleLoginSubmit :: 
   LdapConf -> ByteString -> ByteString -> Handler App (AuthManager App) ()
 handleLoginSubmit ldapConf user passwd = do
-  --optAuth <- withBackend (\r -> liftIO $ ldapAuth r ldapConf user passwd)
-  optAuth <- withBackend (\r -> liftIO $ dummyAuth r ldapConf user passwd)
+  optAuth <- withBackend (\r -> liftIO $ ldapAuth r ldapConf user passwd)
+  -- optAuth <- withBackend (\r -> liftIO $ dummyAuth r ldapConf user passwd)
   case optAuth of 
     Nothing -> handleLoginForm err
     Just u -> forceLogin u >> redirect "/problems"
