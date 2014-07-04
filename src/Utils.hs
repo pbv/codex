@@ -178,7 +178,7 @@ filterChildren _ node = node
 -- | make a checkbox input for a tag filter
 checkboxInput :: Text -> Bool -> Bool -> [X.Node]
 checkboxInput value checked disabled
-  = [X.Element "label" [] [X.Element "input" attrs [], X.TextNode value]]
+  = [X.Element "label" attrs' [X.Element "input" attrs [], X.TextNode value]]
   where attrs = [ ("checked", "checked") | checked ] ++
                 [ ("disabled", "disabled") | disabled ] ++
                 [ ("type", "checkbox"), 
@@ -186,4 +186,5 @@ checkboxInput value checked disabled
                   ("value", value), 
                   ("onclick", "this.form.submit();")
                 ]
+        attrs' = [ ("class","disabled") | disabled ]
                 

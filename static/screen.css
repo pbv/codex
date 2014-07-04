@@ -24,7 +24,7 @@ img {
 }
 
 .submissions {
-    width: 80%;
+    width: 50em;
 }
 
 .submissionli {
@@ -68,26 +68,29 @@ img {
     clear: both;
 }
 
-pre { background-color: #f0f0f0; 
-      padding: 1em;
-      width: 80%;
-    }
+pre { 
+    background-color: #f0f0f0; 
+    padding: 1em;
+    width: 60em;
+}
 
 
 #editor { 
-    width: 95%;
+    width: 50em;
     height: 40ex;
 }
 
 
 .hidden { display:none; }
 
+.disabled { color: #A0A0A0; }
+
 .filterlist {
     float: left;
-    width: 15%;
+    width: 12em;
 }
 
 .problemlist {
-    float: right;
-    width: 85%;
+    float: left;
+    width: 30em;
 }
