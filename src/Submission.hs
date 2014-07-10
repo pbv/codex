@@ -98,9 +98,10 @@ insertSubmission uid pid time code status report = do
 
 
 -- | get a single user's submission 
-getSubmission :: UID ->  SID -> AppHandler Submission
-getSubmission uid sid = do
-  r <- query "SELECT * FROM submissions WHERE id = ? AND user_id = ?" (sid,uid)
+getSubmission :: UID -> PID -> SID -> AppHandler Submission
+getSubmission uid pid sid = do
+  r <- query "SELECT * FROM submissions WHERE \
+             \ id = ? AND user_id = ? AND problem_id = ?" (sid,uid,pid)
   case r of
     [s] -> return s
     _   -> notFound

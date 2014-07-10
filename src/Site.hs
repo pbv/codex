@@ -292,7 +292,7 @@ handleGetSubmission = method GET $ do
   pid <- PID <$> getRequiredParam "pid"
   sid <- read . B.toString <$> getRequiredParam "sid"
   prob <- liftIO $ getProblem pid
-  sub <- getSubmission uid sid
+  sub <- getSubmission uid pid sid
   renderWithSplices "report" $ do problemSplices prob  
                                   submissionSplices sub 
 
