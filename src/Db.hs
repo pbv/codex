@@ -11,7 +11,7 @@ import qualified Data.Text as T
 import qualified Database.SQLite.Simple as S
 import           Snap.Snaplet.SqliteSimple
 
-
+import           Problem (Problem(..), getProblems)
 
 tableExists :: S.Connection -> String -> IO Bool
 tableExists conn tblName = do
@@ -39,10 +39,20 @@ initCmds = ["CREATE TABLE submissions (\
             \code TEXT NOT NULL, \
             \status TEXT NOT NULL, \
             \report TEXT NOT NULL)",
-            "CREATE INDEX user_index ON submissions(user_id)"
+            "CREATE TABLE problemtags (\
+          \  id INTEGER PRIMARY KEY, \
+           \ problem_id TEXT NOT NULL, \
+           \ tag TEXT NOT NULL)",
+            "CREATE INDEX user_index ON submissions(user_id)" 
            ]
 
 
 
-
-
+-- remove all problem tags and insert new ones
+updateProblems :: S.Connection -> [Problem t] -> IO ()
+updateProblems conn probs = do
+  S.execute_ conn "DELETE FROM problemtags"
+  sequence_ [ insert pid tag | p <- probs, let pid = probID p, tag <- probTags p]
+  where
+    insert pid tag 
+      = S.execute conn "INSERT INTO problemtags(problem_id, tag) VALUES(?,?)" (pid,tag)
