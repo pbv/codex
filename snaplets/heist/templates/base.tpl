@@ -18,7 +18,7 @@
       <apply-content/>
     </div>
     <div id="footer">
-      <p>Pythondo <version/> &copy; 2014 Pedro Vasconcelos.<br>
+      <p class="info">Pythondo <version/> &copy; 2014 Pedro Vasconcelos.<br>
 	Departamento de Ciência de Computadores, Faculdade de Ciências,
 	Universidade do Porto.<br>
     Construido usando o <a href="http://snapframework.com/">Snap web framework</a>,

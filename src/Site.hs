@@ -187,6 +187,8 @@ handleProblemList = method GET $ do
   renderWithSplices "problemlist" $ do
     "tagList" ## I.mapSplices (I.runChildrenWith . tagSplices) alltags
     "problemList" ##  I.mapSplices (I.runChildrenWith . splices) list
+    "totalProblems" ## I.textSplice (T.pack $ show (length allprobs))
+    "visibleProblems" ## I.textSplice (T.pack $ show (length probs))
   where splices (prob,(nsub,nacc))
           = do problemSplices prob 
                counterSplices nsub
@@ -277,11 +279,11 @@ submissionsSplice lst = do
   counterSplices (length lst)
 
 
--- splices concerning a counter (i.e. number of submissions)
+-- splices concerning submissions count
 counterSplices :: Int -> AppSplices
 counterSplices n = do 
   "count" ## I.textSplice (T.pack $ show n)
-  "ifCount" ## conditionalSplice (n>0)
+  "ifSubmitted" ## conditionalSplice (n>0)
 
 
 

@@ -3,7 +3,7 @@ body {
     padding: 0;
     background-color: #ffffff;
     font-family: Verdana, Helvetica, sans-serif;
-    overflow: auto;
+    overflow: scroll;
 }
 
 a {
@@ -43,15 +43,14 @@ img {
 
 #topbar {
     background-color: cyan;
-    width: 100%;
+    width: auto;
     padding-bottom: 0.5ex;  
     padding-top: 0.5ex;  
     padding-left: 1em;
-    padding-right: 1em;
-    /* font-size: 100%; */
+    margin-left: 0;
+    margin-right: 0;
 
 }
-
 
 .info {
    color: #0f0f0f;
@@ -67,13 +66,14 @@ img {
 
 #footer {
     position: relative;
+    clear: both;
     bottom: -5ex;
-    width: 100%;
-    font-size: 80%;
+    width: auto;
     background-color: cyan;
     padding-top: 2ex;
     padding-bottom: 2ex;
-    clear: both;
+    margin-left: 0;
+    margin-right: 0;
     padding-left: 1em;
 }
 
@@ -96,7 +96,8 @@ pre {
 
 .filterlist {
     float: left;
-    width: 12em;
+    margin-left: 1em;
+    width: 14em;
 }
 
 .problemlist {

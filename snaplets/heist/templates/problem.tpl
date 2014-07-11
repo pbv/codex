@@ -13,7 +13,7 @@
   </else>
 </ifAcceptable>
 
-<ifCount>
+<ifSubmitted>
 <h2>Submissões anteriores</h2>
 <ol class="submissions">
 <submissions>
@@ -22,7 +22,7 @@
   </li>
 </submissions>
 </ol>
-</ifCount>
+</ifSubmitted>
 
 <ifEarly>
 <else>
