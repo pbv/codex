@@ -51,7 +51,8 @@ initCmds = ["CREATE TABLE submissions (\
 -- remove all problem tags and insert new ones
 updateProblems :: S.Connection -> [Problem t] -> IO ()
 updateProblems conn probs = S.withTransaction conn $ do
-  S.execute_ conn "DELETE FROM problemtags"
+  c <- tableExists conn "problemtags"
+  when c $ S.execute_ conn "DELETE FROM problemtags"
   sequence_ [ insert (probID p) tag | p <- probs, tag <- probTags p]
   where
     insert pid tag 
