@@ -418,7 +418,8 @@ app =
     -- into the Model to create all the DB tables if necessary.
     let c = sqliteConn $ d ^# snapletValue
     liftIO $ withMVar c $ \conn -> do Db.createTables conn
-                                      -- Db.updateProblems conn =<< getProblems 
+                                      putStrLn "Updating problem tags db table"
+                                      Db.updateProblems conn =<< getProblems 
 
     addRoutes routes
     return $ App h s d a conf ekg 
