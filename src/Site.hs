@@ -20,7 +20,9 @@ import           Data.ByteString.UTF8 (ByteString)
 import qualified Data.ByteString.UTF8 as B
 import qualified Data.ByteString as B
 import           Data.Maybe
+import           Data.Map (Map)
 import qualified Data.Map as Map
+import           Data.Set (Set)
 import qualified Data.Set as Set
 import           Data.Text (Text)
 import qualified Data.Text as T
@@ -161,9 +163,9 @@ handleProblemList = method GET $ do
   uid <- getLoggedUser
   -- summary of all submissions 
   summary <- getSubmissionsSummary uid 
-  -- filter visible problems & add completetion tag
+  -- filter visible problems and add dynamic tags
   now <- liftIO getCurrentTime  
-  allprobs <- (map (completionTag summary) . 
+  allprobs <- (map (dynamicTags now summary) . 
                filter (isVisible now)) <$> (liftIO getProblems)
   -- filter problems by query tags
   tags <- getQueryTags
@@ -200,13 +202,16 @@ getQueryTags :: AppHandler [Text]
 getQueryTags = fmap (map (T.pack . B.toString) . 
                      Map.findWithDefault [] "tag") getParams
 
-
-completionTag summary prob = prob { probTags = tag : probTags prob }
-  where tag | nacc>0                 = "*accepted*"
-            | otherwise              = "*not-accepted*"
-        pid = probID prob
-        (_,nacc) = Map.findWithDefault (0,0) pid summary
-    
+-- dynamic tags for a problem
+dynamicTags :: UTCTime -> Map PID (Int,Int) -> Problem UTCTime -> Problem UTCTime
+dynamicTags now summary prob = prob { probTags = tags ++ probTags prob }
+  where (sub,acc) = Map.findWithDefault (0,0) (probID prob) summary
+        tags = [ "*closing*" | t<-maybeToList (probEnd prob), 
+                 let delta = t`diffUTCTime`now, 
+                 delta>0 && delta<24*60*60 ] ++ -- 1 day = 24h*60m*60secs
+               [if acc>0 then "*accepted*" else "*not accepted*",
+                if sub>0 then "*submitted*" else "*not submitted*"] 
+               
 
 
 problemSplices :: Problem UTCTime -> AppSplices
