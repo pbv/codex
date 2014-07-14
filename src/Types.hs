@@ -77,7 +77,7 @@ data SafeExec = SafeExec { safeExec :: FilePath
 
   
 -- | LDAP configuration
-data LdapConf = LdapConf { ldapHost :: String 
+data LdapConf = LdapConf { ldapURI :: String
                          , ldapBases :: [String]
                          } 
                 deriving (Eq,Show)

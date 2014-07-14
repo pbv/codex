@@ -78,9 +78,9 @@ getSafeExec' conf = do
 getLdapConf :: AppHandler LdapConf
 getLdapConf = do 
   conf <- gets config
-  liftIO $ do host <- require conf "ldap.host"
+  liftIO $ do uri <- require conf "ldap.uri"
               bases <- require conf "ldap.bases"
-              return (LdapConf host bases)
+              return (LdapConf uri bases)
 
 -- | get printout configuration parameters
 getPrintout :: AppHandler Printout              

@@ -65,7 +65,7 @@ ldapAuth' :: IAuthBackend r =>
             r -> LdapConf -> ByteString -> ByteString -> MaybeIO AuthUser
 ldapAuth' r LdapConf{..} user passwd 
   = do now <- liftIO getCurrentTime
-       con <- liftIO $ ldapInit ldapHost ldapPort
+       con <- liftIO (ldapInitialize ldapURI)
        attrs <- msum [ldapBindSearch con dn (B.toString passwd) | dn<-dns]
        MaybeT (lookupByLogin r login) 
          `mplus` do au <- liftIO (save r (newUser now attrs))
