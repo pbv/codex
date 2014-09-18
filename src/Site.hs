@@ -56,6 +56,7 @@ import           Application
 import           Db
 import           Utils
 import           Types
+import qualified Interval as Interval
 import           Problem
 import           Submission
 import           LdapAuth
@@ -164,12 +165,14 @@ handleProblemList = method GET $ do
   -- summary of all submissions 
   summary <- getSubmissionsSummary uid 
   -- filter visible problems and add dynamic tags
+  exam <- getConfigured "exam" False
   now <- liftIO getCurrentTime  
-  allprobs <- (map (dynamicTags now summary) . 
-               filter (isVisible now)) <$> (liftIO getProblems)
-  -- filter problems by query tags
+  let view = if exam then isOpen else isVisible
+  allprobs <- (map (dynamicTags now summary) . filter (view now)) <$> liftIO getProblems
+
   tags <- getQueryTags
-  let probs = filter (isTagged tags) allprobs
+  --  filter problems by query 
+  let probs = filter (isTagged tags) $ allprobs
   
   -- collect all available tags
   let alltags = Set.toList $ Set.unions $ map (Set.fromList . probTags) allprobs
@@ -206,7 +209,7 @@ getQueryTags = fmap (map (T.pack . B.toString) .
 dynamicTags :: UTCTime -> Map PID (Int,Int) -> Problem UTCTime -> Problem UTCTime
 dynamicTags now summary prob = prob { probTags = tags ++ probTags prob }
   where (sub,acc) = Map.findWithDefault (0,0) (probID prob) summary
-        tags = [ "*closing*" | t<-maybeToList (probEnd prob), 
+        tags = [ "*ending*" | t<-maybeToList (Interval.end $ probOpen prob), 
                  let delta = t`diffUTCTime`now, 
                  delta>0 && delta<24*60*60 ] ++ -- 1 day = 24h*60m*60secs
                [if acc>0 then "*accepted*" else "*not accepted*",
@@ -221,19 +224,16 @@ problemSplices p = do
   "description" ## return (probDescr p)
   "submitText" ## I.textSplice (probSubmit p)
   "tags" ## I.textSplice (T.unwords $ probTags p)
-  "startTime" ##  maybe (return []) timeSplice (probStart p)
-  "endTime" ##  maybe (return []) timeSplice (probEnd p)
-  "ifAvailable" ## do now <- liftIO getCurrentTime
-                      conditionalSplice (isAvailable now p)
+  "startTime" ##  maybe (return []) timeSplice (Interval.start $ probOpen p)
+  "endTime" ##  maybe (return []) timeSplice (Interval.end $ probOpen p)
+  "ifOpen" ## do now <- liftIO getCurrentTime
+                 conditionalSplice (isOpen now p)
   "ifEarly" ## do now <- liftIO getCurrentTime
                   conditionalSplice (isEarly now p)
   "ifLate" ## do now <- liftIO getCurrentTime
                  conditionalSplice (isLate now p)
-  "ifLimited" ## conditionalSplice (isJust $ probEnd p)
-  "ifAcceptable" ## do now <- liftIO getCurrentTime
-                       conditionalSplice (isAcceptable now p)
-                         
-  "timeLeft"  ## case probEnd p of 
+  "ifLimited" ## conditionalSplice (isJust $ Interval.end $ probOpen p)
+  "timeLeft"  ## case Interval.end (probOpen p) of 
     Nothing -> I.textSplice "N/A"
     Just t' -> do now <- liftIO getCurrentTime
                   I.textSplice $ T.pack $ formatNominalDiffTime $ diffUTCTime t' now
@@ -310,7 +310,8 @@ handlePostSubmission = method POST $ do
   prob <- liftIO $ getProblem pid
   -- check that the problem is available for submission
   now <- liftIO getCurrentTime
-  when (not $ isAvailable now prob) badRequest
+  exam <- getConfigured "exam" False
+  when (exam && not (isOpen now prob)) badRequest
   incrCounter "submissions"
   code <- T.decodeUtf8With T.ignore <$> getRequiredParam "code"
   sub <- postSubmission uid prob code

@@ -3,7 +3,7 @@
   ><img src="/icons/24x24/accepted.png" alt="Accepted"/></ifAccepted>
 </h1>
 <description/>
-<ifAcceptable>
+<ifOpen>
   <ifLimited>
     <p>Tempo disponível: <em><timeLeft/></em></p> 
   </ifLimited>
@@ -11,7 +11,7 @@
     <ifEarly>Submissões vão abrir em: <startTime/>.</ifEarly>
     <ifLate>Submissões fecharam em: <endTime/>.</ifLate>
   </else>
-</ifAcceptable>
+</ifOpen>
 
 <ifSubmitted>
 <h2>Submissões anteriores</h2>

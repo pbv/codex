@@ -22,14 +22,14 @@
       <ifSubmitted>
 	<count/> submissões efetuadas.<br/>
       </ifSubmitted>
-      <ifAcceptable>
+      <ifOpen>
       <ifLimited>Submissões terminam em <endTime/>; tempo disponível: <em><timeLeft/></em>.
       </ifLimited>
 	<else>
 	  <ifEarly>Submissões vão abrir em: <startTime/>.</ifEarly>
 	  <ifLate>Submissões fecharam em: <endTime/>.</ifLate>
 	</else>
-      </ifAcceptable>
+      </ifOpen>
   </span></dd>
 </problemList>
 </dl>

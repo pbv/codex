@@ -204,7 +204,7 @@ makeReport time prob out err
   where 
     maxLen = 2000 -- max.length of stdout/stdout transcriptions
     status 
-      | null out && match "OK" err   = if isLate time prob 
+      | null out && match "OK" err   = if isOpen time prob 
                                        then Overdue
                                        else Accepted
       | match "Time Limit" err          = TimeLimitExceeded

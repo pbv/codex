@@ -39,7 +39,7 @@ Executable pythondo
     snap-core                 >= 0.9,
     snap-server               >= 0.9,
     snap-loader-static        >= 0.9,
-    snaplet-sqlite-simple        >= 0.4,
+    snaplet-sqlite-simple     >= 0.4,
     sqlite-simple             >= 0.4,
     text                      >= 0.11    && < 0.12,
     time                      >= 1.1     && < 1.5,
@@ -51,16 +51,11 @@ Executable pythondo
     aeson                     >= 0.6,
     unordered-containers      >= 0.2,
     containers                >= 0.4,
-    configurator              >= 0.2
+    configurator              >= 0.2,
+    base                      >= 4.4      && < 5,
+    lens                      >= 3.7.6    && < 4.2
 
-  if flag(old-base)
-    build-depends:
-      base                      >= 4        && < 4.4,
-      lens                      >= 3.7.6    && < 3.8
-  else
-    build-depends:
-      base                      >= 4.4      && < 5,
-      lens                      >= 3.7.6    && < 4.2
+
 
   if flag(development)
     build-depends:

@@ -5,13 +5,12 @@
 
 module Problem ( 
   Problem(..),
-  listProblems,  -- * list all problem ids
-  getProblems,   -- * get all problems
-  getProblem,    -- * get a single problem
-  isEarly,       -- * check problem's acceptance dates
+  listProblems,    -- * list all problem ids
+  getProblems,     -- * get all problems
+  getProblem,      -- * get a single problem
+  isEarly,         -- * check problem's acceptance dates
   isLate,
-  isAvailable,     -- * can be submited
-  isAcceptable,
+  isOpen,          -- * can be submitted and accepted
   isVisible,       -- * is shown in listing
   isTagged
   ) where
@@ -33,6 +32,8 @@ import qualified Text.XmlHtml          as X
 import           Data.Text(Text)
 import qualified Data.Text             as T
 
+import           Interval (Interval)
+import qualified Interval as Interval
 import           Types 
 import           XHTML
 import           Text.Parsec
@@ -46,10 +47,13 @@ data Problem t = Problem {
   probTitle  :: Text,           -- short title
   probDescr  :: [Node],         -- longer description (HTML nodes)
   probSubmit :: Text,           -- optional default submission text
-  probStart  :: Maybe t,        -- optional start time
-  probEnd    :: Maybe t,        -- optional end time
   probTags   :: [Text],    -- list of tags attached to this problem
-  probExam   :: Bool            -- visible only during the above interval
+
+  probOpen    :: Interval t,
+  probVisible :: Interval t
+  -- probStart  :: Maybe t,        -- optional start time
+  -- probEnd    :: Maybe t,        -- optional end time
+  -- probExam   :: Bool            -- visible only during the above interval
   } deriving Show
 
 
@@ -57,8 +61,8 @@ data Problem t = Problem {
 
 -- Functor instance for applying functions to the time fields
 instance Functor Problem where
-  fmap f p = p { probStart = fmap f (probStart p),
-                 probEnd   = fmap f (probEnd p) 
+  fmap f p = p { probOpen = fmap f (probOpen p),
+                 probVisible = fmap f (probVisible p) 
                }
 
 instance Eq (Problem t) where
@@ -68,7 +72,7 @@ instance Eq (Problem t) where
 -- ordering instance: lexicographically compare by times then by id
 instance Ord t => Ord (Problem t) where  
   compare p p' = compare (tupl p) (tupl p')  
-    where tupl Problem{..} = (probEnd, probStart, probID) 
+    where tupl Problem{..} = (probVisible, probOpen, probID) 
 
   
 -- an empty problem
@@ -77,10 +81,9 @@ emptyProblem pid = Problem { probID    = pid
                            , probTitle = T.pack ("Problem " ++ show pid)
                            , probDescr = []
                            , probSubmit= ""
-                           , probStart = Nothing
-                           , probEnd   = Nothing
                            , probTags  = []
-                           , probExam  = False 
+                           , probOpen     = Interval.forever
+                           , probVisible  = Interval.forever
                            }
 
 
@@ -99,17 +102,24 @@ problemElems p
             continue p{probDescr=X.childNodes descr}
      <|> do text <- element "submitText" 
             continue p{probSubmit=X.nodeText text}
-     <|> do t <- localTime "startTime" 
-            continue p{probStart=Just t}
-     <|> do t <- localTime "endTime"
-            continue p{probEnd=Just t}
+     <|> do i <- tagged "open" localInterval
+            continue p{probOpen=i}
+     <|> do i <- tagged "visible" localInterval
+            continue p{probVisible=i}
      <|> do tags <- (T.words . X.nodeText) <$> element "tags"
             continue p { probTags = tags }
-     <|> do element "exam" 
-            continue p{probExam=True}
      <|> return p
   where continue p' = do blankNodes; problemElems p'
 
+
+
+localInterval :: XMLReader (Interval LocalTime)
+localInterval = do
+  blankNodes
+  l <- optionMaybe (localTime "start")
+  blankNodes
+  u <- optionMaybe (localTime "end")
+  return (Interval.interval l u)
   
 -- parse an element wrapping a local time string 
 localTime :: Text -> XMLReader LocalTime
@@ -120,6 +130,7 @@ localTime tag = do
   case opt of
     Nothing -> fail ("invalid time format for " ++ T.unpack tag)
     Just t -> return t
+
 
 dateFormats :: [String]
 dateFormats = ["%H:%M %d/%m/%Y", "%d/%m/%Y", "%c"]
@@ -169,6 +180,7 @@ readProblemFile pid fp
                           return (fmap (localTimeToUTC z) prob)
   
     
+{-
 -- relations between problems and times
 isEarly, isLate :: UTCTime -> Problem UTCTime -> Bool  
 isEarly t Problem{..} = ((t<) <$> probStart) == Just True
@@ -189,8 +201,20 @@ isAcceptable :: UTCTime -> Problem UTCTime -> Bool
 isAcceptable t Problem{..} 
   = ((t>) <$> probStart) /= Just False &&
     ((t<) <$> probEnd) /= Just False
+-}
 
+-- relations between problems and times
+isEarly, isLate :: UTCTime -> Problem UTCTime -> Bool  
+isEarly t Problem{..} = ((t<) <$> Interval.start probOpen) == Just True
+isLate t Problem{..}  = ((t>) <$> Interval.end probOpen) == Just True
 
+-- check if a problem is visible at a given time 
+isVisible :: UTCTime -> Problem UTCTime -> Bool
+isVisible t Problem{..} =  t `Interval.elem` probVisible
+
+isOpen :: UTCTime -> Problem UTCTime -> Bool
+isOpen t Problem{..} = t `Interval.elem` probOpen
+      
 -- check if a problem has every tag in a list 
 isTagged :: [Text] -> Problem t -> Bool
 isTagged tags Problem{..} = all (`elem`probTags) tags

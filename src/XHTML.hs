@@ -38,25 +38,24 @@ isBlankNode _            = False
 -- parser functions from nodes to something
 type XMLReader a = Parsec [Node] () a
   
-{-
+
 -- | apply a reader inside a tagged element
 -- ignores leading whitespace
 tagged :: Text -> XMLReader a -> XMLReader a
 tagged tag reader = 
-  do --pos <- getPosition 
-     n <- element tag
-     blankNodes
+  do n <- element tag
      case parse reader (T.unpack tag) (childNodes n) of
        Left msg -> fail (show msg)
        Right result -> return result
--}
+
 
 -- | consume an element of a given tag
 element :: Text -> XMLReader Node
 element tag = satisfyNode (\n -> tagName n==Just tag) <?> "<" ++ T.unpack tag ++ ">"
+
     
--- | consume all remaining nodes
 {-
+-- | consume all remaining nodes
 nodes :: XMLReader [Node]
 nodes = many (satisfyNode (\_ -> True))
 -}
