@@ -150,7 +150,8 @@ handleProblem = method GET $ do
   prob <- liftIO $ getProblem pid
   -- check if problem is visible; deny request if not
   now <- liftIO getCurrentTime
-  when (not $ isVisible now prob) badRequest
+  exam <- getConfigured "exam" False
+  when (exam && not (isOpen now prob)) badRequest
   -- now list all submissions
   subs <- getSubmissions uid (probID prob)
   renderWithSplices "problem" $ do problemSplices prob 
@@ -167,15 +168,18 @@ handleProblemList = method GET $ do
   -- filter visible problems and add dynamic tags
   exam <- getConfigured "exam" False
   now <- liftIO getCurrentTime  
-  let view = if exam then isOpen else isVisible
-  allprobs <- (map (dynamicTags now summary) . filter (view now)) <$> liftIO getProblems
+  allprobs <- liftIO (if exam then filter (isOpen now) <$> getProblems
+                      else getProblems)
+
+  -- add dynamic tags (solved, unsolved, etc.)
+  let allprobs' = map (dynamicTags now summary) allprobs
 
   tags <- getQueryTags
   --  filter problems by query 
-  let probs = filter (isTagged tags) $ allprobs
+  let probs = filter (isTagged tags) allprobs'
   
-  -- collect all available tags
-  let alltags = Set.toList $ Set.unions $ map (Set.fromList . probTags) allprobs
+  -- collect all tags (including dynamics)
+  let alltags = Set.toList $ Set.unions $ map (Set.fromList . probTags) allprobs'
   
   -- convert submissions summary into list
   let list = [(p, r) | p<-probs,

@@ -16,21 +16,19 @@
 <div class="problemlist">
 <dl>
 <problemList>
-  <dt><a href="/problems/${problemID}"><problemTitle/></a><ifAccepted><img src="/icons/16x16/accepted.png" alt="Accepted"/></ifAccepted>
-  </dt>
-  <dd class="problemli"><span class="info">
-      <ifSubmitted>
-	<count/> submissões efetuadas.<br/>
-      </ifSubmitted>
-      <ifOpen>
-      <ifLimited>Submissões terminam em <endTime/>; tempo disponível: <em><timeLeft/></em>.
+  <ifOpen><dt><a href="/problems/${problemID}"><problemTitle/></a><ifAccepted><img src="/icons/16x16/accepted.png" alt="Accepted"/></ifAccepted></dt>
+    <dd class="problemli"><span class="info">
+	<ifSubmitted><count/> submissões já efetuadas.<br/></ifSubmitted>
+	<ifLimited>Submissões terminam em <endTime/>; tempo disponível: <em><timeLeft/></em>.
       </ifLimited>
-	<else>
-	  <ifEarly>Submissões vão abrir em: <startTime/>.</ifEarly>
-	  <ifLate>Submissões fecharam em: <endTime/>.</ifLate>
-	</else>
-      </ifOpen>
   </span></dd>
+    <else><dt><problemTitle/><dt/>
+	<dd>
+	<ifEarly><span class="info">Submissões iniciam em <startTime/>.</span></ifEarly>
+	<ifLate><span class="info">Submissões fecharam em <endTime/>.</span></ifLate>
+	</dd>
+    </else>
+  </ifOpen>
 </problemList>
 </dl>
 </div>

@@ -11,7 +11,6 @@ module Problem (
   isEarly,         -- * check problem's acceptance dates
   isLate,
   isOpen,          -- * can be submitted and accepted
-  isVisible,       -- * is shown in listing
   isTagged
   ) where
 
@@ -49,8 +48,8 @@ data Problem t = Problem {
   probSubmit :: Text,           -- optional default submission text
   probTags   :: [Text],    -- list of tags attached to this problem
 
-  probOpen    :: Interval t,
-  probVisible :: Interval t
+  probOpen    :: Interval t
+  -- probVisible :: Interval t
   -- probStart  :: Maybe t,        -- optional start time
   -- probEnd    :: Maybe t,        -- optional end time
   -- probExam   :: Bool            -- visible only during the above interval
@@ -61,9 +60,7 @@ data Problem t = Problem {
 
 -- Functor instance for applying functions to the time fields
 instance Functor Problem where
-  fmap f p = p { probOpen = fmap f (probOpen p),
-                 probVisible = fmap f (probVisible p) 
-               }
+  fmap f p = p { probOpen = fmap f (probOpen p) }
 
 instance Eq (Problem t) where
   p == p' = probID p == probID p'
@@ -72,7 +69,7 @@ instance Eq (Problem t) where
 -- ordering instance: lexicographically compare by times then by id
 instance Ord t => Ord (Problem t) where  
   compare p p' = compare (tupl p) (tupl p')  
-    where tupl Problem{..} = (probVisible, probOpen, probID) 
+    where tupl Problem{..} = (probOpen, probID) 
 
   
 -- an empty problem
@@ -82,8 +79,7 @@ emptyProblem pid = Problem { probID    = pid
                            , probDescr = []
                            , probSubmit= ""
                            , probTags  = []
-                           , probOpen     = Interval.forever
-                           , probVisible  = Interval.forever
+                           , probOpen  = Interval.forever
                            }
 
 
@@ -102,10 +98,8 @@ problemElems p
             continue p{probDescr=X.childNodes descr}
      <|> do text <- element "submitText" 
             continue p{probSubmit=X.nodeText text}
-     <|> do i <- tagged "open" localInterval
+     <|> do i <- tagged "open" localTimeInterval
             continue p{probOpen=i}
-     <|> do i <- tagged "visible" localInterval
-            continue p{probVisible=i}
      <|> do tags <- (T.words . X.nodeText) <$> element "tags"
             continue p { probTags = tags }
      <|> return p
@@ -113,8 +107,8 @@ problemElems p
 
 
 
-localInterval :: XMLReader (Interval LocalTime)
-localInterval = do
+localTimeInterval :: XMLReader (Interval LocalTime)
+localTimeInterval = do
   blankNodes
   l <- optionMaybe (localTime "start")
   blankNodes
@@ -134,18 +128,6 @@ localTime tag = do
 
 dateFormats :: [String]
 dateFormats = ["%H:%M %d/%m/%Y", "%d/%m/%Y", "%c"]
-
-{-
--- read a local time
-localTime :: XMLReader LocalTime
-localTime = do txt <- allText 
-               let str = T.unpack txt
-               let mb = msum [parseTime defaultTimeLocale fmt str | fmt<-dateFormats]
-               case mb of
-                 Nothing -> fail "localTime: no parse"
-                 Just t -> return t
--}
-
 
 
 
@@ -209,8 +191,8 @@ isEarly t Problem{..} = ((t<) <$> Interval.start probOpen) == Just True
 isLate t Problem{..}  = ((t>) <$> Interval.end probOpen) == Just True
 
 -- check if a problem is visible at a given time 
-isVisible :: UTCTime -> Problem UTCTime -> Bool
-isVisible t Problem{..} =  t `Interval.elem` probVisible
+-- isVisible :: UTCTime -> Problem UTCTime -> Bool
+-- isVisible t Problem{..} =  t `Interval.elem` probVisible
 
 isOpen :: UTCTime -> Problem UTCTime -> Bool
 isOpen t Problem{..} = t `Interval.elem` probOpen

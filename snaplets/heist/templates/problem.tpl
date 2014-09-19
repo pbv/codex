@@ -8,8 +8,8 @@
     <p>Tempo disponível: <em><timeLeft/></em></p> 
   </ifLimited>
   <else>
-    <ifEarly>Submissões vão abrir em: <startTime/>.</ifEarly>
-    <ifLate>Submissões fecharam em: <endTime/>.</ifLate>
+    <ifEarly><p>Submissões vão abrir em: <startTime/>.</ifEarly>
+    <ifLate><p>Submissões fecharam em: <endTime/>.</ifLate>
   </else>
 </ifOpen>
 
