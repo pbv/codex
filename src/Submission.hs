@@ -205,8 +205,8 @@ makeReport time prob out err
     maxLen = 2000 -- max.length of stdout/stdout transcriptions
     status 
       | null out && match "OK" err   = if isOpen time prob 
-                                       then Overdue
-                                       else Accepted
+                                       then Accepted
+                                       else Overdue
       | match "Time Limit" err          = TimeLimitExceeded
       | match "Memory Limit" err        = MemoryLimitExceeded
       | match "Exception raised" out    = RuntimeError
