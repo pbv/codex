@@ -44,7 +44,8 @@ type XMLReader a = Parsec [Node] () a
 tagged :: Text -> XMLReader a -> XMLReader a
 tagged tag reader = 
   do n <- element tag
-     case parse reader (T.unpack tag) (childNodes n) of
+     pos <- getPosition
+     case parse (setPosition pos >> reader) (sourceName pos) (childNodes n) of
        Left msg -> fail (show msg)
        Right result -> return result
 

@@ -9,6 +9,7 @@
 <dt><tagCheckbox/></dt>
 </tagList>
 </dl>
+<p><input type="submit" value="Aplicar"/></p>
 <p><a href="/problems">Limpar filtros</a></p>
 </form>
 </div>

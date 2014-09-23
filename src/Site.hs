@@ -264,8 +264,6 @@ formatNominalDiffTime secs
         h = (m `div` 60) 
         d = (h `div` 24)  
         
-
-
 -- splices relating to a single submission
 submissionSplices :: Submission -> AppSplices
 submissionSplices s = do 
