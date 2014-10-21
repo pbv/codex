@@ -30,7 +30,7 @@ sys.path.insert(0, pydir)
 # avoid cluttering submission directory with bytecode files
 sys.dont_write_bytecode = True
 
-tstmod = __import__(pymod, globals(), locals(), [], -1)
+tstmod = __import__(pymod, globals(), locals(), [], 0)
 
 flags = doctest.IGNORE_EXCEPTION_DETAIL|doctest.ELLIPSIS|doctest.REPORT_ONLY_FIRST_FAILURE
 
