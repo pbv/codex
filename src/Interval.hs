@@ -36,4 +36,5 @@ t `elem` (Interval Nothing Nothing)   = True
 
 
 
+-- extend an interval by a 
                 

@@ -6,7 +6,7 @@
 </ul>
 
 <problemList>
-  <h2><problem/></h2>
+  <h2><problemTitle/></h2>
   <p><strong>Resultado:</strong> 
   <ifAccepted>Passou todos os testes.</ifAccepted>
   <ifOverdue>Submetido fora do prazo.</ifOverdue>
@@ -16,8 +16,7 @@
   </pre>
   <ifRejected>
   <pre>
-  <stdout/>
-  <stderr/>
+  <submitReport/>
   </pre>
   </ifRejected>
 </problemList>

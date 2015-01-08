@@ -72,6 +72,9 @@ instance FromField Status where
       parse ((s,""):_) = return s
       parse _  = returnError ConversionFailed f "couldn't parse status field" 
 
+instance FromRow PID where
+    fromRow = field
+
 
 instance FromRow Submission where
   fromRow = Submission <$> field <*> field <*> field <*> field <*> field <*> field <*> field
@@ -139,6 +142,12 @@ getBestSubmission uid pid =
              \ ORDER BY accept DESC, id DESC LIMIT 1)" (uid,pid) 
 
   
+-- | list all problems that a user submited
+getSubmittedPIDs :: UID -> AppHandler [PID]
+getSubmittedPIDs uid = 
+    query "SELECT problem_id FROM submissions WHERE user_id = ? \
+          \ GROUP BY problem_id ORDER BY problem_id ASC" (Only uid)
+
 
 --
 -- | post a new submission; top level function 

@@ -18,11 +18,11 @@ import           Control.Lens
 
 import           Data.ByteString.UTF8 (ByteString)
 import qualified Data.ByteString.UTF8 as B
-import qualified Data.ByteString as B
+--import qualified Data.ByteString as B
 import           Data.Maybe
 import           Data.Map (Map)
 import qualified Data.Map as Map
-import           Data.Set (Set)
+--import           Data.Set (Set)
 import qualified Data.Set as Set
 import           Data.Text (Text)
 import qualified Data.Text as T
@@ -148,10 +148,10 @@ handleProblem = method GET $ do
   uid <- getLoggedUser -- ensure a user is logged in
   pid <- PID <$> getRequiredParam "pid"
   prob <- liftIO $ getProblem pid
-  -- check if problem is visible; deny request if not
+  -- check if problem is not yet available 
   now <- liftIO getCurrentTime
   exam <- getConfigured "exam" False
-  when (exam && not (isOpen now prob)) badRequest
+  when (exam && isEarly now prob) badRequest
   -- now list all submissions
   subs <- getSubmissions uid (probID prob)
   renderWithSplices "problem" $ do problemSplices prob 
@@ -260,7 +260,7 @@ formatNominalDiffTime secs
                [show (m`rem`60) ++ "m" | m>0] ++
                ["<1m" | secs<60]
   | otherwise = "--/--"
-  where m = round (secs / 60) :: Int
+  where m = (floor (secs / 60)) :: Int
         h = (m `div` 60) 
         d = (h `div` 24)  
         
@@ -313,7 +313,7 @@ handlePostSubmission = method POST $ do
   -- check that the problem is available for submission
   now <- liftIO getCurrentTime
   exam <- getConfigured "exam" False
-  when (exam && not (isOpen now prob)) badRequest
+  when (exam && isEarly now prob) badRequest
   incrCounter "submissions"
   code <- T.decodeUtf8With T.ignore <$> getRequiredParam "code"
   sub <- postSubmission uid prob code
@@ -349,25 +349,23 @@ handleSubmissions = method GET $ do
 -- in exam mode show final report and confirm logout
 -- otherwise, logout immediately
 handleConfirmLogout :: AppHandler ()
-handleConfirmLogout = do handleLogout
-  --exam <- getConfigured "exam" False
-  --if exam then handleFinalReport else handleLogout
+handleConfirmLogout = do 
+  exam <- getConfigured "exam" False
+  if exam then handleFinalReport else handleLogout
 
-{-
+
 handleFinalReport :: AppHandler ()
 handleFinalReport = method GET $ do
     uid <- getLoggedUser  
-    probs <- liftIO getProblems
-    subs <- sequence [do subs<-getReports uid prob 
-                         return (lastSubmission subs)
-                     | prob<-probs]
+    pids <- getSubmittedPIDs uid
+    subs <- mapM (getBestSubmission uid) pids
+    probs <- liftIO $ mapM getProblem pids
     let psubs = [(p,s) | (p, Just s)<-zip probs subs]
     renderWithSplices "finalrep" $
       "problemList" ## I.mapSplices (I.runChildrenWith . splices) psubs
   where splices (prob,sub) = do problemSplices prob 
-                                -- acceptedSplices (accepted sub)        
-                                submitSplices sub
--}
+                                submissionSplices sub
+
 
 
 

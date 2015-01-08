@@ -34,15 +34,15 @@ import           Submission
 
 
 
--- | handle printout (before ending session)
+-- | make a printout before ending session
 handlePrintout :: UID -> AppHandler ()
 handlePrintout uid = do 
   printout <- getPrintout  -- printout configuration
   fullname <- getFullName
-  probs <- liftIO getProblems  -- all problems
-  subs <- sequence [do sub<-getBestSubmission uid (probID prob) 
-                       return (prob,sub) | prob<-probs]
-  liftIO $ makePrintout printout uid fullname subs
+  pids <- getSubmittedPIDs uid
+  subs <- mapM (getBestSubmission uid) pids
+  probs <-liftIO $ mapM getProblem pids
+  liftIO $ makePrintout printout uid fullname (zip probs subs)
 
         
 makePrintout :: Printout 

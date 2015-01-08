@@ -11,6 +11,7 @@ module Problem (
   isEarly,         -- * check problem's acceptance dates
   isLate,
   isOpen,          -- * can be submitted and accepted
+  isOpen',
   isTagged
   ) where
 
@@ -24,7 +25,7 @@ import           Control.Monad
 import           Control.Applicative((<$>))
 import           System.FilePath
 import           System.Directory
-import           Data.ByteString.UTF8(ByteString)
+--import           Data.ByteString.UTF8(ByteString)
 import qualified Data.ByteString.UTF8 as B
 import           Text.XmlHtml(Node)
 import qualified Text.XmlHtml          as X
@@ -194,8 +195,15 @@ isLate t Problem{..}  = ((t>) <$> Interval.end probOpen) == Just True
 -- isVisible :: UTCTime -> Problem UTCTime -> Bool
 -- isVisible t Problem{..} =  t `Interval.elem` probVisible
 
+-- check if a problem can be submited & accepted
 isOpen :: UTCTime -> Problem UTCTime -> Bool
 isOpen t Problem{..} = t `Interval.elem` probOpen
+
+-- same as above but allows for a tolerante
+isOpen' :: NominalDiffTime -> UTCTime -> Problem UTCTime -> Bool
+isOpen' eps t Problem{..} = t `Interval.elem` interval
+    where interval = probOpen { Interval.end = fmap (addUTCTime eps) (Interval.end probOpen) }
+
       
 -- check if a problem has every tag in a list 
 isTagged :: [Text] -> Problem t -> Bool
