@@ -10,6 +10,7 @@ import           System.FilePath
 import           System.Directory
 import           System.Process
 import           System.Locale(defaultTimeLocale)
+import           System.IO.Error
 
 import           Data.Time.Clock
 import           Data.Time.LocalTime
@@ -40,12 +41,8 @@ import           Submission
 -- | make a printout before ending session
 handlePrintout :: UID -> AppHandler ()
 handlePrintout uid = do 
-  -- fetch remove client address (maybe forwarded by a proxy)
-  ipHeaderFilter  
-  req <- getRequest
-  clientname <- liftIO $ dig (rqRemoteAddr req)
-
   printout <- getPrintout  -- fetch configuration
+  clientname <- getClient
   fullname <- getFullName
   pids <- getSubmittedPIDs uid
   subs <- mapM (getBestSubmission uid) pids
@@ -53,10 +50,20 @@ handlePrintout uid = do
   liftIO $ makePrintout printout uid fullname clientname (zip probs subs)
 
 
-dig :: ByteString -> IO Text
-dig addr = do
-  name <- readProcess "/usr/bin/dig" ["+short", "-x", B.unpack addr] ""
-  return (T.pack name)
+getClient :: AppHandler Text
+getClient = do
+  -- fetch remote client address (maybe forwarded by a proxy)
+  ipHeaderFilter  
+  req <- getRequest
+  clientname <- liftIO $ dnsLookup (B.unpack $ rqRemoteAddr req)
+  return (T.pack clientname)
+  
+
+dnsLookup :: String -> IO String
+dnsLookup addr = 
+  catchIOError (readProcess "/usr/bin/dig" ["+short", "-x", addr] "")
+          (\_ -> return "")
+
 
         
 makePrintout :: Printout 
