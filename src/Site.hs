@@ -163,16 +163,17 @@ handleProblem = method GET $ do
 handleProblemList :: AppHandler ()
 handleProblemList = method GET $ do
   uid <- getLoggedUser
-  -- summary of all submissions 
+  -- summary of all previous submissions 
   summary <- getSubmissionsSummary uid 
-  -- filter visible problems and add dynamic tags
+  -- filter available problems
   exam <- getConfigured "exam" False
   now <- liftIO getCurrentTime  
-  allprobs <- liftIO (if exam then filter (isOpen now) <$> getProblems
-                      else getProblems)
+  allprobs <- (if exam then
+               filter (\p -> isOpen now p || 
+                       probID p `Map.member` summary) else id) <$> liftIO getProblems
 
   -- add dynamic tags (solved, unsolved, etc.)
-  let allprobs' = map (dynamicTags now summary) allprobs
+  let allprobs' = map (dynamicTags summary) allprobs
 
   tags <- getQueryTags
   --  filter problems by query 
@@ -209,14 +210,11 @@ getQueryTags :: AppHandler [Text]
 getQueryTags = fmap (map (T.pack . B.toString) . 
                      Map.findWithDefault [] "tag") getParams
 
--- dynamic tags for a problem
-dynamicTags :: UTCTime -> Map PID (Int,Int) -> Problem UTCTime -> Problem UTCTime
-dynamicTags now summary prob = prob { probTags = tags ++ probTags prob }
+-- add dynamic tags for a problem
+dynamicTags :: Map PID (Int,Int) -> Problem UTCTime -> Problem UTCTime
+dynamicTags summary prob = prob { probTags = tags ++ probTags prob }
   where (sub,acc) = Map.findWithDefault (0,0) (probID prob) summary
-        tags = [ "*ending*" | t<-maybeToList (Interval.end $ probOpen prob), 
-                 let delta = t`diffUTCTime`now, 
-                 delta>0 && delta<24*60*60 ] ++ -- 1 day = 24h*60m*60secs
-               [if acc>0 then "*accepted*" else "*not accepted*",
+        tags = [if acc>0 then "*accepted*" else "*not accepted*",
                 if sub>0 then "*submitted*" else "*not submitted*"] 
                
 

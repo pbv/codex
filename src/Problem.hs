@@ -5,7 +5,7 @@
 
 module Problem ( 
   Problem(..),
-  listProblems,    -- * list all problem ids
+  -- listProblems,    -- * list all problem ids
   getProblems,     -- * get all problems
   getProblem,      -- * get a single problem
   isEarly,         -- * check problem's acceptance dates
@@ -132,10 +132,9 @@ dateFormats = ["%H:%M %d/%m/%Y", "%d/%m/%Y", "%c"]
 
 
 
--- get a list of all problem IDs
--- filter HTML files to get problem IDs
-listProblems :: IO [PID]
-listProblems = do
+-- read the problem directory and return a list of all problem IDs
+readProblemDir :: IO [PID]
+readProblemDir = do
   files <- getDirectoryContents "problems"
   return $ map toPID $ filter isXml files
   where
@@ -144,7 +143,7 @@ listProblems = do
 
 -- get all available problems 
 getProblems ::  IO [Problem UTCTime]
-getProblems  = listProblems >>= fmap sort . mapM getProblem 
+getProblems  = readProblemDir >>= fmap sort . mapM getProblem 
 
 getProblem :: PID -> IO (Problem UTCTime)
 getProblem pid = readProblemFile pid fp
