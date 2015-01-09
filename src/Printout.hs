@@ -15,6 +15,8 @@ import           Data.Time.Clock
 import           Data.Time.LocalTime
 import           Data.Time.Format
 
+import qualified Data.ByteString.Char8 as B
+import           Data.ByteString.Char8 (ByteString)
 import           Data.Text(Text)
 import qualified Data.Text as T
 import qualified Data.Text.IO as T
@@ -25,6 +27,7 @@ import           Data.Configurator.Types
 
 import           Control.Monad.State
 
+import           Snap.Core
 import           Application
 import           Utils
 import           Types
@@ -37,20 +40,32 @@ import           Submission
 -- | make a printout before ending session
 handlePrintout :: UID -> AppHandler ()
 handlePrintout uid = do 
-  printout <- getPrintout  -- printout configuration
+  -- fetch remove client address (maybe forwarded by a proxy)
+  ipHeaderFilter  
+  req <- getRequest
+  clientname <- liftIO $ dig (rqRemoteAddr req)
+
+  printout <- getPrintout  -- fetch configuration
   fullname <- getFullName
   pids <- getSubmittedPIDs uid
   subs <- mapM (getBestSubmission uid) pids
   probs <-liftIO $ mapM getProblem pids
-  liftIO $ makePrintout printout uid fullname (zip probs subs)
+  liftIO $ makePrintout printout uid fullname clientname (zip probs subs)
+
+
+dig :: ByteString -> IO Text
+dig addr = do
+  name <- readProcess "/usr/bin/dig" ["+short", "-x", B.unpack addr] ""
+  return (T.pack name)
 
         
 makePrintout :: Printout 
                 -> UID 
                 -> Text 
+                -> Text
                 -> [(Problem UTCTime, Maybe Submission)] 
                 -> IO () 
-makePrintout Printout{..} uid name subs = do
+makePrintout Printout{..} uid name client subs = do
   zonetime <- getCurrentTime >>= utcToLocalZonedTime
   let time = T.pack (formatTime defaultTimeLocale "%c" zonetime)
   -- LaTeX and PDF file paths 
@@ -59,7 +74,7 @@ makePrintout Printout{..} uid name subs = do
   let logfile = show uid <.> "log"  
   let pdffile = show uid <.> "pdf"
   -- write LaTeX source
-  T.writeFile ("printouts"</>texfile) (genLaTeX uid printHeader name time subs)
+  T.writeFile ("printouts"</>texfile) (genLaTeX uid printHeader name client time subs)
   -- run pdflatex 
   (_,_,_,ph) <- createProcess (pdflatex texfile) {cwd=Just "printouts"}
   waitForProcess ph                    -- wait for it
@@ -80,12 +95,13 @@ pdflatex file = proc "pdflatex" ["-interaction=batchmode", file]
 genLaTeX :: UID        -- user ID
             -> Text    -- header
             -> Text    -- full name
+            -> Text    -- client IP
             -> Text    -- current time
             -> [(Problem UTCTime, Maybe Submission)] 
             -- problems and final submission
             -> Text                            -- LaTeX source
-genLaTeX uid header name time subs
-  = T.concat (preamble uid header name time ++
+genLaTeX uid header name client time subs
+  = T.concat (preamble uid header name client time ++
               concatMap submission subs ++
               closing)
 
@@ -110,7 +126,7 @@ submission (Problem{..}, Just Submission{..}) =
           | submitStatus == Overdue  = "Submitido fora do tempo."
           | otherwise                = "Falhou algum(s) teste(s)."
 
-preamble uid header name time = 
+preamble uid header name client time = 
    ["\\documentclass[10pt,a4paper,twoside]{article}\n",
     "\\usepackage[T1]{fontenc}\n",
     "\\usepackage[utf8]{inputenc}\n",
@@ -130,7 +146,7 @@ preamble uid header name time =
     "\\noindent\\parbox{\\textwidth}{", header, "\\\\[1ex]\n",
     "\\textbf{Data:} ", time, "\\\\[2ex]\n",
     "\\textbf{Nome:} ", name, 
-    "\\hfill\\textbf{Login:} \\texttt{", T.pack (show uid), "} \\\\[2ex]\n",
+    "\\hfill\\textbf{Login:} \\texttt{", T.pack (show uid), "@", client, "} \\\\[2ex]\n",
     "\\textbf{Assinatura:} \\hrulefill}\\bigskip\n" 
    ]
    
