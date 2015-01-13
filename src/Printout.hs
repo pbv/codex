@@ -152,8 +152,8 @@ preamble uid header name client time =
     "\\thispagestyle{plain}\n",
     "\\noindent\\parbox{\\textwidth}{", header, "\\\\[1ex]\n",
     "\\textbf{Data:} ", time, "\\\\[2ex]\n",
-    "\\textbf{Nome:} ", name, 
-    "\\hfill\\textbf{Login:} \\texttt{", T.pack (show uid), "@", client, "} \\\\[2ex]\n",
+    "\\textbf{Nome:} ", name, "\\\\[2ex]\n",
+    "\\textbf{Login:} \\texttt{", T.pack (show uid), "@", client, "} \\\\[2ex]\n",
     "\\textbf{Assinatura:} \\hrulefill}\\bigskip\n" 
    ]
    
