@@ -148,12 +148,13 @@ handleProblem = method GET $ do
   uid <- getLoggedUser -- ensure a user is logged in
   pid <- PID <$> getRequiredParam "pid"
   prob <- liftIO $ getProblem pid
-  -- check if problem is not yet available 
   now <- liftIO getCurrentTime
+  subs <- getSubmissions uid pid
   exam <- getConfigured "exam" False
-  when (exam && isEarly now prob) badRequest
+  -- if running in exam mode, check that the problem is available 
+  when (exam && not (now `Interval.elem` probOpen prob) && null subs)
+       badRequest
   -- now list all submissions
-  subs <- getSubmissions uid (probID prob)
   renderWithSplices "problem" $ do problemSplices prob 
                                    submissionsSplice subs
 
@@ -163,17 +164,17 @@ handleProblem = method GET $ do
 handleProblemList :: AppHandler ()
 handleProblemList = method GET $ do
   uid <- getLoggedUser
-  -- summary of all previous submissions 
-  summary <- getSubmissionsSummary uid 
-  -- filter available problems
   exam <- getConfigured "exam" False
   now <- liftIO getCurrentTime  
-  allprobs <- (if exam then
-               filter (\p -> isOpen now p || 
-                       probID p `Map.member` summary) else id) <$> liftIO getProblems
-
-  -- add dynamic tags (solved, unsolved, etc.)
-  let allprobs' = map (dynamicTags summary) allprobs
+  allprobs<- liftIO getProblems
+  -- summary counts for all previous submissions 
+  summary <- getSubmissionsSummary uid 
+  -- filter available problems and add dynamic tags (solved, unsolved, etc.)
+  let allprobs' = map (dynamicTags summary) $ 
+                  if exam then 
+                  filter (\p -> now `Interval.elem` probOpen p ||
+                            probID p `Map.member` summary) allprobs
+                  else allprobs
 
   tags <- getQueryTags
   --  filter problems by query 
@@ -234,7 +235,7 @@ problemSplices p = do
                   conditionalSplice (isEarly now p)
   "ifLate" ## do now <- liftIO getCurrentTime
                  conditionalSplice (isLate now p)
-  "ifLimited" ## conditionalSplice (isJust $ Interval.end $ probOpen p)
+  "ifLimited" ## conditionalSplice (Interval.limited $ probOpen p)
   "timeLeft"  ## case Interval.end (probOpen p) of 
     Nothing -> I.textSplice "N/A"
     Just t' -> do now <- liftIO getCurrentTime
@@ -308,10 +309,12 @@ handlePostSubmission = method POST $ do
   uid <- getLoggedUser
   pid <-  PID <$> getRequiredParam "pid"
   prob <- liftIO $ getProblem pid
-  -- check that the problem is available for submission
+  -- if running in exam mode, check that the problem is available for submission
+  pids <- getSubmittedPIDs uid
   now <- liftIO getCurrentTime
   exam <- getConfigured "exam" False
-  when (exam && isEarly now prob) badRequest
+  when (exam && not (now `Interval.elem` probOpen prob) && pid `notElem` pids) 
+       badRequest
   incrCounter "submissions"
   code <- T.decodeUtf8With T.ignore <$> getRequiredParam "code"
   sub <- postSubmission uid prob code

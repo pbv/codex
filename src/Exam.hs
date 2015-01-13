@@ -1,6 +1,6 @@
---
+{-
 -- quick hack script to set problems start and end times for exams
---
+-}
 module Main where
 
 import System.Environment
@@ -32,10 +32,7 @@ main = do argv <- getArgs
           mapM_ (append xtra) argv
   
   where append xtra path
-          | takeExtension path == ".xml" = 
-              -- appendFile path xtra
-              do readFile path >>= putStrLn
-                 putStrLn xtra
+          | takeExtension path == ".xml" = appendFile path xtra
           | otherwise =  hPutStrLn stderr ("ignoring non HTML file: "++ path)
 
 

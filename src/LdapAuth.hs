@@ -78,6 +78,7 @@ ldapAuth' r LdapConf{..} user passwd
                       , userPassword = Nothing
                       , userCreatedAt = Just time
                       , userUpdatedAt = Just time
+                      , userCurrentLoginAt = Just time                   
                       , userMeta = HM.fromList [(T.pack k, String $ T.pack v) 
                                                | (k,v:_)<-attrs, keepAttrs k]
                       }  

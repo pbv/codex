@@ -11,7 +11,6 @@ module Problem (
   isEarly,         -- * check problem's acceptance dates
   isLate,
   isOpen,          -- * can be submitted and accepted
-  isOpen',
   isTagged
   ) where
 
@@ -43,18 +42,13 @@ import           Text.Parsec
 -- datatype for problems 
 -- parameterized by type of times for parsing flexibility 
 data Problem t = Problem {
-  probID     :: PID,            -- unique id name (filepath)
+  probID     :: PID,            -- unique id (from filepath)
   probTitle  :: Text,           -- short title
   probDescr  :: [Node],         -- longer description (HTML nodes)
   probSubmit :: Text,           -- optional default submission text
-  probTags   :: [Text],    -- list of tags attached to this problem
-
-  probOpen    :: Interval t
-  -- probVisible :: Interval t
-  -- probStart  :: Maybe t,        -- optional start time
-  -- probEnd    :: Maybe t,        -- optional end time
-  -- probExam   :: Bool            -- visible only during the above interval
-  } deriving Show
+  probTags   :: [Text],         -- list of tags attached to this problem
+  probOpen    :: Interval t     -- acceptance interval
+    } deriving Show
 
 
 
@@ -80,7 +74,7 @@ emptyProblem pid = Problem { probID    = pid
                            , probDescr = []
                            , probSubmit= ""
                            , probTags  = []
-                           , probOpen  = Interval.forever
+                           , probOpen  = Interval.empty
                            }
 
 
@@ -99,7 +93,7 @@ problemElems p
             continue p{probDescr=X.childNodes descr}
      <|> do text <- element "submitText" 
             continue p{probSubmit=X.nodeText text}
-     <|> do i <- tagged "open" localTimeInterval
+     <|> do i <- tagged "open" (blankNodes >> localTimeInterval)
             continue p{probOpen=i}
      <|> do tags <- (T.words . X.nodeText) <$> element "tags"
             continue p { probTags = tags }
@@ -107,14 +101,13 @@ problemElems p
   where continue p' = do blankNodes; problemElems p'
 
 
-
 localTimeInterval :: XMLReader (Interval LocalTime)
-localTimeInterval = do
-  blankNodes
-  l <- optionMaybe (localTime "start")
-  blankNodes
-  u <- optionMaybe (localTime "end")
-  return (Interval.interval l u)
+localTimeInterval 
+    = do element "empty"; return Interval.empty
+    <|> do l <- optionMaybe (localTime "start")
+           blankNodes
+           u <- optionMaybe (localTime "end")
+           return (Interval.interval l u)
   
 -- parse an element wrapping a local time string 
 localTime :: Text -> XMLReader LocalTime
@@ -123,7 +116,7 @@ localTime tag = do
   let txt = T.unpack $ X.nodeText n
   let opt = msum [parseTime defaultTimeLocale fmt txt | fmt<-dateFormats]
   case opt of
-    Nothing -> fail ("invalid time format for " ++ T.unpack tag)
+    Nothing -> fail ("invalid time string: " ++ show (T.unpack tag))
     Just t -> return t
 
 
@@ -187,21 +180,19 @@ isAcceptable t Problem{..}
 
 -- relations between problems and times
 isEarly, isLate :: UTCTime -> Problem UTCTime -> Bool  
-isEarly t Problem{..} = ((t<) <$> Interval.start probOpen) == Just True
-isLate t Problem{..}  = ((t>) <$> Interval.end probOpen) == Just True
+-- isEarly t Problem{..} = ((t<) <$> Interval.start probOpen) == Just True
+-- isLate t Problem{..}  = ((t>) <$> Interval.end probOpen) == Just True
 
--- check if a problem is visible at a given time 
--- isVisible :: UTCTime -> Problem UTCTime -> Bool
--- isVisible t Problem{..} =  t `Interval.elem` probVisible
+isEarly t Problem{..} = t `Interval.before` probOpen 
+
+isLate t Problem{..} = t `Interval.after` probOpen 
+
+
+
 
 -- check if a problem can be submited & accepted
 isOpen :: UTCTime -> Problem UTCTime -> Bool
 isOpen t Problem{..} = t `Interval.elem` probOpen
-
--- same as above but allows for a tolerante
-isOpen' :: NominalDiffTime -> UTCTime -> Problem UTCTime -> Bool
-isOpen' eps t Problem{..} = t `Interval.elem` interval
-    where interval = probOpen { Interval.end = fmap (addUTCTime eps) (Interval.end probOpen) }
 
       
 -- check if a problem has every tag in a list 
