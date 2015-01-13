@@ -74,7 +74,7 @@ emptyProblem pid = Problem { probID    = pid
                            , probDescr = []
                            , probSubmit= ""
                            , probTags  = []
-                           , probOpen  = Interval.empty
+                           , probOpen  = Interval.forever
                            }
 
 
