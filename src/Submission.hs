@@ -137,7 +137,7 @@ getBestSubmission :: UID -> PID -> AppHandler (Maybe Submission)
 getBestSubmission uid pid = 
   listToMaybe <$> 
   query "SELECT id,user_id,problem_id,time,code,status,report \
-       \ FROM (SELECT *,status='Accepted' as accept \
+       \ FROM (SELECT *,status IN ('Accepted', 'Overdue') as accept \
              \ FROM submissions WHERE user_id = ? AND problem_id = ? \
              \ ORDER BY accept DESC, id DESC LIMIT 1)" (uid,pid) 
 

@@ -32,6 +32,10 @@ instance Functor Interval where
 interval :: Maybe t -> Maybe t -> Interval t
 interval = Interval 
 
+within :: Ord t => t -> t -> Interval t
+within t1 t2 | t1<=t2 = Interval (Just t1) (Just t2)
+             | otherwise = error "Interval.within: invalid arguments"
+
 empty :: Interval t
 empty = Empty
 
@@ -44,11 +48,16 @@ limited (Interval _ Nothing)  = False
 limited (Interval _ (Just _)) = True
 
 
-within :: Ord t => t -> t -> Interval t
-within t1 t2 | t1<=t2 = Interval (Just t1) (Just t2)
-             | otherwise = error "Interval.within: invalid arguments"
+-- end point projections 
+start, end :: Interval t -> Maybe t
+start Empty          = Nothing
+start (Interval l _) = l
+
+end Empty          = Nothing
+end (Interval _ u) = u
 
 
+-- comparisions with times
 after, before :: Ord t => t -> Interval t -> Bool
 t `after` Empty               = False
 t `after` Interval _ Nothing  = False
@@ -57,15 +66,6 @@ t `after` Interval _ (Just u) = t>u
 t `before` Empty              = False
 t `before` Interval Nothing _ = False
 t `before` Interval (Just l) _ = t<l
-
-
-start, end :: Interval t -> Maybe t
-start Empty          = Nothing
-start (Interval l _) = l
-
-end Empty          = Nothing
-end (Interval _ u) = u
-
 
 -- check that a time is within an interval
 elem :: Ord t => t -> Interval t -> Bool

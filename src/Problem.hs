@@ -155,39 +155,11 @@ readProblemFile pid fp
                           return (fmap (localTimeToUTC z) prob)
   
     
-{-
--- relations between problems and times
-isEarly, isLate :: UTCTime -> Problem UTCTime -> Bool  
-isEarly t Problem{..} = ((t<) <$> probStart) == Just True
-isLate t Problem{..}  = ((t>) <$> probEnd) == Just True
-
--- a problem can be submited if it is not early
-isAvailable :: UTCTime -> Problem UTCTime -> Bool
-isAvailable t p  = not (isEarly t p)
-
--- check if a problem is visible at a given time 
--- * exam problems are visible only in the acceptance interval
--- * other problems are always visible
-isVisible :: UTCTime -> Problem UTCTime -> Bool
-isVisible t p@Problem{..} =  not (probExam && (isLate t p || isEarly t p))
-      
-
-isAcceptable :: UTCTime -> Problem UTCTime -> Bool
-isAcceptable t Problem{..} 
-  = ((t>) <$> probStart) /= Just False &&
-    ((t<) <$> probEnd) /= Just False
--}
 
 -- relations between problems and times
 isEarly, isLate :: UTCTime -> Problem UTCTime -> Bool  
--- isEarly t Problem{..} = ((t<) <$> Interval.start probOpen) == Just True
--- isLate t Problem{..}  = ((t>) <$> Interval.end probOpen) == Just True
-
 isEarly t Problem{..} = t `Interval.before` probOpen 
-
 isLate t Problem{..} = t `Interval.after` probOpen 
-
-
 
 
 -- check if a problem can be submited & accepted
