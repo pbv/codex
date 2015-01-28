@@ -16,6 +16,8 @@ import           Data.Typeable
 import           Data.Map (Map)
 import qualified Data.Map as Map
 
+import           Data.ByteString.UTF8(ByteString)
+import qualified Data.ByteString.UTF8 as B
 import           Data.Text(Text) 
 import qualified Data.Text    as T
 import qualified Data.Text.IO as T
@@ -27,6 +29,7 @@ import           Control.Exception(bracket)
 import           Control.Monad.State
 import           Control.Applicative
 
+import           Snap.Core
 import           Snap.Snaplet.SqliteSimple
 import qualified Database.SQLite.Simple as S
 import           Database.SQLite.Simple.FromField 
@@ -40,13 +43,14 @@ import           Problem
 
 -- | single row in the submission DB
 data Submission = Submission {
-  submitID   :: SID,           -- unique id 
-  submitUID  :: UID,
-  submitPID  :: PID,
+  submitID   :: SID,           -- unique submission id 
+  submitUID  :: UID,           -- user's id
+  submitPID  :: PID,           -- problem's id
+  submitAddr :: Text,          -- client IP address
   submitTime :: UTCTime,       -- submission time  
   submitText :: Text,          -- submission text (program code)
-  submitStatus :: Status,
-  submitReport :: Text
+  submitStatus :: Status,      -- accepted/wrong answer/etc
+  submitReport :: Text         -- detailed error message
   }
 
 
@@ -77,7 +81,7 @@ instance FromRow PID where
 
 
 instance FromRow Submission where
-  fromRow = Submission <$> field <*> field <*> field <*> field <*> field <*> field <*> field
+  fromRow = Submission <$> field <*> field <*> field <*> field <*> field <*> field <*> field <*> field
 
 
 -- | check if a submission is accepted
@@ -90,13 +94,14 @@ isAccepted Submission{..} = submitStatus==Accepted
 insertSubmission ::  UID -> PID -> UTCTime -> Text -> Status -> Text 
                   -> AppHandler Submission
 insertSubmission uid pid time code status report = do
+  addr <- fmap (T.pack . B.toString) (getsRequest rqRemoteAddr)
   sid <- withSqlite $ \conn -> do
     S.execute conn 
       "INSERT INTO submissions \
-     \ (user_id, problem_id, time, code, status, report) \
-     \ VALUES(?, ?, ?, ?, ?, ?)" (uid, pid, time, code, status, report)
+     \ (user_id, problem_id, ip_addr, time, code, status, report) \
+     \ VALUES(?, ?, ?, ?, ?, ?, ?)" (uid, pid, addr, time, code, status, report)
     fmap (SID . fromIntegral) (S.lastInsertRowId conn)
-  return (Submission sid uid pid time code status report)
+  return (Submission sid uid pid addr time code status report)
   
 
 
@@ -136,7 +141,7 @@ getSubmissionsSummary uid  = do
 getBestSubmission :: UID -> PID -> AppHandler (Maybe Submission)
 getBestSubmission uid pid = 
   listToMaybe <$> 
-  query "SELECT id,user_id,problem_id,time,code,status,report \
+  query "SELECT id,user_id,problem_id,ip_addr,time,code,status,report \
        \ FROM (SELECT *,status IN ('Accepted', 'Overdue') as accept \
              \ FROM submissions WHERE user_id = ? AND problem_id = ? \
              \ ORDER BY accept DESC, id DESC LIMIT 1)" (uid,pid) 
@@ -152,10 +157,7 @@ getSubmittedPIDs uid =
 --
 -- | post a new submission; top level function 
 --
-postSubmission :: UID -> 
-                  Problem UTCTime -> 
-                  Text -> 
-                  AppHandler Submission
+postSubmission :: UID -> Problem UTCTime -> Text -> AppHandler Submission
 postSubmission uid prob code = 
   let pid = probID prob
       tstfile = "problems" </> show pid <.> "tst"

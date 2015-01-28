@@ -53,9 +53,9 @@ handlePrintout uid = do
 getClient :: AppHandler Text
 getClient = do
   -- fetch remote client address (maybe forwarded by a proxy)
-  ipHeaderFilter  
-  req <- getRequest
-  clientname <- liftIO $ dnsLookup (B.unpack $ rqRemoteAddr req)
+  -- ipHeaderFilter  
+  addr <- getsRequest rqRemoteAddr
+  clientname <- liftIO $ dnsLookup (B.unpack addr)
   return (T.pack clientname)
   
 

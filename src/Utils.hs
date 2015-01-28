@@ -109,6 +109,7 @@ getLoggedUser = do
     Just au -> return (UID . B.fromString $ T.unpack $ userLogin au)
 
 
+
 getFullName :: AppHandler Text
 getFullName = do 
   opt <- with auth currentUser
