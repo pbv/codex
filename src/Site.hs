@@ -18,7 +18,7 @@ import           Control.Lens
 
 import           Data.ByteString.UTF8 (ByteString)
 import qualified Data.ByteString.UTF8 as B
---import qualified Data.ByteString as B
+-- import qualified Data.ByteString as B
 import           Data.Maybe
 import           Data.Map (Map)
 import qualified Data.Map as Map
@@ -375,15 +375,18 @@ handleFinalReport = method GET $ do
 routes :: [(ByteString, AppHandler ())]
 routes = [ ("/login",                 handleLogin `catch` internalError)
          , ("/logout",                handleLogout `catch` internalError)
-         -- , ("/register", with auth handleNewUser)
          , ("/problems/:pid",         handleProblem `catch` internalError )
          , ("/problems",              handleProblemList `catch` internalError)
-         -- , ("/submissions",        handleSubmissions `catch` internalError)
          , ("/submissions/:pid",      handlePostSubmission `catch` internalError)
          , ("/submissions/:pid/:sid", handleGetSubmission  `catch` internalError)
          , ("/asklogout",             handleConfirmLogout `catch` internalError)        
          , ("",                       serveDirectory "static" <|> notFound)
          ]
+{-
+  where logRequest (path,action) = (path, do req<-getRequest
+					     logError $ B.fromString $ show req
+					     action)
+-}
 
 
 -- | current logged in full user name  

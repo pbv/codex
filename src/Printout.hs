@@ -53,15 +53,15 @@ handlePrintout uid = do
 getClient :: AppHandler Text
 getClient = do
   -- fetch remote client address (maybe forwarded by a proxy)
-  -- ipHeaderFilter  
-  addr <- getsRequest rqRemoteAddr
-  clientname <- liftIO $ dnsLookup (B.unpack addr)
+  ipHeaderFilter  
+  req <- getRequest
+  clientname <- liftIO $ dnsLookup (B.unpack $ rqRemoteAddr req)
   return (T.pack clientname)
   
 
 dnsLookup :: String -> IO String
 dnsLookup addr = 
-  catchIOError (readProcess "/usr/bin/dig" ["+short", "-x", addr] "")
+  catchIOError (readProcess "/usr/bin/dig" ["@192.168.0.2", "+short", "-x", addr] "")
           (\_ -> return "")
 
 
