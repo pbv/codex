@@ -46,7 +46,7 @@ handlePrintout uid = do
   fullname <- getFullName
   pids <- getSubmittedPIDs uid
   subs <- mapM (getBestSubmission uid) pids
-  probs <-liftIO $ mapM getProblem pids
+  probs <-liftIO $ mapM readProblem pids
   liftIO $ makePrintout printout uid fullname clientname (zip probs subs)
 
 
@@ -70,7 +70,7 @@ makePrintout :: Printout
                 -> UID 
                 -> Text 
                 -> Text
-                -> [(Problem UTCTime, Maybe Submission)] 
+                -> [(Problem, Maybe Submission)] 
                 -> IO () 
 makePrintout Printout{..} uid name client subs = do
   zonetime <- getCurrentTime >>= utcToLocalZonedTime
@@ -104,7 +104,7 @@ genLaTeX :: UID        -- user ID
             -> Text    -- full name
             -> Text    -- client IP
             -> Text    -- current time
-            -> [(Problem UTCTime, Maybe Submission)] 
+            -> [(Problem, Maybe Submission)] 
             -- problems and final submission
             -> Text                            -- LaTeX source
 genLaTeX uid header name client time subs
@@ -113,11 +113,11 @@ genLaTeX uid header name client time subs
               closing)
 
 submission (Problem{..}, Nothing) = 
-  ["\\section*{", probTitle, "}\n",
+  ["\\section*{", "probTitle", "}\n",
    "(Nenhuma solução submetida.)\n"
   ]
 submission (Problem{..}, Just Submission{..}) =
-  ["\\section*{", probTitle, "}\n",
+  ["\\section*{", "probTitle", "}\n",
    "\\textbf{Resultado:} ", result, "\n",
    "\\begin{Verbatim}[frame=lines,numbers=left]\n",
    T.strip submitText, "\n",

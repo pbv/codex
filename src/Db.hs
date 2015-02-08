@@ -11,7 +11,8 @@ import qualified Data.Text as T
 import qualified Database.SQLite.Simple as S
 import           Snap.Snaplet.SqliteSimple
 
-import           Problem (Problem(..), getProblems)
+import           Types
+import           Problem 
 
 tableExists :: S.Connection -> String -> IO Bool
 tableExists conn tblName = do
@@ -50,10 +51,9 @@ initCmds = ["CREATE TABLE submissions (\
 
 
 -- remove all problem tags and insert new ones
-updateProblems :: S.Connection -> [Problem t] -> IO ()
+updateProblems :: S.Connection -> [(PID,Problem)] -> IO ()
 updateProblems conn probs = S.withTransaction conn $ do
   S.execute_ conn "DELETE FROM problemtags"
-  sequence_ [ insert (probID p) tag | p <- probs, tag <- probTags p]
+  sequence_ [ insert pid tag | (pid, prob)<-probs, tag <- probTags prob]
   where
-    insert pid tag 
-      = S.execute conn "INSERT INTO problemtags(problem_id, tag) VALUES(?,?)" (pid,tag)
+    insert pid tag = S.execute conn "INSERT INTO problemtags(problem_id, tag) VALUES(?,?)" (pid,tag)

@@ -17,16 +17,16 @@
 <div class="problemlist">
 <dl>
 <problemList>
-  <dt><a href="/problems/${problemID}"><problemTitle/></a><ifAccepted><img src="/icons/16x16/accepted.png" alt="Accepted"/></ifAccepted></dt>
+  <dt><a href="/problems/${probID}"><probTitle/></a><ifAccepted><img src="/icons/16x16/accepted.png" alt="Accepted"/></ifAccepted></dt>
     <dd class="problemli"><span class="info">
 	<ifSubmitted><count/> submissões já efetuadas.<br/></ifSubmitted>
 	<ifOpen>
-	<ifLimited>Submissões terminam em <endTime/>; 
-	           tempo disponível: <em><timeLeft/></em>.
+	<ifLimited>
+	  Submissões terminam em <probEnd/>; tempo disponível: <em><probTimeLeft/></em>.
 	</ifLimited>
 	<else>
-	<ifEarly><span class="info">Submissões iniciam em <startTime/>.</span></ifEarly>
-	<ifLate><span class="info">Submissões fecharam em <endTime/>.</span></ifLate>
+	<ifEarly>Submissões iniciam em <probStart/>.</ifEarly>
+	<ifLate>Submissões fecharam em <probEnd/>.</ifLate>
 	</else>
 	</ifOpen>
     </span></dd>

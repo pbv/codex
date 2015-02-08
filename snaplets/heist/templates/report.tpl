@@ -1,5 +1,5 @@
 <apply template="base">
-<h1><problemTitle/></h1>
+<h1><probTitle/></h1>
 <h2>Submissão <submitID/></h2>
 <h2>Resultado: <em><submitStatus/></em></h2>
 
@@ -19,10 +19,10 @@ seguinte descreve o erro encontrado.</p>
 </ifRejected>
 
 <h2>Nova submissão</h2>
-<bind tag="postAction">/submissions/${problemID}</bind>
+<bind tag="postAction">/submissions/${probID}</bind>
 <bind tag="buttonText">Enviar</bind>
 <apply template="_submission"><submitText/></apply>
 
-<p><a href="/problems/${problemID}">Voltar ao problema</a>
+<p><a href="/problems/${probID}">Voltar ao problema</a>
 <p><a href="/problems">Voltar à lista de problemas</a>
 </apply>

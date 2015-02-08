@@ -43,9 +43,9 @@ import           Problem
 
 -- | single row in the submission DB
 data Submission = Submission {
-  submitID   :: SID,           -- unique submission id 
-  submitUID  :: UID,           -- user's id
-  submitPID  :: PID,           -- problem's id
+  submitID   :: SID,           -- submission id 
+  submitUID  :: UID,           -- user id
+  submitPID  :: PID,           -- problems id
   submitAddr :: Text,          -- client IP address
   submitTime :: UTCTime,       -- submission time  
   submitText :: Text,          -- submission text (program code)
@@ -123,12 +123,14 @@ getSubmissions uid pid =
 
 
 -- | get user's submissions summary aggreated by problem IDs
--- result table rows : problem_id, #submissions, #accepted
-getSubmissionsSummary :: UID -> AppHandler (Map PID (Int, Int))
-getSubmissionsSummary uid  = do
-  lst <- query "SELECT problem_id, COUNT(*), SUM(status='Accepted') \
-              \ FROM submissions WHERE user_id = ? GROUP BY problem_id" (Only uid)
-  return (Map.fromList [(pid,(count,accept)) | (pid,count,accept)<-lst])
+-- result (problem_id, #submissions, #accepted)
+getSubmissionsCount :: UID -> AppHandler [(PID,Int,Int)]
+getSubmissionsCount uid =
+  query "SELECT problem_id, COUNT(*), SUM(status='Accepted') \
+       \ FROM submissions WHERE user_id = ? GROUP BY problem_id" (Only uid)
+
+
+--  return  [(pid,(count,accept)) | (pid,count,accept)<-lst])
 
 
 
@@ -157,39 +159,39 @@ getSubmittedPIDs uid =
 --
 -- | post a new submission; top level function 
 --
-postSubmission :: UID -> Problem UTCTime -> Text -> AppHandler Submission
-postSubmission uid prob code = 
-  let pid = probID prob
-      tstfile = "problems" </> show pid <.> "tst"
+postSubmission :: UID -> PID -> Problem -> Text -> AppHandler Submission
+postSubmission uid pid prob submit = 
+  let tstfile = probDoctest prob
       tmpdir  = "tmp" </> show uid
   in do 
     now <- liftIO getCurrentTime
     -- create a temporary directory for this user (if missing)
     liftIO $ createDirectoryIfMissing True tmpdir 
-    (exitCode, out, err) <- runSubmission tmpdir tstfile code 
+    (exitCode, out, err) <- runSubmission tmpdir tstfile submit
     let (status, report) = makeReport now prob out err
-    insertSubmission uid pid now code status report 
+    insertSubmission uid pid now submit status report 
 
 
 -- | run doctest file for a submissions
 -- creates temp directory and file and cleanups afterwards
-runSubmission :: FilePath -> FilePath -> Text -> AppHandler (ExitCode,String,String)
-runSubmission tmpdir tstfile code = do 
+runSubmission ::
+  FilePath -> FilePath -> Text -> AppHandler (ExitCode,String,String)
+runSubmission tmpdir tstfile submit = do 
   sf <- getSafeExec
-  liftIO $ withTempFile tmpdir code (runDoctests sf tstfile)
+  liftIO $ withTempFile tmpdir submit (runDoctests sf tstfile)
 
 
--- | lower level I/O helper functions 
+-- lower level I/O helper functions 
   
 -- | make a python temporary file given a source code as Text
 -- make sure file is cleaned up afterwards
 withTempFile :: FilePath -> Text -> (FilePath -> IO a) -> IO a
 withTempFile tmpdir txt = bracket create removeFile 
-  where 
-    create = do (file,handle) <- openTempFileWithDefaultPermissions tmpdir "tmp.py"
-                T.hPutStr handle txt
-                hClose handle
-                return file
+  where create = do
+          (file,handle) <- openTempFileWithDefaultPermissions tmpdir "tmp.py"
+          T.hPutStr handle txt
+          hClose handle
+          return file
 
 
 
@@ -209,7 +211,7 @@ runDoctests SafeExec{..} tstfile pyfile
 
 -- | classify a submission and produce a text report
 -- these rules are highly dependent on Python's doctest output 
-makeReport :: UTCTime -> Problem UTCTime -> String -> String -> (Status, Text)
+makeReport :: UTCTime -> Problem -> String -> String -> (Status, Text)
 makeReport time prob out err 
   = (status, T.pack $ trim maxLen out ++ trim maxLen err)
   where 

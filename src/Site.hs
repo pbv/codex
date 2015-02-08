@@ -19,10 +19,10 @@ import           Control.Lens
 import           Data.ByteString.UTF8 (ByteString)
 import qualified Data.ByteString.UTF8 as B
 -- import qualified Data.ByteString as B
-import           Data.Maybe
-import           Data.Map (Map)
+-- import           Data.Maybe
+-- import           Data.Map (Map)
 import qualified Data.Map as Map
---import           Data.Set (Set)
+-- import           Data.Set (Set)
 import qualified Data.Set as Set
 import           Data.Text (Text)
 import qualified Data.Text as T
@@ -44,7 +44,7 @@ import           Data.Time.Clock
 import           Data.Time.LocalTime
 import           Data.Time.Format
 
-import           Data.Configurator
+import           Data.Configurator hiding (lookup)
 import           Data.Configurator.Types
 
 import           System.Locale
@@ -105,8 +105,8 @@ handleLoginSubmit =
 handleLoginSubmit :: 
   LdapConf -> ByteString -> ByteString -> Handler App (AuthManager App) ()
 handleLoginSubmit ldapConf user passwd = do
-  optAuth <- withBackend (\r -> liftIO $ ldapAuth r ldapConf user passwd)
-  -- optAuth <- withBackend (\r -> liftIO $ dummyAuth r ldapConf user passwd)
+  -- optAuth <- withBackend (\r -> liftIO $ ldapAuth r ldapConf user passwd)
+  optAuth <- withBackend (\r -> liftIO $ dummyAuth r ldapConf user passwd)
   case optAuth of 
     Nothing -> handleLoginForm err
     Just u -> forceLogin u >> redirect "/problems"
@@ -147,7 +147,7 @@ handleProblem :: AppHandler ()
 handleProblem = method GET $ do
   uid <- getLoggedUser -- ensure a user is logged in
   pid <- PID <$> getRequiredParam "pid"
-  prob <- liftIO $ getProblem pid
+  prob <- liftIO $ readProblem pid
   now <- liftIO getCurrentTime
   subs <- getSubmissions uid pid
   exam <- getConfigured "exam" False
@@ -155,7 +155,7 @@ handleProblem = method GET $ do
   when (exam && not (now `Interval.elem` probOpen prob) && null subs)
        badRequest
   -- now list all submissions
-  renderWithSplices "problem" $ do problemSplices prob 
+  renderWithSplices "problem" $ do problemSplices pid prob 
                                    submissionsSplice subs
 
 
@@ -164,33 +164,39 @@ handleProblem = method GET $ do
 handleProblemList :: AppHandler ()
 handleProblemList = method GET $ do
   uid <- getLoggedUser
-  exam <- getConfigured "exam" False
-  now <- liftIO getCurrentTime  
-  allprobs<- liftIO getProblems
-  -- summary counts for all previous submissions 
-  summary <- getSubmissionsSummary uid 
-  -- filter available problems and add dynamic tags (solved, unsolved, etc.)
-  let allprobs' = map (dynamicTags summary) $ 
-                  if exam then 
-                  filter (\p -> now `Interval.elem` probOpen p ||
-                            probID p `Map.member` summary) allprobs
-                  else allprobs
-
-  tags <- getQueryTags
-  --  filter problems by query 
-  let probs = filter (isTagged tags) allprobs'
-  
+  exam <- getConfigured "exam" False    -- running in exam mode?
+  counts <- getSubmissionsCount uid -- summary of previous submissions 
+  now <- liftIO getCurrentTime
+  -- problem availability test
+  let available (pid,prob)
+        = not exam ||
+          now `Interval.elem` probOpen prob ||
+          pid `elem` map fst3 counts
+  -- get all available problems
+  probs <- liftIO (filterProblems available)
+  -- add "dynamic" tags
+  let probs' = [(pid, prob') | (pid,prob)<-probs,
+                let tags = dynamicTags pid counts,
+                let prob' = prob { probTags = tags ++ probTags prob }
+                             ]
+               
   -- collect all tags (including dynamics)
-  let alltags = Set.toList $ Set.unions $ map (Set.fromList . probTags) allprobs'
-  
-  -- convert submissions summary into list
-  let list = [(p, r) | p<-probs,
-              let r = Map.findWithDefault (0,0) (probID p) summary]
+  let alltags = Set.toList $
+                Set.unions $
+                map (Set.fromList . probTags . snd) probs'
+      
+  --  filter problems by query and add previous submissions counts
+  -- results in a list of
+  -- (pid, problem, #submissions, #accepted)
+  tags <- getQueryTags   
+  let list = [(pid, prob, sub, acc) | (pid, prob)<-probs',
+              isTagged tags prob,
+              let (_,sub,acc):_ = filter ((==pid).fst3) counts ++ [(pid,0,0)] ]
   
   -- context-dependent splices for each tag
   let tagSplices tag = 
         let checked = tag`elem`tags
-            disabled = null (filter (isTagged [tag]) probs)
+            disabled = null (filter (\(_,p)->isTagged [tag] p) probs')
         in do "tagText" ## I.textSplice tag
               "tagCheckbox" ## return (checkboxInput tag checked disabled)
   
@@ -198,12 +204,12 @@ handleProblemList = method GET $ do
   renderWithSplices "problemlist" $ do
     "tagList" ## I.mapSplices (I.runChildrenWith . tagSplices) alltags
     "problemList" ##  I.mapSplices (I.runChildrenWith . splices) list
-    "totalProblems" ## I.textSplice (T.pack $ show (length allprobs))
-    "visibleProblems" ## I.textSplice (T.pack $ show (length probs))
-  where splices (prob,(nsub,nacc))
-          = do problemSplices prob 
-               counterSplices nsub
-               "ifAccepted" ## conditionalSplice (nacc>0) 
+    "totalProblems" ## I.textSplice (T.pack $ show $ length probs)
+    "visibleProblems" ## I.textSplice (T.pack $ show $ length list)
+  where splices (pid, prob, sub, acc)
+          = do problemSplices pid prob 
+               counterSplices sub
+               "ifAccepted" ## conditionalSplice (acc>0) 
                
                
 -- fetch tag list from query string
@@ -212,23 +218,34 @@ getQueryTags = fmap (map (T.pack . B.toString) .
                      Map.findWithDefault [] "tag") getParams
 
 -- add dynamic tags for a problem
-dynamicTags :: Map PID (Int,Int) -> Problem UTCTime -> Problem UTCTime
-dynamicTags summary prob = prob { probTags = tags ++ probTags prob }
-  where (sub,acc) = Map.findWithDefault (0,0) (probID prob) summary
+dynamicTags :: PID -> [(PID,Int,Int)] -> [Text]
+dynamicTags pid counts = tags
+  where (_, sub, acc) : _ = filter ((==pid).fst3) counts ++ [(pid,0,0)]
         tags = [if acc>0 then "*accepted*" else "*not accepted*",
-                if sub>0 then "*submitted*" else "*not submitted*"] 
-               
+                if sub>0 then "*submitted*" else "*not submitted*"]
 
 
-problemSplices :: Problem UTCTime -> AppSplices
-problemSplices p = do
-  "problemID" ## I.textSplice (T.pack $ show $ probID p)
-  "problemTitle" ## I.textSplice (probTitle p)
-  "description" ## return (probDescr p)
-  "submitText" ## I.textSplice (probSubmit p)
-  "tags" ## I.textSplice (T.unwords $ probTags p)
-  "startTime" ##  maybe (return []) timeSplice (Interval.start $ probOpen p)
-  "endTime" ##  maybe (return []) timeSplice (Interval.end $ probOpen p)
+
+-- filter problems acording to a an availability test
+filterProblems :: ((PID,Problem) -> Bool) -> IO [(PID, Problem)]
+filterProblems f
+  = do pids <- readProblemDir
+       probs<- mapM readProblem pids
+       return (filter f (zip pids probs))
+
+
+
+
+-- | splices related to a single problem       
+problemSplices :: PID -> Problem -> AppSplices
+problemSplices pid p = do
+  "probID" ## I.textSplice (T.pack $ show pid)
+  "probTitle" ## maybe (return []) I.textSplice (probTitle p)
+  "probDoc" ## return (renderProblem p)
+  "probDefault" ## maybe (return []) I.textSplice (probDefault p)
+  "probTags" ## I.textSplice (T.unwords $ probTags p)
+  "probStart" ##  maybe (return []) timeSplice (Interval.start $ probOpen p)
+  "probEnd" ##  maybe (return []) timeSplice (Interval.end $ probOpen p)
   "ifOpen" ## do now <- liftIO getCurrentTime
                  conditionalSplice (isOpen now p)
   "ifEarly" ## do now <- liftIO getCurrentTime
@@ -236,13 +253,13 @@ problemSplices p = do
   "ifLate" ## do now <- liftIO getCurrentTime
                  conditionalSplice (isLate now p)
   "ifLimited" ## conditionalSplice (Interval.limited $ probOpen p)
-  "timeLeft"  ## case Interval.end (probOpen p) of 
+  "probTimeLeft"  ## case Interval.end (probOpen p) of 
     Nothing -> I.textSplice "N/A"
     Just t' -> do now <- liftIO getCurrentTime
                   I.textSplice $ T.pack $ formatNominalDiffTime $ diffUTCTime t' now
 
     
--- convert UTC time to local time zone
+-- convert UTC time to local time 
 timeSplice :: UTCTime -> I.Splice AppHandler
 timeSplice t = do tz <- liftIO getCurrentTimeZone
                   I.textSplice $ T.pack $ 
@@ -263,7 +280,7 @@ formatNominalDiffTime secs
         h = (m `div` 60) 
         d = (h `div` 24)  
         
--- splices relating to a single submission
+-- | splices relating to a single submission
 submissionSplices :: Submission -> AppSplices
 submissionSplices s = do 
   "submitID"   ## I.textSplice (T.pack $ show $ submitID s)
@@ -285,7 +302,7 @@ submissionsSplice lst = do
   counterSplices (length lst)
 
 
--- splices concerning submissions count
+-- | splices concerning submissions count
 counterSplices :: Int -> AppSplices
 counterSplices n = do 
   "count" ## I.textSplice (T.pack $ show n)
@@ -299,16 +316,16 @@ handleGetSubmission = method GET $ do
   uid <- getLoggedUser
   pid <- PID <$> getRequiredParam "pid"
   sid <- read . B.toString <$> getRequiredParam "sid"
-  prob <- liftIO $ getProblem pid
+  prob <- liftIO $ readProblem pid
   sub <- getSubmission uid pid sid
-  renderWithSplices "report" $ do problemSplices prob  
+  renderWithSplices "report" $ do problemSplices pid prob  
                                   submissionSplices sub 
 
 
 handlePostSubmission = method POST $ do
   uid <- getLoggedUser
   pid <-  PID <$> getRequiredParam "pid"
-  prob <- liftIO $ getProblem pid
+  prob <- liftIO $ readProblem pid
   -- if running in exam mode, check that the problem is available for submission
   pids <- getSubmittedPIDs uid
   now <- liftIO getCurrentTime
@@ -317,8 +334,8 @@ handlePostSubmission = method POST $ do
        badRequest
   incrCounter "submissions"
   code <- T.decodeUtf8With T.ignore <$> getRequiredParam "code"
-  sub <- postSubmission uid prob code
-  renderWithSplices "report" $ do problemSplices prob 
+  sub <- postSubmission uid pid prob code
+  renderWithSplices "report" $ do problemSplices pid prob 
                                   submissionSplices sub 
 
 
@@ -360,12 +377,12 @@ handleFinalReport = method GET $ do
     uid <- getLoggedUser  
     pids <- getSubmittedPIDs uid
     subs <- mapM (getBestSubmission uid) pids
-    probs <- liftIO $ mapM getProblem pids
-    let psubs = [(p,s) | (p, Just s)<-zip probs subs]
+    probs <- liftIO $ mapM readProblem pids
+    let psubs = [(i,p,s) | (i, p, Just s)<-zip3 pids probs subs]
     renderWithSplices "finalrep" $
       "problemList" ## I.mapSplices (I.runChildrenWith . splices) psubs
-  where splices (prob,sub) = do problemSplices prob 
-                                submissionSplices sub
+  where splices (pid,prob,sub) = do problemSplices pid prob 
+                                    submissionSplices sub
 
 
 
@@ -429,10 +446,12 @@ app =
     -- Grab the DB connection pool from the sqlite snaplet and call
     -- into the Model to create all the DB tables if necessary.
     let c = sqliteConn $ d ^# snapletValue
-    liftIO $ withMVar c $ \conn -> do Db.createTables conn
-                                      putStrLn "Updating problem tags db table"
-                                      Db.updateProblems conn =<< getProblems 
-
+    liftIO $ withMVar c $
+      \conn -> do Db.createTables conn
+                  putStrLn "Updating problem tags db table"
+                  pids <- readProblemDir
+                  probs <- mapM readProblem pids
+                  Db.updateProblems conn (zip pids probs)
     addRoutes routes
     return $ App h s d a conf ekg 
 

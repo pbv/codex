@@ -1,4 +1,3 @@
-{-# LANGUAGE FlexibleInstances #-}
 {-
   Types of identifiers for various entities
 -}

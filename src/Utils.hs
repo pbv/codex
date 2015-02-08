@@ -44,6 +44,14 @@ import Application
 import Types
 import LdapAuth
 
+fst3 :: (a,b,c) -> a
+fst3 (x,y,z) = x
+
+snd3 :: (a,b,c) -> b
+snd3 (x,y,z) = y
+
+thr3 :: (a,b,c) -> c
+thr3 (x,y,z) = z
 
 
 getConfigured :: Configured a => Name -> a -> AppHandler a
@@ -51,6 +59,11 @@ getConfigured key def = do
   conf <- gets config
   liftIO $ lookupDefault def conf key 
 
+
+ifConfigured :: Name -> AppHandler Bool
+ifConfigured key = do
+  conf <- gets config
+  liftIO $ lookupDefault False conf key
 
 
 -- | get current SafeExec parameters from configurator

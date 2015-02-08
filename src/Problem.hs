@@ -5,168 +5,169 @@
 
 module Problem ( 
   Problem(..),
-  -- listProblems,    -- * list all problem ids
-  getProblems,     -- * get all problems
-  getProblem,      -- * get a single problem
+  readProblem,     -- * get a single problem
+  readProblemFile,
+  readProblemDir,  -- * list all problem ids
   isEarly,         -- * check problem's acceptance dates
   isLate,
   isOpen,          -- * can be submitted and accepted
-  isTagged
+  isTagged,
+  renderProblem    -- * render problem description into HTML
   ) where
 
 -- import           Prelude hiding(catch)
-import           Data.List(sort)
-import           System.Locale(defaultTimeLocale)
+import           Data.List (sort)
+import           System.Locale (defaultTimeLocale)
 import           Data.Time.Clock
 import           Data.Time.Format
 import           Data.Time.LocalTime
 import           Control.Monad
-import           Control.Applicative((<$>))
+-- import           Control.Applicative ((<$>))
 import           System.FilePath
 import           System.Directory
---import           Data.ByteString.UTF8(ByteString)
+-- import           Data.ByteString.UTF8(ByteString)
 import qualified Data.ByteString.UTF8 as B
-import           Text.XmlHtml(Node)
-import qualified Text.XmlHtml          as X
+-- import           Text.XmlHtml(Node)
+-- import qualified Text.XmlHtml          as X
 import           Data.Text(Text)
 import qualified Data.Text             as T
+import           Data.Maybe (listToMaybe)
 
 import           Interval (Interval)
 import qualified Interval as Interval
 import           Types 
-import           XHTML
-import           Text.Parsec
-
+-- import           XHTML
+-- import           Text.Parsec
+import           Text.Pandoc
+import           Text.Pandoc.Walk
+import           Text.XmlHtml 
+import           Text.Blaze.Renderer.XmlHtml
 
 
 -- datatype for problems 
--- parameterized by type of times for parsing flexibility 
-data Problem t = Problem {
-  probID     :: PID,            -- unique id (from filepath)
-  probTitle  :: Text,           -- short title
-  probDescr  :: [Node],         -- longer description (HTML nodes)
-  probSubmit :: Text,           -- optional default submission text
-  probTags   :: [Text],         -- list of tags attached to this problem
-  probOpen    :: Interval t     -- acceptance interval
-    } deriving Show
+data Problem = Problem {
+  probTitle  :: Maybe Text,       -- title
+  probTags   :: [Text],           -- tag list 
+  probOpen   :: Interval UTCTime, -- open interval
+  probDoctest :: FilePath,        -- doctest file
+  probDefault :: Maybe Text,      -- default submission 
+  probDoc  :: Pandoc              -- complete description document
+  } deriving Show
+
+             
+
+extensionsList :: [([String], ReaderOptions -> String -> Pandoc)]
+extensionsList
+  = [([".md",".mdown",".markdown"], readMarkdown),
+     ([".htm",".html"], readHtml),
+     ([".tex"], readLaTeX)]
 
 
-
-
--- Functor instance for applying functions to the time fields
-instance Functor Problem where
-  fmap f p = p { probOpen = fmap f (probOpen p) }
-
-instance Eq (Problem t) where
-  p == p' = probID p == probID p'
-
-
--- ordering instance: lexicographically compare by times then by id
-instance Ord t => Ord (Problem t) where  
-  compare p p' = compare (tupl p) (tupl p')  
-    where tupl Problem{..} = (probOpen, probID) 
-
-  
--- an empty problem
-emptyProblem :: PID -> Problem LocalTime
-emptyProblem pid = Problem { probID    = pid
-                           , probTitle = T.pack ("Problem " ++ show pid)
-                           , probDescr = []
-                           , probSubmit= ""
-                           , probTags  = []
-                           , probOpen  = Interval.forever
-                           }
-
-
--- problem parser; top-level wrapper function
-problemReader :: PID -> XMLReader (Problem LocalTime)
-problemReader pid 
-  = do blankNodes; p<-problemElems (emptyProblem pid); endDoc
-       return p
-
--- | parse problem elements (worker function)
-problemElems :: Problem LocalTime -> XMLReader (Problem LocalTime)
-problemElems p  
-  =  do title <- element "problem" 
-        continue p{probTitle=X.nodeText title}
-     <|> do descr <- element "description" 
-            continue p{probDescr=X.childNodes descr}
-     <|> do text <- element "submitText" 
-            continue p{probSubmit=X.nodeText text}
-     <|> do i <- tagged "open" (blankNodes >> localTimeInterval)
-            continue p{probOpen=i}
-     <|> do tags <- (T.words . X.nodeText) <$> element "tags"
-            continue p { probTags = tags }
-     <|> return p
-  where continue p' = do blankNodes; problemElems p'
-
-
-localTimeInterval :: XMLReader (Interval LocalTime)
-localTimeInterval 
-    = do element "empty"; return Interval.empty
-    <|> do l <- optionMaybe (localTime "start")
-           blankNodes
-           u <- optionMaybe (localTime "end")
-           return (Interval.interval l u)
-  
--- parse an element wrapping a local time string 
-localTime :: Text -> XMLReader LocalTime
-localTime tag = do
-  n <- element tag
-  let txt = T.unpack $ X.nodeText n
-  let opt = msum [parseTime defaultTimeLocale fmt txt | fmt<-dateFormats]
-  case opt of
-    Nothing -> fail ("invalid time string: " ++ show (T.unpack tag))
-    Just t -> return t
-
-
-dateFormats :: [String]
-dateFormats = ["%H:%M %d/%m/%Y", "%d/%m/%Y", "%c"]
-
-
-
--- read the problem directory and return a list of all problem IDs
+-- read the problem directory;
+-- return a list of all problem IDs in order
 readProblemDir :: IO [PID]
 readProblemDir = do
-  files <- getDirectoryContents "problems"
-  return $ map toPID $ filter isXml files
+  list <- getDirectoryContents "problems"
+  return $ sort $ map mkPID $ filter (accept.takeExtension) list
   where
-    isXml = (==".xml").takeExtension
-    toPID = PID . B.fromString . dropExtension
+    accept ext = ext `elem` concatMap fst extensionsList
+    mkPID = PID . B.fromString 
 
--- get all available problems 
-getProblems ::  IO [Problem UTCTime]
-getProblems  = readProblemDir >>= fmap sort . mapM getProblem 
 
-getProblem :: PID -> IO (Problem UTCTime)
-getProblem pid = readProblemFile pid fp
-  where fp = "problems" </> show pid <.> "xml"
+readProblem :: PID -> IO Problem 
+readProblem pid = readProblemFile ("problems" </> show pid)
+    
+-- read a markdown problem file
+readProblemFile :: FilePath -> IO Problem
+readProblemFile filepath = do
+  txt <- readFile filepath
+  let ext = takeExtension filepath
+  let doc = head [reader myReaderOptions txt
+                 | (exts, reader)<-extensionsList, ext `elem`exts]
+  tz <- getCurrentTimeZone
+  return (makeProblem tz filepath doc)
+
+
+
+-- make a problem from a Pandoc document
+makeProblem :: TimeZone -> FilePath -> Pandoc -> Problem
+makeProblem tz filepath doc@(Pandoc meta blocks)
+  = Problem { probTitle = fmap T.pack title,
+              probTags = tags,
+              probOpen = fmap (localTimeToUTC tz) $ parseInterval open close,
+              probDoctest = doctest,
+              probDefault = fmap T.pack submit,
+              probDoc = doc
+            }
+  where
+    -- fetch metadata from Pandoc document
+    title = lookupMetaString "title" meta `mplus` lookupHeaderString blocks
+    open = lookupMetaString "open" meta
+    close = lookupMetaString "close" meta
+    submit = lookupMetaString "submit" meta
+    tags = case lookupMeta "tags" meta of
+      Just (MetaList l) -> map (T.pack . query catStrings) l
+      _                 -> []
+    doctest = case lookupMetaString "doctest" meta of
+      Just file -> file
+      Nothing -> dropExtension filepath <.> "tst" -- default test filepath 
     
 
+-- lookup pandoc's metadata as a single string
+lookupMetaString tag meta =
+  do v <- lookupMeta tag meta
+     return (query catStrings v)
 
--- read an html problem file
-readProblemFile :: PID -> FilePath -> IO (Problem UTCTime)
-readProblemFile pid fp
-  = do doc <- readHTMLFile fp
-       case parse (problemReader pid) fp (X.docContent doc) of
-         Left msg -> ioError $ userError $ show msg
-         -- convert times to UTC
-         Right prob -> do z <- getCurrentTimeZone
-                          return (fmap (localTimeToUTC z) prob)
+-- lookup first header as a single string
+lookupHeaderString blocks
+  = do h <- listToMaybe [inlines | Header _ _ inlines <- blocks]
+       return (query catStrings h)
+
+
+-- collect strings in an inline element
+catStrings :: Inline -> String
+catStrings (Str s) = s
+catStrings Space   = " "
+catStrings LineBreak = "\n"
+catStrings _ = ""
   
-    
+
+-- parse strings as localtimes to make an interval
+parseInterval :: Maybe String -> Maybe String -> Interval LocalTime
+parseInterval open close
+  =  Interval.interval (open >>= parseLocalTime) (close >>= parseLocalTime)
+  
+-- parse a local time string 
+parseLocalTime :: String -> Maybe LocalTime
+parseLocalTime txt = msum [parseTime defaultTimeLocale fmt txt | fmt<-timeFormats] 
+
+timeFormats :: [String]
+timeFormats = ["%H:%M %d/%m/%Y", "%d/%m/%Y", "%c"]
+
 
 -- relations between problems and times
-isEarly, isLate :: UTCTime -> Problem UTCTime -> Bool  
+isEarly, isLate :: UTCTime -> Problem  -> Bool  
 isEarly t Problem{..} = t `Interval.before` probOpen 
 isLate t Problem{..} = t `Interval.after` probOpen 
 
 
 -- check if a problem can be submited & accepted
-isOpen :: UTCTime -> Problem UTCTime -> Bool
+isOpen :: UTCTime -> Problem  -> Bool
 isOpen t Problem{..} = t `Interval.elem` probOpen
 
       
 -- check if a problem has every tag in a list 
-isTagged :: [Text] -> Problem t -> Bool
+isTagged :: [Text] -> Problem  -> Bool
 isTagged tags Problem{..} = all (`elem`probTags) tags
+
+
+-- render a problem into XHTML nodes
+renderProblem :: Problem -> [Node]
+renderProblem  = renderHtmlNodes . writeHtml myWriterOptions . probDoc
+
+
+--- pandoc reader and writter options
+myReaderOptions = def { readerExtensions = pandocExtensions }
+myWriterOptions = def { writerHTMLMathMethod = MathJax "/mathjax",
+                        writerHighlight = True
+                      }
