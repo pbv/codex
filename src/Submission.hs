@@ -124,13 +124,28 @@ getSubmissions uid pid =
 
 -- | get user's submissions summary aggreated by problem IDs
 -- result (problem_id, #submissions, #accepted)
+{-
 getSubmissionsCount :: UID -> AppHandler [(PID,Int,Int)]
 getSubmissionsCount uid =
   query "SELECT problem_id, COUNT(*), SUM(status='Accepted') \
        \ FROM submissions WHERE user_id = ? GROUP BY problem_id" (Only uid)
+-}
+
+-- count accepted submissions 
+getAcceptedCount ::  UID -> AppHandler (Map PID Int)
+getAcceptedCount uid = 
+    Map.fromList <$>
+    query "SELECT problem_id, SUM(status='Accepted') \
+          \ FROM submissions WHERE user_id = ? GROUP BY problem_id" (Only uid)
 
 
---  return  [(pid,(count,accept)) | (pid,count,accept)<-lst])
+-- count all submissions
+getSubmissionsCount ::  UID -> AppHandler (Map PID Int)
+getSubmissionsCount uid = 
+    Map.fromList <$>
+    query "SELECT problem_id, COUNT(*) \
+          \ FROM submissions WHERE user_id = ? GROUP BY problem_id" (Only uid)
+
 
 
 

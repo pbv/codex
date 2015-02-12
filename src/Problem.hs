@@ -11,7 +11,6 @@ module Problem (
   isEarly,         -- * check problem's acceptance dates
   isLate,
   isOpen,          -- * can be submitted and accepted
-  isTagged,
   renderProblem    -- * render problem description into HTML
   ) where
 
@@ -25,10 +24,10 @@ import           Control.Monad
 -- import           Control.Applicative ((<$>))
 import           System.FilePath
 import           System.Directory
+
 -- import           Data.ByteString.UTF8(ByteString)
 import qualified Data.ByteString.UTF8 as B
--- import           Text.XmlHtml(Node)
--- import qualified Text.XmlHtml          as X
+
 import           Data.Text(Text)
 import qualified Data.Text             as T
 import           Data.Maybe (listToMaybe)
@@ -36,8 +35,7 @@ import           Data.Maybe (listToMaybe)
 import           Interval (Interval)
 import qualified Interval as Interval
 import           Types 
--- import           XHTML
--- import           Text.Parsec
+
 import           Text.Pandoc
 import           Text.Pandoc.Walk
 import           Text.XmlHtml 
@@ -51,16 +49,16 @@ data Problem = Problem {
   probOpen   :: Interval UTCTime, -- open interval
   probDoctest :: FilePath,        -- doctest file
   probDefault :: Maybe Text,      -- default submission 
-  probDoc  :: Pandoc              -- complete description document
+  probDoc  :: Pandoc              -- description document
   } deriving Show
 
              
 
+-- allowed file extensions and associated Pandoc readers
 extensionsList :: [([String], ReaderOptions -> String -> Pandoc)]
 extensionsList
   = [([".md",".mdown",".markdown"], readMarkdown),
-     ([".htm",".html"], readHtml),
-     ([".tex"], readLaTeX)]
+     ([".htm",".html"], readHtml), ([".tex"], readLaTeX)]
 
 
 -- read the problem directory;
@@ -83,7 +81,7 @@ readProblemFile filepath = do
   txt <- readFile filepath
   let ext = takeExtension filepath
   let doc = head [reader myReaderOptions txt
-                 | (exts, reader)<-extensionsList, ext `elem`exts]
+                 | (exts, reader)<-extensionsList, ext`elem`exts]
   tz <- getCurrentTimeZone
   return (makeProblem tz filepath doc)
 
@@ -101,36 +99,48 @@ makeProblem tz filepath doc@(Pandoc meta blocks)
             }
   where
     -- fetch metadata from Pandoc document
-    title = lookupMetaString "title" meta `mplus` lookupHeaderString blocks
-    open = lookupMetaString "open" meta
-    close = lookupMetaString "close" meta
-    submit = lookupMetaString "submit" meta
+    title = lookupInline "title" meta `mplus` lookupHeader blocks
+    open = lookupInline "open" meta
+    close = lookupInline "close" meta
+    submit = lookupBlock "submit" meta
     tags = case lookupMeta "tags" meta of
-      Just (MetaList l) -> map (T.pack . query catStrings) l
+      Just (MetaList l) -> map (T.pack . query inlineStrings) l
       _                 -> []
-    doctest = case lookupMetaString "doctest" meta of
+    doctest = case lookupInline "doctest" meta of
       Just file -> file
       Nothing -> dropExtension filepath <.> "tst" -- default test filepath 
     
 
--- lookup pandoc's metadata as a single string
-lookupMetaString tag meta =
-  do v <- lookupMeta tag meta
-     return (query catStrings v)
+-- lookup metadata as a string
+lookupInline tag meta = do
+  v <- lookupMeta tag meta
+  return (query inlineStrings v)
+
+lookupBlock tag meta = do
+  v <- lookupMeta tag meta
+  return (query blockStrings v)
 
 -- lookup first header as a single string
-lookupHeaderString blocks
+lookupHeader blocks
   = do h <- listToMaybe [inlines | Header _ _ inlines <- blocks]
-       return (query catStrings h)
+       return (query inlineStrings h)
 
 
--- collect strings in an inline element
-catStrings :: Inline -> String
-catStrings (Str s) = s
-catStrings Space   = " "
-catStrings LineBreak = "\n"
-catStrings _ = ""
-  
+-- collect strings 
+inlineStrings :: Inline -> String
+inlineStrings (Str s) = s
+inlineStrings Space   = " "
+inlineStrings LineBreak = "\n"
+inlineStrings _ = ""
+
+blockStrings :: Block -> String
+blockStrings (Plain l) =  query inlineStrings l
+blockStrings (Para p)  = query inlineStrings p
+blockStrings (CodeBlock _ s)= s
+blockStrings (RawBlock _ s)= s
+blockStrings _ = ""
+
+
 
 -- parse strings as localtimes to make an interval
 parseInterval :: Maybe String -> Maybe String -> Interval LocalTime
@@ -155,11 +165,6 @@ isLate t Problem{..} = t `Interval.after` probOpen
 isOpen :: UTCTime -> Problem  -> Bool
 isOpen t Problem{..} = t `Interval.elem` probOpen
 
-      
--- check if a problem has every tag in a list 
-isTagged :: [Text] -> Problem  -> Bool
-isTagged tags Problem{..} = all (`elem`probTags) tags
-
 
 -- render a problem into XHTML nodes
 renderProblem :: Problem -> [Node]
@@ -167,7 +172,10 @@ renderProblem  = renderHtmlNodes . writeHtml myWriterOptions . probDoc
 
 
 --- pandoc reader and writter options
+myReaderOptions :: ReaderOptions
 myReaderOptions = def { readerExtensions = pandocExtensions }
+
+myWriterOptions :: WriterOptions
 myWriterOptions = def { writerHTMLMathMethod = MathJax "/mathjax",
                         writerHighlight = True
                       }

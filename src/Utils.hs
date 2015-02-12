@@ -53,6 +53,10 @@ snd3 (x,y,z) = y
 thr3 :: (a,b,c) -> c
 thr3 (x,y,z) = z
 
+-- sublist checking
+isSublistOf :: Eq a => [a] -> [a] -> Bool
+isSublistOf xs ys = all (`elem`ys) xs
+
 
 getConfigured :: Configured a => Name -> a -> AppHandler a
 getConfigured key def = do 

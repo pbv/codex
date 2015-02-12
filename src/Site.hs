@@ -105,8 +105,8 @@ handleLoginSubmit =
 handleLoginSubmit :: 
   LdapConf -> ByteString -> ByteString -> Handler App (AuthManager App) ()
 handleLoginSubmit ldapConf user passwd = do
-  -- optAuth <- withBackend (\r -> liftIO $ ldapAuth r ldapConf user passwd)
-  optAuth <- withBackend (\r -> liftIO $ dummyAuth r ldapConf user passwd)
+  optAuth <- withBackend (\r -> liftIO $ ldapAuth r ldapConf user passwd)
+  -- optAuth <- withBackend (\r -> liftIO $ dummyAuth r ldapConf user passwd)
   case optAuth of 
     Nothing -> handleLoginForm err
     Just u -> forceLogin u >> redirect "/problems"
@@ -165,65 +165,67 @@ handleProblemList :: AppHandler ()
 handleProblemList = method GET $ do
   uid <- getLoggedUser
   exam <- getConfigured "exam" False    -- running in exam mode?
-  counts <- getSubmissionsCount uid -- summary of previous submissions 
+  subs <- getSubmissionsCount uid     -- count previous submissions 
+  accs <- getAcceptedCount uid
   now <- liftIO getCurrentTime
   -- problem availability test
   let available (pid,prob)
         = not exam ||
           now `Interval.elem` probOpen prob ||
-          pid `elem` map fst3 counts
+          pid `Map.member` subs
   -- get all available problems
-  probs <- liftIO (filterProblems available)
+  problist <- liftIO (filterProblems available)
   -- add "dynamic" tags
-  let probs' = [(pid, prob') | (pid,prob)<-probs,
-                let tags = dynamicTags pid counts,
-                let prob' = prob { probTags = tags ++ probTags prob }
-                             ]
+  let problist' = [(pid, prob') | (pid,prob)<-problist,
+                   let tags = [if pid `Map.member` subs then
+                                   "*submitted*" else "*not submitted*",
+                               if pid `Map.member` accs then
+                                   "*accepted*" else "*not accepted*"],
+                   let prob' = prob { probTags = tags ++ probTags prob } ]
                
   -- collect all tags (including dynamics)
-  let alltags = Set.toList $
-                Set.unions $
-                map (Set.fromList . probTags . snd) probs'
+  let alltags = Set.toList $ Set.fromList $ concatMap (probTags . snd) problist'
       
-  --  filter problems by query and add previous submissions counts
-  -- results in a list of
-  -- (pid, problem, #submissions, #accepted)
-  tags <- getQueryTags   
-  let list = [(pid, prob, sub, acc) | (pid, prob)<-probs',
-              isTagged tags prob,
-              let (_,sub,acc):_ = filter ((==pid).fst3) counts ++ [(pid,0,0)] ]
+  --  filter problems by query tags
+  queryTags <- getQueryTags   
+  let problist'' = [(pid, prob) | (pid, prob)<-problist',
+                    queryTags `isSublistOf` probTags prob]
   
-  -- context-dependent splices for each tag
+  -- context-dependent splices for tags and problems
   let tagSplices tag = 
-        let checked = tag`elem`tags
-            disabled = null (filter (\(_,p)->isTagged [tag] p) probs')
+        let checked = tag`elem`queryTags
+            disabled = null (filter (\(_,p)->tag `elem` probTags p) problist'')
         in do "tagText" ## I.textSplice tag
               "tagCheckbox" ## return (checkboxInput tag checked disabled)
-  
-  -- render problem list page
+
+  let probSplices (pid, prob)
+          = do problemSplices pid prob 
+               counterSplices (Map.findWithDefault 0 pid subs)
+               "ifAccepted" ## conditionalSplice (pid `Map.member` accs) 
+
+  -- render page
   renderWithSplices "problemlist" $ do
     "tagList" ## I.mapSplices (I.runChildrenWith . tagSplices) alltags
-    "problemList" ##  I.mapSplices (I.runChildrenWith . splices) list
-    "totalProblems" ## I.textSplice (T.pack $ show $ length probs)
-    "visibleProblems" ## I.textSplice (T.pack $ show $ length list)
-  where splices (pid, prob, sub, acc)
-          = do problemSplices pid prob 
-               counterSplices sub
-               "ifAccepted" ## conditionalSplice (acc>0) 
+    "problemList" ##  I.mapSplices (I.runChildrenWith . probSplices) problist''
+    "totalProblems" ## I.textSplice (T.pack $ show $ length problist)
+    "visibleProblems" ## I.textSplice (T.pack $ show $ length problist'')
                
                
 -- fetch tag list from query string
 getQueryTags :: AppHandler [Text]
-getQueryTags = fmap (map (T.pack . B.toString) . 
-                     Map.findWithDefault [] "tag") getParams
+getQueryTags = do
+  params <- getParams
+  return (map (T.pack . B.toString) $ Map.findWithDefault [] "tag" params)
 
+
+{-
 -- add dynamic tags for a problem
 dynamicTags :: PID -> [(PID,Int,Int)] -> [Text]
 dynamicTags pid counts = tags
   where (_, sub, acc) : _ = filter ((==pid).fst3) counts ++ [(pid,0,0)]
         tags = [if acc>0 then "*accepted*" else "*not accepted*",
                 if sub>0 then "*submitted*" else "*not submitted*"]
-
+-}
 
 
 -- filter problems acording to a an availability test
