@@ -107,7 +107,7 @@ makeProblem tz filepath doc@(Pandoc meta blocks)
       Just (MetaList l) -> map (T.pack . query inlineStrings) l
       _                 -> []
     doctest = case lookupInline "doctest" meta of
-      Just file -> file
+      Just file -> takeDirectory filepath </> file
       Nothing -> dropExtension filepath <.> "tst" -- default test filepath 
     
 

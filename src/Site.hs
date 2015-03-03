@@ -201,7 +201,7 @@ handleProblemList = method GET $ do
   let probSplices (pid, prob)
           = do problemSplices pid prob 
                counterSplices (Map.findWithDefault 0 pid subs)
-               "ifAccepted" ## conditionalSplice (pid `Map.member` accs) 
+               "ifAccepted" ## conditionalSplice (Map.findWithDefault 0 pid accs > 0) 
 
   -- render page
   renderWithSplices "problemlist" $ do
