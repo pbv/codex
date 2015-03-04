@@ -131,7 +131,7 @@ getSubmissionsCount uid =
        \ FROM submissions WHERE user_id = ? GROUP BY problem_id" (Only uid)
 -}
 
--- count accepted submissions 
+-- count number of accepted submissions for each problem
 getAcceptedCount ::  UID -> AppHandler (Map PID Int)
 getAcceptedCount uid = 
     Map.fromList <$>
@@ -139,7 +139,7 @@ getAcceptedCount uid =
           \ FROM submissions WHERE user_id = ? GROUP BY problem_id" (Only uid)
 
 
--- count all submissions
+-- count number of submissions for each problem
 getSubmissionsCount ::  UID -> AppHandler (Map PID Int)
 getSubmissionsCount uid = 
     Map.fromList <$>
@@ -255,5 +255,6 @@ trim size str
   where msg = "...\n***Output too long (truncated)***"
 
 
-  
 
+
+  

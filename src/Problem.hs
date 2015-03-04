@@ -45,7 +45,7 @@ import           Text.Blaze.Renderer.XmlHtml
 -- datatype for problems 
 data Problem = Problem {
   probTitle  :: Maybe Text,       -- title
-  probTags   :: [Text],           -- tag list 
+  probTags   :: [ProblemTag],     -- tag list 
   probOpen   :: Interval UTCTime, -- open interval
   probDoctest :: FilePath,        -- doctest file
   probDefault :: Maybe Text,      -- default submission 

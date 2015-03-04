@@ -44,15 +44,6 @@ import Application
 import Types
 import LdapAuth
 
-fst3 :: (a,b,c) -> a
-fst3 (x,y,z) = x
-
-snd3 :: (a,b,c) -> b
-snd3 (x,y,z) = y
-
-thr3 :: (a,b,c) -> c
-thr3 (x,y,z) = z
-
 -- sublist checking
 isSublistOf :: Eq a => [a] -> [a] -> Bool
 isSublistOf xs ys = all (`elem`ys) xs

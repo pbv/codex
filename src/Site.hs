@@ -1,4 +1,4 @@
-{-# LANGUAGE OverloadedStrings, ScopedTypeVariables #-}
+{-# LANGUAGE OverloadedStrings, ScopedTypeVariables, RecordWildCards #-}
 
 ------------------------------------------------------------------------------
 -- | This module is where all the routes and handlers are defined for your
@@ -164,76 +164,85 @@ handleProblem = method GET $ do
 handleProblemList :: AppHandler ()
 handleProblemList = method GET $ do
   uid <- getLoggedUser
+  tags <- getQueryTags
   exam <- getConfigured "exam" False    -- running in exam mode?
-  subs <- getSubmissionsCount uid     -- count previous submissions 
-  accs <- getAcceptedCount uid
   now <- liftIO getCurrentTime
-  -- problem availability test
-  let available (pid,prob)
-        = not exam ||
-          now `Interval.elem` probOpen prob ||
-          pid `Map.member` subs
-  -- get all available problems
-  problist <- liftIO (filterProblems available)
-  -- add "dynamic" tags
-  let problist' = [(pid, prob') | (pid,prob)<-problist,
-                   let tags = [if pid `Map.member` subs then
-                                   "*submitted*" else "*not submitted*",
-                               if pid `Map.member` accs then
-                                   "*accepted*" else "*not accepted*"],
-                   let prob' = prob { probTags = tags ++ probTags prob } ]
-               
-  -- collect all tags (including dynamics)
-  let alltags = Set.toList $ Set.fromList $ concatMap (probTags . snd) problist'
+  -- avaliable problems
+  summary <- filter (\s -> not exam || problemAvailable now s) <$> getSubmitSummary uid
+  -- filter tagged problems
+  let summary' = filter (\s-> tags `isSublistOf` summaryTags s) summary
       
-  --  filter problems by query tags
-  queryTags <- getQueryTags   
-  let problist'' = [(pid, prob) | (pid, prob)<-problist',
-                    queryTags `isSublistOf` probTags prob]
-  
-  -- context-dependent splices for tags and problems
+  -- context-dependent splices for tags 
   let tagSplices tag = 
-        let checked = tag`elem`queryTags
-            disabled = null (filter (\(_,p)->tag `elem` probTags p) problist'')
+        let checked = tag`elem`tags
+            disabled = null (filter (\s->tag `elem` summaryTags s) summary')
         in do "tagText" ## I.textSplice tag
               "tagCheckbox" ## return (checkboxInput tag checked disabled)
 
-  let probSplices (pid, prob)
-          = do problemSplices pid prob 
-               counterSplices (Map.findWithDefault 0 pid subs)
-               "ifAccepted" ## conditionalSplice (Map.findWithDefault 0 pid accs > 0) 
-
   -- render page
   renderWithSplices "problemlist" $ do
-    "tagList" ## I.mapSplices (I.runChildrenWith . tagSplices) alltags
-    "problemList" ##  I.mapSplices (I.runChildrenWith . probSplices) problist''
-    "totalProblems" ## I.textSplice (T.pack $ show $ length problist)
-    "visibleProblems" ## I.textSplice (T.pack $ show $ length problist'')
+    "tagList" ## I.mapSplices (I.runChildrenWith . tagSplices) (allTags summary)
+    "problemList" ##  I.mapSplices (I.runChildrenWith . summarySplices) summary'
+    "totalProblems" ## I.textSplice (T.pack $ show $ length summary)
+    "visibleProblems" ## I.textSplice (T.pack $ show $ length summary')
                
                
--- fetch tag list from query string
-getQueryTags :: AppHandler [Text]
+-- get tag list from query string
+getQueryTags :: AppHandler [ProblemTag]
 getQueryTags = do
   params <- getParams
   return (map (T.pack . B.toString) $ Map.findWithDefault [] "tag" params)
 
 
-{-
--- add dynamic tags for a problem
-dynamicTags :: PID -> [(PID,Int,Int)] -> [Text]
-dynamicTags pid counts = tags
-  where (_, sub, acc) : _ = filter ((==pid).fst3) counts ++ [(pid,0,0)]
-        tags = [if acc>0 then "*accepted*" else "*not accepted*",
-                if sub>0 then "*submitted*" else "*not submitted*"]
--}
 
 
--- filter problems acording to a an availability test
-filterProblems :: ((PID,Problem) -> Bool) -> IO [(PID, Problem)]
-filterProblems f
-  = do pids <- readProblemDir
-       probs<- mapM readProblem pids
-       return (filter f (zip pids probs))
+-- | submission summary for a problem
+data SubmitSummary = SubmitSummary {
+      summaryPID  :: PID,    -- the problem's id
+      summaryProb :: Problem, -- the problem
+      summarySubmits :: !Int,  -- total number of submissions
+      summaryAccepted :: !Int -- number of accepted submitions
+    }
+
+
+summarySplices :: SubmitSummary -> AppSplices
+summarySplices SubmitSummary{..}
+    = do problemSplices summaryPID summaryProb
+         counterSplices summarySubmits
+         "ifAccepted" ## conditionalSplice (summaryAccepted > 0) 
+
+
+
+getSubmitSummary :: UID -> AppHandler [SubmitSummary]
+getSubmitSummary uid = do
+  subs <- getSubmissionsCount uid
+  accs <- getAcceptedCount uid
+  pids <- liftIO readProblemDir
+  probs <- liftIO (mapM readProblem pids)
+  return [ SubmitSummary pid prob submits accepts 
+           |  (pid,prob) <- zip pids probs,
+           let submits = Map.findWithDefault 0 pid subs,
+           let accepts = Map.findWithDefault 0 pid accs]
+
+
+
+problemAvailable :: UTCTime -> SubmitSummary -> Bool
+problemAvailable now SubmitSummary{..} 
+    = summarySubmits>0 || now `Interval.elem` probOpen summaryProb 
+
+
+
+-- collect all tags for a problem (including dynamic)
+summaryTags :: SubmitSummary -> [ProblemTag]
+summaryTags SubmitSummary{..} = dynamic ++ probTags summaryProb
+    where dynamic = [if summaryAccepted>0 then "*accepted*" else "*not accepted*",
+                     if summarySubmits>0 then "*submitted*" else "*not submitted*"]
+
+-- collect all tags 
+allTags :: [SubmitSummary] -> [ProblemTag]
+allTags = (dynamic ++) . Set.toList . Set.fromList . concatMap (probTags . summaryProb)
+    where dynamic = ["*accepted*", "*not accepted*", "*submitted*", "*not submitted*"]
+
 
 
 

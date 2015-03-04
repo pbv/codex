@@ -89,11 +89,6 @@ data Printout = Printout { printEnabled :: Bool
                 deriving (Eq,Show)
 
 
-{-
--- | allow lists of strings in configurator data
--- silently ignores non-string values
-instance Configured [String] where
-  convert (List vs) = Just [T.unpack s | String s <- vs]
-  convert _         = Nothing
--}
 
+-- | problem tags
+type ProblemTag = Text
