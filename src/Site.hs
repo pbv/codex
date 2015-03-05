@@ -22,8 +22,6 @@ import qualified Data.ByteString.UTF8 as B
 -- import           Data.Maybe
 -- import           Data.Map (Map)
 import qualified Data.Map as Map
--- import           Data.Set (Set)
-import qualified Data.Set as Set
 import           Data.Text (Text)
 import qualified Data.Text as T
 import qualified Data.Text.Encoding as T
@@ -59,6 +57,7 @@ import           Types
 import qualified Interval as Interval
 import           Problem
 import           Submission
+import           SubmitSummary
 import           LdapAuth
 import           Printout
 
@@ -167,9 +166,9 @@ handleProblemList = method GET $ do
   tags <- getQueryTags
   exam <- getConfigured "exam" False    -- running in exam mode?
   now <- liftIO getCurrentTime
-  -- avaliable problems
-  summary <- filter (\s -> not exam || problemAvailable now s) <$> getSubmitSummary uid
-  -- filter tagged problems
+  -- summary of all available problems
+  summary <- filter (\s -> not exam || submitAvailable now s) <$> getSubmitSummary uid
+  -- filter by query tags
   let summary' = filter (\s-> tags `isSublistOf` summaryTags s) summary
       
   -- context-dependent splices for tags 
@@ -195,55 +194,11 @@ getQueryTags = do
 
 
 
-
--- | submission summary for a problem
-data SubmitSummary = SubmitSummary {
-      summaryPID  :: PID,    -- the problem's id
-      summaryProb :: Problem, -- the problem
-      summarySubmits :: !Int,  -- total number of submissions
-      summaryAccepted :: !Int -- number of accepted submitions
-    }
-
-
 summarySplices :: SubmitSummary -> AppSplices
 summarySplices SubmitSummary{..}
     = do problemSplices summaryPID summaryProb
          counterSplices summarySubmits
          "ifAccepted" ## conditionalSplice (summaryAccepted > 0) 
-
-
-
-getSubmitSummary :: UID -> AppHandler [SubmitSummary]
-getSubmitSummary uid = do
-  subs <- getSubmissionsCount uid
-  accs <- getAcceptedCount uid
-  pids <- liftIO readProblemDir
-  probs <- liftIO (mapM readProblem pids)
-  return [ SubmitSummary pid prob submits accepts 
-           |  (pid,prob) <- zip pids probs,
-           let submits = Map.findWithDefault 0 pid subs,
-           let accepts = Map.findWithDefault 0 pid accs]
-
-
-
-problemAvailable :: UTCTime -> SubmitSummary -> Bool
-problemAvailable now SubmitSummary{..} 
-    = summarySubmits>0 || now `Interval.elem` probOpen summaryProb 
-
-
-
--- collect all tags for a problem (including dynamic)
-summaryTags :: SubmitSummary -> [ProblemTag]
-summaryTags SubmitSummary{..} = dynamic ++ probTags summaryProb
-    where dynamic = [if summaryAccepted>0 then "*accepted*" else "*not accepted*",
-                     if summarySubmits>0 then "*submitted*" else "*not submitted*"]
-
--- collect all tags 
-allTags :: [SubmitSummary] -> [ProblemTag]
-allTags = (dynamic ++) . Set.toList . Set.fromList . concatMap (probTags . summaryProb)
-    where dynamic = ["*accepted*", "*not accepted*", "*submitted*", "*not submitted*"]
-
-
 
 
 
