@@ -113,11 +113,12 @@ genLaTeX uid header name client time subs
               closing)
 
 submission (Problem{..}, Nothing) = 
-  ["\\section*{", "probTitle", "}\n",
+  ["\\section*{", title, "}\n",
    "(Nenhuma solução submetida.)\n"
   ]
+  where title = maybe "N/A" id probTitle
 submission (Problem{..}, Just Submission{..}) =
-  ["\\section*{", "probTitle", "}\n",
+  ["\\section*{", title, "}\n",
    "\\textbf{Resultado:} ", result, "\n",
    "\\begin{Verbatim}[frame=lines,numbers=left]\n",
    T.strip submitText, "\n",
@@ -127,11 +128,16 @@ submission (Problem{..}, Just Submission{..}) =
   [ "\\begin{Verbatim}[frame=leftline,fontshape=sl]\n",
     T.strip submitReport, "\n",
     "\\end{Verbatim}\n" ]
-  where ok = submitStatus == Accepted || submitStatus == Overdue
+  where title = maybe "N/A" id probTitle
+        ok = submitStatus == Accepted || submitStatus == Overdue
         result
           | submitStatus == Accepted = "Passou todos os testes."
           | submitStatus == Overdue  = "Submitido fora do tempo."
           | otherwise                = "Falhou algum(s) teste(s)."
+
+
+
+
 
 preamble uid header name client time = 
    ["\\documentclass[10pt,a4paper,twoside]{article}\n",
