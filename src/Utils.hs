@@ -11,6 +11,7 @@ import           Data.Text(Text)
 import           Data.ByteString.UTF8 (ByteString)
 import qualified Data.ByteString.UTF8 as B
 
+import           Data.Time (TimeZone)
 -- import           Data.Text (Text)
 import qualified Data.Text as T
 
@@ -63,11 +64,12 @@ ifConfigured key = do
   liftIO $ Configurator.lookupDefault False conf key
 
 
-ifConfig :: Name -> AppHandler ()
-ifConfig key = do
+-- | get a configured value
+getConfig :: Configured a => Name -> AppHandler (Maybe a)
+getConfig key = do
   conf <- gets _config
-  b <- liftIO $ Configurator.lookupDefault False conf key
-  when (not b) pass
+  liftIO $ Configurator.lookup conf key
+
 
   
 
@@ -119,7 +121,7 @@ incrCounter name
 
 -- | Get current logged in user; fail with unauthorized error if missing
 getRequiredUserID :: AppHandler UID
-getRequiredUserID = require getAuthUserID <|> unauthorized
+getRequiredUserID = require getUserID <|> unauthorized
   {-
 getLoggedUser :: AppHandler UID
 getLoggedUser = do 
@@ -149,7 +151,10 @@ getRequiredParam :: ByteString -> AppHandler ByteString
 getRequiredParam p = require (getParam p) <|> badRequest
 
 getProblemID :: AppHandler (Maybe PID)
-getProblemID = PID <$> getParam "pid"
+getProblemID = fmap PID <$> getParam "pid"
+
+getSubmissionID :: AppHandler (Maybe SID)
+getSubmissionID = fmap (SID . read . B.toString) <$> getParam "sid"
 
 {--
 getRequiredParam p = do 
@@ -160,6 +165,11 @@ getRequiredParam p = do
 --}
 
 
+getConfigExam :: AppHandler Bool
+getConfigExam = maybe False id <$> getConfig "exam"
+
+
+
 -- | try a Maybe-handler and "pass" if it yields Nothing 
 require :: AppHandler (Maybe a) -> AppHandler a
 require handler = do
@@ -167,7 +177,6 @@ require handler = do
   case opt of
     Nothing -> pass
     Just v -> return v
-
 
 
 ---------------------------------------------------------------------

@@ -42,7 +42,7 @@ import           Data.Time.Clock
 import           Data.Time.LocalTime
 import           Data.Time.Format
 
-import           Data.Configurator hiding (lookup)
+import qualified Data.Configurator as Configurator
 import           Data.Configurator.Types
 
 import           System.Locale
@@ -55,6 +55,7 @@ import           Db
 import           Utils
 import           Types
 import qualified Interval as Interval
+import           Interval (Interval)
 import           Problem
 import           Submission
 import           SubmitSummary
@@ -104,8 +105,8 @@ handleLoginSubmit =
 handleLoginSubmit :: 
   LdapConf -> ByteString -> ByteString -> Handler Pythondo (AuthManager Pythondo) ()
 handleLoginSubmit ldapConf user passwd = do
-  -- optAuth <- withBackend (\r -> liftIO $ ldapAuth r ldapConf user passwd)
-  optAuth <- withBackend (\r -> liftIO $ dummyAuth r ldapConf user passwd)
+  optAuth <- withBackend (\r -> liftIO $ ldapAuth r ldapConf user passwd)
+  -- optAuth <- withBackend (\r -> liftIO $ dummyAuth r ldapConf user passwd)
   case optAuth of 
     Nothing -> handleLoginForm err
     Just u -> forceLogin u >> redirect "/problems"
@@ -115,12 +116,11 @@ handleLoginSubmit ldapConf user passwd = do
 
 ------------------------------------------------------------------------------
 -- | Logs out and redirects the user to the site index.
+--  n exam mode procedeed to printout 
 handleLogout :: AppHandler ()
 handleLogout = method GET $ do 
-    uid <- getLoggedUser   --  ensure user is logged in   
-    -- procedeed to printout in exam mode
-    exam <- getConfigured "exam" False
-    when exam $ handlePrintout uid
+    exam <- getConfigExam
+    when exam handlePrintout 
     with auth logout 
     redirect "/" 
 
@@ -143,40 +143,7 @@ handleNewUser = method GET handleForm <|> method POST handleFormSubmit
 -----------------------------------------------------------------------------
 -- | problem description request 
 handleProblem :: AppHandler ()
-handleProblem = method GET $ do
-  uid <- getLoggedUser -- ensure a user is logged in
-  pid <- PID <$> getRequiredParam "pid"
-  prob <- liftIO $ readProblem pid
-  now <- liftIO getCurrentTime
-  subs <- getSubmissions uid pid
-  exam <- getConfigured "exam" False
-  -- if running in exam mode, check that the problem is available 
-  when (exam && not (now `Interval.elem` probOpen prob) && null subs)
-       badRequest
-  -- now list all submissions
-  renderWithSplices "problem" $ do problemSplices prob 
-                                   submissionsSplice subs
-
-
-handleProblem
-  = method GET $ do
-    uid <- require getUserID <|> unauthorized
-    pid <- require getProblemID <|> badRequest
-    prob <- liftIO $ readProblem pid
-    now <- liftIO getCurrentTime
-    subs <- getSubmissions uid pid
-    ifConfig "exam" $ do
-      when (now `Internal.notElem` probOpen prob &&
-            null subs) badRequest
-    renderWithSplices "problem" $ do problemSplices prob
-                                     submissionsSplice subs
-
-        
-      
-
-
 {-
-handleProblem :: AppHandler ()
 handleProblem = method GET $ do
   uid <- getLoggedUser -- ensure a user is logged in
   pid <- PID <$> getRequiredParam "pid"
@@ -192,33 +159,48 @@ handleProblem = method GET $ do
                                    submissionsSplice subs
 -}
 
+handleProblem = method GET $ do
+    uid <- require getUserID    <|> unauthorized
+    pid <- require getProblemID <|> badRequest
+    prob <- liftIO $ readProblem pid
+    now <- liftIO getCurrentTime
+    subs <- getSubmissions uid pid
+    -- in exam mode check that the problem is available
+    exam <- getConfigExam
+    when (exam && now `Interval.notElem` probOpen prob && null subs) 
+         badRequest
+    renderWithSplices "problem" $ do problemSplices prob
+                                     submissionsSplice subs
+                                     timerSplices now (probOpen prob)
+
+        
 
 
 -- | problem listing handler
 handleProblemList :: AppHandler ()
 handleProblemList = method GET $ do
-  uid <- getLoggedUser
+  uid <- require getUserID <|> unauthorized
   tags <- getQueryTags
-  exam <- getConfigured "exam" False    -- running in exam mode?
+  exam <- getConfigExam
   now <- liftIO getCurrentTime
   -- summary of all available problems
-  summary <- filter (\s -> not exam || submitAvailable now s) <$> getSubmitSummary uid
+  available <- filter (\s -> not exam || submitAvailable now s) <$> getSubmitSummary uid
   -- filter by query tags
-  let summary' = filter (\s-> tags `isSublistOf` summaryTags s) summary
+  let visible = filter (\s-> tags `isSublistOf` summaryTags s) available
       
   -- context-dependent splices for tags 
   let tagSplices tag = 
         let checked = tag`elem`tags
-            disabled = null (filter (\s->tag `elem` summaryTags s) summary')
+            disabled= null (filter (\s->tag `elem` summaryTags s) visible)
         in do "tagText" ## I.textSplice tag
               "tagCheckbox" ## return (checkboxInput tag checked disabled)
 
   -- render page
   renderWithSplices "problemlist" $ do
-    "tagList" ## I.mapSplices (I.runChildrenWith . tagSplices) (allTags summary)
-    "problemList" ##  I.mapSplices (I.runChildrenWith . summarySplices) summary'
-    "totalProblems" ## I.textSplice (T.pack $ show $ length summary)
-    "visibleProblems" ## I.textSplice (T.pack $ show $ length summary')
+    "tagList" ## I.mapSplices (I.runChildrenWith . tagSplices) (allTags available)
+    "problemList" ##  I.mapSplices (I.runChildrenWith . summarySplices now) visible
+    "availableProblems" ## I.textSplice (T.pack $ show $ length available)
+    "visibleProblems" ## I.textSplice (T.pack $ show $ length visible)
                
                
 -- get tag list from query string
@@ -229,43 +211,53 @@ getQueryTags = do
 
 
 
-summarySplices :: SubmitSummary -> AppSplices
-summarySplices SubmitSummary{..}
+summarySplices :: UTCTime -> SubmitSummary -> AppSplices
+summarySplices now SubmitSummary{..}
     = do problemSplices summaryProb
          counterSplices summarySubmits
+         timerSplices now (probOpen summaryProb)
          "ifAccepted" ## conditionalSplice (summaryAccepted > 0) 
 
 
 
 -- | splices related to a single problem       
 problemSplices :: Problem -> AppSplices
-problemSplices p@Problem{..} = do
+problemSplices prob@Problem{..} = do
   "probID" ## I.textSplice (T.pack $ show probID)
   "probTitle" ## maybe (return []) I.textSplice probTitle
-  "probDoc" ## return (renderProblem p)
+  "probDoc" ## return (renderProblem prob)
   "probDefault" ## maybe (return []) I.textSplice probDefault
   "probTags" ## I.textSplice (T.unwords probTags)
+{-
   "probStart" ##  maybe (return []) timeSplice (Interval.start probOpen)
   "probEnd" ##  maybe (return []) timeSplice (Interval.end probOpen)
-  "ifOpen" ## do now <- liftIO getCurrentTime
-                 conditionalSplice (isOpen now p)
-  "ifEarly" ## do now <- liftIO getCurrentTime
-                  conditionalSplice (isEarly now p)
-  "ifLate" ## do now <- liftIO getCurrentTime
-                 conditionalSplice (isLate now p)
+  "ifOpen" ## conditionalSplice (isOpen now p)
+  "ifEarly" ## conditionalSplice (isEarly now p)
+  "ifLate" ##  conditionalSplice (isLate now p)
   "ifLimited" ## conditionalSplice (Interval.limited probOpen)
   "probTimeLeft"  ## case Interval.end probOpen of 
     Nothing -> I.textSplice "N/A"
-    Just t' -> do now <- liftIO getCurrentTime
-                  I.textSplice $ T.pack $ formatNominalDiffTime $ diffUTCTime t' now
+    Just t' -> I.textSplice $ T.pack $ formatNominalDiffTime $ diffUTCTime t' now
+-}
 
-    
--- convert UTC time to local time 
+-- | splices related to a timer interval
+timerSplices ::  UTCTime -> Interval UTCTime -> AppSplices
+timerSplices now interval = do
+  "ifOpen" ## conditionalSplice (now `Interval.elem` interval)
+  "ifEarly" ## conditionalSplice (now `Interval.before`interval)
+  "ifLate" ##  conditionalSplice (now `Interval.after`interval)
+  "ifLimited" ## conditionalSplice (Interval.limited interval)
+  "timerStart" ##  maybe (return []) timeSplice (Interval.start interval)
+  "timerEnd" ##  maybe (return []) timeSplice (Interval.end interval)
+  "timerLeft"  ## case Interval.end interval of 
+    Nothing -> return []
+    Just t' -> I.textSplice $ T.pack $ formatNominalDiffTime $ diffUTCTime t' now
+
+  
+-- splice an UTC time as local time 
 timeSplice :: UTCTime -> I.Splice AppHandler
-timeSplice t = do tz <- liftIO getCurrentTimeZone
-                  I.textSplice $ T.pack $ 
-                    formatTime defaultTimeLocale "%c" $ 
-                    utcToZonedTime tz t
+timeSplice time = do tz <- liftIO getCurrentTimeZone
+                     I.textSplice $ T.pack $ formatTime defaultTimeLocale "%c" $ utcToZonedTime tz time
     
 
 -- format a time difference
@@ -313,31 +305,33 @@ counterSplices n = do
 
 
 handleGetSubmission, handlePostSubmission :: AppHandler ()
-handleGetSubmission = method GET $ do
-  uid <- getLoggedUser
-  pid <- PID <$> getRequiredParam "pid"
-  sid <- read . B.toString <$> getRequiredParam "sid"
-  prob <- liftIO $ readProblem pid
-  sub <- getSubmission uid pid sid
-  renderWithSplices "report" $ do problemSplices prob  
-                                  submissionSplices sub 
-
+handleGetSubmission 
+    = method GET $ do 
+        uid <- require getUserID <|> unauthorized
+        pid <- require getProblemID <|> badRequest
+        sid <- require getSubmissionID <|> badRequest
+        prob <- liftIO $ readProblem pid
+        sub <- getSubmission uid pid sid
+        renderWithSplices "report" $ do problemSplices prob  
+                                        submissionSplices sub
+                 
 
 handlePostSubmission = method POST $ do
-  uid <- getLoggedUser
-  pid <-  PID <$> getRequiredParam "pid"
+  uid <- require getUserID <|> unauthorized
+  pid <- require getProblemID <|> badRequest
   prob <- liftIO $ readProblem pid
+  now <- liftIO getCurrentTime
   -- if running in exam mode, check that the problem is available for submission
   pids <- getSubmittedPIDs uid
-  now <- liftIO getCurrentTime
-  exam <- getConfigured "exam" False
-  when (exam && not (now `Interval.elem` probOpen prob) && pid `notElem` pids) 
+  exam <- getConfigExam
+  when (exam && now `Interval.notElem` probOpen prob && pid `notElem` pids) 
        badRequest
   incrCounter "submissions"
   code <- T.decodeUtf8With T.ignore <$> getRequiredParam "code"
   sub <- postSubmission uid prob code
   renderWithSplices "report" $ do problemSplices prob 
                                   submissionSplices sub 
+                                  timerSplices  now (probOpen prob)
 
 
 {-
@@ -368,14 +362,14 @@ handleSubmissions = method GET $ do
 -- in exam mode show final report and confirm logout
 -- otherwise, logout immediately
 handleConfirmLogout :: AppHandler ()
-handleConfirmLogout = do 
-  exam <- getConfigured "exam" False
-  if exam then handleFinalReport else handleLogout
+handleConfirmLogout 
+    = do exam <- getConfigExam
+         if exam then handleFinalReport else handleLogout
 
 
 handleFinalReport :: AppHandler ()
 handleFinalReport = method GET $ do
-    uid <- getLoggedUser  
+    uid <- require getUserID <|> unauthorized
     pids <- getSubmittedPIDs uid
     probs <- liftIO $ mapM readProblem pids
     subs <- mapM (getBestSubmission uid) pids
@@ -468,10 +462,10 @@ emptyConfig = HeistConfig noSplices noSplices noSplices noSplices []
 
 -- initialize EKG server (if configured)
 initEkg :: Config -> IO (Maybe Server)
-initEkg conf = do enabled <- require conf "ekg.enabled"
+initEkg conf = do enabled <- Configurator.require conf "ekg.enabled"
                   if enabled then 
-                    do host <- require conf "ekg.host"
-                       port <- require conf "ekg.port"
+                    do host <- Configurator.require conf "ekg.host"
+                       port <- Configurator.require conf "ekg.port"
                        Just <$> forkServer host port                   
                     else return Nothing
   

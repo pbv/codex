@@ -21,10 +21,10 @@ import            Data.Time.Clock
 
 -- | submission summary for a problem
 data SubmitSummary = SubmitSummary {
-      -- summaryPID  :: PID,    -- the problem's id
+      -- summaryPID  :: !PID,    -- the problem's id
       summaryProb :: Problem, -- the problem
-      summarySubmits :: !Int,  -- total number of submissions
-      summaryAccepted :: !Int -- number of accepted submitions
+      summarySubmits :: Int,  -- total number of submissions
+      summaryAccepted :: Int -- number of accepted submitions
     }
 
 
@@ -35,9 +35,9 @@ getSubmitSummary uid = do
   accs <- getAcceptedCount uid
   probs <- liftIO $ readProblemDir >>= mapM readProblem
   return [ SubmitSummary prob submits accepts 
-           |  prob <- probs,
-           let submits = Map.findWithDefault 0 (probID prob) subs,
-           let accepts = Map.findWithDefault 0 (probID prob) accs]
+           |  prob <- probs, let pid = probID prob,
+           let submits = Map.findWithDefault 0 pid subs,
+           let accepts = Map.findWithDefault 0 pid accs]
 
 
 submitAvailable :: UTCTime -> SubmitSummary -> Bool

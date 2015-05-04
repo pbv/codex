@@ -11,13 +11,13 @@ module Interval
      within,
      after,
      before,
-     elem,
+     elem, notElem,
      limited,
      start,
      end
     ) where
 
-import Prelude hiding (elem)
+import Prelude hiding (elem, notElem)
 
 -- intervals are pair of optional lower and upper bounds
 data Interval t = Interval !(Maybe t) !(Maybe t)  
@@ -68,12 +68,13 @@ t `before` Interval Nothing _ = False
 t `before` Interval (Just l) _ = t<l
 
 -- check that a time is within an interval
-elem :: Ord t => t -> Interval t -> Bool
+elem, notElem :: Ord t => t -> Interval t -> Bool
 t `elem` Empty                        = False
 t `elem` (Interval (Just l) (Just u)) = l<=t && t<=u
 t `elem` (Interval (Just l) Nothing ) = l<=t
 t `elem` (Interval Nothing  (Just u)) = t<=u
 t `elem` (Interval Nothing Nothing)   = True
 
+notElem time interval = not (elem time interval)
 
                 

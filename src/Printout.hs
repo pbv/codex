@@ -23,9 +23,7 @@ import qualified Data.Text as T
 import qualified Data.Text.IO as T
 import           Data.Maybe
 
-import           Data.Configurator
-import           Data.Configurator.Types
-
+import           Control.Applicative
 import           Control.Monad.State
 
 import           Snap.Core
@@ -38,11 +36,12 @@ import           Submission
 
 
 -- | make a printout before ending session
-handlePrintout :: UID -> AppHandler ()
-handlePrintout uid = do 
+handlePrintout :: AppHandler ()
+handlePrintout = do 
+  uid <- require getUserID <|> unauthorized
+  fullname <- require getFullName <|> unauthorized
   printout <- getPrintout  -- fetch configuration
   clientname <- getClient
-  fullname <- getFullName
   pids <- getSubmittedPIDs uid
   subs <- mapM (getBestSubmission uid) pids
   probs <-liftIO $ mapM readProblem pids

@@ -4,7 +4,7 @@
 <form action="/problems" method="get">
 <dl>
 <dt>Filtrar problemas:</dt>
-<dt class="info">(<visibleProblems/> de <totalProblems/> vísiveis)</dt>
+<dt class="info">(<visibleProblems/> de <availableProblems/> vísiveis)</dt>
 <tagList>
 <dt><tagCheckbox/></dt>
 </tagList>
@@ -22,11 +22,11 @@
 	<ifSubmitted><count/> submissões já efetuadas.<br/></ifSubmitted>
 	<ifOpen>
 	<ifLimited>
-	  Submissões terminam em <probEnd/>; tempo disponível: <em><probTimeLeft/></em>.
+	  Submissões terminam em <timerEnd/>; tempo disponível: <em><timerLeft/></em>.
 	</ifLimited>
 	<else>
-	<ifEarly>Submissões iniciam em <probStart/>.</ifEarly>
-	<ifLate>Submissões fecharam em <probEnd/>.</ifLate>
+	<ifEarly>Submissões iniciam em <timerStart/>.</ifEarly>
+	<ifLate>Submissões fecharam em <timerEnd/>.</ifLate>
 	</else>
 	</ifOpen>
     </span></dd>

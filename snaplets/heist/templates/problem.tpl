@@ -4,11 +4,11 @@
 <probDoc/>
 <ifOpen>
   <ifLimited>
-    <p>Tempo disponível: <em><probTimeLeft/></em></p> 
+    <p>Tempo disponível: <em><timerLeft/></em></p> 
   </ifLimited>
   <else>
-    <ifEarly><p>Submissões vão abrir em: <probStart/>.</ifEarly>
-    <ifLate><p>Submissões fecharam em: <probEnd/>.</ifLate>
+    <ifEarly><p>Submissões vão abrir em: <timerStart/>.</ifEarly>
+    <ifLate><p>Submissões fecharam em: <timerEnd/>.</ifLate>
   </else>
 </ifOpen>
 

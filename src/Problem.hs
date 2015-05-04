@@ -58,7 +58,8 @@ data Problem = Problem {
 extensionsList :: [([String], ReaderOptions -> String -> Pandoc)]
 extensionsList
   = [([".md",".mdown",".markdown"], readMarkdown),
-     ([".htm",".html"], readHtml), ([".tex"], readLaTeX)]
+     ([".htm",".html"], readHtml), 
+     ([".tex"], readLaTeX)]
 
 
 -- read the problem directory;
