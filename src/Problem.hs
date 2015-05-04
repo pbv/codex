@@ -6,7 +6,6 @@
 module Problem ( 
   Problem(..),
   readProblem,     -- * get a single problem
-  readProblemFile,
   readProblemDir,  -- * list all problem ids
   isEarly,         -- * check problem's acceptance dates
   isLate,
@@ -44,6 +43,7 @@ import           Text.Blaze.Renderer.XmlHtml
 
 -- datatype for problems 
 data Problem = Problem {
+  probID     :: PID,              -- id
   probTitle  :: Maybe Text,       -- title
   probTags   :: [ProblemTag],     -- tag list 
   probOpen   :: Interval UTCTime, -- open interval
@@ -73,24 +73,23 @@ readProblemDir = do
 
 
 readProblem :: PID -> IO Problem 
-readProblem pid = readProblemFile ("problems" </> show pid)
-    
--- read a markdown problem file
-readProblemFile :: FilePath -> IO Problem
-readProblemFile filepath = do
+readProblem pid =
+  let filepath = "problems" </> show pid
+  in do
   txt <- readFile filepath
   let ext = takeExtension filepath
   let doc = head [reader myReaderOptions txt
                  | (exts, reader)<-extensionsList, ext`elem`exts]
   tz <- getCurrentTimeZone
-  return (makeProblem tz filepath doc)
+  return (makeProblem pid tz filepath doc)
 
 
 
 -- make a problem from a Pandoc document
-makeProblem :: TimeZone -> FilePath -> Pandoc -> Problem
-makeProblem tz filepath doc@(Pandoc meta blocks)
-  = Problem { probTitle = fmap T.pack title,
+makeProblem :: PID -> TimeZone -> FilePath -> Pandoc -> Problem
+makeProblem pid tz filepath doc@(Pandoc meta blocks)
+  = Problem { probID = pid,
+              probTitle = fmap T.pack title,
               probTags = tags,
               probOpen = fmap (localTimeToUTC tz) $ parseInterval open close,
               probDoctest = doctest,

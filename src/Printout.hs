@@ -37,7 +37,6 @@ import           Submission
 
 
 
-
 -- | make a printout before ending session
 handlePrintout :: UID -> AppHandler ()
 handlePrintout uid = do 

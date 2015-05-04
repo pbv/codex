@@ -27,10 +27,10 @@ import qualified Heist.Interpreted as I
 import qualified Text.XmlHtml as X
 
 
-import Data.Configurator
-import Data.Configurator.Types
+import qualified Data.Configurator as Configurator
+import           Data.Configurator.Types
 
-
+import Control.Applicative 
 import Control.Exception (SomeException)
 
 -- import System.Process
@@ -44,6 +44,8 @@ import Application
 import Types
 import LdapAuth
 
+import Problem
+
 -- sublist checking
 isSublistOf :: Eq a => [a] -> [a] -> Bool
 isSublistOf xs ys = all (`elem`ys) xs
@@ -51,97 +53,130 @@ isSublistOf xs ys = all (`elem`ys) xs
 
 getConfigured :: Configured a => Name -> a -> AppHandler a
 getConfigured key def = do 
-  conf <- gets config
-  liftIO $ lookupDefault def conf key 
+  conf <- gets _config
+  liftIO $ Configurator.lookupDefault def conf key 
 
 
 ifConfigured :: Name -> AppHandler Bool
 ifConfigured key = do
-  conf <- gets config
-  liftIO $ lookupDefault False conf key
+  conf <- gets _config
+  liftIO $ Configurator.lookupDefault False conf key
 
 
--- | get current SafeExec parameters from configurator
+ifConfig :: Name -> AppHandler ()
+ifConfig key = do
+  conf <- gets _config
+  b <- liftIO $ Configurator.lookupDefault False conf key
+  when (not b) pass
+
+  
+
+-- | get SafeExec parameters from configurator
 getSafeExec :: AppHandler SafeExec
 getSafeExec = do 
-  conf<-gets config
-  liftIO $ getSafeExec' conf
-
-getSafeExec' :: Config -> IO SafeExec
-getSafeExec' conf = do 
-  python <- require conf "submissions.python"
-  safeexec<-require conf "submissions.safeexec"
-  cpu <- require conf "submissions.max_cpu"
-  clock <- require conf "submissions.max_clock"
-  mem <- require conf "submissions.max_memory"
-  return SafeExec { safeExec = safeexec
-                  , pythonExec= python
-                  , maxCpuTime = cpu 
-                  , maxClockTime = clock
-                  , maxMemory = mem 
-                  }
+  conf <- gets _config
+  liftIO $ do
+    python   <- Configurator.require conf "submissions.python"
+    safeexec <-Configurator.require conf "submissions.safeexec"
+    cpu   <- Configurator.require conf "submissions.max_cpu"
+    clock <- Configurator.require conf "submissions.max_clock"
+    mem   <- Configurator.require conf "submissions.max_memory"
+    return SafeExec { safeExec = safeexec
+                    , pythonExec= python
+                    , maxCpuTime = cpu 
+                    , maxClockTime = clock
+                    , maxMemory = mem 
+                    }
 
 
 -- | get LDAP configuration parameters
 getLdapConf :: AppHandler LdapConf
 getLdapConf = do 
-  conf <- gets config
-  liftIO $ do uri <- require conf "ldap.uri"
-              bases <- require conf "ldap.bases"
+  conf <- gets _config
+  liftIO $ do uri <- Configurator.require conf "ldap.uri"
+              bases <- Configurator.require conf "ldap.bases"
               return (LdapConf uri bases)
 
 -- | get printout configuration parameters
 getPrintout :: AppHandler Printout              
 getPrintout = do
-  conf <- gets config
-  liftIO $ do enabled <- lookupDefault False conf "printouts.enabled"
-              header <- lookupDefault defaultHeader conf "printouts.header"
-              opts <- lookupDefault [] conf "printouts.options"
-              return (Printout enabled header opts)
+  conf <- gets _config
+  liftIO $ do
+    enabled <- Configurator.lookupDefault False conf "printouts.enabled"
+    header <- Configurator.lookupDefault defaultHeader conf "printouts.header"
+    opts <- Configurator.lookupDefault [] conf "printouts.options"
+    return (Printout enabled header opts)
   where
     defaultHeader = "Pythondo"
 
 -- | increment an EKG counter
 incrCounter :: Text -> AppHandler ()
 incrCounter name 
-  = gets ekgServer >>= 
+  = gets _ekg >>= 
     maybe (return ())  (\ekg -> liftIO $ getCounter name ekg >>= Counter.inc) 
 
 
+
 -- | Get current logged in user; fail with unauthorized error if missing
+getRequiredUserID :: AppHandler UID
+getRequiredUserID = require getAuthUserID <|> unauthorized
+  {-
 getLoggedUser :: AppHandler UID
 getLoggedUser = do 
   opt <- with auth currentUser
   case opt of
     Nothing -> unauthorized
     Just au -> return (UID . B.fromString $ T.unpack $ userLogin au)
+-}
+
+-- | Get current logged in user ID (if any)
+--   from the authentication snaplet  
+getUserID :: AppHandler (Maybe UID)
+getUserID = do 
+  opt <- with auth currentUser
+  return $ fmap (UID . B.fromString . T.unpack . userLogin) opt
 
 
-
-getFullName :: AppHandler Text
+getFullName :: AppHandler (Maybe Text)
 getFullName = do 
   opt <- with auth currentUser
-  case opt of 
-    Nothing -> unauthorized
-    Just au -> return (userName au)
+  return (fmap userName opt)
 
 
 
--- | Get a required parameter; fails if missing
-getRequiredParam :: ByteString -> AppHandler ByteString    
+-- | Get a required HTTP parameter; fails if missing
+getRequiredParam :: ByteString -> AppHandler ByteString
+getRequiredParam p = require (getParam p) <|> badRequest
+
+getProblemID :: AppHandler (Maybe PID)
+getProblemID = PID <$> getParam "pid"
+
+{--
 getRequiredParam p = do 
   opt <- getParam p
   case opt of 
     Nothing -> badRequest
     Just v -> return v
+--}
+
+
+-- | try a Maybe-handler and "pass" if it yields Nothing 
+require :: AppHandler (Maybe a) -> AppHandler a
+require handler = do
+  opt <- handler
+  case opt of
+    Nothing -> pass
+    Just v -> return v
 
 
 
+---------------------------------------------------------------------
 -- | error handlers
+---------------------------------------------------------------------    
 unauthorized, badRequest, notFound :: AppHandler a
 unauthorized = render "_unauthorized" >> finishError 401 "Unauthorized"
-badRequest = render "_badrequest" >> finishError 400 "Bad request"
-notFound = render "_notfound" >> finishError 404 "Not found"
+badRequest   = render "_badrequest" >> finishError 400 "Bad request"
+notFound     = render "_notfound" >> finishError 404 "Not found"
 
 
 internalError :: SomeException -> AppHandler a

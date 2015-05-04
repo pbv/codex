@@ -82,7 +82,7 @@ handleLogin
 
 
 -- | Render login form
-handleLoginForm :: Maybe Text -> Handler App (AuthManager App) ()
+handleLoginForm :: Maybe Text -> Handler Pythondo (AuthManager Pythondo) ()
 handleLoginForm authError = heistLocal (I.bindSplices errs) $ render "login"
   where
     errs = "loginError" ## maybe (return []) I.textSplice authError
@@ -102,10 +102,10 @@ handleLoginSubmit =
 
 -- | Handle login submit using LDAP authentication
 handleLoginSubmit :: 
-  LdapConf -> ByteString -> ByteString -> Handler App (AuthManager App) ()
+  LdapConf -> ByteString -> ByteString -> Handler Pythondo (AuthManager Pythondo) ()
 handleLoginSubmit ldapConf user passwd = do
-  optAuth <- withBackend (\r -> liftIO $ ldapAuth r ldapConf user passwd)
-  -- optAuth <- withBackend (\r -> liftIO $ dummyAuth r ldapConf user passwd)
+  -- optAuth <- withBackend (\r -> liftIO $ ldapAuth r ldapConf user passwd)
+  optAuth <- withBackend (\r -> liftIO $ dummyAuth r ldapConf user passwd)
   case optAuth of 
     Nothing -> handleLoginForm err
     Just u -> forceLogin u >> redirect "/problems"
@@ -128,7 +128,7 @@ handleLogout = method GET $ do
 {-
 ------------------------------------------------------------------------------
 -- | Handle new user form submit
-handleNewUser :: Handler App (AuthManager App) ()
+handleNewUser :: Handler Pythondo (AuthManager Pythondo) ()
 handleNewUser = method GET handleForm <|> method POST handleFormSubmit
   where
     handleForm = render "register"
@@ -154,8 +154,43 @@ handleProblem = method GET $ do
   when (exam && not (now `Interval.elem` probOpen prob) && null subs)
        badRequest
   -- now list all submissions
-  renderWithSplices "problem" $ do problemSplices pid prob 
+  renderWithSplices "problem" $ do problemSplices prob 
                                    submissionsSplice subs
+
+
+handleProblem
+  = method GET $ do
+    uid <- getRequiredUserID
+    pid <- PID <$> require (getParam "pid") <|> badRequest
+    prob <- liftIO $ readProblem pid
+    now <- liftIO getCurrentTime
+    subs <- getSubmissions uid pid
+    ifConfig "exam" $ do
+      when (now `Internal.notElem` probOpen prob &&
+            null subs) badRequest
+    renderWithSplices "problem" $ do problemSplices prob
+                                     submissionsSplice subs
+
+        
+      
+
+
+{-
+handleProblem :: AppHandler ()
+handleProblem = method GET $ do
+  uid <- getLoggedUser -- ensure a user is logged in
+  pid <- PID <$> getRequiredParam "pid"
+  prob <- liftIO $ readProblem pid
+  now <- liftIO getCurrentTime
+  subs <- getSubmissions uid pid
+  exam <- getConfigured "exam" False
+  -- if running in exam mode, check that the problem is available 
+  when (exam && not (now `Interval.elem` probOpen prob) && null subs)
+       badRequest
+  -- now list all submissions
+  renderWithSplices "problem" $ do problemSplices prob 
+                                   submissionsSplice subs
+-}
 
 
 
@@ -196,30 +231,30 @@ getQueryTags = do
 
 summarySplices :: SubmitSummary -> AppSplices
 summarySplices SubmitSummary{..}
-    = do problemSplices summaryPID summaryProb
+    = do problemSplices summaryProb
          counterSplices summarySubmits
          "ifAccepted" ## conditionalSplice (summaryAccepted > 0) 
 
 
 
 -- | splices related to a single problem       
-problemSplices :: PID -> Problem -> AppSplices
-problemSplices pid p = do
-  "probID" ## I.textSplice (T.pack $ show pid)
-  "probTitle" ## maybe (return []) I.textSplice (probTitle p)
+problemSplices :: Problem -> AppSplices
+problemSplices p@Problem{..} = do
+  "probID" ## I.textSplice (T.pack $ show probID)
+  "probTitle" ## maybe (return []) I.textSplice probTitle
   "probDoc" ## return (renderProblem p)
-  "probDefault" ## maybe (return []) I.textSplice (probDefault p)
-  "probTags" ## I.textSplice (T.unwords $ probTags p)
-  "probStart" ##  maybe (return []) timeSplice (Interval.start $ probOpen p)
-  "probEnd" ##  maybe (return []) timeSplice (Interval.end $ probOpen p)
+  "probDefault" ## maybe (return []) I.textSplice probDefault
+  "probTags" ## I.textSplice (T.unwords probTags)
+  "probStart" ##  maybe (return []) timeSplice (Interval.start probOpen)
+  "probEnd" ##  maybe (return []) timeSplice (Interval.end probOpen)
   "ifOpen" ## do now <- liftIO getCurrentTime
                  conditionalSplice (isOpen now p)
   "ifEarly" ## do now <- liftIO getCurrentTime
                   conditionalSplice (isEarly now p)
   "ifLate" ## do now <- liftIO getCurrentTime
                  conditionalSplice (isLate now p)
-  "ifLimited" ## conditionalSplice (Interval.limited $ probOpen p)
-  "probTimeLeft"  ## case Interval.end (probOpen p) of 
+  "ifLimited" ## conditionalSplice (Interval.limited probOpen)
+  "probTimeLeft"  ## case Interval.end probOpen of 
     Nothing -> I.textSplice "N/A"
     Just t' -> do now <- liftIO getCurrentTime
                   I.textSplice $ T.pack $ formatNominalDiffTime $ diffUTCTime t' now
@@ -284,7 +319,7 @@ handleGetSubmission = method GET $ do
   sid <- read . B.toString <$> getRequiredParam "sid"
   prob <- liftIO $ readProblem pid
   sub <- getSubmission uid pid sid
-  renderWithSplices "report" $ do problemSplices pid prob  
+  renderWithSplices "report" $ do problemSplices prob  
                                   submissionSplices sub 
 
 
@@ -300,8 +335,8 @@ handlePostSubmission = method POST $ do
        badRequest
   incrCounter "submissions"
   code <- T.decodeUtf8With T.ignore <$> getRequiredParam "code"
-  sub <- postSubmission uid pid prob code
-  renderWithSplices "report" $ do problemSplices pid prob 
+  sub <- postSubmission uid prob code
+  renderWithSplices "report" $ do problemSplices prob 
                                   submissionSplices sub 
 
 
@@ -342,13 +377,13 @@ handleFinalReport :: AppHandler ()
 handleFinalReport = method GET $ do
     uid <- getLoggedUser  
     pids <- getSubmittedPIDs uid
-    subs <- mapM (getBestSubmission uid) pids
     probs <- liftIO $ mapM readProblem pids
-    let psubs = [(i,p,s) | (i, p, Just s)<-zip3 pids probs subs]
+    subs <- mapM (getBestSubmission uid) pids
+    let psubs = [(p,s) | (p, Just s)<-zip probs subs]
     renderWithSplices "finalrep" $
       "problemList" ## I.mapSplices (I.runChildrenWith . splices) psubs
-  where splices (pid,prob,sub) = do problemSplices pid prob 
-                                    submissionSplices sub
+  where splices (prob,sub) = do problemSplices prob 
+                                submissionSplices sub
 
 
 
@@ -391,7 +426,7 @@ versionSplice = I.textSplice (T.pack (showVersion version))
 
 ------------------------------------------------------------------------------
 -- | The application initializer.
-app :: SnapletInit App App
+app :: SnapletInit Pythondo Pythondo
 app = 
   makeSnaplet "pythondo" "Web system for learning Python programming." Nothing $ do
     conf <- getSnapletUserConfig
@@ -414,12 +449,17 @@ app =
     let c = sqliteConn $ d ^# snapletValue
     liftIO $ withMVar c $
       \conn -> do Db.createTables conn
-                  putStrLn "Updating problem tags db table"
-                  pids <- readProblemDir
-                  probs <- mapM readProblem pids
-                  Db.updateProblems conn (zip pids probs)
+                  -- putStrLn "Updating problem tags db table"
+                  -- probs <- readProblemDir >>= mapM readProblem
+                  -- Db.updateProblems conn probs
     addRoutes routes
-    return $ App h s d a conf ekg 
+    return $ Pythondo { _heist = h
+                      , _sess = s
+                      , _auth = a
+                      , _db   = d
+                      , _config = conf
+                      , _ekg = ekg
+                      }
 
 
 emptyConfig :: HeistConfig m

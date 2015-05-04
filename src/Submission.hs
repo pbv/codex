@@ -174,8 +174,8 @@ getSubmittedPIDs uid =
 --
 -- | post a new submission; top level function 
 --
-postSubmission :: UID -> PID -> Problem -> Text -> AppHandler Submission
-postSubmission uid pid prob submit = 
+postSubmission :: UID  -> Problem -> Text -> AppHandler Submission
+postSubmission uid prob submit = 
   let tstfile = probDoctest prob
       tmpdir  = "tmp" </> show uid
   in do 
@@ -184,7 +184,7 @@ postSubmission uid pid prob submit =
     liftIO $ createDirectoryIfMissing True tmpdir 
     (exitCode, out, err) <- runSubmission tmpdir tstfile submit
     let (status, report) = makeReport now prob out err
-    insertSubmission uid pid now submit status report 
+    insertSubmission uid (probID prob) now submit status report 
 
 
 -- | run doctest file for a submissions

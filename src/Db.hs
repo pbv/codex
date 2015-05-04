@@ -1,4 +1,4 @@
-{-# LANGUAGE OverloadedStrings, ScopedTypeVariables #-}
+{-# LANGUAGE OverloadedStrings, ScopedTypeVariables, RecordWildCards #-}
 {- 
   Initialize backend SQLite database tables 
 -}
@@ -41,19 +41,23 @@ initCmds = ["CREATE TABLE submissions (\
             \code TEXT NOT NULL, \
             \status TEXT NOT NULL, \
             \report TEXT NOT NULL)",
+{-
             "CREATE TABLE problemtags (\
           \  id INTEGER PRIMARY KEY, \
            \ problem_id TEXT NOT NULL, \
            \ tag TEXT NOT NULL)",
+-}
             "CREATE INDEX user_index ON submissions(user_id)" 
            ]
 
 
-
+{-
 -- remove all problem tags and insert new ones
-updateProblems :: S.Connection -> [(PID,Problem)] -> IO ()
+updateProblems :: S.Connection -> [Problem] -> IO ()
 updateProblems conn probs = S.withTransaction conn $ do
   S.execute_ conn "DELETE FROM problemtags"
-  sequence_ [ insert pid tag | (pid, prob)<-probs, tag <- probTags prob]
+  sequence_ [ insert probID tag | Problem{..} <- probs, tag <- probTags]
   where
     insert pid tag = S.execute conn "INSERT INTO problemtags(problem_id, tag) VALUES(?,?)" (pid,tag)
+-}
+
