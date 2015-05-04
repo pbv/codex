@@ -160,8 +160,8 @@ handleProblem = method GET $ do
 
 handleProblem
   = method GET $ do
-    uid <- getRequiredUserID
-    pid <- PID <$> require (getParam "pid") <|> badRequest
+    uid <- require getUserID <|> unauthorized
+    pid <- require getProblemID <|> badRequest
     prob <- liftIO $ readProblem pid
     now <- liftIO getCurrentTime
     subs <- getSubmissions uid pid
