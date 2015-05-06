@@ -161,7 +161,7 @@ handleProblem = method GET $ do
 
 handleProblem = method GET $ do
     uid <- require getUserID    <|> unauthorized
-    pid <- require getProblemID <|> badRequest
+    pid <- require getProblemID 
     prob <- liftIO $ readProblem pid
     now <- liftIO getCurrentTime
     subs <- getSubmissions uid pid
@@ -181,10 +181,12 @@ handleProblemList :: AppHandler ()
 handleProblemList = method GET $ do
   uid <- require getUserID <|> unauthorized
   tags <- getQueryTags
-  exam <- getConfigExam
   now <- liftIO getCurrentTime
+  exam <- getConfigExam
   -- summary of all available problems
-  available <- filter (\s -> not exam || submitAvailable now s) <$> getSubmitSummary uid
+  available <- if exam then
+                  filter (submitAvailable now) <$> getSubmitSummary uid
+               else getSubmitSummary uid
   -- filter by query tags
   let visible = filter (\s-> tags `isSublistOf` summaryTags s) available
       
@@ -228,17 +230,7 @@ problemSplices prob@Problem{..} = do
   "probDoc" ## return (renderProblem prob)
   "probDefault" ## maybe (return []) I.textSplice probDefault
   "probTags" ## I.textSplice (T.unwords probTags)
-{-
-  "probStart" ##  maybe (return []) timeSplice (Interval.start probOpen)
-  "probEnd" ##  maybe (return []) timeSplice (Interval.end probOpen)
-  "ifOpen" ## conditionalSplice (isOpen now p)
-  "ifEarly" ## conditionalSplice (isEarly now p)
-  "ifLate" ##  conditionalSplice (isLate now p)
-  "ifLimited" ## conditionalSplice (Interval.limited probOpen)
-  "probTimeLeft"  ## case Interval.end probOpen of 
-    Nothing -> I.textSplice "N/A"
-    Just t' -> I.textSplice $ T.pack $ formatNominalDiffTime $ diffUTCTime t' now
--}
+
 
 -- | splices related to a timer interval
 timerSplices ::  UTCTime -> Interval UTCTime -> AppSplices
@@ -308,17 +300,17 @@ handleGetSubmission, handlePostSubmission :: AppHandler ()
 handleGetSubmission 
     = method GET $ do 
         uid <- require getUserID <|> unauthorized
-        pid <- require getProblemID <|> badRequest
-        sid <- require getSubmissionID <|> badRequest
+        pid <- require getProblemID 
+        sid <- require getSubmissionID 
         prob <- liftIO $ readProblem pid
         sub <- getSubmission uid pid sid
         renderWithSplices "report" $ do problemSplices prob  
                                         submissionSplices sub
-                 
+
 
 handlePostSubmission = method POST $ do
   uid <- require getUserID <|> unauthorized
-  pid <- require getProblemID <|> badRequest
+  pid <- require getProblemID 
   prob <- liftIO $ readProblem pid
   now <- liftIO getCurrentTime
   -- if running in exam mode, check that the problem is available for submission
@@ -424,7 +416,7 @@ app :: SnapletInit Pythondo Pythondo
 app = 
   makeSnaplet "pythondo" "Web system for learning Python programming." Nothing $ do
     conf <- getSnapletUserConfig
-    ekg <- liftIO $ initEkg conf
+    e <- liftIO $ initEkg conf
     h <- nestSnaplet "" heist $ heistInit "templates"
     s <- nestSnaplet "sess" sess $
            initCookieSessionManager "site_key.txt" "sess" (Just 7200)
@@ -452,7 +444,7 @@ app =
                       , _auth = a
                       , _db   = d
                       , _config = conf
-                      , _ekg = ekg
+                      , _ekg = e
                       }
 
 

@@ -51,17 +51,17 @@ import Problem
 isSublistOf :: Eq a => [a] -> [a] -> Bool
 isSublistOf xs ys = all (`elem`ys) xs
 
-
+{-
 getConfigured :: Configured a => Name -> a -> AppHandler a
 getConfigured key def = do 
   conf <- gets _config
   liftIO $ Configurator.lookupDefault def conf key 
 
-
 ifConfigured :: Name -> AppHandler Bool
 ifConfigured key = do
   conf <- gets _config
   liftIO $ Configurator.lookupDefault False conf key
+-}
 
 
 -- | get a configured value
@@ -150,11 +150,13 @@ getFullName = do
 getRequiredParam :: ByteString -> AppHandler ByteString
 getRequiredParam p = require (getParam p) <|> badRequest
 
+
 getProblemID :: AppHandler (Maybe PID)
 getProblemID = fmap PID <$> getParam "pid"
 
 getSubmissionID :: AppHandler (Maybe SID)
 getSubmissionID = fmap (SID . read . B.toString) <$> getParam "sid"
+
 
 {--
 getRequiredParam p = do 
