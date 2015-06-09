@@ -3,8 +3,7 @@
 -}
 
 module Interval
-    (
-     Interval,
+    (Interval,
      interval,
      empty,
      forever,
@@ -14,12 +13,13 @@ module Interval
      elem, notElem,
      limited,
      start,
-     end
+     end,
+     union, intersect            
     ) where
 
 import Prelude hiding (elem, notElem)
 
--- intervals are pair of optional lower and upper bounds
+-- intervals are pairs of optional lower and upper bounds
 data Interval t = Interval !(Maybe t) !(Maybe t)  
                 | Empty
                   deriving (Eq, Ord, Show, Read)
@@ -28,13 +28,16 @@ instance Functor Interval where
     fmap f (Interval l u) = Interval (fmap f l) (fmap f u)
     fmap f Empty          = Empty
 
+
 -- interval constructors
-interval :: Maybe t -> Maybe t -> Interval t
-interval = Interval 
+interval :: Ord t => Maybe t -> Maybe t -> Interval t
+interval l r | l<=r = Interval l r 
+             | otherwise = Empty
+
 
 within :: Ord t => t -> t -> Interval t
 within t1 t2 | t1<=t2 = Interval (Just t1) (Just t2)
-             | otherwise = error "Interval.within: invalid arguments"
+             | otherwise = Empty
 
 empty :: Interval t
 empty = Empty
@@ -75,6 +78,28 @@ t `elem` (Interval (Just l) Nothing ) = l<=t
 t `elem` (Interval Nothing  (Just u)) = t<=u
 t `elem` (Interval Nothing Nothing)   = True
 
-notElem time interval = not (elem time interval)
+notElem time int = not (elem time int)
+
+
+-- union and intersection
+union, intersect :: Ord t => Interval t -> Interval t -> Interval t
+union Empty int                       = int
+union int Empty                       = int
+union (Interval l u) (Interval l' u') = Interval (minB l l') (maxB u u')
+
+intersect (Interval l u) (Interval l' u') = interval (maxB l l') (minB u u')
+intersect Empty          _                = Empty
+intersect _              Empty            = Empty
+
+
+minB, maxB :: Ord t => Maybe t -> Maybe t -> Maybe t
+minB Nothing _         = Nothing
+minB _       Nothing   = Nothing
+minB (Just a) (Just b) = Just (min a b)
+
+maxB Nothing u         = u
+maxB l       Nothing   = l
+maxB (Just a) (Just b) = Just (max a b)
+
 
                 
