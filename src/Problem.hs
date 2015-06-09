@@ -12,7 +12,8 @@ module Problem (
   isEarly,         -- * check problem's acceptance dates
   isLate,
   isOpen,          -- * can be submitted and accepted
-  renderProblem    -- * render problem description into HTML
+  renderProblem,    -- * render problem description into HTML
+  taglist
   ) where
 
 -- import           Prelude hiding(catch)
@@ -43,6 +44,7 @@ import           Text.XmlHtml
 import           Text.Blaze.Renderer.XmlHtml
 
 
+
 -- a problem set 
 data ProblemSet = ProblemSet {
       probsetTitle :: Maybe Text
@@ -66,6 +68,18 @@ data Problem = Problem {
   } deriving Show
 
 
+-- collect all tags
+class Tagged a where
+    taglist  :: a -> [ProblemTag]
+
+instance Tagged Problem where
+    taglist = probTags
+
+instance Tagged a => Tagged [a] where
+    taglist = concatMap taglist
+
+instance Tagged ProblemSet where
+    taglist ProblemSet{..} = taglist probsetProbs
 
 {-
 -- check if a problem can be submited

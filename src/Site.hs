@@ -160,7 +160,7 @@ handleProblem = method GET $ do
 -}
 
 handleProblem = method GET $ do
-    uid <- require getUserID    <|> unauthorized
+    uid <- require getUserID  <|> unauthorized
     pid <- require getProblemID 
     prob <- liftIO $ readProblem pid
     now <- liftIO getCurrentTime
@@ -176,17 +176,15 @@ handleProblem = method GET $ do
         
 
 
--- | problem listing handler
+-- | problem set listing handler
 handleProblemList :: AppHandler ()
 handleProblemList = method GET $ do
   uid <- require getUserID <|> unauthorized
-  tags <- getQueryTags
   now <- liftIO getCurrentTime
-  exam <- getConfigExam
+  probset <- liftIO $ readProblemSet "problemset.md"
+  tags <- getQueryTags
   -- summary of all available problems
-  available <- if exam then
-                  filter (submitAvailable now) <$> getSubmitSummary uid
-               else getSubmitSummary uid
+  available <- getAvailable uid probset 
   -- filter by query tags
   let visible = filter (\s-> tags `isSublistOf` summaryTags s) available
       

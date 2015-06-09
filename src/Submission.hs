@@ -53,7 +53,6 @@ data Submission = Submission {
   submitReport :: Text         -- detailed error message
   }
 
-
 -- | result status of a submission
 data Status = Accepted          -- passed all tests, in time
             | Overdue           -- passed all tests, late submission
@@ -64,6 +63,7 @@ data Status = Accepted          -- passed all tests, in time
             | MemoryLimitExceeded
             | MiscError
               deriving (Eq, Ord, Show, Read, Typeable)
+
 
 -- | convertion to/from SQL data
 instance ToField Status where
@@ -122,6 +122,16 @@ getSubmissions uid pid =
        \ WHERE user_id = ? AND problem_id = ? ORDER BY id" (uid, pid)
 
 
+-- | get a summary of submissions for a user  (just the result status)
+getSubmissions' :: UID -> PID -> AppHandler [Status]
+getSubmissions' uid pid =
+    map fromOnly <$>
+    query "SELECT status FROM submissions \
+          \ WHERE user_id = ? AND problem_id = ?" (uid,pid)
+
+    
+
+
 -- | get user's submissions summary aggreated by problem IDs
 -- result (problem_id, #submissions, #accepted)
 {-
@@ -131,6 +141,7 @@ getSubmissionsCount uid =
        \ FROM submissions WHERE user_id = ? GROUP BY problem_id" (Only uid)
 -}
 
+{-
 -- count number of accepted submissions for each problem
 getAcceptedCount ::  UID -> AppHandler (Map PID Int)
 getAcceptedCount uid = 
@@ -146,6 +157,27 @@ getSubmissionsCount uid =
     query "SELECT problem_id, COUNT(*) \
           \ FROM submissions WHERE user_id = ? GROUP BY problem_id" (Only uid)
 
+-}
+
+{-
+-- check if a problem has been accepted
+getAccepted :: UID -> PID -> AppHandler Int
+getAccepted uid pid = do
+  r <- query "SELECT SUM(status='Accepted') \
+             \ FROM submissions WHERE user_id = ? AND problem_id = ?" (uid,pid)
+  return $ case r of 
+             [] -> 0
+             (Only c:_) -> maybe 0 id c
+    
+
+getSubmitted :: UID -> PID -> AppHandler Int
+getSubmitted uid pid = do
+    r <- query "SELECT COUNT(*) \
+               \ FROM submissions WHERE user_id = ? AND problem_id = ?" (uid,pid)
+    return $ case r of 
+               [] -> 0
+               (Only c:_) -> maybe 0 id c
+-}
 
 
 
@@ -164,7 +196,7 @@ getBestSubmission uid pid =
              \ ORDER BY accept DESC, id DESC LIMIT 1)" (uid,pid) 
 
   
--- | list all problems that a user submited
+-- | list all problems that a user has submited
 getSubmittedPIDs :: UID -> AppHandler [PID]
 getSubmittedPIDs uid = 
     query "SELECT problem_id FROM submissions WHERE user_id = ? \
