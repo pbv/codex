@@ -1,6 +1,6 @@
 {-# LANGUAGE OverloadedStrings, RecordWildCards, DeriveDataTypeable #-}
 {-
-   Evaluating, storing and fetching and submissions in Db
+   Evaluating, storing and fetching and submissions in database
 -}
 
 module Submission where
@@ -122,14 +122,6 @@ getSubmissions uid pid =
        \ WHERE user_id = ? AND problem_id = ? ORDER BY id" (uid, pid)
 
 
--- | get a summary of submissions for a user  (just the result status)
-getSubmissions' :: UID -> PID -> AppHandler [Status]
-getSubmissions' uid pid =
-    map fromOnly <$>
-    query "SELECT status FROM submissions \
-          \ WHERE user_id = ? AND problem_id = ?" (uid,pid)
-
-    
 
 
 -- | get user's submissions summary aggreated by problem IDs
@@ -159,25 +151,25 @@ getSubmissionsCount uid =
 
 -}
 
-{-
--- check if a problem has been accepted
-getAccepted :: UID -> PID -> AppHandler Int
-getAccepted uid pid = do
-  r <- query "SELECT SUM(status='Accepted') \
-             \ FROM submissions WHERE user_id = ? AND problem_id = ?" (uid,pid)
-  return $ case r of 
-             [] -> 0
-             (Only c:_) -> maybe 0 id c
+
+-- count the number of  attempted and accepted submissions
+getAcceptedCount :: UID -> PID -> AppHandler Int
+getAcceptedCount uid pid = do
+  r <- listToMaybe <$>
+       query "SELECT COUNT(*) \
+             \ FROM submissions WHERE status='Accepted' \
+             \ AND  user_id = ? AND problem_id = ?" (uid,pid)
+  return $ maybe 0 fromOnly r
     
 
-getSubmitted :: UID -> PID -> AppHandler Int
-getSubmitted uid pid = do
-    r <- query "SELECT COUNT(*) \
+-- count the number of submissions                                            
+getSubmittedCount :: UID -> PID -> AppHandler Int
+getSubmittedCount uid pid = do
+    r <- listToMaybe <$>
+         query "SELECT COUNT(*) \
                \ FROM submissions WHERE user_id = ? AND problem_id = ?" (uid,pid)
-    return $ case r of 
-               [] -> 0
-               (Only c:_) -> maybe 0 id c
--}
+    return $ maybe 0 fromOnly r
+
 
 
 
@@ -224,11 +216,11 @@ postSubmission uid prob submit =
 runSubmission ::
   FilePath -> FilePath -> Text -> AppHandler (ExitCode,String,String)
 runSubmission tmpdir tstfile submit = do 
-  sf <- getSafeExec
-  liftIO $ withTempFile tmpdir submit (runDoctests sf tstfile)
+  sb <- getSandbox
+  liftIO $ withTempFile tmpdir submit (runDoctests sb tstfile)
 
 
--- lower level I/O helper functions 
+-- | lower level I/O helper functions 
   
 -- | make a python temporary file given a source code as Text
 -- make sure file is cleaned up afterwards
@@ -244,8 +236,8 @@ withTempFile tmpdir txt = bracket create removeFile
 
 
 -- | run Python doctests inside a safeexec sandbox
-runDoctests :: SafeExec -> FilePath -> FilePath -> IO (ExitCode, String, String)
-runDoctests SafeExec{..} tstfile pyfile 
+runDoctests :: Sandbox -> FilePath -> FilePath -> IO (ExitCode, String, String)
+runDoctests Sandbox{..} tstfile pyfile 
   = readProcessWithExitCode safeExec args ""
   where args = ["--cpu", show maxCpuTime,  
                 "--clock", show maxClockTime,

@@ -47,9 +47,6 @@ import LdapAuth
 
 import Problem
 
--- sublist checking
-isSublistOf :: Eq a => [a] -> [a] -> Bool
-isSublistOf xs ys = all (`elem`ys) xs
 
 {-
 getConfigured :: Configured a => Name -> a -> AppHandler a
@@ -65,51 +62,60 @@ ifConfigured key = do
 
 
 -- | get a configured value
+{-
 getConfig :: Configured a => Name -> AppHandler (Maybe a)
 getConfig key = do
   conf <- gets _config
   liftIO $ Configurator.lookup conf key
-
+-}
 
   
 
--- | get SafeExec parameters from configurator
-getSafeExec :: AppHandler SafeExec
-getSafeExec = do 
-  conf <- gets _config
-  liftIO $ do
+-- | read configuration parameters 
+configSandbox :: Config -> IO Sandbox
+configSandbox conf = do
     python   <- Configurator.require conf "submissions.python"
     safeexec <-Configurator.require conf "submissions.safeexec"
     cpu   <- Configurator.require conf "submissions.max_cpu"
     clock <- Configurator.require conf "submissions.max_clock"
     mem   <- Configurator.require conf "submissions.max_memory"
-    return SafeExec { safeExec = safeexec
-                    , pythonExec= python
-                    , maxCpuTime = cpu 
-                    , maxClockTime = clock
-                    , maxMemory = mem 
-                    }
+    return Sandbox { safeExec = safeexec
+                   , pythonExec= python
+                   , maxCpuTime = cpu 
+                   , maxClockTime = clock
+                   , maxMemory = mem 
+                   }
+
+configPrintout :: Config -> IO Printout
+configPrintout conf = do
+  enabled <- Configurator.lookupDefault False conf "printouts.enabled"
+  header <- Configurator.lookupDefault defaultHeader conf "printouts.header"
+  opts <- Configurator.lookupDefault [] conf "printouts.options"
+  return (Printout enabled header opts)
+  where defaultHeader = "Pythondo"
+
+configLdapConf :: Config -> IO LdapConf
+configLdapConf conf = do
+  uri <- Configurator.require conf "ldap.uri"
+  bases <- Configurator.require conf "ldap.bases"
+  return (LdapConf uri bases)
+
+
+
+-- | get SafeExec configuration
+getSandbox :: AppHandler Sandbox
+getSandbox = gets _sandbox
 
 
 -- | get LDAP configuration parameters
 getLdapConf :: AppHandler LdapConf
-getLdapConf = do 
-  conf <- gets _config
-  liftIO $ do uri <- Configurator.require conf "ldap.uri"
-              bases <- Configurator.require conf "ldap.bases"
-              return (LdapConf uri bases)
+getLdapConf = gets _ldapConf
+
 
 -- | get printout configuration parameters
 getPrintout :: AppHandler Printout              
-getPrintout = do
-  conf <- gets _config
-  liftIO $ do
-    enabled <- Configurator.lookupDefault False conf "printouts.enabled"
-    header <- Configurator.lookupDefault defaultHeader conf "printouts.header"
-    opts <- Configurator.lookupDefault [] conf "printouts.options"
-    return (Printout enabled header opts)
-  where
-    defaultHeader = "Pythondo"
+getPrintout = gets _printout
+
 
 -- | increment an EKG counter
 incrCounter :: Text -> AppHandler ()
@@ -158,18 +164,8 @@ getSubmissionID :: AppHandler (Maybe SID)
 getSubmissionID = fmap (SID . read . B.toString) <$> getParam "sid"
 
 
-{--
-getRequiredParam p = do 
-  opt <- getParam p
-  case opt of 
-    Nothing -> badRequest
-    Just v -> return v
---}
-
-
-getConfigExam :: AppHandler Bool
-getConfigExam = maybe False id <$> getConfig "exam"
-
+-- getConfigExam :: AppHandler Bool
+-- getConfigExam = maybe False id <$> getConfig "exam"
 
 
 -- | try a Maybe-handler and "pass" if it yields Nothing 

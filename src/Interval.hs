@@ -81,25 +81,34 @@ t `elem` (Interval Nothing Nothing)   = True
 notElem time int = not (elem time int)
 
 
--- union and intersection
+-- * union and intersection
 union, intersect :: Ord t => Interval t -> Interval t -> Interval t
 union Empty int                       = int
 union int Empty                       = int
-union (Interval l u) (Interval l' u') = Interval (minB l l') (maxB u u')
+union (Interval l u) (Interval l' u') = Interval (minLeft l l') (maxRight u u')
 
-intersect (Interval l u) (Interval l' u') = interval (maxB l l') (minB u u')
+intersect (Interval l u) (Interval l' u') = interval (maxLeft l l') (minRight u u')
 intersect Empty          _                = Empty
 intersect _              Empty            = Empty
 
 
-minB, maxB :: Ord t => Maybe t -> Maybe t -> Maybe t
-minB Nothing _         = Nothing
-minB _       Nothing   = Nothing
-minB (Just a) (Just b) = Just (min a b)
+maxLeft, maxRight, minLeft, minRight :: Ord t => Maybe t -> Maybe t -> Maybe t
 
-maxB Nothing u         = u
-maxB l       Nothing   = l
-maxB (Just a) (Just b) = Just (max a b)
+maxLeft Nothing l  = l
+maxLeft l  Nothing = l
+maxLeft (Just a) (Just b) = Just (max a b)
 
+maxRight Nothing r = Nothing
+maxRight r Nothing = Nothing
+maxRight (Just a) (Just b) = Just (max a b)
+
+
+minLeft Nothing l = Nothing
+minLeft l Nothing = Nothing
+minLeft (Just a) (Just b) = Just (min a b)
+
+minRight Nothing r = r
+minRight r Nothing = r
+minRight (Just a) (Just b) = Just (min a b)
 
                 

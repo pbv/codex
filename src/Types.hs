@@ -65,13 +65,13 @@ instance FromField SID where
   fromField f = fmap SID (fromField f)
   
   
--- | safeexec parameters
-data SafeExec = SafeExec { safeExec :: FilePath
-                         , pythonExec :: FilePath
-                         , maxCpuTime :: Int
-                         , maxClockTime :: Int
-                         , maxMemory :: Int 
-                         } 
+-- | safeexec "sandbox" parameters
+data Sandbox = Sandbox { safeExec :: FilePath
+                       , pythonExec :: FilePath
+                       , maxCpuTime :: Int
+                       , maxClockTime :: Int
+                       , maxMemory :: Int 
+                       } 
                 deriving (Eq, Show)
 
   
@@ -91,4 +91,4 @@ data Printout = Printout { printEnabled :: Bool
 
 
 -- | problem tags
-type ProblemTag = Text
+type Tag = Text

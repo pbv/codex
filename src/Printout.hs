@@ -36,16 +36,16 @@ import           Submission
 
 
 -- | make a printout before ending session
-handlePrintout :: AppHandler ()
-handlePrintout = do 
-  uid <- require getUserID <|> unauthorized
-  fullname <- require getFullName <|> unauthorized
-  printout <- getPrintout  -- fetch configuration
+handlePrintout :: UID -> ProblemSet -> AppHandler ()
+handlePrintout uid ProblemSet{..} | probsetPrintout = do
+  fullname <- require getFullName 
+  let pids =  map probID probsetProbs
+  subs <- mapM (getBestSubmission uid) (map probID probsetProbs)
+  printout <- getPrintout
   clientname <- getClient
-  pids <- getSubmittedPIDs uid
-  subs <- mapM (getBestSubmission uid) pids
-  probs <-liftIO $ mapM readProblem pids
-  liftIO $ makePrintout printout uid fullname clientname (zip probs subs)
+  liftIO $ makePrintout printout uid fullname clientname (zip probsetProbs subs)
+-- printout not configured, return imediately  
+handlePrintout _ _ = return ()
 
 
 getClient :: AppHandler Text

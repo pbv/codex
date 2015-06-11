@@ -1,10 +1,8 @@
 {-# LANGUAGE OverloadedStrings,  RecordWildCards #-}
 module SubmitSummary
-    ( SubmitSummary(..)
-    , getAvailable
+    ( ProblemSummary(..)
+    , getProblemSummary
     --, getSubmitSummary
-    , summaryTags
-    , allTags
     -- , submitAvailable
     ) where
 
@@ -24,31 +22,40 @@ import            Data.Time.Clock
 
 
 -- | submission summary for a problem
-data SubmitSummary = SubmitSummary {
+data ProblemSummary = ProblemSummary {
       summaryProb :: Problem, -- the problem
       summaryAttempts :: Int,  -- total number of submissions
       summaryAccepted :: Int  -- number of accepted submitions
     }
 
 
-getAvailable :: UID -> ProblemSet -> AppHandler [SubmitSummary]
+instance Tagged ProblemSummary where
+  taglist ProblemSummary{..} = dynamic ++ taglist summaryProb
+    where dynamic = [if summaryAccepted>0  then "*accepted*"
+                     else "*not accepted*",
+                     if summaryAttempts>0 then "*submitted*"
+                     else "*not submitted*"]
+
+
+{-
+getAvailable :: UID -> ProblemSet -> AppHandler [ProblemSummary]
 getAvailable uid probset@ProblemSet{..} 
     | probsetExam = do now <- liftIO getCurrentTime
-                       filter (isAvailable now) <$> getSubmitSummary uid probset
-    | otherwise   = getSubmitSummary uid probset
+                       filter (isAvailable now) <$> getProblemSummary uid probset
+    | otherwise   = getProblemSummary uid probset
     where
-      isAvailable :: UTCTime -> SubmitSummary -> Bool
-      isAvailable now SubmitSummary{..} 
+      isAvailable :: UTCTime -> ProblemSummary -> Bool
+      isAvailable now ProblemSummary{..} 
           = summaryAttempts>0 || now `Interval.elem` probOpen summaryProb 
+-}
 
-
-getSubmitSummary :: UID -> ProblemSet -> AppHandler [SubmitSummary]
-getSubmitSummary uid ProblemSet{..} = do
+getProblemSummary :: UID -> ProblemSet -> AppHandler [ProblemSummary]
+getProblemSummary uid ProblemSet{..} = do
   forM probsetProbs $ \prob -> do
     let pid = probID prob
-    stats <- getSubmissions' uid pid
-    let accepts = filter (==Accepted) stats
-    return (SubmitSummary prob (length stats) (length accepts))
+    subs <- getSubmittedCount uid pid
+    accepts <- getAcceptedCount uid pid
+    return (ProblemSummary prob subs accepts)
 
 {-
   subs <- getSubmissionsCount uid
@@ -62,16 +69,4 @@ getSubmitSummary uid ProblemSet{..} = do
 
 
 
-
--- collect all tags for a problem (including dynamic)
-summaryTags :: SubmitSummary -> [ProblemTag]
-summaryTags SubmitSummary{..} = dynamic ++ probTags summaryProb
-    where dynamic = [if summaryAccepted>0 then "*accepted*" else "*not accepted*",
-                     if summaryAttempts>0 then "*submitted*" else "*not submitted*"]
-
--- collect all tags and remove duplicates
-allTags :: ProblemSet -> [ProblemTag]
-allTags probset = Set.toList $ Set.fromList $ dynamic ++ taglist probset
-    where dynamic = ["*accepted*", "*not accepted*", 
-                     "*submitted*", "*not submitted*"]
 

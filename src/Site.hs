@@ -19,7 +19,7 @@ import           Control.Lens
 import           Data.ByteString.UTF8 (ByteString)
 import qualified Data.ByteString.UTF8 as B
 -- import qualified Data.ByteString as B
--- import           Data.Maybe
+import           Data.Maybe(listToMaybe)
 -- import           Data.Map (Map)
 import qualified Data.Map as Map
 import           Data.Text (Text)
@@ -116,11 +116,13 @@ handleLoginSubmit ldapConf user passwd = do
 
 ------------------------------------------------------------------------------
 -- | Logs out and redirects the user to the site index.
---  n exam mode procedeed to printout 
+--  in exam mode procedeed to printout 
 handleLogout :: AppHandler ()
-handleLogout = method GET $ do 
-    exam <- getConfigExam
-    when exam handlePrintout 
+handleLogout = method GET $ do
+    uid <- require getUserID <|> unauthorized
+    probset <- getProblemSet
+    -- handle printout (if configured)
+    handlePrintout uid probset
     with auth logout 
     redirect "/" 
 
@@ -131,7 +133,8 @@ handleLogout = method GET $ do
 handleNewUser :: Handler Pythondo (AuthManager Pythondo) ()
 handleNewUser = method GET handleForm <|> method POST handleFormSubmit
   where
-    handleForm = render "register"
+
+handleForm = render "register"
     handleFormSubmit = do
       login <- reqParam "login" 
       b <- usernameExists (T.pack $ B.toString login)
@@ -161,14 +164,10 @@ handleProblem = method GET $ do
 
 handleProblem = method GET $ do
     uid <- require getUserID  <|> unauthorized
-    pid <- require getProblemID 
-    prob <- liftIO $ readProblem pid
+    pid <- require getProblemID
+    prob <- getProblem pid
     now <- liftIO getCurrentTime
     subs <- getSubmissions uid pid
-    -- in exam mode check that the problem is available
-    exam <- getConfigExam
-    when (exam && now `Interval.notElem` probOpen prob && null subs) 
-         badRequest
     renderWithSplices "problem" $ do problemSplices prob
                                      submissionsSplice subs
                                      timerSplices now (probOpen prob)
@@ -181,40 +180,41 @@ handleProblemList :: AppHandler ()
 handleProblemList = method GET $ do
   uid <- require getUserID <|> unauthorized
   now <- liftIO getCurrentTime
-  probset <- liftIO $ readProblemSet "problemset.md"
+  probset <- getProblemSet 
   tags <- getQueryTags
   -- summary of all available problems
-  available <- getAvailable uid probset 
+  available <- getProblemSummary uid probset 
   -- filter by query tags
-  let visible = filter (\s-> tags `isSublistOf` summaryTags s) available
+  let visible = filter (hasTags tags) available
       
   -- context-dependent splices for tags 
   let tagSplices tag = 
         let checked = tag`elem`tags
-            disabled= null (filter (\s->tag `elem` summaryTags s) visible)
+            disabled= null (filter (isTagged tag) visible)
         in do "tagText" ## I.textSplice tag
               "tagCheckbox" ## return (checkboxInput tag checked disabled)
 
   -- render page
   renderWithSplices "problemlist" $ do
-    "tagList" ## I.mapSplices (I.runChildrenWith . tagSplices) (allTags available)
+    "probsetDescr" ## return (renderPandoc $ probsetDescr probset)
+    "tagList" ## I.mapSplices (I.runChildrenWith . tagSplices) (taglist available)
     "problemList" ##  I.mapSplices (I.runChildrenWith . summarySplices now) visible
     "availableProblems" ## I.textSplice (T.pack $ show $ length available)
     "visibleProblems" ## I.textSplice (T.pack $ show $ length visible)
                
                
 -- get tag list from query string
-getQueryTags :: AppHandler [ProblemTag]
+getQueryTags :: AppHandler [Tag]
 getQueryTags = do
   params <- getParams
   return (map (T.pack . B.toString) $ Map.findWithDefault [] "tag" params)
 
 
 
-summarySplices :: UTCTime -> SubmitSummary -> AppSplices
-summarySplices now SubmitSummary{..}
+summarySplices :: UTCTime -> ProblemSummary -> AppSplices
+summarySplices now ProblemSummary{..}
     = do problemSplices summaryProb
-         counterSplices summarySubmits
+         counterSplices summaryAttempts
          timerSplices now (probOpen summaryProb)
          "ifAccepted" ## conditionalSplice (summaryAccepted > 0) 
 
@@ -225,9 +225,12 @@ problemSplices :: Problem -> AppSplices
 problemSplices prob@Problem{..} = do
   "probID" ## I.textSplice (T.pack $ show probID)
   "probTitle" ## maybe (return []) I.textSplice probTitle
-  "probDoc" ## return (renderProblem prob)
+  "probDoc" ## return (renderPandoc probDescr)
   "probDefault" ## maybe (return []) I.textSplice probDefault
   "probTags" ## I.textSplice (T.unwords probTags)
+
+
+
 
 
 -- | splices related to a timer interval
@@ -299,8 +302,8 @@ handleGetSubmission
     = method GET $ do 
         uid <- require getUserID <|> unauthorized
         pid <- require getProblemID 
-        sid <- require getSubmissionID 
-        prob <- liftIO $ readProblem pid
+        sid <- require getSubmissionID
+        prob <- getProblem pid
         sub <- getSubmission uid pid sid
         renderWithSplices "report" $ do problemSplices prob  
                                         submissionSplices sub
@@ -309,16 +312,18 @@ handleGetSubmission
 handlePostSubmission = method POST $ do
   uid <- require getUserID <|> unauthorized
   pid <- require getProblemID 
-  prob <- liftIO $ readProblem pid
+  code <- T.decodeUtf8With T.ignore <$> require (getParam "code")
+  prob <- getProblem pid
   now <- liftIO getCurrentTime
+  {-
   -- if running in exam mode, check that the problem is available for submission
-  pids <- getSubmittedPIDs uid
-  exam <- getConfigExam
+  -- pids <- getSubmittedPIDs uid
+  -- exam <- getConfigExam
   when (exam && now `Interval.notElem` probOpen prob && pid `notElem` pids) 
        badRequest
-  incrCounter "submissions"
-  code <- T.decodeUtf8With T.ignore <$> getRequiredParam "code"
+  -}
   sub <- postSubmission uid prob code
+  incrCounter "submissions"
   renderWithSplices "report" $ do problemSplices prob 
                                   submissionSplices sub 
                                   timerSplices  now (probOpen prob)
@@ -349,26 +354,27 @@ handleSubmissions = method GET $ do
     
 
 
--- in exam mode show final report and confirm logout
+-- in exam mode show final report before loggin out
 -- otherwise, logout immediately
 handleConfirmLogout :: AppHandler ()
-handleConfirmLogout 
-    = do exam <- getConfigExam
-         if exam then handleFinalReport else handleLogout
+handleConfirmLogout = method GET $ do
+  uid <- require getUserID <|> badRequest
+  probset <- getProblemSet
+  handleFinalReport uid probset
 
 
-handleFinalReport :: AppHandler ()
-handleFinalReport = method GET $ do
-    uid <- require getUserID <|> unauthorized
-    pids <- getSubmittedPIDs uid
-    probs <- liftIO $ mapM readProblem pids
+handleFinalReport :: UID -> ProblemSet -> AppHandler ()
+handleFinalReport uid ProblemSet{..} | probsetExam = do
+    let pids = map probID probsetProbs
     subs <- mapM (getBestSubmission uid) pids
-    let psubs = [(p,s) | (p, Just s)<-zip probs subs]
+    let psubs = [(p,s) | (p, Just s)<-zip probsetProbs subs]
     renderWithSplices "finalrep" $
       "problemList" ## I.mapSplices (I.runChildrenWith . splices) psubs
   where splices (prob,sub) = do problemSplices prob 
                                 submissionSplices sub
 
+-- not exam mode: proceed to logout immediately
+handleFinalReport _ _ = handleLogout
 
 
 
@@ -426,8 +432,6 @@ app =
                                  "version" ## versionSplice
                                  "timeNow" ## nowSplice
                                  "loggedInName" ## loggedInName auth }
-      
-      
     -- Grab the DB connection pool from the sqlite snaplet and call
     -- into the Model to create all the DB tables if necessary.
     let c = sqliteConn $ d ^# snapletValue
@@ -437,11 +441,18 @@ app =
                   -- probs <- readProblemDir >>= mapM readProblem
                   -- Db.updateProblems conn probs
     addRoutes routes
+      
+    sandbox <- liftIO $ configSandbox conf
+    printout <- liftIO $ configPrintout conf
+    ldapConf <- liftIO $ configLdapConf conf
     return $ Pythondo { _heist = h
                       , _sess = s
                       , _auth = a
                       , _db   = d
-                      , _config = conf
+                      -- , _config = conf
+                      , _sandbox = sandbox
+                      , _ldapConf = ldapConf
+                      , _printout = printout
                       , _ekg = e
                       }
 
@@ -460,4 +471,22 @@ initEkg conf = do enabled <- Configurator.require conf "ekg.enabled"
                     else return Nothing
   
 
+
+-- | get the current problem set
+-- TODO: avoid re-reading the same problems every time
+-- with some caching mechanism
+getProblemSet :: AppHandler ProblemSet
+getProblemSet = liftIO readProblemSet
+
+getProblem :: PID -> AppHandler Problem
+getProblem pid = do
+  probset <- getProblemSet
+  case lookupProblemSet pid probset of
+    Nothing -> badRequest
+    Just p -> return p
+
+lookupProblemSet :: PID -> ProblemSet -> Maybe Problem
+lookupProblemSet pid ProblemSet{..} =
+  listToMaybe [p | p <- probsetProbs, probID p == pid] 
+    
 

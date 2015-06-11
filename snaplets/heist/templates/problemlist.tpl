@@ -1,5 +1,6 @@
 <apply template="base">
-<h1>Problemas</h1>
+<h1><probsetTitle/></h1>
+<probsetDescr/>
 <div class="filterlist">
 <form action="/problems" method="get">
 <dl>

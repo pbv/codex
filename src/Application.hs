@@ -16,9 +16,10 @@ import Snap.Snaplet.Session
 import Snap.Snaplet.SqliteSimple
 
 -- import Data.Configurator
-import Data.Configurator.Types
-
+-- import Data.Configurator.Types
 import System.Remote.Monitoring
+
+import Types
 
 ------------------------------------------------------------------------------
 data Pythondo = Pythondo
@@ -26,7 +27,10 @@ data Pythondo = Pythondo
     , _sess  :: Snaplet SessionManager
     , _auth  :: Snaplet (AuthManager Pythondo)
     , _db    :: Snaplet Sqlite
-    , _config :: Config                  -- configurator handle
+    -- , _config :: Config                  -- configurator handle
+    , _sandbox :: Sandbox                -- safeexec configuration
+    , _ldapConf :: LdapConf              -- LDAP configuration
+    , _printout :: Printout              -- printout configuration
     , _ekg     :: Maybe Server           -- optional EKG monitoring server
     }
 
