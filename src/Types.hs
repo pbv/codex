@@ -92,3 +92,17 @@ data Printout = Printout { printEnabled :: Bool
 
 -- | problem tags
 type Tag = Text
+
+
+-- | a type class for collecting tags from problems, etc.
+class Tagged a where
+    taglist  :: a -> [Tag]
+
+-- check if something is tagged with a single tag
+isTagged :: Tagged a => Tag -> a -> Bool
+isTagged tag a = tag `elem` taglist a
+
+-- check if something is tagged with a list of tags
+hasTags :: Tagged a => [Tag] -> a -> Bool
+hasTags tags a = tags `isSublistOf` taglist a
+    where isSublistOf xs ys = all (`elem`ys) xs

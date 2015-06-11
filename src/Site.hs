@@ -58,7 +58,7 @@ import qualified Interval as Interval
 import           Interval (Interval)
 import           Problem
 import           Submission
-import           SubmitSummary
+import           Summary
 import           LdapAuth
 import           Printout
 
@@ -75,11 +75,11 @@ type AppSplices = Splices (I.Splice AppHandler)
 handleLogin :: AppHandler ()
 handleLogin 
   = method GET (with auth $ handleLoginForm Nothing) <|>
-    method POST (do { user <- getRequiredParam "login"
-                    ; passwd <- getRequiredParam "password"
+    method POST (do { user <- require (getParam "login") 
+                    ; passwd <- require (getParam "password")
                     ; ldapconf <- getLdapConf
                     ; with auth $ handleLoginSubmit ldapconf user passwd
-                    })
+                    } <|> badRequest)
 
 
 -- | Render login form

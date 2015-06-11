@@ -1,6 +1,7 @@
 <apply template="base">
-<h1><probsetTitle/></h1>
+<div class="description">
 <probsetDescr/>
+</div>
 <div class="filterlist">
 <form action="/problems" method="get">
 <dl>
@@ -14,7 +15,6 @@
 <p><a href="/problems">Limpar filtros</a></p>
 </form>
 </div>
-
 <div class="problemlist">
 <dl>
 <problemList>
@@ -34,5 +34,4 @@
 </problemList>
 </dl>
 </div>
-
 </apply>

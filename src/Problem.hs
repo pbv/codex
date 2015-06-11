@@ -6,33 +6,23 @@
 module Problem ( 
   Problem(..),
   ProblemSet(..),
-  -- getProblemSet,   -- * query the current problemset
-  -- getProblem,
-  -- lookupProblemSet,
   readProblem,     -- * read a single problem
   readProblemSet,  -- * read a problem set
-  -- readProblemDir,  -- * list all problem ids
   isEarly,         -- * check problem's acceptance dates
   isLate,
   isOpen,          -- * can be submitted and accepted
-  -- renderProblem,    -- * render problem description into HTML
-  renderPandoc,
+  renderPandoc,   -- * render description into HTML
   Tagged, taglist, isTagged, hasTags  -- * problem tagging
   ) where
 
--- import           Prelude hiding(catch)
-import           Data.List (sort)
 import           System.Locale (defaultTimeLocale)
 import           Data.Time.Clock
 import           Data.Time.Format
 import           Data.Time.LocalTime
 import           Control.Monad
-import           Control.Monad.Trans (liftIO)
 import           Control.Applicative ((<$>))
 import           System.FilePath
-import           System.Directory
 
--- import           Data.ByteString.UTF8(ByteString)
 import qualified Data.ByteString.UTF8 as B
 
 import           Data.Text(Text)
@@ -49,7 +39,7 @@ import           Text.Blaze.Renderer.XmlHtml
 import           Interval (Interval)
 import qualified Interval as Interval
 import           Types
-import           Application
+
 
 
 -- an individual problem
@@ -74,12 +64,7 @@ data ProblemSet = ProblemSet {
     } deriving Show
 
 
-
-
--- a type class for collecting tags from problems, etc.
-class Tagged a where
-    taglist  :: a -> [Tag]
-
+-- | collect all tags from problems and problem sets
 instance Tagged Problem where
     taglist = probTags
 
@@ -91,38 +76,17 @@ instance Tagged ProblemSet where
       where  dynamic = ["*accepted*", "*not accepted*", 
                         "*submitted*", "*not submitted*"]
 
--- check if something is tagged with a single tag
-isTagged :: Tagged a => Tag -> a -> Bool
-isTagged tag a = tag `elem` taglist a
-
--- check if something is tagged with a list of tags
-hasTags :: Tagged a => [Tag] -> a -> Bool
-hasTags tags a = tags `isSublistOf` taglist a
-
--- sublist checking
-isSublistOf :: Eq a => [a] -> [a] -> Bool
-isSublistOf xs ys = all (`elem`ys) xs
-
-
-{-
--- check if a problem can be submited
-problemAvailable :: UTCTime -> ProblemSet -> Problem -> Bool
-problemAvailable now ProblemSet{..} Problem{..}
-    = probID `elem` probsetIDs &&
-      (not probsetExam || 
-       now `Interval.elem` (Interval.intersect probsetOpen probOpen))
--}
 
 
 
-
-
+-- | low-level IO read functions
 -- read a problemset from the file system
 readProblemSet :: IO ProblemSet
 readProblemSet =
   (readMarkdown myReaderOptions <$> readFile problemSetPath) >>=
   makeProblemSet
 
+makeProblemSet :: Pandoc -> IO ProblemSet
 makeProblemSet descr@(Pandoc meta blocks) = do
   tz <- getCurrentTimeZone
   -- open time interval for whole problemset 
@@ -146,17 +110,6 @@ makeProblemSet descr@(Pandoc meta blocks) = do
       _                 -> []
   
 
-{-
--- read the problem directory;
--- return a list of all problem IDs in order
-readProblemDir :: IO [PID]
-readProblemDir = do
-  list <- getDirectoryContents problemDirPath
-  return $ sort $ map mkPID $ filter (accept.takeExtension) list
-  where
-    accept ext = ext `elem` concatMap fst extensionsList
-    mkPID = PID . B.fromString 
--}
 
 
 readProblem :: PID -> IO Problem 
@@ -225,31 +178,6 @@ fetchBool tag meta = lookupMeta tag meta >>= checkBool
         checkBool _            = Nothing
 
 
-fetchText :: String -> Meta -> Maybe Text
-fetchText tag meta = query inlineText <$> lookupMeta tag meta
-
-
-
--- from Text.Pandoc.Definition
--- lookupMeta :: String -> Meta -> Maybe MetaValue 
-{-
-fetchText :: String -> Meta -> Maybe Text
-fetchText tag meta = query inlineText <$> lookup tag meta
-
-fetchString :: String -> Meta -> Maybe String
-fetchString tag meta = query inlineString <$> lookup tag meta
-
-
-lookupInline tag meta = do
-  v <- lookupMeta tag meta
-  return (query inlineStrings v)
-
-lookupBlock tag meta = do
-  v <- lookupMeta tag meta
-  return (query blockStrings v)
--}
-
-
 
 
 -- collect text in inline and block elements
@@ -272,31 +200,7 @@ blockText _               = T.empty
 
 inlineString = T.unpack . inlineText
 inlineByteString = B.fromString . inlineString
--- blockString  = T.unpack . blockText
 
-
-
-{-
-inlineStrings :: Inline -> String
-inlineStrings (Str s) = s
-inlineStrings Space   = " "
-inlineStrings LineBreak = "\n"
-inlineStrings _ = ""
-
-blockStrings :: Block -> String
-blockStrings (Plain l) =  query inlineStrings l
-blockStrings (Para p)  = query inlineStrings p
-blockStrings (CodeBlock _ s)= s
-blockStrings (RawBlock _ s)= s
-blockStrings _ = ""
--}
-
-{-
--- parse strings as localtimes to make an interval
-parseInterval :: Maybe String -> Maybe String -> Interval LocalTime
-parseInterval open close
-  =  Interval.interval (open >>= parseLocalTime) (close >>= parseLocalTime)
--}
   
 -- parse a local time string 
 parseLocalTime :: String -> Maybe LocalTime
@@ -315,11 +219,6 @@ isLate t Problem{..} = t `Interval.after` probOpen
 -- check if a problem can be submited & accepted
 isOpen :: UTCTime -> Problem  -> Bool
 isOpen t Problem{..} = t `Interval.elem` probOpen
-
-
--- render a problem into XHTML nodes
--- renderProblem :: Problem -> [Node]
--- renderProblem  = renderHtmlNodes . writeHtml myWriterOptions . probDescr
 
 
 renderPandoc :: Pandoc -> [Node]

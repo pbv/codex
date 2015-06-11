@@ -10,12 +10,9 @@ import qualified Data.ByteString.UTF8 as B
 
 import           Data.Text(Text)
 import qualified Data.Text as T
--- import qualified Data.Text.Encoding as T
--- import qualified Data.Text.Encoding.Error as T
 
 import qualified Data.HashMap.Strict as HM
 
-import           Data.Maybe
 import           Data.Char (isAlphaNum,toLower)
 
 import           Control.Monad.Trans.Maybe

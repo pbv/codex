@@ -4,25 +4,18 @@
 -}
 module Utils where
 
--- import           Control.Concurrent.MVar
 import           Control.Monad.State
 import           Data.Text(Text)
--- import qualified Data.Text
 import           Data.ByteString.UTF8 (ByteString)
 import qualified Data.ByteString.UTF8 as B
-
-import           Data.Time (TimeZone)
--- import           Data.Text (Text)
 import qualified Data.Text as T
 
-import Snap.Core
-import Snap.Snaplet
-import Snap.Snaplet.Heist
-import Snap.Snaplet.Auth
--- import Snap.Snaplet.Session
+import           Snap.Core
+import           Snap.Snaplet
+import           Snap.Snaplet.Heist
+import           Snap.Snaplet.Auth
 
 import           Heist
--- import           Heist.SpliceAPI
 import qualified Heist.Interpreted as I
 
 import qualified Text.XmlHtml as X
@@ -31,45 +24,17 @@ import qualified Text.XmlHtml as X
 import qualified Data.Configurator as Configurator
 import           Data.Configurator.Types
 
-import Control.Applicative 
-import Control.Exception (SomeException)
+import           Control.Applicative 
+import           Control.Exception (SomeException)
 
--- import System.Process
--- import System.Exit (ExitCode)
-import System.Remote.Monitoring
-import System.Remote.Counter as Counter
+import           System.Remote.Monitoring
+import           System.Remote.Counter as Counter
 
--- import Paths_pythondo(version)
-
-import Application
-import Types
-import LdapAuth
-
-import Problem
+import           Application
+import           Types
+import           LdapAuth
 
 
-{-
-getConfigured :: Configured a => Name -> a -> AppHandler a
-getConfigured key def = do 
-  conf <- gets _config
-  liftIO $ Configurator.lookupDefault def conf key 
-
-ifConfigured :: Name -> AppHandler Bool
-ifConfigured key = do
-  conf <- gets _config
-  liftIO $ Configurator.lookupDefault False conf key
--}
-
-
--- | get a configured value
-{-
-getConfig :: Configured a => Name -> AppHandler (Maybe a)
-getConfig key = do
-  conf <- gets _config
-  liftIO $ Configurator.lookup conf key
--}
-
-  
 
 -- | read configuration parameters 
 configSandbox :: Config -> IO Sandbox
@@ -126,16 +91,8 @@ incrCounter name
 
 
 -- | Get current logged in user; fail with unauthorized error if missing
-getRequiredUserID :: AppHandler UID
-getRequiredUserID = require getUserID <|> unauthorized
-  {-
-getLoggedUser :: AppHandler UID
-getLoggedUser = do 
-  opt <- with auth currentUser
-  case opt of
-    Nothing -> unauthorized
-    Just au -> return (UID . B.fromString $ T.unpack $ userLogin au)
--}
+-- getRequiredUserID :: AppHandler UID
+-- getRequiredUserID = require getUserID <|> unauthorized
 
 -- | Get current logged in user ID (if any)
 --   from the authentication snaplet  
@@ -151,21 +108,12 @@ getFullName = do
   return (fmap userName opt)
 
 
-
--- | Get a required HTTP parameter; fails if missing
-getRequiredParam :: ByteString -> AppHandler ByteString
-getRequiredParam p = require (getParam p) <|> badRequest
-
-
 getProblemID :: AppHandler (Maybe PID)
 getProblemID = fmap PID <$> getParam "pid"
 
 getSubmissionID :: AppHandler (Maybe SID)
 getSubmissionID = fmap (SID . read . B.toString) <$> getParam "sid"
 
-
--- getConfigExam :: AppHandler Bool
--- getConfigExam = maybe False id <$> getConfig "exam"
 
 
 -- | try a Maybe-handler and "pass" if it yields Nothing 

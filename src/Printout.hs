@@ -40,7 +40,7 @@ handlePrintout :: UID -> ProblemSet -> AppHandler ()
 handlePrintout uid ProblemSet{..} | probsetPrintout = do
   fullname <- require getFullName 
   let pids =  map probID probsetProbs
-  subs <- mapM (getBestSubmission uid) (map probID probsetProbs)
+  subs <- mapM (getBestSubmission uid) pids
   printout <- getPrintout
   clientname <- getClient
   liftIO $ makePrintout printout uid fullname clientname (zip probsetProbs subs)

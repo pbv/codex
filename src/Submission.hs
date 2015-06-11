@@ -13,10 +13,7 @@ import           Data.Time.Clock
 import           System.Exit (ExitCode)
 import           Data.Maybe
 import           Data.Typeable
-import           Data.Map (Map)
-import qualified Data.Map as Map
 
-import           Data.ByteString.UTF8(ByteString)
 import qualified Data.ByteString.UTF8 as B
 import           Data.Text(Text) 
 import qualified Data.Text    as T
@@ -25,8 +22,7 @@ import qualified Data.Text.IO as T
 import           Text.Regex
 
 import           Control.Exception(bracket)
-
-import           Control.Monad.State
+import           Control.Monad.Trans (liftIO)
 import           Control.Applicative
 
 import           Snap.Core
@@ -122,37 +118,7 @@ getSubmissions uid pid =
        \ WHERE user_id = ? AND problem_id = ? ORDER BY id" (uid, pid)
 
 
-
-
--- | get user's submissions summary aggreated by problem IDs
--- result (problem_id, #submissions, #accepted)
-{-
-getSubmissionsCount :: UID -> AppHandler [(PID,Int,Int)]
-getSubmissionsCount uid =
-  query "SELECT problem_id, COUNT(*), SUM(status='Accepted') \
-       \ FROM submissions WHERE user_id = ? GROUP BY problem_id" (Only uid)
--}
-
-{-
--- count number of accepted submissions for each problem
-getAcceptedCount ::  UID -> AppHandler (Map PID Int)
-getAcceptedCount uid = 
-    Map.fromList <$>
-    query "SELECT problem_id, SUM(status='Accepted') \
-          \ FROM submissions WHERE user_id = ? GROUP BY problem_id" (Only uid)
-
-
--- count number of submissions for each problem
-getSubmissionsCount ::  UID -> AppHandler (Map PID Int)
-getSubmissionsCount uid = 
-    Map.fromList <$>
-    query "SELECT problem_id, COUNT(*) \
-          \ FROM submissions WHERE user_id = ? GROUP BY problem_id" (Only uid)
-
--}
-
-
--- count the number of  attempted and accepted submissions
+-- | count the number of accepted submissions for a problem
 getAcceptedCount :: UID -> PID -> AppHandler Int
 getAcceptedCount uid pid = do
   r <- listToMaybe <$>
@@ -162,16 +128,13 @@ getAcceptedCount uid pid = do
   return $ maybe 0 fromOnly r
     
 
--- count the number of submissions                                            
-getSubmittedCount :: UID -> PID -> AppHandler Int
-getSubmittedCount uid pid = do
+-- | count the total number of submissions for a problem
+getSubmissionCount :: UID -> PID -> AppHandler Int
+getSubmissionCount uid pid = do
     r <- listToMaybe <$>
          query "SELECT COUNT(*) \
                \ FROM submissions WHERE user_id = ? AND problem_id = ?" (uid,pid)
     return $ maybe 0 fromOnly r
-
-
-
 
 
 -- | get the best submission for a problem for printouts:.
@@ -187,12 +150,6 @@ getBestSubmission uid pid =
              \ FROM submissions WHERE user_id = ? AND problem_id = ? \
              \ ORDER BY accept DESC, id DESC LIMIT 1)" (uid,pid) 
 
-  
--- | list all problems that a user has submited
-getSubmittedPIDs :: UID -> AppHandler [PID]
-getSubmittedPIDs uid = 
-    query "SELECT problem_id FROM submissions WHERE user_id = ? \
-          \ GROUP BY problem_id ORDER BY problem_id ASC" (Only uid)
 
 
 --
@@ -203,8 +160,8 @@ postSubmission uid prob submit =
   let tstfile = probDoctest prob
       tmpdir  = "tmp" </> show uid
   in do 
+    -- create a temporary directory for this user (if necessary)
     now <- liftIO getCurrentTime
-    -- create a temporary directory for this user (if missing)
     liftIO $ createDirectoryIfMissing True tmpdir 
     (exitCode, out, err) <- runSubmission tmpdir tstfile submit
     let (status, report) = makeReport now prob out err

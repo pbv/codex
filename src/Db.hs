@@ -5,14 +5,10 @@
 module Db where
 
 import           Control.Monad
-import           Data.Text (Text)
-import qualified Data.Text as T
 
 import qualified Database.SQLite.Simple as S
 import           Snap.Snaplet.SqliteSimple
 
-import           Types
-import           Problem 
 
 tableExists :: S.Connection -> String -> IO Bool
 tableExists conn tblName = do
