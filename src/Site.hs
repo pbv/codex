@@ -36,6 +36,7 @@ import           Snap.Snaplet.Heist
 import           Snap.Snaplet.Session.Backends.CookieSession
 import           Snap.Util.FileServe
 import           Heist
+import           Heist.Splices
 import qualified Heist.Interpreted as I
 
 import           Data.Time.Clock
@@ -64,6 +65,9 @@ import           Printout
 
 import           Paths_pythondo(version)
 import           Data.Version (showVersion)  
+
+
+import qualified Text.XmlHtml as X
 
 -- my application splices
 type AppSplices = Splices (I.Splice AppHandler)
@@ -196,11 +200,11 @@ handleProblemList = method GET $ do
 
   -- render page
   renderWithSplices "problemlist" $ do
-    "probsetDescr" ## return (renderPandoc $ probsetDescr probset)
-    "tagList" ## I.mapSplices (I.runChildrenWith . tagSplices) (taglist available)
-    "problemList" ##  I.mapSplices (I.runChildrenWith . summarySplices now) visible
-    "availableProblems" ## I.textSplice (T.pack $ show $ length available)
-    "visibleProblems" ## I.textSplice (T.pack $ show $ length visible)
+    "problemset_description" ## return (renderPandoc $ probsetDescr probset)
+    "tag_list" ## I.mapSplices (I.runChildrenWith . tagSplices) (taglist available)
+    "problem_list" ##  I.mapSplices (I.runChildrenWith . summarySplices now) visible
+    "available_problems" ## I.textSplice (T.pack $ show $ length available)
+    "visible_problems" ## I.textSplice (T.pack $ show $ length visible)
                
                
 -- get tag list from query string
@@ -212,30 +216,50 @@ getQueryTags = do
 
 
 summarySplices :: UTCTime -> ProblemSummary -> AppSplices
-summarySplices now ProblemSummary{..}
+summarySplices now ProblemSummary{..} 
     = do problemSplices summaryProb
-         counterSplices summaryAttempts
          timerSplices now (probOpen summaryProb)
-         "ifAccepted" ## conditionalSplice (summaryAccepted > 0) 
+         "number_submissions" ## I.textSplice (T.pack $ show summaryAttempts)
+         "number_accepted"    ## I.textSplice (T.pack $ show summaryAccepted)
+         "if_submitted" ## conditionalSplice (summaryAttempts>0)
+         "if_accepted" ## conditionalSplice (summaryAccepted>0)
 
+--         counterSplices summaryAttempts
+-- "ifAccepted" ## conditionalSplice (summaryAccepted > 0) 
+
+         
 
 
 -- | splices related to a single problem       
 problemSplices :: Problem -> AppSplices
-problemSplices prob@Problem{..} = do
-  "probID" ## I.textSplice (T.pack $ show probID)
-  "probTitle" ## maybe (return []) I.textSplice probTitle
-  "probDoc" ## return (renderPandoc probDescr)
-  "probDefault" ## maybe (return []) I.textSplice probDefault
-  "probTags" ## I.textSplice (T.unwords probTags)
+problemSplices Problem{..} = do
+  "problem_id" ## I.textSplice (T.pack $ show probID)
+  "problem_title" ## maybe (return []) I.textSplice probTitle
+  "problem_description" ## return (renderPandoc probDescr)
+  "problem_default" ## maybe (return []) I.textSplice probDefault
+  "problem_tags" ## I.textSplice (T.unwords probTags)
 
 
 
 
 
--- | splices related to a timer interval
+-- | splices related to problem's time interval
 timerSplices ::  UTCTime -> Interval UTCTime -> AppSplices
-timerSplices now interval = do
+timerSplices now open = do
+  "if_open" ##  conditionalSplice (now`Interval.elem`open)
+  "if_early" ## conditionalSplice (now`Interval.before`open)
+  "if_late"  ## conditionalSplice (now`Interval.after`open)
+  "if_limited" ## conditionalSplice (Interval.limited open)
+  "start_time" ## maybe (return []) timeSplice (Interval.start open)
+  "end_time" ## maybe (return []) timeSplice (Interval.end open)
+  "remaining_time" ## I.textSplice $ T.pack $ case Interval.end open of 
+                   Nothing -> "N/A"
+                   Just t' -> formatNominalDiffTime $ diffUTCTime t' now
+  "remaining_js_timer" ## case Interval.end open of 
+                            Nothing -> return []
+                            Just t' -> return $ jsTimer (diffUTCTime t' now)
+
+{-
   "ifOpen" ## conditionalSplice (now `Interval.elem` interval)
   "ifEarly" ## conditionalSplice (now `Interval.before`interval)
   "ifLate" ##  conditionalSplice (now `Interval.after`interval)
@@ -245,7 +269,7 @@ timerSplices now interval = do
   "timerLeft"  ## case Interval.end interval of 
     Nothing -> return []
     Just t' -> I.textSplice $ T.pack $ formatNominalDiffTime $ diffUTCTime t' now
-
+-}
   
 -- splice an UTC time as local time 
 timeSplice :: UTCTime -> I.Splice AppHandler
@@ -265,35 +289,42 @@ formatNominalDiffTime secs
   where m = (floor (secs / 60)) :: Int
         h = (m `div` 60) 
         d = (h `div` 24)  
-        
--- | splices relating to a single submission
-submissionSplices :: Submission -> AppSplices
-submissionSplices s = do 
-  "submitID"   ## I.textSplice (T.pack $ show $ submitID s)
-  "submitPID"  ## I.textSplice (T.pack $ show $ submitPID s)
-  "submitTime" ## timeSplice (submitTime s)
-  "submitText" ## I.textSplice (submitText s)
-  "submitStatus" ## I.textSplice (T.pack $ show r)
-  "submitReport" ## I.textSplice (submitReport s)
-  "ifAccepted" ## conditionalSplice (r == Accepted)
-  "ifOverdue" ##  conditionalSplice (r == Overdue)
-  "ifRejected" ## conditionalSplice (r/= Accepted && r/=Overdue)
-  where r = submitStatus s
 
--- splices relating to a list of submissions
+
+
+-- | splices relating to a list of submissions
 submissionsSplice :: [Submission] -> AppSplices
 submissionsSplice lst = do
   "submissions" ## I.mapSplices (I.runChildrenWith . submissionSplices) lst
-  "ifAccepted" ## conditionalSplice (any isAccepted lst)
-  counterSplices (length lst)
+  "number_submissions" ## I.textSplice (T.pack $ show n)
+  "if_accepted" ## conditionalSplice (any isAccepted lst)
+  "if_submitted" ## conditionalSplice (n>0) 
+  where n = length lst
+
+        
+-- | splices relating to a single submission
+submissionSplices :: Submission -> AppSplices
+submissionSplices Submission{..} = do 
+  "submit_id"   ## I.textSplice (T.pack $ show submitID)
+  "submit_pid"  ## I.textSplice (T.pack $ show submitPID)
+  "submit_time" ## timeSplice submitTime 
+  "submit_text" ## I.textSplice submitText
+  "submit_status" ## I.textSplice (T.pack $ show submitStatus)
+  "submit_report" ## I.textSplice submitReport 
+  "if_accepted" ## conditionalSplice (submitStatus == Accepted) 
+  "if_overdue" ##  conditionalSplice (submitStatus == Overdue) 
+  "if_rejected" ## conditionalSplice (submitStatus/= Accepted && submitStatus/=Overdue) 
 
 
+
+
+{-
 -- | splices concerning submissions count
 counterSplices :: Int -> AppSplices
 counterSplices n = do 
   "count" ## I.textSplice (T.pack $ show n)
   "ifSubmitted" ## conditionalSplice (n>0)
-
+-}
 
 
 
@@ -326,7 +357,7 @@ handlePostSubmission = method POST $ do
   incrCounter "submissions"
   renderWithSplices "report" $ do problemSplices prob 
                                   submissionSplices sub 
-                                  timerSplices  now (probOpen prob)
+                                  timerSplices now (probOpen prob)
 
 
 {-
@@ -369,9 +400,8 @@ handleFinalReport uid ProblemSet{..} | probsetExam = do
     subs <- mapM (getBestSubmission uid) pids
     let psubs = [(p,s) | (p, Just s)<-zip probsetProbs subs]
     renderWithSplices "finalrep" $
-      "problemList" ## I.mapSplices (I.runChildrenWith . splices) psubs
-  where splices (prob,sub) = do problemSplices prob 
-                                submissionSplices sub
+      "problem_list" ## I.mapSplices (I.runChildrenWith . splices) psubs
+  where splices (prob,sub) = problemSplices prob >> submissionSplices sub
 
 -- not exam mode: proceed to logout immediately
 handleFinalReport _ _ = handleLogout

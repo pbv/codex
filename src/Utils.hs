@@ -34,6 +34,7 @@ import           Application
 import           Types
 import           LdapAuth
 
+import           Data.Time.Clock
 
 
 -- | read configuration parameters 
@@ -149,8 +150,11 @@ finishError code msg = do
   finishWith r
   
 
+conditionalSplice :: Bool -> I.Splice AppHandler
+conditionalSplice cond = if cond then I.runChildren else return []
 
 
+{-
 -- | a splice for conditionals with a nested <else>...</else>
 conditionalSplice ::  Bool -> I.Splice AppHandler
 conditionalSplice cond = localParamNode rewrite I.runChildren
@@ -171,7 +175,7 @@ filterChildren :: (X.Node -> Bool) -> X.Node -> X.Node
 filterChildren f (X.Element tag attrs children) 
   = X.Element tag attrs (filter f children)
 filterChildren _ node = node    
-
+-}
 
 
 -- | make a checkbox input for a tag filter
@@ -187,3 +191,10 @@ checkboxInput value checked disabled
                 ]
         attrs' = [ ("class","disabled") | disabled ]
                 
+
+
+jsTimer :: NominalDiffTime -> [X.Node]
+jsTimer secs = [X.Element "span" [("id","js-timer")] [],
+                javascript $ T.pack $ "countdown(" ++ show (floor secs :: Int) ++ ");"]
+
+javascript txt = X.Element "script" [("type","text/javascript")] [X.TextNode txt]
