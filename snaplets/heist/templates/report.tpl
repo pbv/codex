@@ -17,7 +17,7 @@
 </if_rejected>
 
 <h2>Nova submissão</h2>
-<bind tag="postAction">/submissions/${probID}</bind>
+<bind tag="postAction">/submissions/${problem_id}</bind>
 <bind tag="buttonText">Enviar</bind>
 <apply template="_submission"><submit_text/></apply>
 

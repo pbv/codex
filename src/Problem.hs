@@ -83,15 +83,15 @@ instance Tagged ProblemSet where
 -- read a problemset from the file system
 readProblemSet :: IO ProblemSet
 readProblemSet =
-  (readMarkdown myReaderOptions <$> readFile problemSetPath) >>=
-  makeProblemSet
+  (readMarkdown myReaderOptions <$> readFile problemSetPath) >>=  makeProblemSet
+
 
 makeProblemSet :: Pandoc -> IO ProblemSet
 makeProblemSet descr@(Pandoc meta blocks) = do
   tz <- getCurrentTimeZone
   -- open time interval for whole problemset 
   let time = localTimeToUTC tz <$> Interval.interval open close
-  probs <- mapM readProblem pids
+  probs <- mapM readProblem paths
   return ProblemSet { probsetTitle = fetchTitle descr
                     , probsetDescr = descr
                     -- restrict each problem's availability interval 
@@ -105,23 +105,21 @@ makeProblemSet descr@(Pandoc meta blocks) = do
     close = fetchTime "close" meta
     exam  = maybe False id (fetchBool "exam-mode" meta)
     printout = maybe False id (fetchBool "printout" meta)
-    pids = case lookupMeta "problems" meta of
-      Just (MetaList l) -> map (PID . query inlineByteString) l
-      _                 -> []
+    paths = case lookupMeta "problems" meta of
+      Just (MetaList l) -> map ((problemDirPath </>) . query inlineString) l
+      _                 -> error "makeProblemSet: invalid problems list"
   
 
 
 
-readProblem :: PID -> IO Problem 
-readProblem pid 
-  = let filepath = problemDirPath </> show pid
-    in do
+readProblem :: FilePath -> IO Problem 
+readProblem filepath =  do
       txt <- readFile filepath
       let ext = takeExtension filepath
       let doc = case lookup ext extensionsList of
             Just reader -> reader myReaderOptions txt
-            Nothing -> error ("readProblem: invalid file " ++ show pid)
-      makeProblem pid filepath doc
+            Nothing -> error ("readProblem: error reading " ++ show filepath)
+      makeProblem filepath doc
 
 -- file extensions and associated Pandoc readers
 extensionsList :: [(String, ReaderOptions -> String -> Pandoc)]
@@ -133,8 +131,8 @@ extensionsList
 
 
 -- make a problem from a Pandoc document
-makeProblem :: PID -> FilePath -> Pandoc -> IO Problem
-makeProblem pid filepath descr@(Pandoc meta blocks)
+makeProblem :: FilePath -> Pandoc -> IO Problem
+makeProblem filepath descr@(Pandoc meta blocks)
     = do tz <- getCurrentTimeZone
          let time = localTimeToUTC tz <$> Interval.interval open close
          return Problem { probID = pid,
@@ -146,6 +144,8 @@ makeProblem pid filepath descr@(Pandoc meta blocks)
                           probDescr = descr
                         }
   where
+    -- assumes problem file basenames are unique
+    pid = PID $ B.fromString $ takeBaseName filepath
     -- fetch metadata from Pandoc document
     open = fetchTime "open" meta
     close = fetchTime "close" meta
@@ -176,8 +176,6 @@ fetchBool :: String -> Meta -> Maybe Bool
 fetchBool tag meta = lookupMeta tag meta >>= checkBool
   where checkBool (MetaBool b) = Just b
         checkBool _            = Nothing
-
-
 
 
 -- collect text in inline and block elements

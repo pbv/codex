@@ -7,15 +7,10 @@
 
 <if_open>
   <if_limited>
-    <p>Tempo disponível: <em><remaining_time/></em></p> 
+    <p>Tempo disponível: <remaining_js_timer/></p> 
   </if_limited>
 </if_open>
 
-<if_open>
-<if_limited>
-<h3>Tempo disponível: <remaining_js_timer/></h3>
-</if_limited>
-</if_open>
 
 
 <if_submitted>

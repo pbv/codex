@@ -193,8 +193,12 @@ checkboxInput value checked disabled
                 
 
 
-jsTimer :: NominalDiffTime -> [X.Node]
-jsTimer secs = [X.Element "span" [("id","js-timer")] [],
-                javascript $ T.pack $ "countdown(" ++ show (floor secs :: Int) ++ ");"]
+jsTimer :: PID -> NominalDiffTime -> [X.Node]
+jsTimer pid secs
+  = [X.Element "span" [("id",T.pack id),
+                       ("class", "js-timer")] [],
+     javascript $ T.pack $
+     "start_countdown(" ++ show id ++ "," ++ show (floor secs :: Int) ++ ");"]
+  where id = show pid ++ "-js-timer"
 
 javascript txt = X.Element "script" [("type","text/javascript")] [X.TextNode txt]

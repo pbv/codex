@@ -26,7 +26,7 @@
 	<if_late>Submissões fecharam em <end_time/>.</if_late>
 	<if_open>
 	<if_limited>
-	  Submissões terminam em <end_time/>; tempo disponível: <em><remaining_time/></em>.
+	  Submissões terminam em <end_time/>; tempo disponível: <em><remaining_js_timer/></em>.
 	</if_limited>
 	</if_open>
     </span>

@@ -5,13 +5,9 @@
     <script type="text/javascript"
 	    src="/mathjax/MathJax.js?config=TeX-AMS-MML_HTMLorMML"></script>
     <script type="text/javascript">
-function countdown(secs) {
-    var timeout = new Date();
-    timeout.setTime(timeout.getTime() + secs*1000);
-
-    setInterval(function () {
+function refresh_timer(id, future) {
         var now = new Date();
-        var t = Math.floor((timeout - now)/1000);
+        var t = Math.floor((future- now)/1000);
         if (t>0) {
         s = t % 60;
         t = Math.floor(t/60);  
@@ -23,11 +19,17 @@ function countdown(secs) {
                (h>0 ? h + "h " : "") +
                (m>0 ? m + "m " : "") +
                (s + "s");
-       document.getElementById("js-timer").innerHTML = time;
+       document.getElementById(id).innerHTML = time;
        } else {
-       document.getElementById("js-timer").innerHTML = "N/A";
+       document.getElementById(id).innerHTML = "N/A";
        }
- }, 1000);
+}
+
+function start_countdown(id,secs) {
+    var timeout = new Date();
+    timeout.setTime(timeout.getTime() + secs*1000);
+    refresh_timer(id, timeout);
+    setInterval(function () { refresh_timer(id, timeout) }, 1000);
 }    
     </script>
   </head>

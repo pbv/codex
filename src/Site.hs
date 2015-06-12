@@ -109,8 +109,8 @@ handleLoginSubmit =
 handleLoginSubmit :: 
   LdapConf -> ByteString -> ByteString -> Handler Pythondo (AuthManager Pythondo) ()
 handleLoginSubmit ldapConf user passwd = do
-  optAuth <- withBackend (\r -> liftIO $ ldapAuth r ldapConf user passwd)
-  -- optAuth <- withBackend (\r -> liftIO $ dummyAuth r ldapConf user passwd)
+  -- optAuth <- withBackend (\r -> liftIO $ ldapAuth r ldapConf user passwd)
+  optAuth <- withBackend (\r -> liftIO $ dummyAuth r ldapConf user passwd)
   case optAuth of 
     Nothing -> handleLoginForm err
     Just u -> forceLogin u >> redirect "/problems"
@@ -174,7 +174,7 @@ handleProblem = method GET $ do
     subs <- getSubmissions uid pid
     renderWithSplices "problem" $ do problemSplices prob
                                      submissionsSplice subs
-                                     timerSplices now (probOpen prob)
+                                     timerSplices pid now (probOpen prob)
 
         
 
@@ -218,7 +218,7 @@ getQueryTags = do
 summarySplices :: UTCTime -> ProblemSummary -> AppSplices
 summarySplices now ProblemSummary{..} 
     = do problemSplices summaryProb
-         timerSplices now (probOpen summaryProb)
+         timerSplices (probID summaryProb) now (probOpen summaryProb)
          "number_submissions" ## I.textSplice (T.pack $ show summaryAttempts)
          "number_accepted"    ## I.textSplice (T.pack $ show summaryAccepted)
          "if_submitted" ## conditionalSplice (summaryAttempts>0)
@@ -244,8 +244,8 @@ problemSplices Problem{..} = do
 
 
 -- | splices related to problem's time interval
-timerSplices ::  UTCTime -> Interval UTCTime -> AppSplices
-timerSplices now open = do
+timerSplices ::  PID -> UTCTime -> Interval UTCTime -> AppSplices
+timerSplices pid now open = do
   "if_open" ##  conditionalSplice (now`Interval.elem`open)
   "if_early" ## conditionalSplice (now`Interval.before`open)
   "if_late"  ## conditionalSplice (now`Interval.after`open)
@@ -257,7 +257,7 @@ timerSplices now open = do
                    Just t' -> formatNominalDiffTime $ diffUTCTime t' now
   "remaining_js_timer" ## case Interval.end open of 
                             Nothing -> return []
-                            Just t' -> return $ jsTimer (diffUTCTime t' now)
+                            Just t' -> return $ jsTimer pid (diffUTCTime t' now)
 
 {-
   "ifOpen" ## conditionalSplice (now `Interval.elem` interval)
@@ -357,7 +357,7 @@ handlePostSubmission = method POST $ do
   incrCounter "submissions"
   renderWithSplices "report" $ do problemSplices prob 
                                   submissionSplices sub 
-                                  timerSplices now (probOpen prob)
+                                  timerSplices pid now (probOpen prob)
 
 
 {-
