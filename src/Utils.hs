@@ -149,10 +149,24 @@ finishError code msg = do
   r <- getResponse
   finishWith r
   
-
-conditionalSplice :: Bool -> I.Splice AppHandler
+{-
+-- simple conditional splice
+conditionalSplice :: Monad m => Bool -> I.Splice m
 conditionalSplice cond = if cond then I.runChildren else return []
+-}
 
+
+-- if/then/else conditional splice
+-- split children around the <else/> element; removes the <else/> element
+ifElseISplice :: Monad m => Bool -> I.Splice m
+ifElseISplice cond = getParamNode >>= (rewrite . X.childNodes)
+  where rewrite nodes = 
+          let (ns, ns') = break (\n -> X.tagName n==Just "else") nodes
+          in I.runNodeList $ if cond then ns else (drop 1 ns') 
+
+conditionalSplice :: Monad m => Bool -> I.Splice m
+conditionalSplice = ifElseISplice
+    
 
 {-
 -- | a splice for conditionals with a nested <else>...</else>

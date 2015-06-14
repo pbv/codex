@@ -1,8 +1,10 @@
 <bind tag="accept_icon"><img src="/icons/16x16/accepted.png" alt="Accepted"/></bind>
+<bind tag="reject_icon"><img src="/icons/16x16/rejected.png" alt="Rejected"/></bind>
+<bind tag="overdue_icon"><img src="/icons/16x16/overdue.png" alt="Overdue"/></bind>
 <apply template="base">
 <problem_description/>
 <if_early><p>Submissões vão abrir em: <start_time/>.</if_early>
- <if_late><p>Submissões fecharam em: <end_time/>.</if_late>
+<if_late><p>Submissões fecharam em: <end_time/>.</if_late>
 
 
 <if_open>
@@ -18,7 +20,7 @@
 <ol class="submissions">
 <submissions>
   <li class="submissionli">
-  <a href="/submissions/${problem_id}/${submit_id}"><span class="info"><submit_status/><if_accepted>&nbsp;<accept_icon/></if_accepted></span></a>
+  <a href="/submissions/${problem_id}/${submit_id}"><span class="info"><submit_status/><if_accepted>&nbsp;<accept_icon/></if_accepted><if_rejected>&nbsp;<reject_icon/></if_rejected><if_overdue>&nbsp;<overdue_icon/></if_overdue></span></a>
   </li>
 </submissions>
 </ol>

@@ -1,5 +1,5 @@
 <html>
-  <head>
+ <head>
     <title>Pythondo server</title>
     <link rel="stylesheet" type="text/css" href="/screen.css"/>
     <script type="text/javascript"
@@ -15,10 +15,14 @@ function refresh_timer(id, future) {
         t = Math.floor(t/60);
         h = t % 24;
         d = Math.floor(t/24)
+        if(d>0 || h>0) {
         time = (d>0 ? d + "d " : "") + 
                (h>0 ? h + "h " : "") +
-               (m>0 ? m + "m " : "") +
+               (m + "m");
+       } else {
+        time = (m>0 ? m + "m " : "") +
                (s + "s");
+       }
        document.getElementById(id).innerHTML = time;
        } else {
        document.getElementById(id).innerHTML = "N/A";
