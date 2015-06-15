@@ -81,13 +81,14 @@ instance Tagged ProblemSet where
 
 -- | low-level IO read functions
 -- read a problemset from the file system
-readProblemSet :: IO ProblemSet
-readProblemSet =
-  (readMarkdown myReaderOptions <$> readFile problemSetPath) >>=  makeProblemSet
+readProblemSet :: FilePath -> IO ProblemSet
+readProblemSet filepath =
+  (readMarkdown myReaderOptions <$> readFile filepath) >>=  
+  makeProblemSet (takeDirectory filepath)
 
 
-makeProblemSet :: Pandoc -> IO ProblemSet
-makeProblemSet descr@(Pandoc meta blocks) = do
+makeProblemSet :: FilePath -> Pandoc -> IO ProblemSet
+makeProblemSet problemDir descr@(Pandoc meta blocks) = do
   tz <- getCurrentTimeZone
   -- open time interval for whole problemset 
   let time = localTimeToUTC tz <$> Interval.interval open close
@@ -106,7 +107,7 @@ makeProblemSet descr@(Pandoc meta blocks) = do
     exam  = maybe False id (fetchBool "exam-mode" meta)
     printout = maybe False id (fetchBool "printout" meta)
     paths = case lookupMeta "problems" meta of
-      Just (MetaList l) -> map ((problemDirPath </>) . query inlineString) l
+      Just (MetaList l) -> map ((problemDir </>) . query inlineString) l
       _                 -> error "makeProblemSet: invalid problems list"
   
 
@@ -225,17 +226,13 @@ renderPandoc  = renderHtmlNodes . writeHtml myWriterOptions
 
 --- pandoc reader and writter options
 myReaderOptions :: ReaderOptions
-myReaderOptions = def { readerExtensions = pandocExtensions }
+myReaderOptions = def { readerExtensions = pandocExtensions
+                      , readerSmart = True 
+                      }
 
 myWriterOptions :: WriterOptions
-myWriterOptions = def { writerHTMLMathMethod = MathJax "/mathjax",
+myWriterOptions = def { writerExtensions = pandocExtensions
+                      , writerHTMLMathMethod = MathJax "/mathjax",
                         writerHighlight = True
                       }
 
-
--- constant file paths
-problemDirPath :: FilePath
-problemDirPath = "problems"
-
-problemSetPath :: FilePath
-problemSetPath= "problemset.md"

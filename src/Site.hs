@@ -18,7 +18,7 @@ import           Control.Lens
 
 import           Data.ByteString.UTF8 (ByteString)
 import qualified Data.ByteString.UTF8 as B
--- import qualified Data.ByteString as B
+import qualified Data.ByteString      as B
 import           Data.Maybe(listToMaybe)
 -- import           Data.Map (Map)
 import qualified Data.Map as Map
@@ -109,8 +109,8 @@ handleLoginSubmit =
 handleLoginSubmit :: 
   LdapConf -> ByteString -> ByteString -> Handler Pythondo (AuthManager Pythondo) ()
 handleLoginSubmit ldapConf user passwd = do
-  -- optAuth <- withBackend (\r -> liftIO $ ldapAuth r ldapConf user passwd)
-  optAuth <- withBackend (\r -> liftIO $ dummyAuth r ldapConf user passwd)
+  optAuth <- withBackend (\r -> liftIO $ ldapAuth r ldapConf user passwd)
+  -- optAuth <- withBackend (\r -> liftIO $ dummyAuth r ldapConf user passwd)
   case optAuth of 
     Nothing -> handleLoginForm err
     Just u -> forceLogin u >> redirect "/problems"
@@ -150,22 +150,6 @@ handleForm = render "register"
 -----------------------------------------------------------------------------
 -- | problem description request 
 handleProblem :: AppHandler ()
-{-
-handleProblem = method GET $ do
-  uid <- getLoggedUser -- ensure a user is logged in
-  pid <- PID <$> getRequiredParam "pid"
-  prob <- liftIO $ readProblem pid
-  now <- liftIO getCurrentTime
-  subs <- getSubmissions uid pid
-  exam <- getConfigured "exam" False
-  -- if running in exam mode, check that the problem is available 
-  when (exam && not (now `Interval.elem` probOpen prob) && null subs)
-       badRequest
-  -- now list all submissions
-  renderWithSplices "problem" $ do problemSplices prob 
-                                   submissionsSplice subs
--}
-
 handleProblem = method GET $ do
     uid <- require getUserID  <|> unauthorized
     pid <- require getProblemID
@@ -176,9 +160,9 @@ handleProblem = method GET $ do
                                      submissionsSplice subs
                                      timerSplices pid now (probOpen prob)
 
+
+
         
-
-
 -- | problem set listing handler
 handleProblemList :: AppHandler ()
 handleProblemList = method GET $ do
@@ -346,13 +330,6 @@ handlePostSubmission = method POST $ do
   code <- T.decodeUtf8With T.ignore <$> require (getParam "code")
   prob <- getProblem pid
   now <- liftIO getCurrentTime
-  {-
-  -- if running in exam mode, check that the problem is available for submission
-  -- pids <- getSubmittedPIDs uid
-  -- exam <- getConfigExam
-  when (exam && now `Interval.notElem` probOpen prob && pid `notElem` pids) 
-       badRequest
-  -}
   sub <- postSubmission uid prob code
   incrCounter "submissions"
   renderWithSplices "report" $ do problemSplices prob 
@@ -403,7 +380,7 @@ handleFinalReport uid ProblemSet{..} | probsetExam = do
       "problem_list" ## I.mapSplices (I.runChildrenWith . splices) psubs
   where splices (prob,sub) = problemSplices prob >> submissionSplices sub
 
--- not exam mode: proceed to logout immediately
+-- not in exam mode: proceed to logout immediately
 handleFinalReport _ _ = handleLogout
 
 
@@ -413,11 +390,12 @@ handleFinalReport _ _ = handleLogout
 routes :: [(ByteString, AppHandler ())]
 routes = [ ("/login",                 handleLogin `catch` internalError)
          , ("/logout",                handleLogout `catch` internalError)
+         , ("/problems",              handleProblemList `catch` internalError )  
          , ("/problems/:pid",         handleProblem `catch` internalError )
-         , ("/problems",              handleProblemList `catch` internalError)
          , ("/submissions/:pid",      handlePostSubmission `catch` internalError)
          , ("/submissions/:pid/:sid", handleGetSubmission  `catch` internalError)
          , ("/asklogout",             handleConfirmLogout `catch` internalError)        
+         , ("/resources",             serveDirectory "resources" <|> notFound)
          , ("",                       serveDirectory "static" <|> notFound)
          ]
 {-
@@ -506,7 +484,7 @@ initEkg conf = do enabled <- Configurator.require conf "ekg.enabled"
 -- TODO: avoid re-reading the same problems every time
 -- with some caching mechanism
 getProblemSet :: AppHandler ProblemSet
-getProblemSet = liftIO readProblemSet
+getProblemSet = liftIO (readProblemSet problemSetPath)
 
 getProblem :: PID -> AppHandler Problem
 getProblem pid = do
@@ -514,6 +492,11 @@ getProblem pid = do
   case lookupProblemSet pid probset of
     Nothing -> badRequest
     Just p -> return p
+
+
+problemSetPath :: FilePath
+problemSetPath = "problems/index.md"
+
 
 lookupProblemSet :: PID -> ProblemSet -> Maybe Problem
 lookupProblemSet pid ProblemSet{..} =
