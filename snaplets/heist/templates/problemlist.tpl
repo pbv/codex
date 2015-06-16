@@ -1,6 +1,6 @@
-<bind tag="accepted_icon"><img src="/icons/16x16/accepted.png"/></bind>
-<bind tag="rejected_icon"><img src="/icons/16x16/rejected.png"/></bind>
-<apply template="base">
+<bind tag="accepted_icon"><img src="/icons/16x16/accepted.png"/></bind
+><bind tag="rejected_icon"><img src="/icons/16x16/rejected.png"/></bind
+><apply template="base">
 <div class="description">
 <problemset_description/>
 </div>

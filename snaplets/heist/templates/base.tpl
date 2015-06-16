@@ -50,7 +50,7 @@ function start_countdown(id,secs) {
       <apply-content/>
     </div>
     <div id="footer">
-      <p class="info">Pythondo <version/> &copy; 2014 Pedro Vasconcelos.<br>
+      <p class="info">Pythondo <version/> &copy; 2014, 2015 Pedro Vasconcelos.<br>
 	Departamento de Ciência de Computadores, Faculdade de Ciências,
 	Universidade do Porto.<br>
     Construido usando
@@ -59,11 +59,5 @@ function start_countdown(id,secs) {
     <a href="http://ace.ajax.org">ACE code editor</a>  e
     <a href="http://www.mathjax.org">MathJax</a>.</p>
     </div>
-    <script src="/ace-builds/src-min-noconflict/ace.js" type="text/javascript" charset="utf-8"></script>
-    <script type="text/javascript">
-      var editor = ace.edit("editor");
-      editor.setFontSize(16);
-      editor.getSession().setMode("ace/mode/python");
-    </script>
   </body>
 </html>

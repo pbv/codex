@@ -1,19 +1,15 @@
-<bind tag="accept_icon"><img src="/icons/16x16/accepted.png" alt="Accepted"/></bind>
-<bind tag="reject_icon"><img src="/icons/16x16/rejected.png" alt="Rejected"/></bind>
-<bind tag="overdue_icon"><img src="/icons/16x16/overdue.png" alt="Overdue"/></bind>
-<apply template="base">
+<bind tag="accept_icon"><img src="/icons/16x16/accepted.png" alt="Accepted"/></bind
+><bind tag="reject_icon"><img src="/icons/16x16/rejected.png" alt="Rejected"/></bind
+><bind tag="overdue_icon"><img src="/icons/16x16/overdue.png" alt="Overdue"/></bind
+><apply template="base">
 <problem_description/>
 <if_early><p>Submissões vão abrir em: <start_time/>.</if_early>
 <if_late><p>Submissões fecharam em: <end_time/>.</if_late>
-
-
 <if_open>
   <if_limited>
     <p>Tempo disponível: <remaining_js_timer/></p> 
   </if_limited>
 </if_open>
-
-
 
 <if_submitted>
 <h2>Submissões anteriores</h2>
@@ -25,7 +21,6 @@
 </submissions>
 </ol>
 </if_submitted>
-
 
 <h2>Nova submissão</h2>
 <bind tag="postAction">/submissions/${problem_id}</bind>
