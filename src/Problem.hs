@@ -160,13 +160,17 @@ makeProblem filepath descr@(Pandoc meta blocks)
 
 
 
--- lookup Pandoc metadata an parse results into Haskell datatypes
+-- lookup title from a Pandoc document
+-- first look in metadata, otherwise use first header 
 fetchTitle :: Pandoc -> Maybe Text
 fetchTitle (Pandoc meta blocks) 
-    = fmap (query inlineText) (lookupMeta "title" meta) 
+    = (query inlineText <$> lookupMeta "title" meta) 
       `mplus` 
-      fmap (query blockText) firstHeader
+      (query inlineText <$> firstHeader)
+      `mplus` 
+      return "Untitled"
     where firstHeader = listToMaybe [h | Header _ _ h <- blocks]
+
 
 fetchTime :: String -> Meta -> Maybe LocalTime
 fetchTime tag meta 

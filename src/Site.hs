@@ -47,7 +47,7 @@ import qualified Data.Configurator as Configurator
 import           Data.Configurator.Types
 
 import           System.Locale
-
+import           System.FilePath
 import           System.Remote.Monitoring
 
 ------------------------------------------------------------------------------
@@ -392,10 +392,10 @@ routes = [ ("/login",                 handleLogin `catch` internalError)
          , ("/logout",                handleLogout `catch` internalError)
          , ("/problems",              handleProblemList `catch` internalError )  
          , ("/problems/:pid",         handleProblem `catch` internalError )
+         , ("/files",                 serveDirectory problemDirPath <|> notFound)
          , ("/submissions/:pid",      handlePostSubmission `catch` internalError)
          , ("/submissions/:pid/:sid", handleGetSubmission  `catch` internalError)
          , ("/asklogout",             handleConfirmLogout `catch` internalError)        
-         , ("/resources",             serveDirectory "resources" <|> notFound)
          , ("",                       serveDirectory "static" <|> notFound)
          ]
 {-
@@ -494,8 +494,12 @@ getProblem pid = do
     Just p -> return p
 
 
+
+problemDirPath :: FilePath
+problemDirPath = "problems"
+
 problemSetPath :: FilePath
-problemSetPath = "problems/index.md"
+problemSetPath = problemDirPath </> "index.md"
 
 
 lookupProblemSet :: PID -> ProblemSet -> Maybe Problem
