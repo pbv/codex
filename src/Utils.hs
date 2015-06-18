@@ -64,7 +64,8 @@ configLdapConf :: Config -> IO LdapConf
 configLdapConf conf = do
   uri <- Configurator.require conf "ldap.uri"
   bases <- Configurator.require conf "ldap.bases"
-  return (LdapConf uri bases)
+  admins <- Configurator.require conf "ldap.admins"
+  return (LdapConf uri bases admins)
 
 
 
@@ -100,14 +101,20 @@ incrCounter name
 getUserID :: AppHandler (Maybe UID)
 getUserID = do 
   opt <- with auth currentUser
+  liftIO $ print opt
   return $ fmap (UID . B.fromString . T.unpack . userLogin) opt
 
 
 getFullName :: AppHandler (Maybe Text)
-getFullName = do 
+getFullName = do
   opt <- with auth currentUser
   return (fmap userName opt)
 
+-- | Get user id and roles
+getUserRoles :: AppHandler (Maybe [Role])
+getUserRoles = do
+  opt <- with auth currentUser
+  return (fmap userRoles opt)
 
 getProblemID :: AppHandler (Maybe PID)
 getProblemID = fmap PID <$> getParam "pid"

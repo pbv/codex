@@ -1,8 +1,9 @@
-{-# LANGUAGE RecordWildCards #-}
+{-# LANGUAGE RecordWildCards, OverloadedStrings #-}
 module LdapAuth 
        (ldapAuth, 
         dummyAuth,
-        userName
+        userName,
+        adminRole
        ) where
 
 import           Data.ByteString.UTF8 (ByteString)
@@ -33,7 +34,7 @@ import           Types
 type MaybeIO = MaybeT IO 
 
 -- LDAP atributes list
-type Attrs = [(String,[String])]
+type Attrs = [(String, [String])]
 
 -- attempt LDAP bind to check user password and search for LDAP attributes
 ldapBindSearch :: LDAP -> String -> String -> MaybeIO Attrs
@@ -78,7 +79,13 @@ ldapAuth' r LdapConf{..} user passwd
                       , userCurrentLoginAt = Just time                   
                       , userMeta = HM.fromList [(T.pack k, String $ T.pack v) 
                                                | (k,v:_)<-attrs, keepAttrs k]
+                      , userRoles = if login `elem` ldapAdmins
+                                    then [adminRole] else []
                       }  
+
+-- | Administrator role
+adminRole :: Role
+adminRole = Role "admin"
 
 
 -- which LDAP attributes to keep?
@@ -104,16 +111,20 @@ userName au
 
 dummyAuth :: IAuthBackend r => 
              r -> LdapConf -> ByteString -> ByteString -> IO (Maybe AuthUser)
-dummyAuth r _ login _
+dummyAuth r LdapConf{..} username passwd
   = do now <- getCurrentTime
-       let login' = T.pack $ B.toString login
-       let newuser = defAuthUser { userLogin = login'
-                                 , userPassword = Nothing
-                                 , userCreatedAt = Just now
-                                 , userUpdatedAt = Just now
-                                 }
-       opt <- lookupByLogin r login'
-       case opt of 
-         Nothing -> do opt' <- save r newuser
-                       return (either (\_ -> Nothing) Just opt')
-         Just au -> return (Just au)
+       let login = T.pack $ B.toString username
+       optAu <- lookupByLogin r login 
+       let newuser = defAuthUser {
+               userId = optAu >>= userId
+             , userLogin = login
+             , userPassword = Nothing
+             , userCreatedAt = (optAu >>= userCreatedAt) `mplus` Just now
+             , userUpdatedAt = Just now
+             , userRoles = if login `elem` ldapAdmins
+                           then [adminRole] else []
+             }
+       eithAu <- save r newuser
+       return (either (const Nothing) Just eithAu)
+       
+

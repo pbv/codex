@@ -243,17 +243,6 @@ timerSplices pid now open = do
                             Nothing -> return []
                             Just t' -> return $ jsTimer pid (diffUTCTime t' now)
 
-{-
-  "ifOpen" ## conditionalSplice (now `Interval.elem` interval)
-  "ifEarly" ## conditionalSplice (now `Interval.before`interval)
-  "ifLate" ##  conditionalSplice (now `Interval.after`interval)
-  "ifLimited" ## conditionalSplice (Interval.limited interval)
-  "timerStart" ##  maybe (return []) timeSplice (Interval.start interval)
-  "timerEnd" ##  maybe (return []) timeSplice (Interval.end interval)
-  "timerLeft"  ## case Interval.end interval of 
-    Nothing -> return []
-    Just t' -> I.textSplice $ T.pack $ formatNominalDiffTime $ diffUTCTime t' now
--}
   
 -- splice an UTC time as local time 
 timeSplice :: UTCTime -> I.Splice AppHandler
@@ -298,17 +287,6 @@ submissionSplices Submission{..} = do
   "if_accepted" ## conditionalSplice (submitStatus == Accepted) 
   "if_overdue" ##  conditionalSplice (submitStatus == Overdue) 
   "if_rejected" ## conditionalSplice (submitStatus/= Accepted && submitStatus/=Overdue) 
-
-
-
-
-{-
--- | splices concerning submissions count
-counterSplices :: Int -> AppSplices
-counterSplices n = do 
-  "count" ## I.textSplice (T.pack $ show n)
-  "ifSubmitted" ## conditionalSplice (n>0)
--}
 
 
 
@@ -384,6 +362,18 @@ handleFinalReport uid ProblemSet{..} | probsetExam = do
 handleFinalReport _ _ = handleLogout
 
 
+-----------------------------------------------------------------------------
+-- administrator interface
+-----------------------------------------------------------------------------
+handleAdminEdit :: AppHandler ()
+handleAdminEdit = method GET $ do
+  uid <- require getUserID
+  roles <- require getUserRoles
+  guard (adminRole `elem` roles)
+  path <- getsRequest rqPathInfo
+  liftIO $ putStrLn ("handleAdminEdit rqPathInfo = " ++ show path)
+  return ()
+
 
 ------------------------------------------------------------------------------
 -- | The application's routes.
@@ -393,6 +383,7 @@ routes = [ ("/login",                 handleLogin `catch` internalError)
          , ("/problems",              handleProblemList `catch` internalError )  
          , ("/problems/:pid",         handleProblem `catch` internalError )
          , ("/files",                 serveDirectory problemDirPath <|> notFound)
+         , ("/admin/edit",            handleAdminEdit `catch` internalError)
          , ("/submissions/:pid",      handlePostSubmission `catch` internalError)
          , ("/submissions/:pid/:sid", handleGetSubmission  `catch` internalError)
          , ("/asklogout",             handleConfirmLogout `catch` internalError)        
@@ -411,6 +402,11 @@ loggedInName authmgr = do
     u <- lift $ withTop authmgr currentUser
     maybe (return []) (I.textSplice . userName) u 
 
+authRoles :: SnapletLens b (AuthManager b) ->
+             ([Role] -> Bool) -> SnapletISplice b
+authRoles authmgr cond = do
+   u <- lift $ withTop authmgr currentUser
+   maybe (return []) (\u -> conditionalSplice (cond $ userRoles u)) u
 
 -- | splice for current date & time
 nowSplice :: I.Splice AppHandler
@@ -439,7 +435,9 @@ app =
     addConfig h emptyConfig { hcInterpretedSplices = do 
                                  "version" ## versionSplice
                                  "timeNow" ## nowSplice
-                                 "loggedInName" ## loggedInName auth }
+                                 "loggedInName" ## loggedInName auth
+                                 "ifAdmin" ## authRoles auth (adminRole `elem`)
+                            }
     -- Grab the DB connection pool from the sqlite snaplet and call
     -- into the Model to create all the DB tables if necessary.
     let c = sqliteConn $ d ^# snapletValue

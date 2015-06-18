@@ -43,7 +43,8 @@ function start_countdown(id,secs) {
 	 <ifLoggedIn> 
 	   <strong>Login:</strong> <code><loggedInUser/></code> (<em><loggedInName/></em>);
 	   carregue aqui para <a href="/asklogout">terminar a sessão</a>.
-	 </ifLoggedIn> 
+	 </ifLoggedIn>
+       <ifAdmin><strong>Administrator</strong></ifAdmin>
 	 </p>
      </div>
     <div id="content">
