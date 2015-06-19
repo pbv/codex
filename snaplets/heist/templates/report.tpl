@@ -17,10 +17,10 @@
 </if_rejected>
 
 <h2>Nova submissão</h2>
-<bind tag="postAction">/submissions/${problem_id}</bind>
-<bind tag="buttonText">Enviar</bind>
-<apply template="_submission"><submit_text/></apply>
-
+<bind tag="post_action">/submissions/${problem_id}</bind>
+<bind tag="submit_button">Enviar</bind>
+<bind tag="edit_path">untitled.py</bind>
+<apply template="_editor"><submit_text/></apply>
 <p><a href="/problems/${problem_id}">Voltar ao problema</a>
 <p><a href="/problems">Voltar à lista de problemas</a>
 </apply>

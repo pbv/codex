@@ -53,9 +53,18 @@ img {
     padding-left: 1em;
     margin-left: 0;
     margin-right: 0;
-
 }
 
+
+#actions { 
+    position: absolute;
+    width: 10em;
+    left: auto;
+    right: 1em;
+    top: 1em;
+    padding-left: 0.5em;
+    padding-right: 0.5em;
+}
 
 /* no longer used */
 .note { 
@@ -67,7 +76,7 @@ img {
 
 .info {
    color: #0f0f0f;
-   /* font-size: 80%; */
+   font-size: 90%; 
    font-style: oblique;
    /* vertical-align: text-top;*/
 }
@@ -103,7 +112,7 @@ pre {
 
 
 #editor { 
-    width: 50em;
+    width: 45em;
     height: 40ex;
 }
 

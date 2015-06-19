@@ -1,9 +1,11 @@
-<form id="codeform" method="post" action="${postAction}">
-  <p><textarea name="code" rows=40 cols=100><apply-content/></textarea> 
+<form id="codeform" method="post" action="${post_action}">
+  <p><textarea name="code" rows=24 cols=80><apply-content/></textarea> 
   <p><div class="hidden" id="editor"><apply-content/></div>
-  <p><input type="submit" value="${buttonText}" onClick="submitForm()"/>
+  <p><input type="hidden" name="path" value="${edit_path}"/>
+  <p><input type="submit" value="${submit_button}" onClick="submitForm()"/>
 </form>
 <script src="/ace-builds/src-min-noconflict/ace.js" type="text/javascript" charset="utf-8"></script>
+<script src="/ace-builds/src-min-noconflict/ext-modelist.js" type="text/javascript" charset="utf-8"></script>
 <script type="text/javascript">
 var editor = ace.edit("editor");
 editor.setFontSize(16);
@@ -11,8 +13,13 @@ editor.setFontSize(16);
 var form = document.forms['codeform'];
 form.elements['code'].style.display = 'none';
 document.getElementById('editor').style.display = 'block';
-var mode = form.editMode;
-editor.getSession().setMode("ace/mode/markdown");
+
+var path = form.elements['path'].value; 
+console.log(path);
+var modelist = ace.require("ace/ext/modelist");
+var mode = modelist.getModeForPath(path).mode;
+console.log(mode);
+editor.getSession().setMode(mode);
 
 function submitForm() {
   var form = document.forms['codeform'];
