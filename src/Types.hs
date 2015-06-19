@@ -77,7 +77,7 @@ data Sandbox = Sandbox { safeExec :: FilePath
   
 -- | LDAP configuration
 data LdapConf = LdapConf { ldapURI :: String
-                         , ldapBases :: [String]
+                         , ldapBase :: String
                          , ldapAdmins :: [Text]
                          } 
                 deriving (Eq,Show)

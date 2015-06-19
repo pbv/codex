@@ -63,9 +63,9 @@ configPrintout conf = do
 configLdapConf :: Config -> IO LdapConf
 configLdapConf conf = do
   uri <- Configurator.require conf "ldap.uri"
-  bases <- Configurator.require conf "ldap.bases"
+  base <- Configurator.require conf "ldap.base"
   admins <- Configurator.require conf "ldap.admins"
-  return (LdapConf uri bases admins)
+  return (LdapConf uri base admins)
 
 
 
