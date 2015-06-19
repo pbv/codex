@@ -101,7 +101,6 @@ incrCounter name
 getUserID :: AppHandler (Maybe UID)
 getUserID = do 
   opt <- with auth currentUser
-  liftIO $ print opt
   return $ fmap (UID . B.fromString . T.unpack . userLogin) opt
 
 

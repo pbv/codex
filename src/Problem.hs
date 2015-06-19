@@ -44,7 +44,8 @@ import           Types
 
 -- an individual problem
 data Problem = Problem {
-  probID     :: PID,              -- unique identifier (from filename)
+  probID     :: PID,              -- unique identifier
+  probPath   :: FilePath,         -- relative filepath
   probTitle  :: Maybe Text,       -- title
   probDescr  :: Pandoc,           -- description 
   probTags   :: [Tag],            -- tag list 
@@ -56,7 +57,8 @@ data Problem = Problem {
 
 -- a problem set 
 data ProblemSet = ProblemSet {
-      probsetTitle :: Maybe Text
+      probsetPath  :: FilePath   -- relative filepath
+    , probsetTitle :: Maybe Text
     , probsetDescr :: Pandoc
     , probsetProbs :: [Problem] -- problems in listing order
     , probsetExam  :: Bool      -- is this an exam?
@@ -82,25 +84,28 @@ instance Tagged ProblemSet where
 -- | low-level IO read functions
 -- read a problemset from the file system
 readProblemSet :: FilePath -> IO ProblemSet
-readProblemSet filepath =
+readProblemSet filepath = 
   (readMarkdown myReaderOptions <$> readFile filepath) >>=  
-  makeProblemSet (takeDirectory filepath)
+  makeProblemSet filepath
 
 
 makeProblemSet :: FilePath -> Pandoc -> IO ProblemSet
-makeProblemSet problemDir descr@(Pandoc meta blocks) = do
+makeProblemSet filepath descr@(Pandoc meta blocks) = do
   tz <- getCurrentTimeZone
   -- open time interval for whole problemset 
   let time = localTimeToUTC tz <$> Interval.interval open close
   probs <- mapM readProblem paths
-  return ProblemSet { probsetTitle = fetchTitle descr
-                    , probsetDescr = descr
-                    -- restrict each problem's availability interval 
-                    , probsetProbs = map (restrict time) probs
-                    , probsetExam = exam
-                    , probsetPrintout = printout
-                    }
+  return ProblemSet { 
+               probsetPath = filepath
+             , probsetTitle = fetchTitle descr
+             , probsetDescr = descr
+             -- restrict each problem's availability interval 
+             , probsetProbs = map (restrict time) probs
+             , probsetExam = exam
+             , probsetPrintout = printout
+             }
   where
+    problemDir = takeDirectory filepath
     restrict t p = p { probOpen = Interval.intersect t (probOpen p) }
     open  = fetchTime "open" meta
     close = fetchTime "close" meta
@@ -132,11 +137,12 @@ extensionsList
 
 
 -- make a problem from a Pandoc document
-makeProblem :: FilePath -> Pandoc -> IO Problem
+makeProblem :: FilePath ->  Pandoc -> IO Problem
 makeProblem filepath descr@(Pandoc meta blocks)
     = do tz <- getCurrentTimeZone
          let time = localTimeToUTC tz <$> Interval.interval open close
          return Problem { probID = pid,
+                          probPath = filepath,
                           probTitle = fetchTitle descr,
                           probTags = tags,
                           probOpen = time,

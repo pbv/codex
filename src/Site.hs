@@ -24,6 +24,7 @@ import           Data.Maybe(listToMaybe)
 import qualified Data.Map as Map
 import           Data.Text (Text)
 import qualified Data.Text as T
+import qualified Data.Text.IO as T
 import qualified Data.Text.Encoding as T
 import qualified Data.Text.Encoding.Error as T
 
@@ -185,6 +186,7 @@ handleProblemList = method GET $ do
   -- render page
   renderWithSplices "problemlist" $ do
     "problemset_description" ## return (renderPandoc $ probsetDescr probset)
+    "problemset_path" ## I.textSplice (T.pack $ probsetPath probset)
     "tag_list" ## I.mapSplices (I.runChildrenWith . tagSplices) (taglist available)
     "problem_list" ##  I.mapSplices (I.runChildrenWith . summarySplices now) visible
     "available_problems" ## I.textSplice (T.pack $ show $ length available)
@@ -218,6 +220,7 @@ summarySplices now ProblemSummary{..}
 problemSplices :: Problem -> AppSplices
 problemSplices Problem{..} = do
   "problem_id" ## I.textSplice (T.pack $ show probID)
+  "problem_path" ## I.textSplice (T.pack probPath)
   "problem_title" ## maybe (return []) I.textSplice probTitle
   "problem_description" ## return (renderPandoc probDescr)
   "problem_default" ## maybe (return []) I.textSplice probDefault
@@ -372,7 +375,11 @@ handleAdminEdit = method GET $ do
   guard (adminRole `elem` roles)
   path <- getsRequest rqPathInfo
   liftIO $ putStrLn ("handleAdminEdit rqPathInfo = " ++ show path)
-  return ()
+  source <- liftIO (T.readFile $ B.toString path)
+  renderWithSplices "editfile" $ do
+     "edit_path" ## I.textSplice (T.pack $ B.toString path)
+     "edit_source" ## I.textSplice source
+
 
 
 ------------------------------------------------------------------------------

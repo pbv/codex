@@ -1,9 +1,13 @@
-<bind tag="accepted_icon"><img src="/icons/16x16/accepted.png"/></bind
-><bind tag="rejected_icon"><img src="/icons/16x16/rejected.png"/></bind
-><apply template="base">
+<bind tag="accepted_icon"><img src="/icons/16x16/accepted.png"/></bind>
+<bind tag="rejected_icon"><img src="/icons/16x16/rejected.png"/></bind>
+<bind tag="editor_icon"><img src="/icons/16x16/editor.png"/></bind>
+<apply template="base">
 <div class="description">
 <problemset_description/>
 </div>
+<ifAdmin>
+  <p><a href="/admin/edit/${problemset_path}"><editor_icon/>&nbsp;Editar</a></p>
+</ifAdmin>
 <div class="filterlist">
 <form action="/problems" method="get">
 <dl>
@@ -20,7 +24,8 @@
 <div class="problemlist">
 <dl>
 <problem_list>
-  <dt><a href="/problems/${problem_id}"><problem_title/></a><if_accepted>&nbsp;<accepted_icon/></if_accepted></dt>
+  <dt><ifAdmin><a href="/admin/edit/${problem_path}"><editor_icon/></a></ifAdmin> 
+   <a href="/problems/${problem_id}"><problem_title/></a><if_accepted>&nbsp;<accepted_icon/></if_accepted></dt>
     <dd class="problemli"><span class="info">
 	<if_submitted><number_submissions/> submissões já efetuadas.<br/></if_submitted>
 	<if_early>Submissões iniciam em <start_time/>.</if_early>

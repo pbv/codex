@@ -41,10 +41,12 @@ function start_countdown(id,secs) {
      <div id="topbar">
        <p><em><timeNow/></em><br/>
 	 <ifLoggedIn> 
-	   <strong>Login:</strong> <code><loggedInUser/></code> (<em><loggedInName/></em>);
-	   carregue aqui para <a href="/asklogout">terminar a sessão</a>.
+	   <strong>Login:</strong> <code><loggedInUser/></code> 
+   (<em><loggedInName/></em>);
+   carregue aqui para <a href="/asklogout">terminar a sessão.</a>
+	   <ifAdmin>&nbsp;<strong>Administration</strong>: 
+	     <a href="/admin/reload">reload templates</a></ifAdmin>
 	 </ifLoggedIn>
-       <ifAdmin><strong>Administrator</strong></ifAdmin>
 	 </p>
      </div>
     <div id="content">
