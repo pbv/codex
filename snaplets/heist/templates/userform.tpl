@@ -8,7 +8,7 @@
     </tr>
     <tr>
       <td></td>
-      <td><input type="submit" value="${submit_button}" /></td>
+      <td><input type="submit" value="${submit_label}" /></td>
     </tr>
   </table>
 </form>

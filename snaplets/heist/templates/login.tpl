@@ -8,7 +8,7 @@
 <p>Por favor autentique-se para iniciar uma sessão.</p>
 
 <bind tag="post_action">/login</bind>
-<bind tag="submit_button">Login</bind>
+<bind tag="submit_label">Login</bind>
 <apply template="userform"/>
 <div id="error"><p><loginError/></p></div>
 </apply>

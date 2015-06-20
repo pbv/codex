@@ -1,3 +1,4 @@
+{-# LANGUAGE OverloadedStrings #-}
 {-
   Types of identifiers for various entities
 -}
@@ -6,6 +7,7 @@ module Types where
 
 import           Data.ByteString.UTF8(ByteString)
 import qualified Data.ByteString.UTF8 as B
+import qualified Data.ByteString  as B
 
 import           Data.Text (Text)
 import qualified Data.Text as T
@@ -107,3 +109,4 @@ isTagged tag a = tag `elem` taglist a
 hasTags :: Tagged a => [Tag] -> a -> Bool
 hasTags tags a = tags `isSublistOf` taglist a
     where isSublistOf xs ys = all (`elem`ys) xs
+

@@ -6,7 +6,7 @@
 <problemset_description/>
 </div>
 <ifAdmin>
-  <p><a href="/admin/edit/${problemset_path}"><editor_icon/>&nbsp;Editar</a></p>
+  <p><a href="/admin/edit/${problemset_path}"><editor_icon/>&nbsp;Editar lista de problemas</a></p>
 </ifAdmin>
 <div class="filterlist">
 <form action="/problems" method="get">

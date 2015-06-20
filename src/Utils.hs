@@ -9,6 +9,8 @@ import           Data.Text(Text)
 import           Data.ByteString.UTF8 (ByteString)
 import qualified Data.ByteString.UTF8 as B
 import qualified Data.Text as T
+import qualified Data.Text.Encoding as T
+import qualified Data.Text.Encoding.Error as T
 
 import           Snap.Core
 import           Snap.Snaplet
@@ -130,6 +132,13 @@ require handler = do
   case opt of
     Nothing -> pass
     Just v -> return v
+
+
+-- | get a text parameter from a POST request
+getTextPost :: MonadSnap m => ByteString -> m (Maybe Text)
+getTextPost name =
+  do opt <- getPostParam name
+     return ((T.filter (/='\r') . T.decodeUtf8With T.ignore) <$> opt)
 
 
 ---------------------------------------------------------------------

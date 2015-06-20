@@ -1,5 +1,6 @@
 <html>
  <head>
+    <meta charset="UTF-8">
     <title>Pythondo server</title>
     <link rel="stylesheet" type="text/css" href="/screen.css"/>
     <script type="text/javascript"

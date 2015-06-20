@@ -79,6 +79,10 @@ instance Tagged ProblemSet where
                         "*submitted*", "*not submitted*"]
 
 
+-- | a logger for collection warnings whilst reading files
+type LoggerIO a = WriterT Text IO a
+
+
 
 
 -- | low-level IO read functions
@@ -99,14 +103,13 @@ makeProblemSet filepath descr@(Pandoc meta blocks) = do
                probsetPath = filepath
              , probsetTitle = fetchTitle descr
              , probsetDescr = descr
-             -- restrict each problem's availability interval 
-             , probsetProbs = map (restrict time) probs
+             -- each problem interval can overrides the problemset interval:
+             , probsetProbs = map (override time) probs
              , probsetExam = exam
              , probsetPrintout = printout
              }
   where
     problemDir = takeDirectory filepath
-    restrict t p = p { probOpen = Interval.intersect t (probOpen p) }
     open  = fetchTime "open" meta
     close = fetchTime "close" meta
     exam  = maybe False id (fetchBool "exam-mode" meta)
@@ -116,6 +119,12 @@ makeProblemSet filepath descr@(Pandoc meta blocks) = do
       _                 -> error "makeProblemSet: invalid problems list"
   
 
+
+override :: Interval UTCTime -> Problem -> Problem
+override time prob@Problem{..}
+  = prob { probOpen = Interval.interval
+                      (Interval.start probOpen `mplus` Interval.start time)
+                      (Interval.end probOpen `mplus` Interval.end time) }
 
 
 readProblem :: FilePath -> IO Problem 

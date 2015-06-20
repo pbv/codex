@@ -25,8 +25,6 @@ import qualified Data.Map as Map
 import           Data.Text (Text)
 import qualified Data.Text as T
 import qualified Data.Text.IO as T
-import qualified Data.Text.Encoding as T
-import qualified Data.Text.Encoding.Error as T
 
 import           Snap.Core
 import           Snap.Snaplet
@@ -209,10 +207,6 @@ summarySplices now ProblemSummary{..}
          "number_accepted"    ## I.textSplice (T.pack $ show summaryAccepted)
          "if_submitted" ## conditionalSplice (summaryAttempts>0)
          "if_accepted" ## conditionalSplice (summaryAccepted>0)
-
---         counterSplices summaryAttempts
--- "ifAccepted" ## conditionalSplice (summaryAccepted > 0) 
-
          
 
 
@@ -251,7 +245,8 @@ timerSplices pid now open = do
 -- splice an UTC time as local time 
 timeSplice :: UTCTime -> I.Splice AppHandler
 timeSplice time = do tz <- liftIO getCurrentTimeZone
-                     I.textSplice $ T.pack $ formatTime defaultTimeLocale "%c" $ utcToZonedTime tz time
+                     I.textSplice $ T.pack $
+                       formatTime defaultTimeLocale "%c" $ utcToZonedTime tz time
     
 
 -- format a time difference
@@ -309,7 +304,7 @@ handleGetSubmission
 handlePostSubmission = method POST $ do
   uid <- require getUserID <|> unauthorized
   pid <- require getProblemID 
-  code <- T.decodeUtf8With T.ignore <$> require (getParam "code")
+  code <- require (getTextPost "code")
   prob <- getProblem pid
   now <- liftIO getCurrentTime
   sub <- postSubmission uid prob code
@@ -370,17 +365,24 @@ handleFinalReport _ _ = handleLogout
 -- administrator interface
 -----------------------------------------------------------------------------
 handleAdminEdit :: AppHandler ()
-handleAdminEdit = method GET $ do
-  uid <- require getUserID
-  roles <- require getUserRoles
-  guard (adminRole `elem` roles)
-  path <- getsRequest rqPathInfo
-  liftIO $ putStrLn ("handleAdminEdit rqPathInfo = " ++ show path)
-  source <- liftIO (T.readFile $ B.toString path)
-  renderWithSplices "editfile" $ do
-     "edit_path" ## I.textSplice (T.pack $ B.toString path)
-     "edit_source" ## I.textSplice source
-
+handleAdminEdit = do
+      uid <- require getUserID
+      roles <- require getUserRoles
+      guard (adminRole `elem` roles)
+      method GET handleGet <|> method POST handlePost
+  where
+    handleGet = do
+      path <- getsRequest rqPathInfo
+      source <- liftIO (T.readFile $ B.toString path)
+      renderWithSplices "editfile" $ do
+        "edit_path" ## I.textSplice (T.pack $ B.toString path)
+        "edit_source" ## I.textSplice source
+        
+    handlePost  = do
+      path <- getsRequest rqPathInfo      
+      source <- require (getTextPost "code")
+      liftIO (T.writeFile (B.toString path) source)
+      redirect "/problems" 
 
 
 ------------------------------------------------------------------------------
@@ -463,7 +465,6 @@ app =
                       , _sess = s
                       , _auth = a
                       , _db   = d
-                      -- , _config = conf
                       , _sandbox = sandbox
                       , _ldapConf = ldapConf
                       , _printout = printout
