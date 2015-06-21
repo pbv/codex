@@ -15,10 +15,6 @@ module Problem (
   Tagged, taglist, isTagged, hasTags  -- * problem tagging
   ) where
 
-import           System.Locale (defaultTimeLocale)
-import           Data.Time.Clock
-import           Data.Time.Format
-import           Data.Time.LocalTime
 import           Control.Monad
 import           Control.Applicative ((<$>))
 import           System.FilePath
@@ -36,11 +32,15 @@ import           Text.Pandoc.Walk
 import           Text.XmlHtml 
 import           Text.Blaze.Renderer.XmlHtml
 
+import           Data.Time.LocalTime
+import           Data.Time.Format
+import           Data.Time.Clock
+
 import           Interval (Interval)
 import qualified Interval as Interval
 import           Types
 
-
+import           ParseMeta
 
 -- an individual problem
 data Problem = Problem {
@@ -79,10 +79,9 @@ instance Tagged ProblemSet where
                         "*submitted*", "*not submitted*"]
 
 
--- | a logger for collection warnings whilst reading files
-type LoggerIO a = WriterT Text IO a
-
-
+-- | lookup a tag in a meta key-value map and parse result
+lookupFromMeta :: ParseMeta a => String -> Meta -> Maybe a
+lookupFromMeta tag meta = lookupMeta tag meta >>= fromMeta
 
 
 -- | low-level IO read functions
@@ -94,29 +93,29 @@ readProblemSet filepath =
 
 
 makeProblemSet :: FilePath -> Pandoc -> IO ProblemSet
-makeProblemSet filepath descr@(Pandoc meta blocks) = do
-  tz <- getCurrentTimeZone
-  -- open time interval for whole problemset 
-  let time = localTimeToUTC tz <$> Interval.interval open close
-  probs <- mapM readProblem paths
-  return ProblemSet { 
+makeProblemSet filepath descr@(Pandoc meta blocks) = case optPaths of
+  Nothing -> ioError $ userError "no problem list in meta data"
+  Just paths -> do 
+    probs <- mapM readProblem paths
+    tz <- getCurrentTimeZone
+    let int = localTimeToUTC tz <$> Interval.interval open close
+    return ProblemSet { 
                probsetPath = filepath
-             , probsetTitle = fetchTitle descr
+             , probsetTitle = title
              , probsetDescr = descr
-             -- each problem interval can overrides the problemset interval:
-             , probsetProbs = map (override time) probs
+             , probsetProbs = map (override int) probs
              , probsetExam = exam
              , probsetPrintout = printout
              }
   where
     problemDir = takeDirectory filepath
-    open  = fetchTime "open" meta
-    close = fetchTime "close" meta
-    exam  = maybe False id (fetchBool "exam-mode" meta)
-    printout = maybe False id (fetchBool "printout" meta)
-    paths = case lookupMeta "problems" meta of
-      Just (MetaList l) -> map ((problemDir </>) . query inlineString) l
-      _                 -> error "makeProblemSet: invalid problems list"
+    optPaths = map ((problemDir </>) . T.unpack) <$> lookupFromMeta "problems" meta 
+    title = (lookupFromMeta "title" meta) `mplus` firstHeader blocks 
+    open = lookupFromMeta "open" meta 
+    close= lookupFromMeta "close" meta 
+    exam  = maybe False id (lookupFromMeta "exam-mode" meta)
+    printout = maybe False id (lookupFromMeta "printout" meta)
+
   
 
 
@@ -127,105 +126,57 @@ override time prob@Problem{..}
                       (Interval.end probOpen `mplus` Interval.end time) }
 
 
+-- first header in a list of blocks
+firstHeader :: [Block] -> Maybe Text
+firstHeader blocks = listToMaybe [query inlineText h | Header _ _ h <- blocks]
+
+
+
+
 readProblem :: FilePath -> IO Problem 
 readProblem filepath =  do
       txt <- readFile filepath
       let ext = takeExtension filepath
-      let doc = case lookup ext extensionsList of
-            Just reader -> reader myReaderOptions txt
-            Nothing -> error ("readProblem: error reading " ++ show filepath)
+      doc <- case lookup ext readersList of
+            Just reader -> return (reader txt)
+            Nothing -> ioError $ userError ("unknown extension " ++ show ext)
       makeProblem filepath doc
 
 -- file extensions and associated Pandoc readers
-extensionsList :: [(String, ReaderOptions -> String -> Pandoc)]
-extensionsList
-  = [(ext, readMarkdown) | ext<-[".md",".mdown",".markdown"]] ++
-    [(ext, readHtml)     | ext<-[".html", ".htm"]] ++
-    [(".tex", readLaTeX)]
-
+readersList :: [(String, String -> Pandoc)]
+readersList
+  = [(ext, readMarkdown myReaderOptions) | ext<-[".md",".mdown",".markdown"]] ++
+    [(ext, readHtml myReaderOptions)     | ext<-[".html", ".htm"]] ++
+    [(".tex", readLaTeX myReaderOptions)]
 
 
 -- make a problem from a Pandoc document
 makeProblem :: FilePath ->  Pandoc -> IO Problem
 makeProblem filepath descr@(Pandoc meta blocks)
     = do tz <- getCurrentTimeZone
-         let time = localTimeToUTC tz <$> Interval.interval open close
+         let int = localTimeToUTC tz <$> Interval.interval open close
          return Problem { probID = pid,
                           probPath = filepath,
-                          probTitle = fetchTitle descr,
+                          probTitle = title,
                           probTags = tags,
-                          probOpen = time,
+                          probOpen = int,
                           probDoctest = doctest,
                           probDefault = submit,
                           probDescr = descr
                         }
   where
-    -- assumes problem file basenames are unique
+    -- take unique identifier from filepath
     pid = PID $ B.fromString $ takeBaseName filepath
     -- fetch metadata from Pandoc document
-    open = fetchTime "open" meta
-    close = fetchTime "close" meta
-    submit = query blockText <$> lookupMeta "submit" meta
-    tags = case lookupMeta "tags" meta of
-      Just (MetaList l) -> map (query inlineText) l
-      _                 -> []
-    doctest = case lookupMeta "doctest" meta of
-      Just l -> takeDirectory filepath </> query inlineString l
-      Nothing -> dropExtension filepath <.> "tst" -- default test filepath 
+    open = lookupFromMeta "open" meta 
+    close = lookupFromMeta "close" meta 
+    title = (lookupFromMeta "title" meta) `mplus` firstHeader blocks
+    submit = lookupFromMeta "submit" meta 
+    tags =  maybe [] id (lookupFromMeta "tags" meta)
+    doctest = case lookupFromMeta "doctest" meta of
+      Just p -> takeDirectory filepath </> T.unpack p
+      Nothing -> dropExtension filepath <.> "tst"
 
-
-
--- lookup title from a Pandoc document
--- first look in metadata, otherwise use first header 
-fetchTitle :: Pandoc -> Maybe Text
-fetchTitle (Pandoc meta blocks) 
-    = (query inlineText <$> lookupMeta "title" meta) 
-      `mplus` 
-      (query inlineText <$> firstHeader)
-      `mplus` 
-      return "Untitled"
-    where firstHeader = listToMaybe [h | Header _ _ h <- blocks]
-
-
-fetchTime :: String -> Meta -> Maybe LocalTime
-fetchTime tag meta 
-    = (query inlineString <$> lookupMeta tag meta) >>= parseLocalTime
-
-
-fetchBool :: String -> Meta -> Maybe Bool
-fetchBool tag meta = lookupMeta tag meta >>= checkBool
-  where checkBool (MetaBool b) = Just b
-        checkBool _            = Nothing
-
-
--- collect text in inline and block elements
-inlineText :: Inline -> Text
-inlineText (Str s)   = T.pack s
-inlineText Space     = T.singleton ' '
-inlineText LineBreak = T.singleton '\n'
-inlineText (Math _ s)= T.pack s
-inlineText _         = T.empty
-
-
-blockText :: Block -> Text
-blockText (Plain l)       = query inlineText l
-blockText (Para p)        = query inlineText p
-blockText (Header _ _ l)  = query inlineText l
-blockText (CodeBlock _ s) = T.pack s
-blockText (RawBlock  _ s) = T.pack s
-blockText _               = T.empty
-
-
-inlineString = T.unpack . inlineText
-inlineByteString = B.fromString . inlineString
-
-  
--- parse a local time string 
-parseLocalTime :: String -> Maybe LocalTime
-parseLocalTime txt = msum [parseTime defaultTimeLocale fmt txt | fmt<-timeFormats] 
-
-timeFormats :: [String]
-timeFormats = ["%H:%M %d/%m/%Y", "%d/%m/%Y", "%c"]
 
 
 -- relations between problems and times
