@@ -33,7 +33,6 @@ import           Text.XmlHtml
 import           Text.Blaze.Renderer.XmlHtml
 
 import           Data.Time.LocalTime
-import           Data.Time.Format
 import           Data.Time.Clock
 
 import           Interval (Interval)

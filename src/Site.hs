@@ -216,7 +216,7 @@ problemSplices Problem{..} = do
   "problem_id" ## I.textSplice (T.pack $ show probID)
   "problem_path" ## I.textSplice (T.pack probPath)
   "problem_doctest" ## I.textSplice (T.pack probDoctest)
-  "problem_title" ## maybe (return []) I.textSplice probTitle
+  "problem_title" ## I.textSplice $ maybe (T.pack $ show probID) id probTitle
   "problem_description" ## return (renderPandoc probDescr)
   "problem_default" ## maybe (return []) I.textSplice probDefault
   "problem_tags" ## I.textSplice (T.unwords probTags)
