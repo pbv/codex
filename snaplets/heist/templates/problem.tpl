@@ -12,8 +12,8 @@
   </if_limited>
 </if_open>
 <ifAdmin>
-  <p><a href="/admin/edit/${problem_path}"><editor_icon/>&nbsp;Editar problema</a>
-  <a href="/admin/edit/${problem_doctest}"><editor_icon/>&nbsp;Editar testes</a>
+  <p><a href="/edit/${problem_path}"><editor_icon/>&nbsp;Editar problema</a>
+  <a href="/edit/${problem_doctest}"><editor_icon/>&nbsp;Editar testes</a>
 </p></ifAdmin>
 
 
@@ -29,8 +29,10 @@
 </if_submitted>
 
 <h2>Nova submissão</h2>
-<bind tag="post_action">/submissions/${problem_id}</bind>
 <bind tag="submit_label">Enviar</bind>
+<bind tag="post_action">/submissions/${problem_id}</bind>
+<bind tag="cancel_label">Cancelar</bind>
+<bind tag="next_url">/problems/${problem_id}</bind>
 <bind tag="edit_path">untitled.py</bind>
 <apply template="_editor"><problem_default/></apply>
 <p><a href="/problems">Voltar à lista de problemas</a>

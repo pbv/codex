@@ -364,12 +364,13 @@ handleFinalReport _ _ = handleLogout
 -----------------------------------------------------------------------------
 -- administrator interface
 -----------------------------------------------------------------------------
+
 handleAdminEdit :: AppHandler ()
 handleAdminEdit = do
       uid <- require getUserID
       roles <- require getUserRoles
       guard (adminRole `elem` roles)
-      method GET handleGet <|> method POST handlePost
+      method GET handleGet <|> method POST handlePost 
   where
     handleGet = do
       path <- getsRequest rqPathInfo
@@ -377,13 +378,15 @@ handleAdminEdit = do
       renderWithSplices "editfile" $ do
         "edit_path" ## I.textSplice (T.pack $ B.toString path)
         "edit_source" ## I.textSplice source
-        
+
     handlePost  = do
       path <- getsRequest rqPathInfo      
       source <- require (getTextPost "code")
       liftIO (T.writeFile (B.toString path) source)
-      redirect "/problems" 
+      redirect "/problems"
 
+
+      
 
 ------------------------------------------------------------------------------
 -- | The application's routes.
@@ -393,7 +396,7 @@ routes = [ ("/login",                 handleLogin `catch` internalError)
          , ("/problems",              handleProblemList `catch` internalError )  
          , ("/problems/:pid",         handleProblem `catch` internalError )
          , ("/files",                 serveDirectory problemDirPath <|> notFound)
-         , ("/admin/edit",            handleAdminEdit `catch` internalError)
+         , ("/edit",                  handleAdminEdit `catch` internalError)
          , ("/submissions/:pid",      handlePostSubmission `catch` internalError)
          , ("/submissions/:pid/:sid", handleGetSubmission  `catch` internalError)
          , ("/asklogout",             handleConfirmLogout `catch` internalError)        

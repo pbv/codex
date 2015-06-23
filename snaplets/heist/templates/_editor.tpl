@@ -3,6 +3,7 @@
   <p><div class="hidden" id="editor"><apply-content/></div>
   <p><input type="hidden" name="path" value="${edit_path}"/>
   <p><input type="submit" value="${submit_label}" onClick="submitForm()"/>
+  <input type="button" value="${cancel_label}" onClick="window.location = '${next_url}';"/>
 </form>
 <script src="/ace-builds/src-min-noconflict/ace.js" type="text/javascript" charset="utf-8"></script>
 <script src="/ace-builds/src-min-noconflict/ext-modelist.js" type="text/javascript" charset="utf-8"></script>

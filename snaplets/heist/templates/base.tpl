@@ -60,9 +60,9 @@ function start_countdown(id,secs) {
 	Departamento de Ciência de Computadores, Faculdade de Ciências,
 	Universidade do Porto.<br>
     Construido usando
-    <a href="http://snapframework.com/">Snap web framework</a>,
+    <a href="http://snapframework.com/">Snap</a>,
     <a href="http://johnmacfarlane.net/pandoc/">Pandoc</a>,
-    <a href="http://ace.ajax.org">ACE code editor</a>  e
+    <a href="http://ace.ajax.org">ACE</a>  e
     <a href="http://www.mathjax.org">MathJax</a>.</p>
     </div>
   </body>
