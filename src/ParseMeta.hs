@@ -1,6 +1,8 @@
 {-
   Parse Pandoc meta values 
 -} 
+{-# LANGUAGE OverloadedStrings, TypeSynonymInstances, FlexibleInstances, OverlappingInstances #-}
+{- trust me, I'm a doctor! -}
 module ParseMeta where
 
 import           Data.Text (Text)
@@ -31,32 +33,32 @@ fromMeta v = case parseMeta v of
 
 
 instance ParseMeta Text where
-  parseMeta v = return (query inlineText v)
+  parseMeta v = return (metaText v)
 
--- instance ParseMeta String where
---  parseMeta v = return (query inlineString v)
+instance ParseMeta String where
+  parseMeta v = return (T.unpack $ metaText v)
 
-instance ParseMeta Bool where
-  parseMeta (MetaBool b)  = return b
-  parseMeta _             = throwError "parse error on boolean value"
-  
 
 instance ParseMeta LocalTime where
-  parseMeta v = (T.unpack <$> parseMeta v) >>= parseLocalTime
+  parseMeta v = parseLocalTime (T.unpack $ metaText v)
 
 -- parse a local time string 
 parseLocalTime :: String -> Either String LocalTime
 parseLocalTime txt =
   case msum [parseTime defaultTimeLocale fmt txt | fmt<-timeFormats] of
     Just t -> return t
-    Nothing -> throwError ("parse error on time value: " ++ show txt)
+    Nothing -> throwError ("expected time " ++ show timeFormats ++ ", got " ++ show txt)
   where
     timeFormats = ["%H:%M %d/%m/%Y", "%d/%m/%Y", "%c"]
 
+instance ParseMeta Bool where
+  parseMeta (MetaBool b) = return b
+  parseMeta v = throwError ("expected boolean, got " ++ show v)
+  
 
-instance ParseMeta a =>  ParseMeta [a] where
+instance ParseMeta a => ParseMeta [a] where
   parseMeta (MetaList l) = mapM parseMeta l
-  parseMeta _            = throwError "parse error on list value"
+  parseMeta v = throwError ("expected list, got " ++ show v)
 
 
 
@@ -82,3 +84,10 @@ blockText _               = T.empty
 
 inlineString = T.unpack . inlineText
 
+
+-- | collect text from a meta value
+metaText :: MetaValue -> Text
+metaText (MetaString s) = T.pack s
+metaText (MetaInlines l) = T.concat (map inlineText l)
+metaText (MetaBlocks l) = T.concat (map blockText l)
+metaText _              = T.empty

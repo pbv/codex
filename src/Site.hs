@@ -123,7 +123,7 @@ handleLoginSubmit ldapConf user passwd = do
 handleLogout :: AppHandler ()
 handleLogout = method GET $ do
     uid <- require getUserID <|> unauthorized
-    probset <- getProblemSet
+    (probset,_) <- getProblemSet
     -- handle printout (if configured)
     handlePrintout uid probset
     with auth logout 
@@ -152,12 +152,13 @@ handleProblem :: AppHandler ()
 handleProblem = method GET $ do
     uid <- require getUserID  <|> unauthorized
     pid <- require getProblemID
-    prob <- getProblem pid
+    (prob,mesgs) <- getProblem pid
     now <- liftIO getCurrentTime
     subs <- getSubmissions uid pid
     renderWithSplices "problem" $ do problemSplices prob
                                      submissionsSplice subs
                                      timerSplices pid now (probOpen prob)
+                                     warningsSplices mesgs
 
 
 
@@ -167,7 +168,7 @@ handleProblemList :: AppHandler ()
 handleProblemList = method GET $ do
   uid <- require getUserID <|> unauthorized
   now <- liftIO getCurrentTime
-  probset <- getProblemSet 
+  (probset, mesgs) <- getProblemSet
   tags <- getQueryTags
   -- summary of all available problems
   available <- getProblemSummary uid probset 
@@ -183,6 +184,7 @@ handleProblemList = method GET $ do
 
   -- render page
   renderWithSplices "problemlist" $ do
+    warningsSplices mesgs
     "problemset_description" ## return (renderPandoc $ probsetDescr probset)
     "problemset_path" ## I.textSplice (T.pack $ probsetPath probset)
     "tag_list" ## I.mapSplices (I.runChildrenWith . tagSplices) (taglist available)
@@ -197,6 +199,12 @@ getQueryTags = do
   params <- getParams
   return (map (T.pack . B.toString) $ Map.findWithDefault [] "tag" params)
 
+
+
+warningsSplices :: [Text] -> AppSplices
+warningsSplices mesgs = do
+  "warnings" ## I.mapSplices (I.runChildrenWith . mesgSplice) mesgs
+  where mesgSplice msg = "message" ## I.textSplice msg
 
 
 summarySplices :: UTCTime -> ProblemSummary -> AppSplices
@@ -295,23 +303,25 @@ handleGetSubmission
         uid <- require getUserID <|> unauthorized
         pid <- require getProblemID 
         sid <- require getSubmissionID
-        prob <- getProblem pid
+        (prob,mesgs) <- getProblem pid
         sub <- getSubmission uid pid sid
         renderWithSplices "report" $ do problemSplices prob  
                                         submissionSplices sub
+                                        warningsSplices mesgs
 
 
 handlePostSubmission = method POST $ do
   uid <- require getUserID <|> unauthorized
   pid <- require getProblemID 
   code <- require (getTextPost "code")
-  prob <- getProblem pid
+  (prob,mesgs) <- getProblem pid
   now <- liftIO getCurrentTime
   sub <- postSubmission uid prob code
   incrCounter "submissions"
   renderWithSplices "report" $ do problemSplices prob 
                                   submissionSplices sub 
                                   timerSplices pid now (probOpen prob)
+                                  warningsSplices mesgs
 
 
 {-
@@ -344,7 +354,7 @@ handleSubmissions = method GET $ do
 handleConfirmLogout :: AppHandler ()
 handleConfirmLogout = method GET $ do
   uid <- require getUserID <|> badRequest
-  probset <- getProblemSet
+  (probset,_) <- getProblemSet
   handleFinalReport uid probset
 
 
@@ -373,11 +383,14 @@ handleAdminEdit = do
       method GET handleGet <|> method POST handlePost 
   where
     handleGet = do
+      (_, mesgs) <- getProblemSet
       path <- getsRequest rqPathInfo
       source <- liftIO (T.readFile $ B.toString path)
       renderWithSplices "editfile" $ do
+        warningsSplices mesgs
         "edit_path" ## I.textSplice (T.pack $ B.toString path)
         "edit_source" ## I.textSplice source
+
 
     handlePost  = do
       path <- getsRequest rqPathInfo      
@@ -493,15 +506,15 @@ initEkg conf = do enabled <- Configurator.require conf "ekg.enabled"
 -- | get the current problem set
 -- TODO: avoid re-reading the same problems every time
 -- with some caching mechanism
-getProblemSet :: AppHandler ProblemSet
+getProblemSet :: AppHandler (ProblemSet, [Text])
 getProblemSet = liftIO (readProblemSet problemSetPath)
 
-getProblem :: PID -> AppHandler Problem
+getProblem :: PID -> AppHandler (Problem, [Text])
 getProblem pid = do
-  probset <- getProblemSet
+  (probset,mesgs) <- getProblemSet
   case lookupProblemSet pid probset of
     Nothing -> badRequest
-    Just p -> return p
+    Just p -> return (p,mesgs)
 
 
 

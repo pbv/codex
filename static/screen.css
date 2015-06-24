@@ -81,6 +81,12 @@ img {
    /* vertical-align: text-top;*/
 }
 
+.warnings { 
+  color: red;
+  font-style: oblique;
+  font-size: 90%;
+}
+
 
 .js-timer { 
   font-style: oblique;

@@ -51,6 +51,11 @@ function start_countdown(id,secs) {
       </div>
 	 </ifLoggedIn>
 	 </p>
+      <ifAdmin>
+      <div class="warnings">
+	<dl><warnings><dd><message/></dd></warnings></dl>
+      </div>
+      </ifAdmin>
      </div>
     <div id="content">
       <apply-content/>

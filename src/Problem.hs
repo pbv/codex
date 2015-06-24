@@ -6,7 +6,7 @@
 module Problem ( 
   Problem(..),
   ProblemSet(..),
-  readProblem,     -- * read a single problem
+  -- readProblem,     -- * read a single problem
   readProblemSet,  -- * read a problem set
   isEarly,         -- * check problem's acceptance dates
   isLate,
@@ -40,6 +40,11 @@ import qualified Interval as Interval
 import           Types
 
 import           ParseMeta
+import           Control.Monad.Writer
+import           Control.Monad.Reader
+import           System.IO.Error
+import           System.Directory
+
 
 -- an individual problem
 data Problem = Problem {
@@ -78,51 +83,88 @@ instance Tagged ProblemSet where
                         "*submitted*", "*not submitted*"]
 
 
+-- | monad combining IO with logging
+-- reader enviromemnt for logging context             
+type LogIO a = ReaderT Text (WriterT [Text] IO) a
+
+runLogIO :: LogIO a -> IO (a, [Text])
+runLogIO m = runWriterT (runReaderT m T.empty)
+
+-- | log a string
+logStr :: String -> LogIO ()
+logStr s = do r <- ask
+              tell [T.append r (T.pack $ s)]
+
+context :: String -> LogIO a -> LogIO a
+context s = local (const (T.pack $ s ++ ": ")) 
+
+
+-- | safe liftIO that logs IO error and returns a default value
+safeIO :: a -> IO a -> LogIO a
+safeIO def m = do
+  r <- liftIO (catchIOError (Right <$> m) (return . Left))
+  case r of
+    Left err -> tell [T.pack (show err)] >> return def
+    Right v -> return v
+
+
+{-
 -- | lookup a tag in a meta key-value map and parse result
 lookupFromMeta :: ParseMeta a => String -> Meta -> Maybe a
 lookupFromMeta tag meta = lookupMeta tag meta >>= fromMeta
+-}
 
 
--- | low-level IO read functions
--- read a problemset from the file system
-readProblemSet :: FilePath -> IO ProblemSet
-readProblemSet filepath = 
-  (readMarkdown myReaderOptions <$> readFile filepath) >>=  
-  makeProblemSet filepath
+lookupFromMeta :: ParseMeta a => String -> Meta -> LogIO (Maybe a)
+lookupFromMeta tag meta = case lookupMeta tag meta of
+  Nothing -> return Nothing
+  Just v -> case parseMeta v of
+    Left err -> logStr ("metadata " ++ show tag ++ ": " ++ err) >>
+                return Nothing
+    Right r -> return (Just r)
+    
+                   
+lookupUTC :: TimeZone -> String -> Meta -> LogIO (Maybe UTCTime)
+lookupUTC tz tag meta = fmap (localTimeToUTC tz) <$> lookupFromMeta tag meta
 
 
-makeProblemSet :: FilePath -> Pandoc -> IO ProblemSet
-makeProblemSet filepath descr@(Pandoc meta blocks) = case optPaths of
-  Nothing -> ioError $ userError "no problem list in meta data"
-  Just paths -> do 
-    probs <- mapM readProblem paths
-    tz <- getCurrentTimeZone
-    let int = localTimeToUTC tz <$> Interval.interval open close
-    return ProblemSet { 
-               probsetPath = filepath
-             , probsetTitle = title
-             , probsetDescr = descr
-             , probsetProbs = map (override int) probs
-             , probsetExam = exam
-             , probsetPrintout = printout
-             }
+-- | read a problemset from the file system
+-- also yields list of warningtext messages 
+readProblemSet :: FilePath -> IO (ProblemSet, [Text])
+readProblemSet filepath = runLogIO $ do
+  doc <- readMarkdown myReaderOptions <$> safeIO "" (readFile filepath) 
+  context filepath (makeProblemSet filepath doc)
+
+
+makeProblemSet :: FilePath -> Pandoc -> LogIO ProblemSet
+makeProblemSet filepath descr@(Pandoc meta blocks) = do
+  tz <- liftIO getCurrentTimeZone
+  optPaths <- lookupFromMeta "problems" meta
+  -- fmap (map T.unpack) <$> lookupFromMeta "problems" meta
+  let paths = maybe [] (map (problemDir </>)) optPaths
+  title <- lookupFromMeta "title" meta
+  open <- lookupUTC tz "open" meta
+  close <- lookupUTC tz "close" meta
+  exam <- maybe False id <$> lookupFromMeta "exam-mode" meta
+  printout <- maybe False id <$> lookupFromMeta "printout" meta
+  probs <- mapM readProblem paths
+  return ProblemSet { 
+    probsetPath = filepath
+    , probsetTitle = title `mplus` firstHeader blocks
+    , probsetDescr = descr
+    , probsetProbs = map (override open close) probs
+    , probsetExam = exam
+    , probsetPrintout = printout
+    }
   where
     problemDir = takeDirectory filepath
-    optPaths = map ((problemDir </>) . T.unpack) <$> lookupFromMeta "problems" meta 
-    title = (lookupFromMeta "title" meta) `mplus` firstHeader blocks 
-    open = lookupFromMeta "open" meta 
-    close= lookupFromMeta "close" meta 
-    exam  = maybe False id (lookupFromMeta "exam-mode" meta)
-    printout = maybe False id (lookupFromMeta "printout" meta)
-
-  
 
 
-override :: Interval UTCTime -> Problem -> Problem
-override time prob@Problem{..}
+override :: Maybe UTCTime -> Maybe UTCTime -> Problem -> Problem
+override open close prob@Problem{..}
   = prob { probOpen = Interval.interval
-                      (Interval.start probOpen `mplus` Interval.start time)
-                      (Interval.end probOpen `mplus` Interval.end time) }
+                      (Interval.start probOpen `mplus` open)
+                      (Interval.end probOpen `mplus` close) }
 
 
 -- first header in a list of blocks
@@ -130,16 +172,16 @@ firstHeader :: [Block] -> Maybe Text
 firstHeader blocks = listToMaybe [query inlineText h | Header _ _ h <- blocks]
 
 
-
-
-readProblem :: FilePath -> IO Problem 
-readProblem filepath =  do
-      txt <- readFile filepath
-      let ext = takeExtension filepath
-      doc <- case lookup ext readersList of
+readProblem :: FilePath -> LogIO Problem 
+readProblem filepath = context filepath $ do
+      txt <- safeIO "" (readFile filepath)
+      doc <- case lookup (takeExtension filepath) readersList of
             Just reader -> return (reader txt)
-            Nothing -> ioError $ userError ("unknown extension " ++ show ext)
+            Nothing -> do logStr "invalid file extension"
+                          return (Pandoc nullMeta [])
       makeProblem filepath doc
+
+
 
 -- file extensions and associated Pandoc readers
 readersList :: [(String, String -> Pandoc)]
@@ -150,31 +192,33 @@ readersList
 
 
 -- make a problem from a Pandoc document
-makeProblem :: FilePath ->  Pandoc -> IO Problem
-makeProblem filepath descr@(Pandoc meta blocks)
-    = do tz <- getCurrentTimeZone
-         let int = localTimeToUTC tz <$> Interval.interval open close
-         return Problem { probID = pid,
-                          probPath = filepath,
-                          probTitle = title,
-                          probTags = tags,
-                          probOpen = int,
-                          probDoctest = doctest,
-                          probDefault = submit,
-                          probDescr = descr
-                        }
+makeProblem :: FilePath ->  Pandoc -> LogIO Problem
+makeProblem filepath descr@(Pandoc meta blocks) = do
+  tz <- liftIO getCurrentTimeZone
+  open <-  lookupUTC tz "open" meta
+  close <- lookupUTC tz "close" meta
+  title <- lookupFromMeta "title" meta
+  submit <- lookupFromMeta "submit" meta
+  tags <- maybe [] id <$> lookupFromMeta "tags" meta
+  optDoctest <- fmap T.unpack <$> lookupFromMeta "doctest" meta
+  let doctest = maybe defaultDoctest (dir</>) optDoctest
+  check <- liftIO (doesFileExist doctest)
+  when (not check) $
+    logStr ("doctest file " ++ show doctest ++ " does not exist")
+  return Problem { probID = pid,
+                   probPath = filepath,
+                   probTitle = title `mplus` firstHeader blocks,
+                   probTags = tags,
+                   probOpen = Interval.interval open close,
+                   probDoctest = doctest,
+                   probDefault = submit,
+                   probDescr = descr
+                 }
   where
     -- take unique identifier from filepath
     pid = PID $ B.fromString $ takeBaseName filepath
-    -- fetch metadata from Pandoc document
-    open = lookupFromMeta "open" meta 
-    close = lookupFromMeta "close" meta 
-    title = (lookupFromMeta "title" meta) `mplus` firstHeader blocks
-    submit = lookupFromMeta "submit" meta 
-    tags =  maybe [] id (lookupFromMeta "tags" meta)
-    doctest = case lookupFromMeta "doctest" meta of
-      Just p -> takeDirectory filepath </> T.unpack p
-      Nothing -> dropExtension filepath <.> "tst"
+    dir = takeDirectory filepath
+    defaultDoctest = dropExtension filepath <.> "tst"
 
 
 
