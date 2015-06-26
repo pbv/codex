@@ -84,7 +84,7 @@ instance Tagged ProblemSet where
 
 
 -- | monad combining IO with logging
--- reader enviromemnt for logging context             
+-- the reader environment provides a prefix for the logging messages
 type LogIO a = ReaderT Text (WriterT [Text] IO) a
 
 runLogIO :: LogIO a -> IO (a, [Text])
@@ -92,14 +92,15 @@ runLogIO m = runWriterT (runReaderT m T.empty)
 
 -- | log a string
 logStr :: String -> LogIO ()
-logStr s = do r <- ask
-              tell [T.append r (T.pack $ s)]
+logStr s = do { p <- ask; tell [T.append p (T.pack s)] }
 
-context :: String -> LogIO a -> LogIO a
-context s = local (const (T.pack $ s ++ ": ")) 
+-- | set the logging messages prefix 
+prefix :: String -> LogIO a -> LogIO a
+prefix s = local (const (T.pack $ s ++ ": ")) 
 
 
--- | safe liftIO that logs IO error and returns a default value
+-- | lift an IO action to the logging monad
+-- | logs a message on IO error and returns a default value
 safeIO :: a -> IO a -> LogIO a
 safeIO def m = do
   r <- liftIO (catchIOError (Right <$> m) (return . Left))
@@ -107,12 +108,6 @@ safeIO def m = do
     Left err -> tell [T.pack (show err)] >> return def
     Right v -> return v
 
-
-{-
--- | lookup a tag in a meta key-value map and parse result
-lookupFromMeta :: ParseMeta a => String -> Meta -> Maybe a
-lookupFromMeta tag meta = lookupMeta tag meta >>= fromMeta
--}
 
 
 lookupFromMeta :: ParseMeta a => String -> Meta -> LogIO (Maybe a)
@@ -133,14 +128,13 @@ lookupUTC tz tag meta = fmap (localTimeToUTC tz) <$> lookupFromMeta tag meta
 readProblemSet :: FilePath -> IO (ProblemSet, [Text])
 readProblemSet filepath = runLogIO $ do
   doc <- readMarkdown myReaderOptions <$> safeIO "" (readFile filepath) 
-  context filepath (makeProblemSet filepath doc)
+  prefix filepath (makeProblemSet filepath doc)
 
 
 makeProblemSet :: FilePath -> Pandoc -> LogIO ProblemSet
 makeProblemSet filepath descr@(Pandoc meta blocks) = do
   tz <- liftIO getCurrentTimeZone
   optPaths <- lookupFromMeta "problems" meta
-  -- fmap (map T.unpack) <$> lookupFromMeta "problems" meta
   let paths = maybe [] (map (problemDir </>)) optPaths
   title <- lookupFromMeta "title" meta
   open <- lookupUTC tz "open" meta
@@ -173,7 +167,7 @@ firstHeader blocks = listToMaybe [query inlineText h | Header _ _ h <- blocks]
 
 
 readProblem :: FilePath -> LogIO Problem 
-readProblem filepath = context filepath $ do
+readProblem filepath = prefix filepath $ do
       txt <- safeIO "" (readFile filepath)
       doc <- case lookup (takeExtension filepath) readersList of
             Just reader -> return (reader txt)
@@ -181,14 +175,6 @@ readProblem filepath = context filepath $ do
                           return (Pandoc nullMeta [])
       makeProblem filepath doc
 
-
-
--- file extensions and associated Pandoc readers
-readersList :: [(String, String -> Pandoc)]
-readersList
-  = [(ext, readMarkdown myReaderOptions) | ext<-[".md",".mdown",".markdown"]] ++
-    [(ext, readHtml myReaderOptions)     | ext<-[".html", ".htm"]] ++
-    [(".tex", readLaTeX myReaderOptions)]
 
 
 -- make a problem from a Pandoc document
@@ -200,7 +186,7 @@ makeProblem filepath descr@(Pandoc meta blocks) = do
   title <- lookupFromMeta "title" meta
   submit <- lookupFromMeta "submit" meta
   tags <- maybe [] id <$> lookupFromMeta "tags" meta
-  optDoctest <- fmap T.unpack <$> lookupFromMeta "doctest" meta
+  optDoctest <- lookupFromMeta "doctest" meta
   let doctest = maybe defaultDoctest (dir</>) optDoctest
   check <- liftIO (doesFileExist doctest)
   when (not check) $
@@ -233,8 +219,17 @@ isOpen :: UTCTime -> Problem  -> Bool
 isOpen t Problem{..} = t `Interval.elem` probOpen
 
 
+-- | render a Pandoc document into a list of HTML nodes
 renderPandoc :: Pandoc -> [Node]
 renderPandoc  = renderHtmlNodes . writeHtml myWriterOptions 
+
+
+-- file extensions and associated Pandoc readers
+readersList :: [(String, String -> Pandoc)]
+readersList
+  = [(ext, readMarkdown myReaderOptions) | ext<-[".md",".mdown",".markdown"]] ++
+    [(ext, readHtml myReaderOptions)     | ext<-[".html", ".htm"]] ++
+    [(".tex", readLaTeX myReaderOptions)]
 
 
 --- pandoc reader and writter options
