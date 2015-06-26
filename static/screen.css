@@ -83,8 +83,8 @@ img {
 
 .warnings { 
   color: red;
-  font-style: oblique;
-  font-size: 90%;
+  /* font-style: oblique; */
+  /* font-size: 90%; */
 }
 
 

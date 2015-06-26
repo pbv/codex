@@ -135,7 +135,9 @@ makeProblemSet :: FilePath -> Pandoc -> LogIO ProblemSet
 makeProblemSet filepath descr@(Pandoc meta blocks) = do
   tz <- liftIO getCurrentTimeZone
   optPaths <- lookupFromMeta "problems" meta
-  let paths = maybe [] (map (problemDir </>)) optPaths
+  paths <- case optPaths of 
+    Nothing -> logStr "error: could not find problem list" >> return []
+    Just ps -> return (map (problemDir </>) ps)
   title <- lookupFromMeta "title" meta
   open <- lookupUTC tz "open" meta
   close <- lookupUTC tz "close" meta

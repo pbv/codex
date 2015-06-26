@@ -19,6 +19,7 @@ import           Control.Lens
 import           Data.ByteString.UTF8 (ByteString)
 import qualified Data.ByteString.UTF8 as B
 import qualified Data.ByteString      as B
+import           Data.Monoid
 import           Data.Maybe(listToMaybe)
 -- import           Data.Map (Map)
 import qualified Data.Map as Map
@@ -458,12 +459,12 @@ app =
     d <- nestSnaplet "db" db sqliteInit
     a <- nestSnaplet "auth" auth $ initSqliteAuth sess d
     addAuthSplices h auth
-    addConfig h emptyConfig { hcInterpretedSplices = do 
-                                 "version" ## versionSplice
-                                 "timeNow" ## nowSplice
-                                 "loggedInName" ## loggedInName auth
-                                 "ifAdmin" ## authRoles auth (adminRole `elem`)
-                            }
+    let sc = do 
+          "version" ## versionSplice
+          "timeNow" ## nowSplice
+          "loggedInName" ## loggedInName auth
+          "ifAdmin" ## authRoles auth (adminRole `elem`)
+    addConfig h (mempty & scInterpretedSplices .~ sc)
     -- Grab the DB connection pool from the sqlite snaplet and call
     -- into the Model to create all the DB tables if necessary.
     let c = sqliteConn $ d ^# snapletValue
@@ -488,8 +489,8 @@ app =
                       }
 
 
-emptyConfig :: HeistConfig m
-emptyConfig = HeistConfig noSplices noSplices noSplices noSplices []
+-- emptyConfig :: HeistConfig m
+-- emptyConfig = HeistConfig noSplices noSplices noSplices noSplices []
 
 
 -- initialize EKG server (if configured)
