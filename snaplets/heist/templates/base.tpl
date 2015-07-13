@@ -4,39 +4,11 @@
     <title>Pythondo server</title>
     <link rel="stylesheet" type="text/css" href="/screen.css"/>
     <script type="text/javascript"
-	    src="/mathjax/MathJax.js?config=TeX-AMS-MML_HTMLorMML"></script>
-    <script type="text/javascript">
-function refresh_timer(id, future) {
-        var now = new Date();
-        var t = Math.floor((future- now)/1000);
-        if (t>0) {
-        s = t % 60;
-        t = Math.floor(t/60);  
-        m = t % 60;
-        t = Math.floor(t/60);
-        h = t % 24;
-        d = Math.floor(t/24)
-        if(d>0 || h>0) {
-        time = (d>0 ? d + "d " : "") + 
-               (h>0 ? h + "h " : "") +
-               (m + "m");
-       } else {
-        time = (m>0 ? m + "m " : "") +
-               (s + "s");
-       }
-       document.getElementById(id).innerHTML = time;
-       } else {
-       document.getElementById(id).innerHTML = "N/A";
-       }
-}
-
-function start_countdown(id,secs) {
-    var timeout = new Date();
-    timeout.setTime(timeout.getTime() + secs*1000);
-    refresh_timer(id, timeout);
-    setInterval(function () { refresh_timer(id, timeout) }, 1000);
-}    
-    </script>
+	    src="/mathjax/MathJax.js?config=TeX-AMS-MML_HTMLorMML"/>
+    <script src="/ace-builds/src-min-noconflict/ace.js" type="text/javascript" charset="utf-8"></script>
+    <script src="/ace-builds/src-min-noconflict/ext-modelist.js" type="text/javascript" charset="utf-8"></script>
+    <script type="text/javascript" src="/js/ace-glue.js"/>   
+    <script type="text/javascript" src="/js/timer.js"/>
   </head>
   <body>
      <div id="topbar">

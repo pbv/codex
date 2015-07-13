@@ -1,10 +1,15 @@
 <apply template="base">
 <h2><edit_path/></h2>
-<bind tag="submit_label">Gravar</bind>
-<bind tag="post_action">/edit/${edit_path}</bind>
-<bind tag="cancel_label">Cancelar</bind>
-<bind tag="next_url">/problems</bind>
-<apply template="_editor"><edit_source/></apply>
+<form id="editform" method="POST"
+      action="/edit/${edit_path}"
+      onsubmit="submitAceEditorText('editform.editor');">
+<p><inputAceEditor id="editform.editor"><edit_source/></inputAceEditor></p>
+<p><input type="submit" value="Gravar"/></p>
+<input type="hidden" id="editform.path" value="${edit_path}"/>
+</form>
+<p><a href="/problems">Voltar à lista de problemas</a>
+<script type="text/javascript">
+startAceEditor('editform.editor');
+setAceEditorModeExt('editform.editor', 'editform.path');
+</script>
 </apply>
-
-

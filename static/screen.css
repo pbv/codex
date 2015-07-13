@@ -117,9 +117,9 @@ pre {
 }
 
 
-#editor { 
-    width: 45em;
-    height: 40ex;
+.ace_editor { 
+    width:  45em;
+    height: 45ex;
 }
 
 

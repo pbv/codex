@@ -29,11 +29,16 @@
 </if_submitted>
 
 <h2>Nova submissão</h2>
-<bind tag="submit_label">Enviar</bind>
-<bind tag="post_action">/submissions/${problem_id}</bind>
-<bind tag="cancel_label">Cancelar</bind>
-<bind tag="next_url">/problems/${problem_id}</bind>
-<bind tag="edit_path">untitled.py</bind>
-<apply template="_editor"><problem_default/></apply>
+<form id="codeform" method="POST" 
+      action="/submissions/${problem_id}"
+      onsubmit="submitAceEditorText('codeform.editor');">
+<p><inputAceEditor id="codeform.editor"><problem_default/></inputAceEditor></p>
+<p><input type="submit" value="Enviar"/></p>
+</form>
 <p><a href="/problems">Voltar à lista de problemas</a>
+<script type="text/javascript">
+startAceEditor('codeform.editor');
+setAceEditorMode('codeform.editor', 'ace/mode/python');
+</script>
 </apply>
+

@@ -49,6 +49,8 @@ import           Data.Configurator.Types
 import           System.Locale
 import           System.FilePath
 import           System.Remote.Monitoring
+import qualified Text.XmlHtml as X
+
 
 ------------------------------------------------------------------------------
 import           Application
@@ -66,8 +68,7 @@ import           Printout
 import           Paths_pythondo(version)
 import           Data.Version (showVersion)  
 
-
-import qualified Text.XmlHtml as X
+import           AceEditor
 
 -- my application splices
 type AppSplices = Splices (I.Splice AppHandler)
@@ -109,8 +110,8 @@ handleLoginSubmit =
 handleLoginSubmit :: 
   LdapConf -> ByteString -> ByteString -> Handler Pythondo (AuthManager Pythondo) ()
 handleLoginSubmit ldapConf user passwd = do
-  optAuth <- withBackend (\r -> liftIO $ ldapAuth r ldapConf user passwd)
-  --optAuth <- withBackend (\r -> liftIO $ dummyAuth r ldapConf user passwd)
+  -- optAuth <- withBackend (\r -> liftIO $ ldapAuth r ldapConf user passwd)
+  optAuth <- withBackend (\r -> liftIO $ dummyAuth r ldapConf user passwd)
   case optAuth of 
     Nothing -> handleLoginForm err
     Just u -> forceLogin u >> redirect "/problems"
@@ -156,10 +157,12 @@ handleProblem = method GET $ do
     (prob,mesgs) <- getProblem pid
     now <- liftIO getCurrentTime
     subs <- getSubmissions uid pid
-    renderWithSplices "problem" $ do problemSplices prob
-                                     submissionsSplice subs
-                                     timerSplices pid now (probOpen prob)
-                                     warningsSplices mesgs
+    renderWithSplices "problem" $
+      do problemSplices prob
+         inputAceEditorSplices
+         submissionsSplice subs
+         timerSplices pid now (probOpen prob)
+         warningsSplices mesgs
 
 
 
@@ -294,7 +297,8 @@ submissionSplices Submission{..} = do
   "submit_report" ## I.textSplice submitReport 
   "if_accepted" ## conditionalSplice (submitStatus == Accepted) 
   "if_overdue" ##  conditionalSplice (submitStatus == Overdue) 
-  "if_rejected" ## conditionalSplice (submitStatus/= Accepted && submitStatus/=Overdue) 
+  "if_rejected" ## conditionalSplice (submitStatus/= Accepted &&
+                                      submitStatus/=Overdue) 
 
 
 
@@ -306,20 +310,22 @@ handleGetSubmission
         sid <- require getSubmissionID
         (prob,mesgs) <- getProblem pid
         sub <- getSubmission uid pid sid
-        renderWithSplices "report" $ do problemSplices prob  
+        renderWithSplices "report" $ do inputAceEditorSplices
+                                        problemSplices prob  
                                         submissionSplices sub
                                         warningsSplices mesgs
 
 
 handlePostSubmission = method POST $ do
   uid <- require getUserID <|> unauthorized
-  pid <- require getProblemID 
-  code <- require (getTextPost "code")
+  pid <- require getProblemID
+  code <- require (getTextPost "codeform.editor") 
   (prob,mesgs) <- getProblem pid
   now <- liftIO getCurrentTime
   sub <- postSubmission uid prob code
   incrCounter "submissions"
-  renderWithSplices "report" $ do problemSplices prob 
+  renderWithSplices "report" $ do inputAceEditorSplices
+                                  problemSplices prob 
                                   submissionSplices sub 
                                   timerSplices pid now (probOpen prob)
                                   warningsSplices mesgs
@@ -388,6 +394,7 @@ handleAdminEdit = do
       path <- getsRequest rqPathInfo
       source <- liftIO (T.readFile $ B.toString path)
       renderWithSplices "editfile" $ do
+        inputAceEditorSplices
         warningsSplices mesgs
         "edit_path" ## I.textSplice (T.pack $ B.toString path)
         "edit_source" ## I.textSplice source
@@ -395,7 +402,7 @@ handleAdminEdit = do
 
     handlePost  = do
       path <- getsRequest rqPathInfo      
-      source <- require (getTextPost "code")
+      source <- require (getTextPost "editform.editor")
       liftIO (T.writeFile (B.toString path) source)
       redirect "/problems"
 
@@ -464,6 +471,7 @@ app =
           "timeNow" ## nowSplice
           "loggedInName" ## loggedInName auth
           "ifAdmin" ## authRoles auth (adminRole `elem`)
+          
     addConfig h (mempty & scInterpretedSplices .~ sc)
     -- Grab the DB connection pool from the sqlite snaplet and call
     -- into the Model to create all the DB tables if necessary.
