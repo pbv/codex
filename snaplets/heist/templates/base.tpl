@@ -1,3 +1,4 @@
+<bind tag="warning_icon"><img src="/icons/16x16/warning.png"/></bind>
 <html>
  <head>
     <meta charset="UTF-8">
@@ -23,12 +24,12 @@
       </div>
 	 </ifLoggedIn>
 	 </p>
+     </div>
       <ifAdmin>
       <div class="warnings">
-	<dl><warnings><dd><message/></dd></warnings></dl>
+	<dl><warnings><dd><warning_icon/>&nbsp;<message/></dd></warnings></dl>
       </div>
-      </ifAdmin>
-     </div>
+      </ifAdmin>     
     <div id="content">
       <apply-content/>
     </div>

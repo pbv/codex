@@ -10,5 +10,5 @@
 <bind tag="post_action">/login</bind>
 <bind tag="submit_label">Login</bind>
 <apply template="userform"/>
-<div id="error"><p><loginError/></p></div>
+<div class="warnings"><p><loginError/></p></div>
 </apply>

@@ -17,15 +17,16 @@
 </if_rejected>
 
 <h2>Nova submissão</h2>
-<form id="codeform" method="POST" 
+<form id="editform" method="POST" 
       action="/submissions/${problem_id}"
-      onsubmit="submitAceEditorText('codeform.editor');">
-<p><inputAceEditor id="codeform.editor"><submit_text/></inputAceEditor></p>
-<p><input type="submit" value="Enviar"/></p>
+      onsubmit="submitAceEditorText('editform.editor');">
+<p><inputAceEditor id="editform.editor"><submit_text/></inputAceEditor></p>
+<p><input type="submit" value="Enviar"/> 
+&nbsp;<a class="button" href="/problems/${problem_id}">Voltar ao problema</a>
+&nbsp;<a class="button" href="/problems">Voltar à lista de problemas</a>
 </form>
-<p><a href="/problems">Voltar à lista de problemas</a>
 <script type="text/javascript">
-startAceEditor('codeform.editor');
-setAceEditorMode('codeform.editor', 'ace/mode/python');
+startAceEditor('editform.editor');
+setAceEditorMode('editform.editor', 'ace/mode/python');
 </script>
 </apply>

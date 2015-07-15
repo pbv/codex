@@ -48,6 +48,7 @@ import           Data.Configurator.Types
 
 import           System.Locale
 import           System.FilePath
+import           System.IO.Error
 import           System.Remote.Monitoring
 import qualified Text.XmlHtml as X
 
@@ -319,7 +320,7 @@ handleGetSubmission
 handlePostSubmission = method POST $ do
   uid <- require getUserID <|> unauthorized
   pid <- require getProblemID
-  code <- require (getTextPost "codeform.editor") 
+  code <- require (getTextPost "editform.editor") 
   (prob,mesgs) <- getProblem pid
   now <- liftIO getCurrentTime
   sub <- postSubmission uid prob code
@@ -392,19 +393,24 @@ handleAdminEdit = do
     handleGet = do
       (_, mesgs) <- getProblemSet
       path <- getsRequest rqPathInfo
-      source <- liftIO (T.readFile $ B.toString path)
+      opt_pid <- getParam "pid"
+      source <- liftIO (catchIOError
+                        (T.readFile $ B.toString path)
+                        (\_ -> return ""))
       renderWithSplices "editfile" $ do
         inputAceEditorSplices
         warningsSplices mesgs
         "edit_path" ## I.textSplice (T.pack $ B.toString path)
         "edit_source" ## I.textSplice source
-
+        "problem_id" ## maybe (return []) (I.textSplice . T.pack . B.toString) opt_pid
 
     handlePost  = do
-      path <- getsRequest rqPathInfo      
+      path <- getsRequest rqPathInfo
+      opt_pid <- getParam "pid"
       source <- require (getTextPost "editform.editor")
       liftIO (T.writeFile (B.toString path) source)
-      redirect "/problems"
+      redirect (B.append "/problems/" $ maybe "" id opt_pid)
+
 
 
       

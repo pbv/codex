@@ -12,8 +12,8 @@
   </if_limited>
 </if_open>
 <ifAdmin>
-  <p><a href="/edit/${problem_path}"><editor_icon/>&nbsp;Editar problema</a>
-  <a href="/edit/${problem_doctest}"><editor_icon/>&nbsp;Editar testes</a>
+  <p><a class="button" href="/edit/${problem_path}?pid=${problem_id}"><editor_icon/>&nbsp;Editar problema</a>
+  <a class="button" href="/edit/${problem_doctest}?pid=${problem_id}"><editor_icon/>&nbsp;Editar testes</a>
 </p></ifAdmin>
 
 
@@ -29,16 +29,16 @@
 </if_submitted>
 
 <h2>Nova submissão</h2>
-<form id="codeform" method="POST" 
+<form id="editform" method="POST" 
       action="/submissions/${problem_id}"
-      onsubmit="submitAceEditorText('codeform.editor');">
-<p><inputAceEditor id="codeform.editor"><problem_default/></inputAceEditor></p>
-<p><input type="submit" value="Enviar"/></p>
+      onsubmit="submitAceEditorText('editform.editor');">
+<p><inputAceEditor id="editform.editor"><problem_default/></inputAceEditor></p>
+<p><input type="submit" value="Enviar"/>  &nbsp;
+   <a href="/problems" class="button">Voltar à lista de problemas</a>
 </form>
-<p><a href="/problems">Voltar à lista de problemas</a>
 <script type="text/javascript">
-startAceEditor('codeform.editor');
-setAceEditorMode('codeform.editor', 'ace/mode/python');
+startAceEditor('editform.editor');
+setAceEditorMode('editform.editor', 'ace/mode/python');
 </script>
 </apply>
 

@@ -6,7 +6,7 @@
 <problemset_description/>
 </div>
 <ifAdmin>
-  <p><a href="/edit/${problemset_path}"><editor_icon/>&nbsp;Editar lista de problemas</a></p>
+  <p><a class="button" href="/edit/${problemset_path}"><editor_icon/>&nbsp;Editar lista de problemas</a></p>
 </ifAdmin>
 <div class="filterlist">
 <form action="/problems" method="get">
@@ -18,13 +18,13 @@
 </tag_list>
 </dl>
 <p><input type="submit" value="Aplicar"/></p>
-<p><a href="/problems">Limpar filtros</a></p>
+<p><a class="button" href="/problems">Limpar filtros</a></p>
 </form>
 </div>
 <div class="problemlist">
 <dl>
 <problem_list>
-  <dt><ifAdmin><a href="/edit/${problem_path}"><editor_icon/></a></ifAdmin> 
+  <dt><ifAdmin><a href="/edit/${problem_path}?pid=${problem_id}"><editor_icon/></a></ifAdmin> 
    <a href="/problems/${problem_id}"><problem_title/></a><if_accepted>&nbsp;<accepted_icon/></if_accepted></dt>
     <dd class="problemli"><span class="info">
 	<if_submitted><number_submissions/> submissões já efetuadas.<br/></if_submitted>
