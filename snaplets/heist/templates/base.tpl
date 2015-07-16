@@ -19,8 +19,8 @@
    (<em><loggedInName/></em
        ><ifAdmin>&nbsp;<strong>Administrator</strong></ifAdmin>).
     <div id="actions">
-      <a href="/asklogout">Terminar sessão</a>
-    <ifAdmin><a href="/admin/reload">Reload templates</a></ifAdmin>
+      <a class="button" href="/asklogout">Terminar sessão</a>
+    <ifAdmin><a class="button" href="/admin/reload">Reload templates</a></ifAdmin>
       </div>
 	 </ifLoggedIn>
 	 </p>
