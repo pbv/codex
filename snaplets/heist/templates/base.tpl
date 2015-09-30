@@ -1,4 +1,3 @@
-<bind tag="warning_icon"><img src="/icons/16x16/warning.png"/></bind>
 <html>
  <head>
     <meta charset="UTF-8">
@@ -19,17 +18,12 @@
    (<em><loggedInName/></em
        ><ifAdmin>&nbsp;<strong>Administrator</strong></ifAdmin>).
     <div id="actions">
+      <ifAdmin><a class="button" href="/admin/submissions">Download submissions</a></ifAdmin>
       <a class="button" href="/asklogout">Terminar sessão</a>
-    <ifAdmin><a class="button" href="/admin/reload">Reload templates</a></ifAdmin>
       </div>
 	 </ifLoggedIn>
-	 </p>
+       </p>
      </div>
-      <ifAdmin>
-      <div class="warnings">
-	<dl><warnings><dd><warning_icon/>&nbsp;<message/></dd></warnings></dl>
-      </div>
-      </ifAdmin>     
     <div id="content">
       <apply-content/>
     </div>

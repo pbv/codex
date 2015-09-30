@@ -2,6 +2,7 @@
 <bind tag="rejected_icon"><img src="/icons/16x16/rejected.png"/></bind>
 <bind tag="editor_icon"><img src="/icons/16x16/editor.png"/></bind>
 <apply template="base">
+<apply template="_warnings"/>
 <div class="description">
 <problemset_description/>
 </div>

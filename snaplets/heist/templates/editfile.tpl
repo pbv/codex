@@ -1,4 +1,5 @@
 <apply template="base">
+<apply template="_warnings"/>
 <h2><edit_path/></h2>
 <form id="editform" method="POST"
       action="/edit/${edit_path}?pid=${problem_id}"

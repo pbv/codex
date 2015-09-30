@@ -71,7 +71,8 @@ img {
 
 #actions { 
     position: absolute;
-    width: 10em;
+    width: 20em;
+    height: 4ex;
     left: auto;
     right: 1em;
     top: 1em;

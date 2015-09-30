@@ -412,6 +412,13 @@ handleAdminEdit = do
       redirect (B.append "/problems/" $ maybe "" id opt_pid)
 
 
+handleAdminSubmissions = method GET $ do
+  uid <- require getUserID
+  roles <- require getUserRoles
+  guard (adminRole `elem` roles)
+  serveFileAs "application/x-sqlite3" "submissions.db"
+        
+
 
       
 
@@ -426,6 +433,7 @@ routes = [ ("/login",                 handleLogin `catch` internalError)
          , ("/edit",                  handleAdminEdit `catch` internalError)
          , ("/submissions/:pid",      handlePostSubmission `catch` internalError)
          , ("/submissions/:pid/:sid", handleGetSubmission  `catch` internalError)
+         , ("/admin/submissions",     handleAdminSubmissions `catch` internalError)
          , ("/asklogout",             handleConfirmLogout `catch` internalError)        
          , ("",                       serveDirectory "static" <|> notFound)
          ]

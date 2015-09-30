@@ -1,4 +1,5 @@
 <apply template="base">
+<apply template="_warnings"/>
 <h1><problem_title/></h1>
 <h2>Submissão <submit_id/></h2>
 <h2>Resultado: <em><submit_status/></em></h2>

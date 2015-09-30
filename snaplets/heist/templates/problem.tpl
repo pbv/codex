@@ -3,6 +3,7 @@
 <bind tag="overdue_icon"><img src="/icons/16x16/overdue.png"/></bind>
 <bind tag="editor_icon"><img src="/icons/16x16/editor.png"/></bind>
 <apply template="base">
+<apply template="_warnings"/>
 <problem_description/>
 <if_early><p>Submissões vão abrir em: <start_time/>.</if_early>
 <if_late><p>Submissões fecharam em: <end_time/>.</if_late>
@@ -15,7 +16,6 @@
   <p><a class="button" href="/edit/${problem_path}?pid=${problem_id}"><editor_icon/>&nbsp;Editar problema</a>
   <a class="button" href="/edit/${problem_doctest}?pid=${problem_id}"><editor_icon/>&nbsp;Editar testes</a>
 </p></ifAdmin>
-
 
 <if_submitted>
 <h2>Submissões anteriores</h2>
