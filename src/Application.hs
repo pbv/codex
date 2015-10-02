@@ -30,7 +30,7 @@ data Pythondo = Pythondo
     -- , _config :: Config                  -- configurator handle
     , _sandbox :: Sandbox                -- safeexec configuration
     , _ldapConf :: LdapConf              -- LDAP configuration
-    , _printout :: Printout              -- printout configuration
+    , _printConf :: PrintConf            -- printout configuration
     , _ekg     :: Maybe Server           -- optional EKG monitoring server
     }
 

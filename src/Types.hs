@@ -84,11 +84,11 @@ data LdapConf = LdapConf { ldapURI :: String
                          } 
                 deriving (Eq,Show)
                          
--- | printout configuration
-data Printout = Printout { printEnabled :: Bool 
-                         , printHeader :: Text
-                         , printOptions :: [String]
-                         } 
+-- | Printout configuration
+data PrintConf = PrintConf { printEnabled :: Bool 
+                           , printHeader :: Text
+                           , printOptions :: [String]
+                           } 
                 deriving (Eq,Show)
 
 

@@ -54,12 +54,12 @@ configSandbox conf = do
                    , maxMemory = mem 
                    }
 
-configPrintout :: Config -> IO Printout
-configPrintout conf = do
+configPrintConf :: Config -> IO PrintConf
+configPrintConf conf = do
   enabled <- Configurator.lookupDefault False conf "printouts.enabled"
   header <- Configurator.lookupDefault defaultHeader conf "printouts.header"
   opts <- Configurator.lookupDefault [] conf "printouts.options"
-  return (Printout enabled header opts)
+  return (PrintConf enabled header opts)
   where defaultHeader = "Pythondo"
 
 configLdapConf :: Config -> IO LdapConf
@@ -82,8 +82,8 @@ getLdapConf = gets _ldapConf
 
 
 -- | get printout configuration parameters
-getPrintout :: AppHandler Printout              
-getPrintout = gets _printout
+getPrintConf :: AppHandler PrintConf
+getPrintConf = gets _printConf
 
 
 -- | increment an EKG counter

@@ -64,6 +64,7 @@ import           Problem
 import           Submission
 import           Summary
 import           LdapAuth
+import           Report
 import           Printout
 
 import           Paths_pythondo(version)
@@ -121,16 +122,28 @@ handleLoginSubmit ldapConf user passwd = do
 
 
 ------------------------------------------------------------------------------
--- | Logs out and redirects the user to the site index.
---  in exam mode procedeed to printout 
+-- Logs out and redirects the user to the site index.
+-- in exam mode procedeed to printout 
 handleLogout :: AppHandler ()
 handleLogout = method GET $ do
     uid <- require getUserID <|> unauthorized
-    (probset,_) <- getProblemSet
-    -- handle printout (if configured)
-    handlePrintout uid probset
+    ProblemSet{..} <- fst <$> getProblemSet
+    -- handle printout if needed
+    when probsetPrintout $ handlePrintout uid probsetProbs
     with auth logout 
     redirect "/" 
+
+
+-- make a printout before ending session
+handlePrintout :: UID -> [Problem] -> AppHandler ()
+handlePrintout uid probs = do
+  subs <- mapM (getBestSubmission uid) (map probID probs)
+  report <- genReport (zip probs subs)
+  liftIO $ makePrintout (show uid) report
+
+-- liftIO $ makePrintout printout uid fullname clientname (zip probs subs)
+-- printout not configured, return immediately  
+-- handlePrintout _ _ = return ()
 
 
 {-
@@ -498,7 +511,7 @@ app =
     addRoutes routes
       
     sandbox <- liftIO $ configSandbox conf
-    printout <- liftIO $ configPrintout conf
+    printConf <- liftIO $ configPrintConf conf
     ldapConf <- liftIO $ configLdapConf conf
     return $ Pythondo { _heist = h
                       , _sess = s
@@ -506,7 +519,7 @@ app =
                       , _db   = d
                       , _sandbox = sandbox
                       , _ldapConf = ldapConf
-                      , _printout = printout
+                      , _printConf = printConf
                       , _ekg = e
                       }
 

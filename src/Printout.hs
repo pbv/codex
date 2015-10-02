@@ -3,7 +3,7 @@
    Produce printouts for exams, etc.
 -}
 module Printout
-       (handlePrintout
+       (makePrintout
        ) where
 import           Prelude hiding (catch)
 import           System.FilePath
@@ -24,7 +24,7 @@ import qualified Data.Text.IO as T
 import           Data.Maybe
 
 import           Control.Applicative
-import           Control.Monad.State
+import           Control.Monad (forM_)
 
 import           Snap.Core
 import           Application
@@ -35,41 +35,31 @@ import           Submission
 
 
 
--- | make a printout before ending session
-handlePrintout :: UID -> ProblemSet -> AppHandler ()
-handlePrintout uid ProblemSet{..} | probsetPrintout = do
-  fullname <- require getFullName 
-  let pids =  map probID probsetProbs
-  subs <- mapM (getBestSubmission uid) pids
-  printout <- getPrintout
-  clientname <- getClient
-  liftIO $ makePrintout printout uid fullname clientname (zip probsetProbs subs)
--- printout not configured, return imediately  
-handlePrintout _ _ = return ()
 
-
-getClient :: AppHandler Text
-getClient = do
-  -- fetch remote client address (maybe forwarded by a proxy)
-  -- ipHeaderFilter  
-  addr <- getsRequest rqRemoteAddr
-  clientname <- liftIO $ dnsLookup (B.unpack addr)
-  return (T.pack clientname)
   
-
+{-
 dnsLookup :: String -> IO String
 dnsLookup addr = 
   catchIOError (readProcess "/usr/bin/dig" ["@192.168.0.2", "+short", "-x", addr] "")
           (\_ -> return "")
-
+-}
 
         
-makePrintout :: Printout 
-                -> UID 
-                -> Text 
-                -> Text
-                -> [(Problem, Maybe Submission)] 
-                -> IO () 
+makePrintout :: FilePath -> Text -> IO () 
+makePrintout prefix report = do
+  -- LaTeX and PDF file paths 
+  let texfile = prefix <.> "tex"
+  let pdffile = prefix <.> "pdf"
+  -- write LaTeX report file 
+  T.writeFile (printoutDir</>texfile) report
+  -- run pdflatex 
+  (_,_,_,ph) <- createProcess (pdflatex texfile) {cwd=Just printoutDir}
+  waitForProcess ph                    -- wait for it
+  -- remove temporary files
+  let tmpfiles = map (printoutDir</>) [prefix<.>"aux", prefix<.>"log"]
+  forM_ tmpfiles $ \f -> catchIOError (removeFile f) (\_ -> return ()) 
+  
+{-
 makePrintout Printout{..} uid name client subs = do
   zonetime <- getCurrentTime >>= utcToLocalZonedTime
   let time = T.pack (formatTime defaultTimeLocale "%c" zonetime)
@@ -91,12 +81,12 @@ makePrintout Printout{..} uid name client subs = do
     (_,_,_,ph) <- createProcess cmd {cwd=Just "printouts"}
     waitForProcess ph
     return ()
-            
+-}            
             
 pdflatex :: FilePath -> CreateProcess
 pdflatex file = proc "pdflatex" ["-interaction=batchmode", file]
 
-
+{-
 genLaTeX :: UID        -- user ID
             -> Text    -- header
             -> Text    -- full name
@@ -133,34 +123,12 @@ submission (Problem{..}, Just Submission{..}) =
           | submitStatus == Overdue  = "Submitido fora do tempo."
           | otherwise                = "Falhou algum(s) teste(s)."
 
+-}
 
 
+printoutDir :: FilePath
+printoutDir = "printouts"
 
 
-preamble uid header name client time = 
-   ["\\documentclass[10pt,a4paper,twoside]{article}\n",
-    "\\usepackage[T1]{fontenc}\n",
-    "\\usepackage[utf8]{inputenc}\n",
-    "\\usepackage{fancyvrb}\n",
-    "\\usepackage{fancyhdr}\n",
-    "\\addtolength{\\oddsidemargin}{-.875in}\n",
-    "\\addtolength{\\evensidemargin}{-.875in}\n",
-    "\\addtolength{\\textwidth}{1.75in}\n",
-    "\\addtolength{\\topmargin}{-.875in}\n",
-    "\\addtolength{\\textheight}{1.75in}\n",
-    "\\pagestyle{fancy}\n",
-    "\\lhead{", name, "}\n",
-    "\\rhead{\\texttt{", T.pack (show uid), "}}\n",
-    "\\cfoot{\\thepage}\n",
-    "\\begin{document}\n",
-    "\\thispagestyle{plain}\n",
-    "\\noindent\\parbox{\\textwidth}{", header, "\\\\[1ex]\n",
-    "\\textbf{Data:} ", time, "\\\\[2ex]\n",
-    "\\textbf{Nome:} ", name, "\\\\[2ex]\n",
-    "\\textbf{Login:} \\texttt{", T.pack (show uid), "@", client, "} \\\\[2ex]\n",
-    "\\textbf{Assinatura:} \\hrulefill}\\bigskip\n" 
-   ]
-   
-closing = ["\\end{document}\n"]
 
 
