@@ -72,22 +72,22 @@ configLdapConf conf = do
 
 
 -- | get SafeExec configuration
-getSandbox :: AppHandler Sandbox
+getSandbox :: Pythondo Sandbox
 getSandbox = gets _sandbox
 
 
 -- | get LDAP configuration parameters
-getLdapConf :: AppHandler LdapConf
+getLdapConf :: Pythondo LdapConf
 getLdapConf = gets _ldapConf
 
 
 -- | get printout configuration parameters
-getPrintConf :: AppHandler PrintConf
+getPrintConf :: Pythondo PrintConf
 getPrintConf = gets _printConf
 
 
 -- | increment an EKG counter
-incrCounter :: Text -> AppHandler ()
+incrCounter :: Text -> Pythondo ()
 incrCounter name 
   = gets _ekg >>= 
     maybe (return ())  (\ekg -> liftIO $ getCounter name ekg >>= Counter.inc) 
@@ -95,38 +95,38 @@ incrCounter name
 
 
 -- | Get current logged in user; fail with unauthorized error if missing
--- getRequiredUserID :: AppHandler UID
+-- getRequiredUserID :: Pythondo UID
 -- getRequiredUserID = require getUserID <|> unauthorized
 
 -- | Get current logged in user ID (if any)
 --   from the authentication snaplet  
-getUserID :: AppHandler (Maybe UID)
+getUserID :: Pythondo (Maybe UID)
 getUserID = do 
   opt <- with auth currentUser
   return $ fmap (UID . B.fromString . T.unpack . userLogin) opt
 
 
-getFullName :: AppHandler (Maybe Text)
+getFullName :: Pythondo (Maybe Text)
 getFullName = do
   opt <- with auth currentUser
   return (fmap userName opt)
 
 -- | Get user id and roles
-getUserRoles :: AppHandler (Maybe [Role])
+getUserRoles :: Pythondo (Maybe [Role])
 getUserRoles = do
   opt <- with auth currentUser
   return (fmap userRoles opt)
 
-getProblemID :: AppHandler (Maybe PID)
+getProblemID :: Pythondo (Maybe PID)
 getProblemID = fmap PID <$> getParam "pid"
 
-getSubmissionID :: AppHandler (Maybe SID)
+getSubmissionID :: Pythondo (Maybe SID)
 getSubmissionID = fmap (SID . read . B.toString) <$> getParam "sid"
 
 
 
 -- | try a Maybe-handler and "pass" if it yields Nothing 
-require :: AppHandler (Maybe a) -> AppHandler a
+require :: Pythondo (Maybe a) -> Pythondo a
 require handler = do
   opt <- handler
   case opt of
@@ -144,13 +144,13 @@ getTextPost name =
 ---------------------------------------------------------------------
 -- | error handlers
 ---------------------------------------------------------------------    
-unauthorized, badRequest, notFound :: AppHandler a
+unauthorized, badRequest, notFound :: Pythondo a
 unauthorized = render "_unauthorized" >> finishError 401 "Unauthorized"
 badRequest   = render "_badrequest" >> finishError 400 "Bad request"
 notFound     = render "_notfound" >> finishError 404 "Not found"
 
 
-internalError :: SomeException -> AppHandler a
+internalError :: SomeException -> Pythondo a
 internalError e
   = do renderWithSplices  "_internalerror" 
              ("errorMsg" ## I.textSplice (T.pack $ show e))
@@ -185,7 +185,7 @@ conditionalSplice = ifElseISplice
 
 {-
 -- | a splice for conditionals with a nested <else>...</else>
-conditionalSplice ::  Bool -> I.Splice AppHandler
+conditionalSplice ::  Bool -> I.Splice Pythondo
 conditionalSplice cond = localParamNode rewrite I.runChildren
   where rewrite 
           = if cond then 

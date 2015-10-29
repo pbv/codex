@@ -88,7 +88,7 @@ isAccepted Submission{..} = submitStatus==Accepted
 
 -- | insert a new submission into the DB
 insertSubmission ::  UID -> PID -> UTCTime -> Text -> Status -> Text 
-                  -> AppHandler Submission
+                  -> Pythondo Submission
 insertSubmission uid pid time code status report = do
   addr <- fmap (T.pack . B.toString) (getsRequest rqRemoteAddr)
   sid <- withSqlite $ \conn -> do
@@ -102,7 +102,7 @@ insertSubmission uid pid time code status report = do
 
 
 -- | get a single user's submission 
-getSubmission :: UID -> PID -> SID -> AppHandler Submission
+getSubmission :: UID -> PID -> SID -> Pythondo Submission
 getSubmission uid pid sid = do
   r <- query "SELECT * FROM submissions WHERE \
              \ id = ? AND user_id = ? AND problem_id = ?" (sid,uid,pid)
@@ -112,14 +112,14 @@ getSubmission uid pid sid = do
 
 
 -- | get all submissions for a user and problem
-getSubmissions :: UID -> PID -> AppHandler [Submission]  
+getSubmissions :: UID -> PID -> Pythondo [Submission]  
 getSubmissions uid pid = 
   query "SELECT * FROM submissions \
        \ WHERE user_id = ? AND problem_id = ? ORDER BY id" (uid, pid)
 
 
 -- | count the number of accepted submissions for a problem
-getAcceptedCount :: UID -> PID -> AppHandler Int
+getAcceptedCount :: UID -> PID -> Pythondo Int
 getAcceptedCount uid pid = do
   r <- listToMaybe <$>
        query "SELECT COUNT(*) \
@@ -129,7 +129,7 @@ getAcceptedCount uid pid = do
     
 
 -- | count the total number of submissions for a problem
-getSubmissionCount :: UID -> PID -> AppHandler Int
+getSubmissionCount :: UID -> PID -> Pythondo Int
 getSubmissionCount uid pid = do
     r <- listToMaybe <$>
          query "SELECT COUNT(*) \
@@ -142,7 +142,7 @@ getSubmissionCount uid pid = do
 -- the last overall submission (if none was accepted)
 -- Note: the query below assumes that the submissions ID key 
 -- is monotonically increasing with time i.e. later submissions have higher IDs
-getBestSubmission :: UID -> PID -> AppHandler (Maybe Submission)
+getBestSubmission :: UID -> PID -> Pythondo (Maybe Submission)
 getBestSubmission uid pid = 
   listToMaybe <$> 
   query "SELECT id,user_id,problem_id,ip_addr,time,code,status,report \
@@ -155,7 +155,7 @@ getBestSubmission uid pid =
 --
 -- | post a new submission; top level function 
 --
-postSubmission :: UID  -> Problem -> Text -> AppHandler Submission
+postSubmission :: UID  -> Problem -> Text -> Pythondo Submission
 postSubmission uid prob submit = 
   let tstfile = probDoctest prob
       tmpdir  = "tmp" </> show uid
@@ -171,7 +171,7 @@ postSubmission uid prob submit =
 -- | run doctest file for a submissions
 -- creates temp directory and file and cleanups afterwards
 runSubmission ::
-  FilePath -> FilePath -> Text -> AppHandler (ExitCode,String,String)
+  FilePath -> FilePath -> Text -> Pythondo (ExitCode,String,String)
 runSubmission tmpdir tstfile submit = do 
   sb <- getSandbox
   liftIO $ withTempFile tmpdir submit (runDoctests sb tstfile)

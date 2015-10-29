@@ -33,7 +33,7 @@ instance Tagged ProblemSummary where
 
 
 
-getProblemSummary :: UID -> ProblemSet -> AppHandler [ProblemSummary]
+getProblemSummary :: UID -> ProblemSet -> Pythondo [ProblemSummary]
 getProblemSummary uid ProblemSet{..} = do
   forM probsetProbs $ \prob -> do
     let pid = probID prob

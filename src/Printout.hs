@@ -5,7 +5,7 @@
 module Printout
        (makePrintout
        ) where
-import           Prelude hiding (catch)
+-- import           Prelude hiding (catch)
 import           System.FilePath
 import           System.Directory
 import           System.Process
@@ -21,17 +21,17 @@ import           Data.ByteString.Char8 (ByteString)
 import           Data.Text(Text)
 import qualified Data.Text as T
 import qualified Data.Text.IO as T
-import           Data.Maybe
+-- import           Data.Maybe
 
-import           Control.Applicative
+-- import           Control.Applicative
 import           Control.Monad (forM_)
 
-import           Snap.Core
-import           Application
-import           Utils
-import           Types
-import           Problem
-import           Submission
+-- import           Snap.Core
+-- import           Application
+-- import           Utils
+-- import           Types
+-- import           Problem
+-- import           Submission
 
 
 

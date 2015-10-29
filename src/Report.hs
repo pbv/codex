@@ -25,7 +25,7 @@ import           Problem
 import           Submission
 
 
-genReport ::  [(Problem, Maybe Submission)] -> AppHandler Text
+genReport ::  [(Problem, Maybe Submission)] -> Pythondo Text
 genReport subs = do
   zonetime <- liftIO (getCurrentTime >>= utcToLocalZonedTime)
   let time = T.pack (formatTime defaultTimeLocale "%c" zonetime)
@@ -57,7 +57,7 @@ getTitle :: Problem -> Text
 getTitle Problem{..} =  maybe "Untitled" id probTitle
 
 -- fetch remote client address (maybe forwarded by a proxy)
-getClientAddr :: AppHandler Text
+getClientAddr :: Pythondo Text
 getClientAddr = do
   addr <- getsRequest rqRemoteAddr
   -- clientname <- liftIO $ dnsLookup (B.unpack addr)

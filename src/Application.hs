@@ -22,10 +22,10 @@ import System.Remote.Monitoring
 import Types
 
 ------------------------------------------------------------------------------
-data Pythondo = Pythondo
-    { _heist :: Snaplet (Heist Pythondo)
+data App = App
+    { _heist :: Snaplet (Heist App)
     , _sess  :: Snaplet SessionManager
-    , _auth  :: Snaplet (AuthManager Pythondo)
+    , _auth  :: Snaplet (AuthManager App)
     , _db    :: Snaplet Sqlite
     -- , _config :: Config                  -- configurator handle
     , _sandbox :: Sandbox                -- safeexec configuration
@@ -34,14 +34,14 @@ data Pythondo = Pythondo
     , _ekg     :: Maybe Server           -- optional EKG monitoring server
     }
 
-makeLenses ''Pythondo
+makeLenses ''App
 
-instance HasHeist Pythondo where
+instance HasHeist App where
     heistLens = subSnaplet heist
 
-instance HasSqlite (Handler Pythondo Pythondo) where
+instance HasSqlite (Handler App App) where
    getSqliteState = with db get
    
 ------------------------------------------------------------------------------
-type AppHandler = Handler Pythondo Pythondo
+type Pythondo = Handler App App
 ------------------------------------------------------------------------------

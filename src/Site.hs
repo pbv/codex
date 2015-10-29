@@ -72,14 +72,14 @@ import           Data.Version (showVersion)
 
 import           AceEditor
 
--- my application splices
-type AppSplices = Splices (I.Splice AppHandler)
+-- interpreted splices for Pythondo handlers
+type ISplices = Splices (I.Splice Pythondo)
 
 
 
 ------------------------------------------------------------------------------
 -- | Handle login requests 
-handleLogin :: AppHandler ()
+handleLogin :: Pythondo ()
 handleLogin 
   = method GET (with auth $ handleLoginForm Nothing) <|>
     method POST (do { user <- require (getParam "login") 
@@ -90,7 +90,7 @@ handleLogin
 
 
 -- | Render login form
-handleLoginForm :: Maybe Text -> Handler Pythondo (AuthManager Pythondo) ()
+handleLoginForm :: Maybe Text -> Handler App (AuthManager App) ()
 handleLoginForm authError = heistLocal (I.bindSplices errs) $ render "login"
   where
     errs = "loginError" ## maybe (return []) I.textSplice authError
@@ -110,7 +110,7 @@ handleLoginSubmit =
 
 -- | Handle login submit using LDAP authentication
 handleLoginSubmit :: 
-  LdapConf -> ByteString -> ByteString -> Handler Pythondo (AuthManager Pythondo) ()
+  LdapConf -> ByteString -> ByteString -> Handler App (AuthManager App) ()
 handleLoginSubmit ldapConf user passwd = do
   -- optAuth <- withBackend (\r -> liftIO $ ldapAuth r ldapConf user passwd)
   optAuth <- withBackend (\r -> liftIO $ dummyAuth r ldapConf user passwd)
@@ -124,7 +124,7 @@ handleLoginSubmit ldapConf user passwd = do
 ------------------------------------------------------------------------------
 -- Logs out and redirects the user to the site index.
 -- in exam mode procedeed to printout 
-handleLogout :: AppHandler ()
+handleLogout :: Pythondo ()
 handleLogout = method GET $ do
     uid <- require getUserID <|> unauthorized
     ProblemSet{..} <- fst <$> getProblemSet
@@ -135,7 +135,7 @@ handleLogout = method GET $ do
 
 
 -- make a printout before ending session
-handlePrintout :: UID -> [Problem] -> AppHandler ()
+handlePrintout :: UID -> [Problem] -> Pythondo ()
 handlePrintout uid probs = do
   subs <- mapM (getBestSubmission uid) (map probID probs)
   report <- genReport (zip probs subs)
@@ -164,7 +164,7 @@ handleForm = render "register"
 
 -----------------------------------------------------------------------------
 -- | problem description request 
-handleProblem :: AppHandler ()
+handleProblem :: Pythondo ()
 handleProblem = method GET $ do
     uid <- require getUserID  <|> unauthorized
     pid <- require getProblemID
@@ -182,7 +182,7 @@ handleProblem = method GET $ do
 
         
 -- | problem set listing handler
-handleProblemList :: AppHandler ()
+handleProblemList :: Pythondo ()
 handleProblemList = method GET $ do
   uid <- require getUserID <|> unauthorized
   now <- liftIO getCurrentTime
@@ -212,20 +212,20 @@ handleProblemList = method GET $ do
                
                
 -- get tag list from query string
-getQueryTags :: AppHandler [Tag]
+getQueryTags :: Pythondo [Tag]
 getQueryTags = do
   params <- getParams
   return (map (T.pack . B.toString) $ Map.findWithDefault [] "tag" params)
 
 
 
-warningsSplices :: [Text] -> AppSplices
+warningsSplices :: [Text] -> ISplices
 warningsSplices mesgs = do
   "warnings" ## I.mapSplices (I.runChildrenWith . mesgSplice) mesgs
   where mesgSplice msg = "message" ## I.textSplice msg
 
 
-summarySplices :: UTCTime -> ProblemSummary -> AppSplices
+summarySplices :: UTCTime -> ProblemSummary -> ISplices
 summarySplices now ProblemSummary{..} 
     = do problemSplices summaryProb
          timerSplices (probID summaryProb) now (probOpen summaryProb)
@@ -237,7 +237,7 @@ summarySplices now ProblemSummary{..}
 
 
 -- | splices related to a single problem       
-problemSplices :: Problem -> AppSplices
+problemSplices :: Problem -> ISplices
 problemSplices Problem{..} = do
   "problem_id" ## I.textSplice (T.pack $ show probID)
   "problem_path" ## I.textSplice (T.pack probPath)
@@ -252,7 +252,7 @@ problemSplices Problem{..} = do
 
 
 -- | splices related to problem's time interval
-timerSplices ::  PID -> UTCTime -> Interval UTCTime -> AppSplices
+timerSplices ::  PID -> UTCTime -> Interval UTCTime -> ISplices
 timerSplices pid now open = do
   "if_open" ##  conditionalSplice (now`Interval.elem`open)
   "if_early" ## conditionalSplice (now`Interval.before`open)
@@ -269,7 +269,7 @@ timerSplices pid now open = do
 
   
 -- splice an UTC time as local time 
-timeSplice :: UTCTime -> I.Splice AppHandler
+timeSplice :: UTCTime -> I.Splice Pythondo
 timeSplice time = do tz <- liftIO getCurrentTimeZone
                      I.textSplice $ T.pack $
                        formatTime defaultTimeLocale "%c" $ utcToZonedTime tz time
@@ -291,7 +291,7 @@ formatNominalDiffTime secs
 
 
 -- | splices relating to a list of submissions
-submissionsSplice :: [Submission] -> AppSplices
+submissionsSplice :: [Submission] -> ISplices
 submissionsSplice lst = do
   "submissions" ## I.mapSplices (I.runChildrenWith . submissionSplices) lst
   "number_submissions" ## I.textSplice (T.pack $ show n)
@@ -301,7 +301,7 @@ submissionsSplice lst = do
 
         
 -- | splices relating to a single submission
-submissionSplices :: Submission -> AppSplices
+submissionSplices :: Submission -> ISplices
 submissionSplices Submission{..} = do 
   "submit_id"   ## I.textSplice (T.pack $ show submitID)
   "submit_pid"  ## I.textSplice (T.pack $ show submitPID)
@@ -316,7 +316,7 @@ submissionSplices Submission{..} = do
 
 
 
-handleGetSubmission, handlePostSubmission :: AppHandler ()
+handleGetSubmission, handlePostSubmission :: Pythondo ()
 handleGetSubmission 
     = method GET $ do 
         uid <- require getUserID <|> unauthorized
@@ -372,14 +372,14 @@ handleSubmissions = method GET $ do
 
 -- in exam mode show final report before loggin out
 -- otherwise, logout immediately
-handleConfirmLogout :: AppHandler ()
+handleConfirmLogout :: Pythondo ()
 handleConfirmLogout = method GET $ do
   uid <- require getUserID <|> badRequest
   (probset,_) <- getProblemSet
   handleFinalReport uid probset
 
 
-handleFinalReport :: UID -> ProblemSet -> AppHandler ()
+handleFinalReport :: UID -> ProblemSet -> Pythondo ()
 handleFinalReport uid ProblemSet{..} | probsetExam = do
     let pids = map probID probsetProbs
     subs <- mapM (getBestSubmission uid) pids
@@ -396,7 +396,7 @@ handleFinalReport _ _ = handleLogout
 -- administrator interface
 -----------------------------------------------------------------------------
 
-handleAdminEdit :: AppHandler ()
+handleAdminEdit :: Pythondo ()
 handleAdminEdit = do
       uid <- require getUserID
       roles <- require getUserRoles
@@ -437,7 +437,7 @@ handleAdminSubmissions = method GET $ do
 
 ------------------------------------------------------------------------------
 -- | The application's routes.
-routes :: [(ByteString, AppHandler ())]
+routes :: [(ByteString, Pythondo ())]
 routes = [ ("/login",                 handleLogin `catch` internalError)
          , ("/logout",                handleLogout `catch` internalError)
          , ("/problems",              handleProblemList `catch` internalError )  
@@ -470,18 +470,18 @@ authRoles authmgr cond = do
    maybe (return []) (\u -> conditionalSplice (cond $ userRoles u)) u
 
 -- | splice for current date & time
-nowSplice :: I.Splice AppHandler
+nowSplice :: I.Splice Pythondo
 nowSplice = do t <- liftIO (getCurrentTime >>= utcToLocalZonedTime)
                I.textSplice (T.pack $ formatTime defaultTimeLocale "%c" t)
 
 
 
-versionSplice :: I.Splice AppHandler
+versionSplice :: I.Splice Pythondo
 versionSplice = I.textSplice (T.pack (showVersion version))
 
 ------------------------------------------------------------------------------
 -- | The application initializer.
-app :: SnapletInit Pythondo Pythondo
+app :: SnapletInit App App
 app = 
   makeSnaplet "pythondo" "Web system for learning Python programming." Nothing $ do
     conf <- getSnapletUserConfig
@@ -513,15 +513,15 @@ app =
     sandbox <- liftIO $ configSandbox conf
     printConf <- liftIO $ configPrintConf conf
     ldapConf <- liftIO $ configLdapConf conf
-    return $ Pythondo { _heist = h
-                      , _sess = s
-                      , _auth = a
-                      , _db   = d
-                      , _sandbox = sandbox
-                      , _ldapConf = ldapConf
-                      , _printConf = printConf
-                      , _ekg = e
-                      }
+    return $ App { _heist = h
+                 , _sess = s
+                 , _auth = a
+                 , _db   = d
+                 , _sandbox = sandbox
+                 , _ldapConf = ldapConf
+                 , _printConf = printConf
+                 , _ekg = e
+                 }
 
 
 -- emptyConfig :: HeistConfig m
@@ -542,10 +542,10 @@ initEkg conf = do enabled <- Configurator.require conf "ekg.enabled"
 -- | get the current problem set
 -- TODO: avoid re-reading the same problems every time
 -- with some caching mechanism
-getProblemSet :: AppHandler (ProblemSet, [Text])
+getProblemSet :: Pythondo (ProblemSet, [Text])
 getProblemSet = liftIO (readProblemSet problemSetPath)
 
-getProblem :: PID -> AppHandler (Problem, [Text])
+getProblem :: PID -> Pythondo (Problem, [Text])
 getProblem pid = do
   (probset,mesgs) <- getProblemSet
   case lookupProblemSet pid probset of
