@@ -5,21 +5,21 @@
 <li><strong>Confirme que deseja sair no final desta página.</strong></li>
 </ul>
 
-<problem_list>
-  <h2><problem_title/></h2>
+<problemList>
+  <h2><problemTitle/></h2>
   <p><strong>Resultado:</strong> 
-  <if_accepted>Passou todos os testes.</if_accepted>
-  <if_overdue>Passou todos os testes (fora do prazo).</if_overdue>
-  <if_rejected>Falhou algum(s) teste(s).</if_rejected>
+  <ifAccepted>Passou todos os testes.</ifAccepted>
+  <ifOverdue>Passou todos os testes (fora do prazo).</ifOverdue>
+  <ifRejected>Falhou algum(s) teste(s).</ifRejected>
   <pre>
-  <submit_text/>
+  <submitText/>
   </pre>
-  <if_rejected>
+  <ifRejected>
   <pre>
-  <submit_report/>
+  <submitReport/>
   </pre>
-  </if_rejected>
-</problem_list>
+  </ifRejected>
+</problemList>
 
 <h1>Terminar a sessão?</h1>
 <p>

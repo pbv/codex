@@ -20,7 +20,7 @@ import           Data.ByteString.UTF8 (ByteString)
 import qualified Data.ByteString.UTF8 as B
 import qualified Data.ByteString      as B
 import           Data.Monoid
-import           Data.Maybe(listToMaybe)
+import           Data.Maybe(listToMaybe, isJust)
 -- import           Data.Map (Map)
 import qualified Data.Map as Map
 import           Data.Text (Text)
@@ -175,7 +175,7 @@ handleProblem = method GET $ do
       do problemSplices prob
          inputAceEditorSplices
          submissionsSplice subs
-         timerSplices pid now (probOpen prob)
+         timerSplices pid now (probDeadline prob)
          warningsSplices mesgs
 
 
@@ -203,12 +203,12 @@ handleProblemList = method GET $ do
   -- render page
   renderWithSplices "problemlist" $ do
     warningsSplices mesgs
-    "problemset_description" ## return (renderPandoc $ probsetDescr probset)
-    "problemset_path" ## I.textSplice (T.pack $ probsetPath probset)
-    "tag_list" ## I.mapSplices (I.runChildrenWith . tagSplices) (taglist available)
-    "problem_list" ##  I.mapSplices (I.runChildrenWith . summarySplices now) visible
-    "available_problems" ## I.textSplice (T.pack $ show $ length available)
-    "visible_problems" ## I.textSplice (T.pack $ show $ length visible)
+    "problemsetDescription" ## return (renderPandoc $ probsetDescr probset)
+    "problemsetPath" ## I.textSplice (T.pack $ probsetPath probset)
+    "tagList" ## I.mapSplices (I.runChildrenWith . tagSplices) (taglist available)
+    "problemList" ##  I.mapSplices (I.runChildrenWith . summarySplices now) visible
+    "availableProblems" ## I.textSplice (T.pack $ show $ length available)
+    "visibleProblems" ## I.textSplice (T.pack $ show $ length visible)
                
                
 -- get tag list from query string
@@ -228,44 +228,43 @@ warningsSplices mesgs = do
 summarySplices :: UTCTime -> ProblemSummary -> ISplices
 summarySplices now ProblemSummary{..} 
     = do problemSplices summaryProb
-         timerSplices (probID summaryProb) now (probOpen summaryProb)
-         "number_submissions" ## I.textSplice (T.pack $ show summaryAttempts)
-         "number_accepted"    ## I.textSplice (T.pack $ show summaryAccepted)
-         "if_submitted" ## conditionalSplice (summaryAttempts>0)
-         "if_accepted" ## conditionalSplice (summaryAccepted>0)
+         timerSplices (probID summaryProb) now (probDeadline summaryProb)
+         "numberSubmissions" ## I.textSplice (T.pack $ show summaryAttempts)
+         "numberAccepted"    ## I.textSplice (T.pack $ show summaryAccepted)
+         "ifSubmitted" ## conditionalSplice (summaryAttempts>0)
+         "ifAccepted" ## conditionalSplice (summaryAccepted>0)
          
 
 
 -- | splices related to a single problem       
 problemSplices :: Problem -> ISplices
 problemSplices Problem{..} = do
-  "problem_id" ## I.textSplice (T.pack $ show probID)
-  "problem_path" ## I.textSplice (T.pack probPath)
-  "problem_doctest" ## I.textSplice (T.pack probDoctest)
-  "problem_title" ## I.textSplice $ maybe (T.pack $ show probID) id probTitle
-  "problem_description" ## return (renderPandoc probDescr)
-  "problem_default" ## maybe (return []) I.textSplice probDefault
-  "problem_tags" ## I.textSplice (T.unwords probTags)
+  "problemID" ## I.textSplice (T.pack $ show probID)
+  "problemPath" ## I.textSplice (T.pack probPath)
+  "problemDoctest" ## I.textSplice (T.pack probDoctest)
+  "problemTitle" ## I.textSplice $ maybe (T.pack $ show probID) id probTitle
+  "problemDescription" ## return (renderPandoc probDescr)
+  "problemDefault" ## maybe (return []) I.textSplice probDefault
+  "problemTags" ## I.textSplice (T.unwords probTags)
 
 
 
 
 
--- | splices related to problem's time interval
-timerSplices ::  PID -> UTCTime -> Interval UTCTime -> ISplices
-timerSplices pid now open = do
-  "if_open" ##  conditionalSplice (now`Interval.elem`open)
-  "if_early" ## conditionalSplice (now`Interval.before`open)
-  "if_late"  ## conditionalSplice (now`Interval.after`open)
-  "if_limited" ## conditionalSplice (Interval.limited open)
-  "start_time" ## maybe (return []) timeSplice (Interval.start open)
-  "end_time" ## maybe (return []) timeSplice (Interval.end open)
-  "remaining_time" ## I.textSplice $ T.pack $ case Interval.end open of 
-                   Nothing -> "N/A"
-                   Just t' -> formatNominalDiffTime $ diffUTCTime t' now
-  "remaining_js_timer" ## case Interval.end open of 
+-- | splices related to problem's deadline
+timerSplices ::  PID -> UTCTime -> Maybe UTCTime -> ISplices
+timerSplices pid now limit = do
+  "ifOpen" ## conditionalSplice (maybe True (now<=) limit)
+  "ifLate"  ## conditionalSplice (maybe False (now>) limit)
+  "ifLimited" ## conditionalSplice (isJust limit)
+  "endTime" ## maybe (return []) timeSplice limit
+  "remainingTime" ## case limit of 
+                   Nothing -> return []
+                   Just t -> I.textSplice $ T.pack $
+                             formatNominalDiffTime $ diffUTCTime t now
+  "remainingJsTimer" ## case limit of 
                             Nothing -> return []
-                            Just t' -> return $ jsTimer pid (diffUTCTime t' now)
+                            Just t -> return $ jsTimer pid $ diffUTCTime t now
 
   
 -- splice an UTC time as local time 
@@ -294,24 +293,24 @@ formatNominalDiffTime secs
 submissionsSplice :: [Submission] -> ISplices
 submissionsSplice lst = do
   "submissions" ## I.mapSplices (I.runChildrenWith . submissionSplices) lst
-  "number_submissions" ## I.textSplice (T.pack $ show n)
-  "if_accepted" ## conditionalSplice (any isAccepted lst)
-  "if_submitted" ## conditionalSplice (n>0) 
+  "numberSubmissions" ## I.textSplice (T.pack $ show n)
+  "ifAccepted" ## conditionalSplice (any isAccepted lst)
+  "ifSubmitted" ## conditionalSplice (n>0) 
   where n = length lst
 
         
 -- | splices relating to a single submission
 submissionSplices :: Submission -> ISplices
 submissionSplices Submission{..} = do 
-  "submit_id"   ## I.textSplice (T.pack $ show submitID)
-  "submit_pid"  ## I.textSplice (T.pack $ show submitPID)
-  "submit_time" ## timeSplice submitTime 
-  "submit_text" ## I.textSplice submitText
-  "submit_status" ## I.textSplice (T.pack $ show submitStatus)
-  "submit_report" ## I.textSplice submitReport 
-  "if_accepted" ## conditionalSplice (submitStatus == Accepted) 
-  "if_overdue" ##  conditionalSplice (submitStatus == Overdue) 
-  "if_rejected" ## conditionalSplice (submitStatus/= Accepted &&
+  "submitID"   ## I.textSplice (T.pack $ show submitID)
+  "submitPID"  ## I.textSplice (T.pack $ show submitPID)
+  "submitTime" ## timeSplice submitTime 
+  "submitText" ## I.textSplice submitText
+  "submitStatus" ## I.textSplice (T.pack $ show submitStatus)
+  "submitReport" ## I.textSplice submitReport 
+  "ifAccepted" ## conditionalSplice (submitStatus == Accepted) 
+  "ifOverdue" ##  conditionalSplice (submitStatus == Overdue) 
+  "ifRejected" ## conditionalSplice (submitStatus/= Accepted &&
                                       submitStatus/=Overdue) 
 
 
@@ -338,12 +337,12 @@ handlePostSubmission = method POST $ do
   now <- liftIO getCurrentTime
   sub <- postSubmission uid prob code
   incrCounter "submissions"
-  renderWithSplices "report" $ do inputAceEditorSplices
-                                  problemSplices prob 
-                                  submissionSplices sub 
-                                  timerSplices pid now (probOpen prob)
-                                  warningsSplices mesgs
-
+  renderWithSplices "report" (inputAceEditorSplices >>
+                              problemSplices prob >>
+                              submissionSplices sub >>
+                              timerSplices pid now (probDeadline prob) >>
+                              warningsSplices mesgs)
+    
 
 {-
 -- handler for listing all submissions 
@@ -385,7 +384,7 @@ handleFinalReport uid ProblemSet{..} | probsetExam = do
     subs <- mapM (getBestSubmission uid) pids
     let psubs = [(p,s) | (p, Just s)<-zip probsetProbs subs]
     renderWithSplices "finalrep" $
-      "problem_list" ## I.mapSplices (I.runChildrenWith . splices) psubs
+      "problemList" ## I.mapSplices (I.runChildrenWith . splices) psubs
   where splices (prob,sub) = problemSplices prob >> submissionSplices sub
 
 -- not in exam mode: proceed to logout immediately
@@ -413,10 +412,9 @@ handleAdminEdit = do
       renderWithSplices "editfile" $ do
         inputAceEditorSplices
         warningsSplices mesgs
-        "edit_path" ## I.textSplice (T.pack $ B.toString path)
-        "edit_source" ## I.textSplice source
-        "problem_id" ## maybe (return []) (I.textSplice . T.pack . B.toString) opt_pid
-
+        "editPath" ## I.textSplice (T.pack $ B.toString path)
+        "editText" ## I.textSplice source
+        "problemID" ## maybe (return []) (I.textSplice . T.pack . B.toString) opt_pid
     handlePost  = do
       path <- getsRequest rqPathInfo
       opt_pid <- getParam "pid"

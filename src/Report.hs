@@ -48,7 +48,7 @@ reportSubmission (p@Problem{..}, Just Submission{..})
       verbatimCode (T.strip submitText) <>
       if ok then "" else verbatimMsgs (T.strip submitReport)
     where result = case submitStatus of
-              Accepted -> "Passou todo os testes."
+              Accepted -> "Passou todos os testes."
               Overdue -> "Submitido fora do tempo."
               _ -> "Falhou algum(s) teste(s)."
           ok = submitStatus==Accepted || submitStatus==Overdue

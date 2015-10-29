@@ -1,13 +1,13 @@
 <apply template="base">
 <apply template="_warnings"/>
-<h2><edit_path/></h2>
+<h2><editPath/></h2>
 <form id="editform" method="POST"
-      action="/edit/${edit_path}?pid=${problem_id}"
+      action="/edit/${editPath}?pid=${problemID}"
       onsubmit="submitAceEditorText('editform.editor');">
-<p><inputAceEditor id="editform.editor"><edit_source/></inputAceEditor></p>
+<p><inputAceEditor id="editform.editor"><editText/></inputAceEditor></p>
 <p><input type="submit" value="Gravar"/>
 &nbsp; <input type="button" value="Cancelar" onclick="window.history.back();"/>
-<input type="hidden" id="editform.path" value="${edit_path}"/>
+<input type="hidden" id="editform.path" value="${editPath}"/>
 </p>
 </form>
 
