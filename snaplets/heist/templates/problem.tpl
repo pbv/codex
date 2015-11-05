@@ -4,6 +4,7 @@
 <bind tag="icon_editor"><img src="/icons/16x16/editor.png"/></bind>
 <apply template="base">
 <apply template="_warnings"/>
+<problemHeader/>
 <problemDescription/>
 <ifLate><p>Submissões fecharam em: <endTime/>.</ifLate>
 <ifOpen>
@@ -11,11 +12,6 @@
     <p>Tempo disponível: <remainingJsTimer/></p> 
   </ifLimited>
 </ifOpen>
-<ifAdmin>
-  <p><a class="button" href="/edit/${problemPath}?pid=${problemID}"><icon_editor/>&nbsp;Editar problema</a>
-  <a class="button" href="/edit/${problemDoctest}?pid=${problemID}"><icon_editor/>&nbsp;Editar testes</a>
-</p></ifAdmin>
-
 <ifSubmitted>
 <h2>Submissões anteriores</h2>
 <ol class="submissions">

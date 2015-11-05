@@ -1,10 +1,11 @@
 --
--- | A monad combining catching IO errors and logging
+-- | A monad combining catching and logging IO errors
 --
 module LogIO ( LogIO
              , runLogIO
              , logString
-             , logPrefix
+             , logText
+             -- , logPrefix
              , safeIO
              ) where
 
@@ -15,19 +16,21 @@ import           Control.Monad.Reader
 import           Control.Monad.Writer
 import           System.IO.Error
 
--- the reader environment provides a prefix for the logging messages
-type LogIO a = ReaderT Text (WriterT [Text] IO) a 
+type LogIO a = WriterT [Text] IO a 
 
 runLogIO :: LogIO a -> IO (a, [Text])
-runLogIO m = runWriterT (runReaderT m T.empty)
+runLogIO = runWriterT  
 
 -- | log a string
 logString :: String -> LogIO ()
-logString s = do { p <- ask; tell [T.append p (T.pack s)] }
+logString = logText . T.pack
+
+logText :: Text -> LogIO ()
+logText t = tell [t]
 
 -- | set the logging messages prefix 
-logPrefix :: String -> LogIO a -> LogIO a
-logPrefix s = local (const (T.pack $ s ++ ": ")) 
+-- logPrefix :: String -> LogIO a -> LogIO a
+-- logPrefix s = local (const (T.pack $ s ++ ": ")) 
 
 -- | lift an IO action to the logging monad
 -- | logs a message on IO error and returns a default value

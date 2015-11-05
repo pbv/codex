@@ -1,73 +1,139 @@
-{-# LANGUAGE OverloadedStrings, RecordWildCards #-}
+{-# LANGUAGE OverloadedStrings, RecordWildCards, DeriveFunctor #-}
 {-
   Data types and methods for problems 
 -}
 
 module Problem ( 
   Problem(..),
-  ProblemSet(..),
-  -- readProblem,     -- * read a single problem
-  readProblemSet,  -- * read a problem set
-  --isEarly,         -- * check problem's acceptance dates
-  --isLate,
-  isOpen,          -- * can be submitted and accepted
-  renderPandoc,   -- * render description into HTML
-  Tagged, taglist, isTagged, hasTags  -- * problem tagging
+  Worksheet(..),
+  -- ProblemSet(..),
+  -- readProblem,     -- read a single problem
+  readWorksheet,      -- read a worksheet
+  -- isEarly,         -- check problem's acceptance dates
+  -- isLate,
+  isAcceptable,     -- check a problem can be accepted
+  -- Tagged, taglist, isTagged, hasTags  -- * problem tagging
   ) where
 
 import           Control.Monad
-import           Control.Monad.IO.Class
+-- import           Control.Monad.IO.Class
 import           Control.Applicative ((<$>))
-import           System.FilePath
+-- import           System.FilePath
 
 import qualified Data.ByteString.UTF8 as B
 
 import           Data.Text(Text)
 import qualified Data.Text             as T
-import           Data.Maybe (listToMaybe)
+-- import           Data.Maybe (listToMaybe)
 
-import qualified Data.Set as Set
-
-import           Text.Pandoc
-import           Text.Pandoc.Walk
-import           Text.XmlHtml 
-import           Text.Blaze.Renderer.XmlHtml
+-- import qualified Data.Set as Set
 
 import           Data.Time.LocalTime
+import           Data.Time.Format
 import           Data.Time.Clock
+import           System.Locale (defaultTimeLocale)
 
+
+import           Markdown
+import           Text.Pandoc
+import           Text.Pandoc.Builder
+-- import           Data.Monoid
+-- import           Text.XmlHtml 
+-- import           Text.Blaze.Renderer.XmlHtml
 import           Types
 
-import           ParseMeta
-import           LogIO
-import           System.Directory(doesFileExist)
+-- import           ParseMeta
+-- import           LogIO
+-- import           System.Directory(doesFileExist)
 
 
 -- individual problems
 data Problem = Problem {
-  probID       :: PID,             -- unique identifier
-  probPath     :: FilePath,        -- relative filepath
-  probTitle    :: Maybe Text,      -- title
-  probDescr    :: Pandoc,          -- description 
-  probTags     :: [Tag],           -- tag list 
-  probDeadline :: Maybe UTCTime,   -- optional acceptance deadline
-  probDoctest  :: FilePath,        -- doctest file
-  probDefault  :: Maybe Text,       -- default submission
-  probVisible  :: Bool              -- visible?
+  probID       :: PID,                  -- unique identifier
+  probHeader   :: Block,                -- header and description 
+  probDescr    :: Blocks,
+  probDefault  :: Maybe Text,           -- default submission
+  probDoctest  :: Maybe Text,           -- doctest script
+  probLimit :: Maybe UTCTime            -- optional deadline
   } deriving Show
 
-
--- a problem set 
-data ProblemSet = ProblemSet {
-      probsetPath  :: FilePath   -- relative filepath
-    , probsetTitle :: Maybe Text
-    , probsetDescr :: Pandoc
-    , probsetProbs :: [Problem] -- problem list 
-    , probsetExam  :: Bool      -- is this an exam?
-    , probsetPrintout :: Bool   -- should we printouts?
-    } deriving Show
+-- worksheets
+data Worksheet a = Worksheet { wsMeta :: Meta
+                             , wsItems :: [Either Blocks a]
+                             }
+                 deriving (Show, Functor)
 
 
+-- parse time strings
+parseLocalTime :: String -> Maybe LocalTime
+parseLocalTime txt 
+  = msum [parseTime defaultTimeLocale fmt txt | fmt<-timeFormats] 
+  where timeFormats = ["%H:%M %d/%m/%Y", "%d/%m/%Y", "%c"]
+
+parseUTCTime :: TimeZone -> String -> Maybe UTCTime
+parseUTCTime tz txt = localTimeToUTC tz <$> parseLocalTime txt 
+
+
+-- parse problems into a worksheet
+parseProblemItems :: TimeZone -> [Block] -> [Either Blocks Problem]
+parseProblemItems tz (block : blocks)
+  | problemStart block = Right p : parseProblemItems tz blocks''
+   where
+     (blocks', blocks'') = break problemEnd blocks
+     p = parseProblem tz block blocks'
+parseProblemItems tz (b : blocks)
+  = Left (fromList (b:blocks')) : parseProblemItems tz blocks''
+  where (blocks',blocks'') = break problemStart blocks 
+parseProblemItems tz [] = []
+
+
+-- checkers for problem start & end
+problemStart :: Block -> Bool
+problemStart (Header _ attr _) = "pythondo" `elem` classes attr
+problemStart _                 = False
+
+problemEnd :: Block -> Bool
+problemEnd HorizontalRule    = True
+problemEnd block             = problemStart block
+
+
+-- parse a single problem
+parseProblem :: TimeZone -> Block -> [Block] -> Problem
+parseProblem tz header blocks
+  = Problem { probID = PID $ B.fromString $ ident $ headerAttr header
+            , probHeader= header
+            , probDescr = fromList $ 
+                          removeCode "doctest" $
+                          removeCode "default" blocks
+            , probDefault = parseCode "default" blocks
+            , probDoctest = parseCode "doctest" blocks
+            , probLimit = lookup "close" (keyValues $ headerAttr header) >>=
+                          parseUTCTime tz
+            }
+
+removeCode :: String -> [Block] -> [Block]
+removeCode tag = filter (not . tagged)
+  where tagged (CodeBlock attr _) = tag `elem` classes attr 
+        tagged _ = False
+
+
+parseCode :: String -> [Block] -> Maybe Text
+parseCode tag bs
+  = case cs of [] -> Nothing
+               _  -> Just (T.concat cs)
+  where cs = [T.pack txt | CodeBlock attr txt <- bs, tag `elem` classes attr]
+
+
+readWorksheet :: FilePath -> IO (Worksheet Problem)
+readWorksheet filepath = do
+  tz <- getCurrentTimeZone
+  txt <- readFile filepath
+  let Pandoc meta blocks = readMarkdown myReaderOptions txt
+  return (Worksheet meta (parseProblemItems tz blocks))
+
+
+
+{-
 -- | collect all tags from problems and problem sets
 instance Tagged Problem where
     taglist = probTags
@@ -79,10 +145,10 @@ instance Tagged ProblemSet where
     taglist ProblemSet{..} = dynamic ++ taglist probsetProbs
       where  dynamic = ["*accepted*", "*not accepted*", 
                         "*submitted*", "*not submitted*"]
+-}
 
 
-
-
+{-
 lookupFromMeta :: ParseMeta a => String -> Meta -> LogIO (Maybe a)
 lookupFromMeta tag meta = case lookupMeta tag meta of
   Nothing -> return Nothing
@@ -94,16 +160,18 @@ lookupFromMeta tag meta = case lookupMeta tag meta of
                    
 lookupUTC :: TimeZone -> String -> Meta -> LogIO (Maybe UTCTime)
 lookupUTC tz tag meta = fmap (localTimeToUTC tz) <$> lookupFromMeta tag meta
+-}
 
-
+{-
 -- | read a problemset from the file system
 -- also yields list of warningtext messages 
 readProblemSet :: FilePath -> IO (ProblemSet, [Text])
 readProblemSet filepath = runLogIO $ do
   doc <- readMarkdown myReaderOptions <$> safeIO "" (readFile filepath) 
   logPrefix filepath (makeProblemSet filepath doc)
+-}
 
-
+{-
 makeProblemSet :: FilePath -> Pandoc -> LogIO ProblemSet
 makeProblemSet filepath descr@(Pandoc meta blocks) = do
   tz <- liftIO getCurrentTimeZone
@@ -127,12 +195,15 @@ makeProblemSet filepath descr@(Pandoc meta blocks) = do
     }
   where
     problemDir = takeDirectory filepath
+-}
 
+{-
 -- first header in a list of blocks
 firstHeader :: [Block] -> Maybe Text
 firstHeader blocks = listToMaybe [query inlineText h | Header _ _ h <- blocks]
+-}
 
-
+{-
 readProblem :: FilePath -> LogIO Problem 
 readProblem filepath = logPrefix filepath $ do
       txt <- safeIO "" (readFile filepath)
@@ -141,9 +212,9 @@ readProblem filepath = logPrefix filepath $ do
             Nothing -> do logString "invalid file extension"
                           return (Pandoc nullMeta [])
       makeProblem filepath doc
+-}
 
-
-
+{-
 -- make a problem from a Pandoc document
 makeProblem :: FilePath ->  Pandoc -> LogIO Problem
 makeProblem filepath descr@(Pandoc meta blocks) = do
@@ -173,7 +244,7 @@ makeProblem filepath descr@(Pandoc meta blocks) = do
     pid = PID $ B.fromString $ takeBaseName filepath
     dir = takeDirectory filepath
     defaultDoctest = dropExtension filepath <.> "tst"
-
+-}
 
 {-
 -- relations between problems and times
@@ -182,36 +253,11 @@ isEarly t Problem{..} = t `Interval.before` probOpen
 isLate t Problem{..} = t `Interval.after` probOpen 
 -}
 
--- check if a problem can be submited & accepted
-isOpen :: UTCTime -> Problem -> Bool
-isOpen t Problem{..} = case probDeadline of Just deadline -> t<=deadline
-                                            Nothing -> True
+-- check if a problem can be submited and accepted
+isAcceptable :: UTCTime -> Problem -> Bool
+isAcceptable t Problem{..} = maybe True (t<=) probLimit
 
 
 
 
--- | render a Pandoc document into a list of HTML nodes
-renderPandoc :: Pandoc -> [Node]
-renderPandoc  = renderHtmlNodes . writeHtml myWriterOptions 
-
-
--- file extensions and associated Pandoc readers
-readersList :: [(String, String -> Pandoc)]
-readersList
-  = [(ext, readMarkdown myReaderOptions) | ext<-[".md",".mdown",".markdown"]] ++
-    [(ext, readHtml myReaderOptions)     | ext<-[".html", ".htm"]] ++
-    [(".tex", readLaTeX myReaderOptions)]
-
-
---- pandoc reader and writter options
-myReaderOptions :: ReaderOptions
-myReaderOptions = def { readerExtensions = pandocExtensions
-                      , readerSmart = True 
-                      }
-
-myWriterOptions :: WriterOptions
-myWriterOptions = def { writerExtensions = pandocExtensions
-                      , writerHTMLMathMethod = MathJax "/mathjax",
-                        writerHighlight = True
-                      }
 

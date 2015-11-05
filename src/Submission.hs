@@ -80,9 +80,6 @@ instance FromRow Submission where
   fromRow = Submission <$> field <*> field <*> field <*> field <*> field <*> field <*> field <*> field
 
 
--- | check if a submission is accepted
-isAccepted :: Submission -> Bool
-isAccepted Submission{..} = submitStatus==Accepted
 
 
 
@@ -118,19 +115,19 @@ getSubmissions uid pid =
        \ WHERE user_id = ? AND problem_id = ? ORDER BY id" (uid, pid)
 
 
--- | count the number of accepted submissions for a problem
-getAcceptedCount :: UID -> PID -> Pythondo Int
-getAcceptedCount uid pid = do
+-- | count the submissions for a problem
+getSubmitCount :: Status -> UID -> PID -> Pythondo Int
+getSubmitCount status uid pid = do
   r <- listToMaybe <$>
        query "SELECT COUNT(*) \
-             \ FROM submissions WHERE status='Accepted' \
-             \ AND  user_id = ? AND problem_id = ?" (uid,pid)
+             \ FROM submissions WHERE status = ? \
+             \ AND  user_id = ? AND problem_id = ?" (status,uid,pid)
   return $ maybe 0 fromOnly r
     
 
 -- | count the total number of submissions for a problem
-getSubmissionCount :: UID -> PID -> Pythondo Int
-getSubmissionCount uid pid = do
+getTotalSubmissions :: UID -> PID -> Pythondo Int
+getTotalSubmissions uid pid = do
     r <- listToMaybe <$>
          query "SELECT COUNT(*) \
                \ FROM submissions WHERE user_id = ? AND problem_id = ?" (uid,pid)
@@ -157,26 +154,38 @@ getBestSubmission uid pid =
 --
 postSubmission :: UID  -> Problem -> Text -> Pythondo Submission
 postSubmission uid prob submit = 
-  let tstfile = probDoctest prob
+  let doctest = maybe "" id (probDoctest prob)
       tmpdir  = "tmp" </> show uid
   in do 
     -- create a temporary directory for this user (if necessary)
     now <- liftIO getCurrentTime
-    liftIO $ createDirectoryIfMissing True tmpdir 
-    (exitCode, out, err) <- runSubmission tmpdir tstfile submit
+    liftIO $ createDirectoryIfMissing True tmpdir
+    (exitCode, out, err) <- runSubmission tmpdir doctest submit
     let (status, report) = makeReport now prob out err
     insertSubmission uid (probID prob) now submit status report 
 
 
 -- | run doctest file for a submissions
--- creates temp directory and file and cleanups afterwards
-runSubmission ::
-  FilePath -> FilePath -> Text -> Pythondo (ExitCode,String,String)
-runSubmission tmpdir tstfile submit = do 
+-- creates temp files and cleanups afterwards
+runSubmission :: FilePath ->  Text -> Text -> Pythondo (ExitCode,String,String)
+runSubmission tmpdir doctest submit = do 
   sb <- getSandbox
-  liftIO $ withTempFile tmpdir submit (runDoctests sb tstfile)
+  liftIO $ bracket createTemps removeTemps (runDoctests sb)
+  where
+    createTemps = do
+      (f1,h1) <- openTempFileWithDefaultPermissions tmpdir "tmp.py"
+      (f2,h2) <- openTempFileWithDefaultPermissions tmpdir "tmp.tst"
+      T.hPutStr h1 submit
+      T.hPutStr h2 doctest
+      hClose h1
+      hClose h2
+      return (f1,f2)
+    removeTemps (f1,f2) = removeFile f1 >> removeFile f2
+    
+  
+      
 
-
+{-
 -- | lower level I/O helper functions 
   
 -- | make a python temporary file given a source code as Text
@@ -188,13 +197,13 @@ withTempFile tmpdir txt = bracket create removeFile
           T.hPutStr handle txt
           hClose handle
           return file
-
+-}
 
 
 
 -- | run Python doctests inside a safeexec sandbox
-runDoctests :: Sandbox -> FilePath -> FilePath -> IO (ExitCode, String, String)
-runDoctests Sandbox{..} tstfile pyfile 
+runDoctests :: Sandbox -> (FilePath,FilePath) -> IO (ExitCode, String, String)
+runDoctests Sandbox{..} (pyfile,tstfile)  
   = readProcessWithExitCode safeExec args ""
   where args = ["--cpu", show maxCpuTime,  
                 "--clock", show maxClockTime,
@@ -213,7 +222,7 @@ makeReport time prob out err
   where 
     maxLen = 2000 -- max.length of stdout/stdout transcriptions
     status 
-      | null out && match "OK" err   = if isOpen time prob 
+      | null out && match "OK" err   = if isAcceptable time prob 
                                        then Accepted
                                        else Overdue
       | match "Time Limit" err          = TimeLimitExceeded

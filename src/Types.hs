@@ -7,12 +7,11 @@ module Types where
 
 import           Data.ByteString.UTF8(ByteString)
 import qualified Data.ByteString.UTF8 as B
-import qualified Data.ByteString  as B
 
 import           Data.Text (Text)
-import qualified Data.Text as T
+-- import qualified Data.Text as T
 
-import           Data.Configurator.Types
+-- import           Data.Configurator.Types
 
 import           Database.SQLite.Simple.ToField
 import           Database.SQLite.Simple.FromField

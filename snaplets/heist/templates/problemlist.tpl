@@ -28,7 +28,7 @@
   <dt><ifAdmin><a href="/edit/${problemPath}?pid=${problemID}"><icon_editor/></a></ifAdmin> 
    <a href="/problems/${problemID}"><problemTitle/></a><ifAccepted>&nbsp;<icon_accepted/></ifAccepted></dt>
     <dd class="problemli"><span class="info">
-	<ifSubmitted><numberSubmissions/> submissões já efetuadas.<br/></ifSubmitted>
+	<ifSubmitted><totalSubmissions/> submissões já efetuadas.<br/></ifSubmitted>
 	<ifLate>Submissões fecharam em <endTime/>.</ifLate>
 	<ifOpen>
 	<ifLimited>

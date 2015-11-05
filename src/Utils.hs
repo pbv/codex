@@ -118,10 +118,10 @@ getUserRoles = do
   return (fmap userRoles opt)
 
 getProblemID :: Pythondo (Maybe PID)
-getProblemID = fmap PID <$> getParam "pid"
+getProblemID = fmap PID <$> getParam "problem"
 
 getSubmissionID :: Pythondo (Maybe SID)
-getSubmissionID = fmap (SID . read . B.toString) <$> getParam "sid"
+getSubmissionID = fmap (SID . read . B.toString) <$> getParam "submit"
 
 
 

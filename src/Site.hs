@@ -58,14 +58,16 @@ import           Application
 import           Db
 import           Utils
 import           Types
-import qualified Interval as Interval
-import           Interval (Interval)
+import           Markdown
+import           Text.Pandoc.Builder
+-- import qualified Interval as Interval
+-- import           Interval (Interval)
 import           Problem
 import           Submission
 import           Summary
 import           LdapAuth
-import           Report
-import           Printout
+-- import           Report
+-- import           Printout
 
 import           Paths_pythondo(version)
 import           Data.Version (showVersion)  
@@ -94,7 +96,6 @@ handleLoginForm :: Maybe Text -> Handler App (AuthManager App) ()
 handleLoginForm authError = heistLocal (I.bindSplices errs) $ render "login"
   where
     errs = "loginError" ## maybe (return []) I.textSplice authError
-
 
 ------------------------------------------------------------------------------
 {-
@@ -126,24 +127,23 @@ handleLoginSubmit ldapConf user passwd = do
 -- in exam mode procedeed to printout 
 handleLogout :: Pythondo ()
 handleLogout = method GET $ do
-    uid <- require getUserID <|> unauthorized
-    ProblemSet{..} <- fst <$> getProblemSet
-    -- handle printout if needed
-    when probsetPrintout $ handlePrintout uid probsetProbs
-    with auth logout 
-    redirect "/" 
+  uid <- require getUserID <|> unauthorized
+  with auth logout 
+  redirect "/" 
+  {-
+   -- handle printout if needed
+   ProblemSet{..} <- fst <$> getProblemSet
+   when probsetPrintout $ handlePrintout uid probsetProbs
+   -}
 
-
+{-
 -- make a printout before ending session
 handlePrintout :: UID -> [Problem] -> Pythondo ()
 handlePrintout uid probs = do
   subs <- mapM (getBestSubmission uid) (map probID probs)
   report <- genReport (zip probs subs)
   liftIO $ makePrintout (show uid) report
-
--- liftIO $ makePrintout printout uid fullname clientname (zip probs subs)
--- printout not configured, return immediately  
--- handlePrintout _ _ = return ()
+-}
 
 
 {-
@@ -162,6 +162,54 @@ handleForm = render "register"
         registerUser "login" "password" >> redirect "/"
 -}
 
+
+
+-- | handle document requests
+handleDocument :: Pythondo ()
+handleDocument = do
+  uid <- require getUserID <|> unauthorized    -- ensure user is logged in
+  path <- B.toString <$> getsRequest rqPathInfo
+  withSplices ("documentPath" ## I.textSplice (T.pack path))
+    (method GET (handleGet uid path) <|>
+     method POST (handlePost uid path))
+  
+handleGet uid path = do
+  doc <- getWorksheet path
+  optPid <- getProblemID 
+  case optPid of
+    Nothing -> handleWorksheet doc uid
+    Just pid -> handleProblem doc uid pid
+
+handleWorksheet doc uid = do
+  doc' <- getSummary uid doc   -- get submissions summary for user
+  now <- liftIO getCurrentTime
+  renderWithSplices "worksheet" $ do
+    warningsSplices []
+    "worksheetItems" ## I.mapSplices (I.runChildrenWith . wsItemSplices now) (wsItems doc')
+  
+
+handleProblem doc@Worksheet{..} uid pid 
+  = case lookupProblem pid doc of
+    Nothing -> notFound
+    Just prob -> do
+      now <- liftIO $ getCurrentTime
+      renderWithSplices "problem" $ do
+        problemSplices prob
+        inputAceEditorSplices
+        timerSplices (probID prob) now (probLimit prob)
+        submissionsSplice []
+        warningsSplices []
+    
+
+lookupProblem :: PID -> Worksheet Problem -> Maybe Problem
+lookupProblem pid Worksheet{..} 
+  = listToMaybe [p | Right p <- wsItems, probID p == pid]
+
+handlePost uid path = undefined
+
+
+
+{-
 -----------------------------------------------------------------------------
 -- | problem description request 
 handleProblem :: Pythondo ()
@@ -177,10 +225,10 @@ handleProblem = method GET $ do
          submissionsSplice subs
          timerSplices pid now (probDeadline prob)
          warningsSplices mesgs
+-}
 
-
-
-        
+{-
+   
 -- | problem set listing handler
 handleProblemList :: Pythondo ()
 handleProblemList = method GET $ do
@@ -210,13 +258,15 @@ handleProblemList = method GET $ do
     "availableProblems" ## I.textSplice (T.pack $ show $ length available)
     "visibleProblems" ## I.textSplice (T.pack $ show $ length visible)
                
-               
+-}
+
+{-
 -- get tag list from query string
 getQueryTags :: Pythondo [Tag]
 getQueryTags = do
   params <- getParams
   return (map (T.pack . B.toString) $ Map.findWithDefault [] "tag" params)
-
+-}
 
 
 warningsSplices :: [Text] -> ISplices
@@ -225,33 +275,44 @@ warningsSplices mesgs = do
   where mesgSplice msg = "message" ## I.textSplice msg
 
 
-summarySplices :: UTCTime -> ProblemSummary -> ISplices
-summarySplices now ProblemSummary{..} 
-    = do problemSplices summaryProb
-         timerSplices (probID summaryProb) now (probDeadline summaryProb)
-         "numberSubmissions" ## I.textSplice (T.pack $ show summaryAttempts)
-         "numberAccepted"    ## I.textSplice (T.pack $ show summaryAccepted)
-         "ifSubmitted" ## conditionalSplice (summaryAttempts>0)
-         "ifAccepted" ## conditionalSplice (summaryAccepted>0)
-         
-
 
 -- | splices related to a single problem       
 problemSplices :: Problem -> ISplices
 problemSplices Problem{..} = do
   "problemID" ## I.textSplice (T.pack $ show probID)
-  "problemPath" ## I.textSplice (T.pack probPath)
-  "problemDoctest" ## I.textSplice (T.pack probDoctest)
-  "problemTitle" ## I.textSplice $ maybe (T.pack $ show probID) id probTitle
-  "problemDescription" ## return (renderPandoc probDescr)
+  "problemDoctest" ## maybe (return []) I.textSplice probDoctest
   "problemDefault" ## maybe (return []) I.textSplice probDefault
-  "problemTags" ## I.textSplice (T.unwords probTags)
+  "problemHeader" ## return (blocksToHtml $ singleton probHeader)
+  "problemTitle" ## return (inlinesToHtml $ headerInlines probHeader)
+  "problemDescription" ## return (blocksToHtml probDescr)
+  {-
+   "problemTags" ## I.textSplice (T.unwords probTags)
+   "problemPath" ## I.textSplice (T.pack probPath)
+   -}
+
+
+
+-- | splices related to worksheet items
+wsItemSplices :: UTCTime -> Either Blocks Summary -> ISplices
+wsItemSplices now (Left blocks) = do
+  "ifProblem" ## conditionalSplice False
+  "itemBlocks" ## return (blocksToHtml blocks)
+  
+wsItemSplices now (Right Summary{..}) = do
+  "ifProblem" ## conditionalSplice True
+  "totalSubmissions" ## I.textSplice (T.pack $ show summaryTotal)
+  "acceptedSubmissions" ## I.textSplice (T.pack $ show summaryAccepted)
+  "ifSubmitted" ## conditionalSplice (summaryTotal > 0)
+  "ifAccepted" ## conditionalSplice (summaryAccepted > 0)
+  problemSplices summaryProb
+  timerSplices (probID summaryProb) now (probLimit summaryProb)
+         
 
 
 
 
 
--- | splices related to problem's deadline
+-- | splices related to deadlines
 timerSplices ::  PID -> UTCTime -> Maybe UTCTime -> ISplices
 timerSplices pid now limit = do
   "ifOpen" ## conditionalSplice (maybe True (now<=) limit)
@@ -267,7 +328,7 @@ timerSplices pid now limit = do
                             Just t -> return $ jsTimer pid $ diffUTCTime t now
 
   
--- splice an UTC time as local time 
+-- | splice an UTC time as local time 
 timeSplice :: UTCTime -> I.Splice Pythondo
 timeSplice time = do tz <- liftIO getCurrentTimeZone
                      I.textSplice $ T.pack $
@@ -291,12 +352,12 @@ formatNominalDiffTime secs
 
 -- | splices relating to a list of submissions
 submissionsSplice :: [Submission] -> ISplices
-submissionsSplice lst = do
-  "submissions" ## I.mapSplices (I.runChildrenWith . submissionSplices) lst
-  "numberSubmissions" ## I.textSplice (T.pack $ show n)
-  "ifAccepted" ## conditionalSplice (any isAccepted lst)
+submissionsSplice list = do
+  "submissions" ## I.mapSplices (I.runChildrenWith . submissionSplices) list
+  "totalSubmissions" ## I.textSplice (T.pack $ show n)
+  "ifAccepted" ## conditionalSplice (any (\s->submitStatus s==Accepted) list)
   "ifSubmitted" ## conditionalSplice (n>0) 
-  where n = length lst
+  where n = length list
 
         
 -- | splices relating to a single submission
@@ -314,7 +375,7 @@ submissionSplices Submission{..} = do
                                       submitStatus/=Overdue) 
 
 
-
+{-
 handleGetSubmission, handlePostSubmission :: Pythondo ()
 handleGetSubmission 
     = method GET $ do 
@@ -343,32 +404,9 @@ handlePostSubmission = method POST $ do
                               timerSplices pid now (probDeadline prob) >>
                               warningsSplices mesgs)
     
-
-{-
--- handler for listing all submissions 
--- quick and dirty output routine 
-handleSubmissions :: Handler App App ()
-handleSubmissions = method GET $ do
-  getUser    -- should be authenticated
-  stats <- liftIO getAllStatus
-  names <- with auth $ withBackend $ \r -> liftIO $ 
-    sequence [lookup r txt | uid<-Map.keys stats, let txt=T.pack $ show uid]
-  writeBS "UserID\tName\tAccepted\tSubmissions\n"
-  sequence_ [ writeBS $ B.fromString $ 
-              printf "%s\t%s\t%d\t%d\n" (show uid) (show name) accepts submits
-            | ((uid, probs), name) <- zip (Map.assocs stats) names,
-              let accepts = Map.size $ Map.filter (any (==Accepted)) probs,
-              let submits = sum (Map.elems $ Map.map length probs)
-            ]
-  where 
-    lookup r txt = do m<-lookupByLogin r txt
-                      case m of Nothing -> return txt
-                                Just au -> return (userName au)
 -}
 
-    
-
-
+{-
 -- in exam mode show final report before loggin out
 -- otherwise, logout immediately
 handleConfirmLogout :: Pythondo ()
@@ -389,12 +427,12 @@ handleFinalReport uid ProblemSet{..} | probsetExam = do
 
 -- not in exam mode: proceed to logout immediately
 handleFinalReport _ _ = handleLogout
-
+-}
 
 -----------------------------------------------------------------------------
 -- administrator interface
 -----------------------------------------------------------------------------
-
+{-
 handleAdminEdit :: Pythondo ()
 handleAdminEdit = do
       uid <- require getUserID
@@ -429,12 +467,13 @@ handleAdminSubmissions = method GET $ do
   guard (adminRole `elem` roles)
   serveFileAs "application/x-sqlite3" "submissions.db"
         
-
+-}
 
       
 
 ------------------------------------------------------------------------------
 -- | The application's routes.
+  {-
 routes :: [(ByteString, Pythondo ())]
 routes = [ ("/login",                 handleLogin `catch` internalError)
          , ("/logout",                handleLogout `catch` internalError)
@@ -448,11 +487,15 @@ routes = [ ("/login",                 handleLogin `catch` internalError)
          , ("/asklogout",             handleConfirmLogout `catch` internalError)        
          , ("",                       serveDirectory "static" <|> notFound)
          ]
-{-
-  where logRequest (path,action) = (path, do req<-getRequest
-					     logError $ B.fromString $ show req
-					     action)
 -}
+
+
+routes :: [(ByteString, Pythondo ())]
+routes = [ ("/login",                 handleLogin `catch` internalError)
+         , ("/logout",                handleLogout `catch` internalError)
+         , ("/problems",              handleDocument `catch` internalError )
+         , ("",                       serveDirectory "static" <|> notFound)
+         ]
 
 
 -- | current logged in full user name  
@@ -536,7 +579,7 @@ initEkg conf = do enabled <- Configurator.require conf "ekg.enabled"
                     else return Nothing
   
 
-
+{-
 -- | get the current problem set
 -- TODO: avoid re-reading the same problems every time
 -- with some caching mechanism
@@ -549,18 +592,19 @@ getProblem pid = do
   case lookupProblemSet pid probset of
     Nothing -> badRequest
     Just p -> return (p,mesgs)
+-}
+
+-- get a worksheet by path
+getWorksheet :: String -> Pythondo (Worksheet Problem)
+getWorksheet path = liftIO (readWorksheet $ documentRoot </> path)
+
+documentRoot :: FilePath
+documentRoot = "problems"
 
 
-
-problemDirPath :: FilePath
-problemDirPath = "problems"
-
-problemSetPath :: FilePath
-problemSetPath = problemDirPath </> "index.md"
-
-
+{-
 lookupProblemSet :: PID -> ProblemSet -> Maybe Problem
 lookupProblemSet pid ProblemSet{..} =
   listToMaybe [p | p <- probsetProbs, probID p == pid] 
-    
+-}    
 
