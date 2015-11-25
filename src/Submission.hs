@@ -13,6 +13,7 @@ import           Data.Time.Clock
 -- import           System.Exit (ExitCode)
 import           Data.Maybe
 import           Data.Typeable
+import           Data.String
 
 import qualified Data.ByteString.UTF8 as B
 import           Data.Text(Text) 
@@ -26,6 +27,7 @@ import           Control.Monad.Trans (liftIO)
 import           Control.Monad.State (gets)
 import           Control.Applicative
 
+import           Data.Aeson (encode)
 import           Snap.Core
 import           Snap.Snaplet.SqliteSimple
 import qualified Database.SQLite.Simple as S
@@ -40,50 +42,13 @@ import           Problem
 import           Tester
 
 
--- | single row in the submission DB
-data Submission = Submission {
-  submitID   :: SID,           -- submission id 
-  submitUID  :: UID,           -- user id
-  submitPID  :: PID,           -- problems id
-  submitIPAddr :: Text,        -- client IP address
-  submitTime :: UTCTime,       -- submit time  
-  submitCode :: Code Python,   -- program code
-  submitStatus :: Status,       -- accepted/wrong answer/etc
-  submitReport :: Text
-  }
 
-
--- | convertion to/from SQL data
-instance ToField Status where
-  toField s = toField (show s)
-
-instance FromField Status where
-  fromField f = do s <- fromField f 
-                   parse (reads s)
-    where 
-      parse ((s,""):_) = return s
-      parse _  = returnError ConversionFailed f "couldn't parse status field" 
-
-
-instance ToField (Code lang) where
-  toField (Code txt) = toField txt
-
-instance FromField (Code lang) where
-  fromField f = toCode <$> fromField f
-
-instance FromRow PID where
-    fromRow = field
-
-
-
-instance FromRow Submission where
-  fromRow = Submission <$> field <*> field <*> field <*> field <*> field <*> field <*> field <*> field
 
 
 
 -- | insert a new submission into the DB
-insertSubmission ::
-  UID -> PID -> UTCTime -> Code Python -> Status -> Text -> Pythondo Submission
+insertSubmission :: ID User -> ID Problem -> UTCTime ->
+                    Code Python -> Status -> Text -> Pythondo Submission
 insertSubmission uid pid time code status report = do
   addr <- fmap (T.pack . B.toString) (getsRequest rqRemoteAddr)
   sid <- withSqlite $ \conn -> do
@@ -91,13 +56,13 @@ insertSubmission uid pid time code status report = do
       "INSERT INTO submissions \
      \ (user_id, problem_id, ip_addr, time, code, status, report) \
      \ VALUES(?, ?, ?, ?, ?, ?, ?)" (uid, pid, addr, time, code, status, report)
-    fmap (SID . fromIntegral) (S.lastInsertRowId conn)
+    fmap (fromString . show) (S.lastInsertRowId conn)
   return (Submission sid uid pid addr time code status report)
   
 
 
 -- | get a single submission 
-getSubmission :: UID -> PID -> SID -> Pythondo Submission
+getSubmission :: ID User -> ID Problem -> ID Submission -> Pythondo Submission
 getSubmission uid pid sid = do
   r <- query "SELECT * FROM submissions WHERE \
              \ id = ? AND user_id = ? AND problem_id = ?" (sid,uid,pid)
@@ -107,14 +72,14 @@ getSubmission uid pid sid = do
 
 
 -- | get all submissions for a user and problem
-getSubmissions :: UID -> PID -> Pythondo [Submission]  
+getSubmissions :: ID User -> ID Problem -> Pythondo [Submission]  
 getSubmissions uid pid = 
   query "SELECT * FROM submissions \
        \ WHERE user_id = ? AND problem_id = ? ORDER BY id" (uid, pid)
 
 
 -- | count the submissions for a problem
-getSubmitCount :: Status -> UID -> PID -> Pythondo Int
+getSubmitCount :: Status -> ID User -> ID Problem -> Pythondo Int
 getSubmitCount status uid pid = do
   r <- listToMaybe <$>
        query "SELECT COUNT(*) \
@@ -124,7 +89,7 @@ getSubmitCount status uid pid = do
     
 
 -- | count the total number of submissions for a problem
-getTotalSubmissions :: UID -> PID -> Pythondo Int
+getTotalSubmissions :: ID User -> ID Problem -> Pythondo Int
 getTotalSubmissions uid pid = do
     r <- listToMaybe <$>
          query "SELECT COUNT(*) \
@@ -137,7 +102,7 @@ getTotalSubmissions uid pid = do
 -- the last overall submission (if none was accepted)
 -- Note: the query below assumes that the submissions ID key 
 -- is monotonically increasing with time i.e. later submissions have higher IDs
-getBestSubmission :: UID -> PID -> Pythondo (Maybe Submission)
+getBestSubmission :: ID User -> ID Problem -> Pythondo (Maybe Submission)
 getBestSubmission uid pid = 
   listToMaybe <$> 
   query "SELECT id,user_id,problem_id,ip_addr,time,code,status,report \
@@ -148,9 +113,9 @@ getBestSubmission uid pid =
 
 
 --
--- | post a new submission; top level function 
+-- | post a new submission
 --
-postSubmission :: UID  -> Problem -> Code Python -> Pythondo Submission
+postSubmission :: ID User -> Problem -> Code Python -> Pythondo Submission
 postSubmission uid Problem{..} code = 
   let doctest = maybe "" id probSpec 
   in do 
@@ -161,10 +126,11 @@ postSubmission uid Problem{..} code =
     insertSubmission uid probID now code (resultStatus r) (resultMsg r)
 
 
-{-
+
+
+
 -- | update Db table of problems
 updateProblem :: Problem -> Pythondo ()
 updateProblem Problem{..} =
-  execute "INSERT OR UPDATE problems(problem_id, tags, time_limit) VALUES (?, ?, ?)" (probID, show probTags, probLimit)
--}
-  
+  execute "INSERT OR UPDATE problems(problem_id, attrs, time_limit) VALUES (?, ?, ?)" (probID, encode probAttrs, probLimit)
+

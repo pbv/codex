@@ -27,7 +27,7 @@
 <form id="editform" method="POST" 
       action="/submissions/${problemID}"
       onsubmit="submitAceEditorText('editform.editor');">
-<p><inputAceEditor id="editform.editor"><problemDefault/></inputAceEditor></p>
+<p><inputAceEditor id="editform.editor"><problemCode/></inputAceEditor></p>
 <p><input type="submit" value="Enviar"/>  &nbsp;
    <a href="/problems" class="button">Voltar à lista de problemas</a>
 </form>

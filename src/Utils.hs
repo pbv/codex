@@ -11,6 +11,7 @@ import qualified Data.ByteString.UTF8 as B
 import qualified Data.Text as T
 import qualified Data.Text.Encoding as T
 import qualified Data.Text.Encoding.Error as T
+import           Data.String
 
 import           Snap.Core
 import           Snap.Snaplet
@@ -36,6 +37,7 @@ import           SafeExec
 import           Application
 import           Types
 import           LdapAuth
+
 
 import           Data.Time.Clock
 
@@ -81,25 +83,6 @@ configLdapConf conf = do
   return (LdapConf uri base admins)
 
 
-{-
--- | get SafeExec configuration
-getSafeExecConf :: Pythondo SafeExecConf
-getSafeExecConf = gets _safeExecConf
-
-getPythonConf :: Pythondo PythonConf
-getPythonConf = gets _pythonConf
-
-
--- | get LDAP configuration parameters
-getLdapConf :: Pythondo LdapConf
-getLdapConf = gets _ldapConf
-
-
--- | get printout configuration parameters
-getPrintConf :: Pythondo PrintConf
-getPrintConf = gets _printConf
--}
-
 -- | increment an EKG counter
 incrCounter :: Text -> Pythondo ()
 incrCounter name 
@@ -114,10 +97,10 @@ incrCounter name
 
 -- | Get current logged in user ID (if any)
 --   from the authentication snaplet  
-getUserID :: Pythondo (Maybe UID)
+getUserID :: Pythondo (Maybe (ID User))
 getUserID = do 
   opt <- with auth currentUser
-  return $ fmap (UID . B.fromString . T.unpack . userLogin) opt
+  return $ fmap (fromString . T.unpack . userLogin) opt
 
 
 getFullName :: Pythondo (Maybe Text)
@@ -131,11 +114,11 @@ getUserRoles = do
   opt <- with auth currentUser
   return (fmap userRoles opt)
 
-getProblemID :: Pythondo (Maybe PID)
-getProblemID = fmap PID <$> getParam "problem"
+getProblemID :: Pythondo (Maybe (ID Problem))
+getProblemID = fmap ID <$> getParam "problem"
 
-getSubmissionID :: Pythondo (Maybe SID)
-getSubmissionID = fmap (SID . read . B.toString) <$> getParam "submit"
+getSubmissionID :: Pythondo (Maybe (ID Submission))
+getSubmissionID = fmap ID <$> getParam "submit"
 
 
 
@@ -178,11 +161,6 @@ finishError code msg = do
   r <- getResponse
   finishWith r
   
-{-
--- simple conditional splice
-conditionalSplice :: Monad m => Bool -> I.Splice m
-conditionalSplice cond = if cond then I.runChildren else return []
--}
 
 
 -- if/then/else conditional splice
@@ -196,29 +174,6 @@ ifElseISplice cond = getParamNode >>= (rewrite . X.childNodes)
 conditionalSplice :: Monad m => Bool -> I.Splice m
 conditionalSplice = ifElseISplice
     
-
-{-
--- | a splice for conditionals with a nested <else>...</else>
-conditionalSplice ::  Bool -> I.Splice Pythondo
-conditionalSplice cond = localParamNode rewrite I.runChildren
-  where rewrite 
-          = if cond then 
-              -- filter out any <else>... </else> node
-               filterChildren (\n -> X.tagName n/=Just "else")  
-            else
-              -- locate first <else>.. </else> child; 
-              -- return empty element if not found
-              \node -> case X.childElementTag "else" node of
-                Just node' -> node'   
-                Nothing -> X.Element "else" [] []
-
-        
--- | filter children of a node          
-filterChildren :: (X.Node -> Bool) -> X.Node -> X.Node
-filterChildren f (X.Element tag attrs children) 
-  = X.Element tag attrs (filter f children)
-filterChildren _ node = node    
--}
 
 
 -- | make a checkbox input for a tag filter
@@ -236,13 +191,12 @@ checkboxInput value checked disabled
                 
 
 
-jsTimer :: PID -> NominalDiffTime -> [X.Node]
-jsTimer pid secs
+jsTimer :: String -> NominalDiffTime -> [X.Node]
+jsTimer id secs
   = [X.Element "span" [("id",T.pack id),
                        ("class", "js-timer")] [],
      javascript $ T.pack $
      "start_countdown(" ++ show id ++ "," ++ show (floor secs :: Int) ++ ");"]
-  where id = show pid ++ "-js-timer"
 
 javascript txt = X.Element "script" [("type","text/javascript")] [X.TextNode txt]
 

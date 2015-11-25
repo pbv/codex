@@ -16,12 +16,11 @@ module Problem (
   ) where
 
 import           Control.Monad
--- import           Control.Monad.IO.Class
 import           Control.Applicative ((<$>))
--- import           System.FilePath
 
 import qualified Data.ByteString.UTF8 as B
 
+import           Data.String
 import           Data.Text(Text)
 import qualified Data.Text             as T
 -- import           Data.Maybe (listToMaybe)
@@ -32,7 +31,6 @@ import           Data.Time.LocalTime
 import           Data.Time.Format
 import           Data.Time.Clock
 import           System.Locale (defaultTimeLocale)
--- import           Snap.Snaplet.SqliteSimple
 
 import           Markdown
 import           Text.Pandoc
@@ -47,24 +45,6 @@ import           Language
 -- import           LogIO
 -- import           System.Directory(doesFileExist)
 
-
--- individual problems
-data Problem = Problem {
-  probID       :: PID,              -- unique identifier
-  probHeader   :: Block,            -- header and description 
-  probDescr    :: Blocks,
-  probCode  :: Maybe (Code Python),    -- default submission
-  probSpec  :: Maybe (Code Doctest),   -- doctest script
-  probAttrs    :: [(Text, Text)],   -- attributes (key-value pairs)
-  probLimit    :: Maybe UTCTime     -- optional deadline
-  } deriving Show
-
--- worksheets
-data Worksheet a = Worksheet
-                   { worksheetMeta :: Meta
-                   , worksheetItems :: [Either Blocks a]
-                   }
-                 deriving (Show, Functor)
 
  
 -- parse time strings
@@ -104,13 +84,13 @@ problemEnd block             = problemStart block
 parseProblem :: TimeZone -> Block -> [Block] -> Problem
 parseProblem tz header blocks
   = let (ident, classes, attrs) = headerAttr header
-    in Problem { probID = PID (B.fromString ident)
+    in Problem { probID = fromString ident
                , probHeader= header
                , probDescr = fromList $ 
                              removeCode "doctest" $
                              removeCode "default" blocks
-               , probCode = toCode <$> parseCode "default" blocks
-               , probSpec = toCode <$> parseCode "doctest" blocks
+               , probCode = parseCode "default" blocks
+               , probSpec = parseCode "doctest" blocks
                , probAttrs = [(T.pack k,T.pack v) | (k,v)<-attrs]
                , probLimit = lookup "close" attrs >>= parseUTCTime tz
                }
@@ -121,10 +101,10 @@ removeCode tag = filter (not . tagged)
         tagged _ = False
 
 
-parseCode :: String -> [Block] -> Maybe Text
+parseCode :: String -> [Block] -> Maybe (Code lang)
 parseCode tag bs
   = case cs of [] -> Nothing
-               _  -> Just (T.concat cs)
+               _  -> Just (toCode $ T.concat cs)
   where cs = [T.pack txt | CodeBlock attr txt <- bs, tag `elem` classes attr]
 
 
@@ -263,5 +243,6 @@ isLate t Problem{..} = t `Interval.after` probOpen
 
 
 
+  
 
 

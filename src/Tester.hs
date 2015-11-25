@@ -19,15 +19,6 @@ data Result = Result { resultStatus :: !Status
                      , resultMsg :: !Text
                      } deriving (Eq, Show)
 
-data Status = Accepted
-            | WrongAnswer
-            | CompileError
-            | RuntimeError
-            | TimeLimitExceeded
-            | MemoryLimitExceeded
-            | MiscError
-              deriving (Eq, Read, Show, Typeable)
-
 
 pythonTester :: PythonConf
                 -> SafeExecConf

@@ -1,22 +1,129 @@
-{-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE OverloadedStrings, DeriveDataTypeable, DeriveFunctor, EmptyDataDecls #-}
 {-
-  Types of identifiers for various entities
+  Types of various entities
 -}
 
 module Types where
 
+import           Control.Applicative
 import           Data.ByteString.UTF8(ByteString)
 import qualified Data.ByteString.UTF8 as B
 
+import           Data.String (IsString(..))
 import           Data.Text (Text)
--- import qualified Data.Text as T
+import qualified Data.Text as T
 
+import           Data.Typeable
 -- import           Data.Configurator.Types
+
+import           Data.Time.Clock
+
 
 import           Database.SQLite.Simple.ToField
 import           Database.SQLite.Simple.FromField
+import           Database.SQLite.Simple.FromRow
+
+import           Text.Pandoc.Builder hiding (Code)
+
+-- identifiers
+newtype ID a = ID ByteString deriving (Eq, Ord, Show, Read)
+
+instance IsString (ID a) where
+  fromString s = ID (B.fromString s)
+  
+fromID :: ID a -> ByteString
+fromID (ID bs) = bs 
+
+data User  -- phantom
+
+-- | Code fragments tagged with language  
+newtype Code lang = Code { fromCode :: Text } deriving (Eq,Show)
+
+instance IsString (Code lang) where
+  fromString s = Code (T.pack s)
+  
+toCode :: Text -> Code lang
+toCode = Code
+
+-- | convertion to/from SQL fields
+instance ToField (Code lang) where
+  toField (Code txt) = toField txt
+
+instance FromField (Code lang) where
+  fromField f = toCode <$> fromField f
 
 
+-- phantom types for tagging Code 
+data Python
+data Doctest
+
+  
+-- individual problems
+data Problem = Problem {
+  probID       :: ID Problem,              -- unique identifier
+  probHeader   :: Block,            -- header and description 
+  probDescr    :: Blocks,
+  probCode  :: Maybe (Code Python),    -- default submission
+  probSpec  :: Maybe (Code Doctest),   -- doctest script
+  probAttrs    :: [(Text, Text)],   -- attributes (key-value pairs)
+  probLimit    :: Maybe UTCTime     -- optional deadline
+  } deriving Show
+
+
+-- worksheets
+data Worksheet a = Worksheet { worksheetMeta :: Meta
+                             , worksheetItems :: [Either Blocks a]
+                             }
+                 deriving (Show, Functor)
+
+-- | single row in the submission DB
+data Submission = Submission {
+  submitID   :: ID Submission,
+  submitUID  :: ID User,
+  submitPID  :: ID Problem,           -- problems id
+  submitIPAddr :: Text,        -- client IP address
+  submitTime :: UTCTime,       -- submit time  
+  submitCode :: Code Python,   -- program code
+  submitStatus :: Status,       -- accepted/wrong answer/etc
+  submitReport :: Text
+  }
+  
+data Status = Accepted
+            | WrongAnswer
+            | CompileError
+            | RuntimeError
+            | TimeLimitExceeded
+            | MemoryLimitExceeded
+            | MiscError
+              deriving (Eq, Read, Show, Typeable)
+
+-- | convertion to/from SQL fields
+instance ToField (ID a) where
+  toField (ID id) = toField id
+  
+instance FromField (ID a) where
+  fromField f = fmap ID (fromField f)
+
+instance FromRow (ID a) where
+    fromRow = field
+
+instance ToField Status where
+  toField s = toField (show s)
+
+instance FromField Status where
+  fromField f = do s <- fromField f 
+                   parse (reads s)
+    where 
+      parse ((s,""):_) = return s
+      parse _  = returnError ConversionFailed f "couldn't parse status field" 
+
+instance FromRow Submission where
+  fromRow = Submission <$> field <*> field <*> field <*> field <*> field <*> field <*> field <*> field
+
+
+
+
+{-
 -- | user identifiers (login)
 newtype UID = UID ByteString deriving (Eq,Ord)
 
@@ -64,7 +171,7 @@ instance FromField PID where
 
 instance FromField SID where
   fromField f = fmap SID (fromField f)
-
+-}
 
 -- | Python interpreter configuration
 data PythonConf = PythonConf { pythonExec :: !FilePath
@@ -87,7 +194,7 @@ data PrintConf = PrintConf { printEnabled :: Bool
                 deriving (Eq,Show)
 
 
-
+{-
 -- | problem tags
 type Tag = Text
 
@@ -104,4 +211,4 @@ isTagged tag a = tag `elem` taglist a
 hasTags :: Tagged a => [Tag] -> a -> Bool
 hasTags tags a = tags `isSublistOf` taglist a
     where isSublistOf xs ys = all (`elem`ys) xs
-
+-}

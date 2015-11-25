@@ -86,7 +86,7 @@ handleLogin
   = method GET (with auth $ handleLoginForm Nothing) <|>
     method POST (do { user <- require (getParam "login") 
                     ; passwd <- require (getParam "password")
-                    ; ldapconf <- getLdapConf
+                    ; ldapconf <- gets ldapConf
                     ; with auth $ handleLoginSubmit ldapconf user passwd
                     } <|> badRequest)
 
@@ -189,7 +189,7 @@ handleWorksheet doc uid = do
   now <- liftIO getCurrentTime
   renderWithSplices "worksheet" $ do
     warningsSplices []
-    "worksheetItems" ## I.mapSplices (I.runChildrenWith . wsItemSplices now) (wsItems doc')
+    "worksheetItems" ## I.mapSplices (I.runChildrenWith . wsItemSplices now) (worksheetItems doc')
   
 
 handleProblem doc@Worksheet{..} uid pid 
@@ -205,9 +205,9 @@ handleProblem doc@Worksheet{..} uid pid
         warningsSplices []
     
 
-lookupProblem :: PID -> Worksheet Problem -> Maybe Problem
+lookupProblem :: ID Problem -> Worksheet Problem -> Maybe Problem
 lookupProblem pid Worksheet{..} 
-  = listToMaybe [p | Right p <- wsItems, probID p == pid]
+  = listToMaybe [p | Right p <- worksheetItems, probID p == pid]
 
 handlePost uid path = undefined
 
@@ -283,9 +283,9 @@ warningsSplices mesgs = do
 -- | splices related to a single problem       
 problemSplices :: Problem -> ISplices
 problemSplices Problem{..} = do
-  "problemID" ## I.textSplice (T.pack $ show probID)
-  "problemDoctest" ## maybe (return []) I.textSplice probDoctest
-  "problemDefault" ## maybe (return []) I.textSplice probDefault
+  "problemID" ## I.textSplice (T.pack $ B.toString $ fromID probID)
+  "problemSpec" ## maybe (return []) (I.textSplice . fromCode) probSpec
+  "problemCode" ## maybe (return []) (I.textSplice . fromCode) probCode
   "problemHeader" ## return (blocksToHtml $ singleton probHeader)
   "problemTitle" ## return (inlinesToHtml $ headerInlines probHeader)
   "problemDescription" ## return (blocksToHtml probDescr)
@@ -317,7 +317,7 @@ wsItemSplices now (Right Summary{..}) = do
 
 
 -- | splices related to deadlines
-timerSplices ::  PID -> UTCTime -> Maybe UTCTime -> ISplices
+timerSplices ::  ID Problem -> UTCTime -> Maybe UTCTime -> ISplices
 timerSplices pid now limit = do
   "ifOpen" ## conditionalSplice (maybe True (now<=) limit)
   "ifLate"  ## conditionalSplice (maybe False (now>) limit)
@@ -329,7 +329,8 @@ timerSplices pid now limit = do
                              formatNominalDiffTime $ diffUTCTime t now
   "remainingJsTimer" ## case limit of 
                             Nothing -> return []
-                            Just t -> return $ jsTimer pid $ diffUTCTime t now
+                            Just t -> return $ jsTimer tid $ diffUTCTime t now
+  where tid = B.toString (fromID pid) ++ "-js-timer"
 
   
 -- | splice an UTC time as local time 
@@ -370,13 +371,11 @@ submissionSplices Submission{..} = do
   "submitID"   ## I.textSplice (T.pack $ show submitID)
   "submitPID"  ## I.textSplice (T.pack $ show submitPID)
   "submitTime" ## timeSplice submitTime 
-  "submitText" ## I.textSplice submitText
+  "submitCode" ## I.textSplice (fromCode submitCode)
   "submitStatus" ## I.textSplice (T.pack $ show submitStatus)
   "submitReport" ## I.textSplice submitReport 
-  "ifAccepted" ## conditionalSplice (submitStatus == Accepted) 
-  "ifOverdue" ##  conditionalSplice (submitStatus == Overdue) 
-  "ifRejected" ## conditionalSplice (submitStatus/= Accepted &&
-                                      submitStatus/=Overdue) 
+  "ifAccepted" ## conditionalSplice (submitStatus == Accepted)
+  "ifOverdue" ## return []
 
 
 {-

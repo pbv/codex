@@ -11,7 +11,7 @@ module Summary
 
 
 import            Types
-import            Problem 
+-- import            Problem 
 import            Submission
 import            Application
 import            Control.Applicative
@@ -32,14 +32,14 @@ instance Tagged ProblemSummary where
                      else "*not submitted*"]
 -}
 
-getProblemSummary :: UID -> Problem -> Pythondo Summary
+getProblemSummary :: ID User -> Problem -> Pythondo Summary
 getProblemSummary uid prob@Problem{..} = do
   total <- getTotalSubmissions uid probID
   accepts<- getSubmitCount Accepted uid probID
   return (Summary prob total accepts)
 
 
-getSummary :: UID -> Worksheet Problem -> Pythondo (Worksheet Summary)
+getSummary :: ID User -> Worksheet Problem -> Pythondo (Worksheet Summary)
 getSummary uid (Worksheet meta items) = Worksheet meta <$> mapM summary items
   where summary (Left blocks) = return (Left blocks)
         summary (Right prob) = Right <$> getProblemSummary uid prob
