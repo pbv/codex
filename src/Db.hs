@@ -37,13 +37,13 @@ initCmds = ["CREATE TABLE submissions (\
             \code TEXT NOT NULL, \
             \status TEXT NOT NULL, \
             \report TEXT NOT NULL)",
-{-
-            "CREATE TABLE problemtags (\
-          \  id INTEGER PRIMARY KEY, \
-           \ problem_id TEXT NOT NULL, \
-           \ tag TEXT NOT NULL)",
--}
-            "CREATE INDEX user_index ON submissions(user_id)" 
+            "CREATE TABLE problems (\
+           \id INTEGER PRIMARY KEY, \
+           \problem_id TEXT NOT NULL, \
+           \tags TEXT NOT NULL, \
+           \time_limit TIMESTAMP)",
+            "CREATE INDEX user_index ON submissions(user_id)",
+            "CREATE INDEX problem_index ON problems(problem_id)"
            ]
 
 

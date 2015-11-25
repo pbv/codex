@@ -20,6 +20,7 @@ import Snap.Snaplet.SqliteSimple
 import System.Remote.Monitoring
 
 import Types
+import SafeExec 
 
 ------------------------------------------------------------------------------
 data App = App
@@ -27,11 +28,11 @@ data App = App
     , _sess  :: Snaplet SessionManager
     , _auth  :: Snaplet (AuthManager App)
     , _db    :: Snaplet Sqlite
-    -- , _config :: Config                  -- configurator handle
-    , _sandbox :: Sandbox                -- safeexec configuration
-    , _ldapConf :: LdapConf              -- LDAP configuration
-    , _printConf :: PrintConf            -- printout configuration
-    , _ekg     :: Maybe Server           -- optional EKG monitoring server
+    , pythonConf :: PythonConf          -- python configuration
+    , safeExecConf :: SafeExecConf      -- safeexec configuration
+    , ldapConf :: LdapConf              -- LDAP configuration
+    , printConf :: PrintConf            -- printout configuration
+    , ekg :: Maybe Server           -- optional EKG monitoring server
     }
 
 makeLenses ''App

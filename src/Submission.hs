@@ -8,9 +8,9 @@ module Submission where
 import           System.FilePath
 import           System.Directory
 import           System.IO
-import           System.Process
+-- import           System.Process
 import           Data.Time.Clock
-import           System.Exit (ExitCode)
+-- import           System.Exit (ExitCode)
 import           Data.Maybe
 import           Data.Typeable
 
@@ -19,10 +19,11 @@ import           Data.Text(Text)
 import qualified Data.Text    as T
 import qualified Data.Text.IO as T
 
-import           Text.Regex
+-- import           Text.Regex
 
-import           Control.Exception(bracket)
+--import           Control.Exception(bracket)
 import           Control.Monad.Trans (liftIO)
+import           Control.Monad.State (gets)
 import           Control.Applicative
 
 import           Snap.Core
@@ -34,7 +35,9 @@ import           Database.SQLite.Simple.ToField
 import           Application
 import           Utils
 import           Types
+import           Language
 import           Problem
+import           Tester
 
 
 -- | single row in the submission DB
@@ -42,23 +45,12 @@ data Submission = Submission {
   submitID   :: SID,           -- submission id 
   submitUID  :: UID,           -- user id
   submitPID  :: PID,           -- problems id
-  submitAddr :: Text,          -- client IP address
-  submitTime :: UTCTime,       -- submission time  
-  submitText :: Text,          -- submission text (program code)
-  submitStatus :: Status,      -- accepted/wrong answer/etc
-  submitReport :: Text         -- detailed error message
+  submitIPAddr :: Text,        -- client IP address
+  submitTime :: UTCTime,       -- submit time  
+  submitCode :: Code Python,   -- program code
+  submitStatus :: Status,       -- accepted/wrong answer/etc
+  submitReport :: Text
   }
-
--- | result status of a submission
-data Status = Accepted          -- passed all tests, in time
-            | Overdue           -- passed all tests, late submission
-            | WrongAnswer
-            | CompileError
-            | RuntimeError
-            | TimeLimitExceeded
-            | MemoryLimitExceeded
-            | MiscError
-              deriving (Eq, Ord, Show, Read, Typeable)
 
 
 -- | convertion to/from SQL data
@@ -72,8 +64,16 @@ instance FromField Status where
       parse ((s,""):_) = return s
       parse _  = returnError ConversionFailed f "couldn't parse status field" 
 
+
+instance ToField (Code lang) where
+  toField (Code txt) = toField txt
+
+instance FromField (Code lang) where
+  fromField f = toCode <$> fromField f
+
 instance FromRow PID where
     fromRow = field
+
 
 
 instance FromRow Submission where
@@ -81,11 +81,9 @@ instance FromRow Submission where
 
 
 
-
-
 -- | insert a new submission into the DB
-insertSubmission ::  UID -> PID -> UTCTime -> Text -> Status -> Text 
-                  -> Pythondo Submission
+insertSubmission ::
+  UID -> PID -> UTCTime -> Code Python -> Status -> Text -> Pythondo Submission
 insertSubmission uid pid time code status report = do
   addr <- fmap (T.pack . B.toString) (getsRequest rqRemoteAddr)
   sid <- withSqlite $ \conn -> do
@@ -98,7 +96,7 @@ insertSubmission uid pid time code status report = do
   
 
 
--- | get a single user's submission 
+-- | get a single submission 
 getSubmission :: UID -> PID -> SID -> Pythondo Submission
 getSubmission uid pid sid = do
   r <- query "SELECT * FROM submissions WHERE \
@@ -152,100 +150,21 @@ getBestSubmission uid pid =
 --
 -- | post a new submission; top level function 
 --
-postSubmission :: UID  -> Problem -> Text -> Pythondo Submission
-postSubmission uid prob submit = 
-  let doctest = maybe "" id (probDoctest prob)
-      tmpdir  = "tmp" </> show uid
+postSubmission :: UID  -> Problem -> Code Python -> Pythondo Submission
+postSubmission uid Problem{..} code = 
+  let doctest = maybe "" id probSpec 
   in do 
-    -- create a temporary directory for this user (if necessary)
+    pyConf  <- gets pythonConf
+    safeConf <- gets safeExecConf
     now <- liftIO getCurrentTime
-    liftIO $ createDirectoryIfMissing True tmpdir
-    (exitCode, out, err) <- runSubmission tmpdir doctest submit
-    let (status, report) = makeReport now prob out err
-    insertSubmission uid (probID prob) now submit status report 
+    r <- liftIO (pythonTester pyConf safeConf code doctest)
+    insertSubmission uid probID now code (resultStatus r) (resultMsg r)
 
-
--- | run doctest file for a submissions
--- creates temp files and cleanups afterwards
-runSubmission :: FilePath ->  Text -> Text -> Pythondo (ExitCode,String,String)
-runSubmission tmpdir doctest submit = do 
-  sb <- getSandbox
-  liftIO $ bracket createTemps removeTemps (runDoctests sb)
-  where
-    createTemps = do
-      (f1,h1) <- openTempFileWithDefaultPermissions tmpdir "tmp.py"
-      (f2,h2) <- openTempFileWithDefaultPermissions tmpdir "tmp.tst"
-      T.hPutStr h1 submit
-      T.hPutStr h2 doctest
-      hClose h1
-      hClose h2
-      return (f1,f2)
-    removeTemps (f1,f2) = removeFile f1 >> removeFile f2
-    
-  
-      
 
 {-
--- | lower level I/O helper functions 
-  
--- | make a python temporary file given a source code as Text
--- make sure file is cleaned up afterwards
-withTempFile :: FilePath -> Text -> (FilePath -> IO a) -> IO a
-withTempFile tmpdir txt = bracket create removeFile 
-  where create = do
-          (file,handle) <- openTempFileWithDefaultPermissions tmpdir "tmp.py"
-          T.hPutStr handle txt
-          hClose handle
-          return file
+-- | update Db table of problems
+updateProblem :: Problem -> Pythondo ()
+updateProblem Problem{..} =
+  execute "INSERT OR UPDATE problems(problem_id, tags, time_limit) VALUES (?, ?, ?)" (probID, show probTags, probLimit)
 -}
-
-
-
--- | run Python doctests inside a safeexec sandbox
-runDoctests :: Sandbox -> (FilePath,FilePath) -> IO (ExitCode, String, String)
-runDoctests Sandbox{..} (pyfile,tstfile)  
-  = readProcessWithExitCode safeExec args ""
-  where args = ["--cpu", show maxCpuTime,  
-                "--clock", show maxClockTime,
-                "--mem", show maxMemory, 
-                "--exec", pythonExec, 
-                "python/pytest.py", tstfile, pyfile]
-
-
-  
-
--- | classify a submission and produce a text report
--- these rules are highly dependent on Python's doctest output 
-makeReport :: UTCTime -> Problem -> String -> String -> (Status, Text)
-makeReport time prob out err 
-  = (status, T.pack $ trim maxLen out ++ trim maxLen err)
-  where 
-    maxLen = 2000 -- max.length of stdout/stdout transcriptions
-    status 
-      | null out && match "OK" err   = if isAcceptable time prob 
-                                       then Accepted
-                                       else Overdue
-      | match "Time Limit" err          = TimeLimitExceeded
-      | match "Memory Limit" err        = MemoryLimitExceeded
-      | match "Exception raised" out    = RuntimeError
-      | match "SyntaxError" err         = CompileError
-      | match "Failed" out              = WrongAnswer
-      | otherwise                       = MiscError
-
-
-
--- | miscelaneous
--- | string wrapper over Text.Regex interface
-match :: String -> String -> Bool
-match re  = isJust . matchRegex (mkRegex re) 
-
--- | trim a string to a maximum length
-trim :: Int -> String -> String
-trim size str 
-  = take (size - length msg) str ++ zipWith (\_ y->y) (drop size str) msg
-  where msg = "...\n***Output too long (truncated)***"
-
-
-
-
   

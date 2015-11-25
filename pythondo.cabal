@@ -28,7 +28,7 @@ Executable pythondo
     old-locale               >= 1.0,
     process                  >= 1.0,
     unix                     >= 2.5,
-    regex-compat             >= 0.9,
+--    regex-compat             >= 0.9,
     transformers             >= 0.3,
     bytestring                >= 0.9.1,
     utf8-string               >= 0.3, 
@@ -54,7 +54,8 @@ Executable pythondo
     containers                >= 0.4,
     configurator              >= 0.2,
     base                      >= 4.4,
-    lens                      >= 3.7.6
+    lens                      >= 3.7.6,
+    process-extras            >= 0.3.3
 
 
 

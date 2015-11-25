@@ -64,16 +64,12 @@ instance FromField PID where
 
 instance FromField SID where
   fromField f = fmap SID (fromField f)
-  
-  
--- | safeexec "sandbox" parameters
-data Sandbox = Sandbox { safeExec :: FilePath
-                       , pythonExec :: FilePath
-                       , maxCpuTime :: Int
-                       , maxClockTime :: Int
-                       , maxMemory :: Int 
-                       } 
-                deriving (Eq, Show)
+
+
+-- | Python interpreter configuration
+data PythonConf = PythonConf { pythonExec :: !FilePath
+                             , pythonScript :: !FilePath
+                             } deriving (Eq, Show)
 
   
 -- | LDAP configuration

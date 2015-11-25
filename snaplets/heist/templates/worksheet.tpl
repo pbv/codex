@@ -5,7 +5,7 @@
 <div class="worksheet">
 <worksheetItems>
  <ifProblem>
-   <h3><a href="/problems/${documentPath}?problem=${problemID}"><problemTitle/></a></h3>
+   <h3><a href="/docs/${documentPath}?problem=${problemID}"><problemTitle/></a></h3>
    <ifSubmitted><totalSubmissions/> submissões já efetuadas.<br/></ifSubmitted>
    <ifLate>Submissões fecharam em <endTime/>.</ifLate>
    <ifOpen>

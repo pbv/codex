@@ -32,6 +32,7 @@ import           Control.Exception (SomeException)
 import           System.Remote.Monitoring
 import           System.Remote.Counter as Counter
 
+import           SafeExec
 import           Application
 import           Types
 import           LdapAuth
@@ -39,20 +40,30 @@ import           LdapAuth
 import           Data.Time.Clock
 
 
--- | read configuration parameters 
-configSandbox :: Config -> IO Sandbox
-configSandbox conf = do
-    python   <- Configurator.require conf "submissions.python"
-    safeexec <-Configurator.require conf "submissions.safeexec"
-    cpu   <- Configurator.require conf "submissions.max_cpu"
-    clock <- Configurator.require conf "submissions.max_clock"
-    mem   <- Configurator.require conf "submissions.max_memory"
-    return Sandbox { safeExec = safeexec
-                   , pythonExec= python
-                   , maxCpuTime = cpu 
-                   , maxClockTime = clock
-                   , maxMemory = mem 
-                   }
+-- | read configuration parameters
+configPython :: Config -> IO PythonConf
+configPython conf = do
+  exec <- Configurator.lookup conf "python.exec"
+  script <- Configurator.lookup conf "python.script"
+  return PythonConf {
+     pythonExec = maybe "python" id exec,
+     pythonScript = maybe "python/pytest.py" id script
+    }
+
+
+configSafeExec :: Config -> IO SafeExecConf
+configSafeExec conf = do
+  -- python   <- Configurator.require conf "submissions.python"
+  path <-Configurator.lookup conf "safeexec.path"
+  cpu   <- Configurator.lookup conf "safeexec.max_cpu"
+  clock <- Configurator.lookup conf "safeexec.max_clock"
+  mem   <- Configurator.lookup conf "safeexec.max_memory"
+  return defaultConf {
+    safeExecPath = maybe (safeExecPath defaultConf) id path
+    , maxCpuTime = maybe (maxCpuTime defaultConf) id cpu 
+    , maxClockTime = maybe (maxClockTime defaultConf) id clock
+    , maxMemory = maybe (maxMemory defaultConf) id mem
+    }
 
 configPrintConf :: Config -> IO PrintConf
 configPrintConf conf = do
@@ -70,10 +81,13 @@ configLdapConf conf = do
   return (LdapConf uri base admins)
 
 
-
+{-
 -- | get SafeExec configuration
-getSandbox :: Pythondo Sandbox
-getSandbox = gets _sandbox
+getSafeExecConf :: Pythondo SafeExecConf
+getSafeExecConf = gets _safeExecConf
+
+getPythonConf :: Pythondo PythonConf
+getPythonConf = gets _pythonConf
 
 
 -- | get LDAP configuration parameters
@@ -84,12 +98,12 @@ getLdapConf = gets _ldapConf
 -- | get printout configuration parameters
 getPrintConf :: Pythondo PrintConf
 getPrintConf = gets _printConf
-
+-}
 
 -- | increment an EKG counter
 incrCounter :: Text -> Pythondo ()
 incrCounter name 
-  = gets _ekg >>= 
+  = gets ekg >>= 
     maybe (return ())  (\ekg -> liftIO $ getCounter name ekg >>= Counter.inc) 
 
 

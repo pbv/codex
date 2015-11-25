@@ -169,16 +169,20 @@ handleDocument :: Pythondo ()
 handleDocument = do
   uid <- require getUserID <|> unauthorized    -- ensure user is logged in
   path <- B.toString <$> getsRequest rqPathInfo
+  when (takeExtension path /= ".md") pass
   withSplices ("documentPath" ## I.textSplice (T.pack path))
     (method GET (handleGet uid path) <|>
      method POST (handlePost uid path))
-  
+
+--- get a worksheet  
 handleGet uid path = do
   doc <- getWorksheet path
   optPid <- getProblemID 
   case optPid of
     Nothing -> handleWorksheet doc uid
     Just pid -> handleProblem doc uid pid
+
+
 
 handleWorksheet doc uid = do
   doc' <- getSummary uid doc   -- get submissions summary for user
@@ -493,7 +497,7 @@ routes = [ ("/login",                 handleLogin `catch` internalError)
 routes :: [(ByteString, Pythondo ())]
 routes = [ ("/login",                 handleLogin `catch` internalError)
          , ("/logout",                handleLogout `catch` internalError)
-         , ("/problems",              handleDocument `catch` internalError )
+         , ("/docs",                  handleDocument `catch` internalError )
          , ("",                       serveDirectory "static" <|> notFound)
          ]
 
@@ -550,18 +554,20 @@ app =
                   -- probs <- readProblemDir >>= mapM readProblem
                   -- Db.updateProblems conn probs
     addRoutes routes
-      
-    sandbox <- liftIO $ configSandbox conf
-    printConf <- liftIO $ configPrintConf conf
-    ldapConf <- liftIO $ configLdapConf conf
+
+    py <- liftIO $ configPython conf
+    safe <- liftIO $ configSafeExec conf
+    prt <- liftIO $ configPrintConf conf
+    ldap <- liftIO $ configLdapConf conf
     return $ App { _heist = h
                  , _sess = s
                  , _auth = a
                  , _db   = d
-                 , _sandbox = sandbox
-                 , _ldapConf = ldapConf
-                 , _printConf = printConf
-                 , _ekg = e
+                 , pythonConf= py
+                 , safeExecConf = safe
+                 , ldapConf = ldap
+                 , printConf = prt
+                 , ekg = e
                  }
 
 
@@ -599,7 +605,7 @@ getWorksheet :: String -> Pythondo (Worksheet Problem)
 getWorksheet path = liftIO (readWorksheet $ documentRoot </> path)
 
 documentRoot :: FilePath
-documentRoot = "problems"
+documentRoot = "docs"
 
 
 {-

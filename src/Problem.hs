@@ -11,7 +11,7 @@ module Problem (
   readWorksheet,      -- read a worksheet
   -- isEarly,         -- check problem's acceptance dates
   -- isLate,
-  isAcceptable,     -- check a problem can be accepted
+  -- isAcceptable,     -- check a problem can be accepted
   -- Tagged, taglist, isTagged, hasTags  -- * problem tagging
   ) where
 
@@ -32,7 +32,7 @@ import           Data.Time.LocalTime
 import           Data.Time.Format
 import           Data.Time.Clock
 import           System.Locale (defaultTimeLocale)
-
+-- import           Snap.Snaplet.SqliteSimple
 
 import           Markdown
 import           Text.Pandoc
@@ -41,6 +41,7 @@ import           Text.Pandoc.Builder
 -- import           Text.XmlHtml 
 -- import           Text.Blaze.Renderer.XmlHtml
 import           Types
+import           Language
 
 -- import           ParseMeta
 -- import           LogIO
@@ -49,21 +50,23 @@ import           Types
 
 -- individual problems
 data Problem = Problem {
-  probID       :: PID,                  -- unique identifier
-  probHeader   :: Block,                -- header and description 
+  probID       :: PID,              -- unique identifier
+  probHeader   :: Block,            -- header and description 
   probDescr    :: Blocks,
-  probDefault  :: Maybe Text,           -- default submission
-  probDoctest  :: Maybe Text,           -- doctest script
-  probLimit :: Maybe UTCTime            -- optional deadline
+  probCode  :: Maybe (Code Python),    -- default submission
+  probSpec  :: Maybe (Code Doctest),   -- doctest script
+  probAttrs    :: [(Text, Text)],   -- attributes (key-value pairs)
+  probLimit    :: Maybe UTCTime     -- optional deadline
   } deriving Show
 
 -- worksheets
-data Worksheet a = Worksheet { wsMeta :: Meta
-                             , wsItems :: [Either Blocks a]
-                             }
+data Worksheet a = Worksheet
+                   { worksheetMeta :: Meta
+                   , worksheetItems :: [Either Blocks a]
+                   }
                  deriving (Show, Functor)
 
-
+ 
 -- parse time strings
 parseLocalTime :: String -> Maybe LocalTime
 parseLocalTime txt 
@@ -100,16 +103,17 @@ problemEnd block             = problemStart block
 -- parse a single problem
 parseProblem :: TimeZone -> Block -> [Block] -> Problem
 parseProblem tz header blocks
-  = Problem { probID = PID $ B.fromString $ ident $ headerAttr header
-            , probHeader= header
-            , probDescr = fromList $ 
-                          removeCode "doctest" $
-                          removeCode "default" blocks
-            , probDefault = parseCode "default" blocks
-            , probDoctest = parseCode "doctest" blocks
-            , probLimit = lookup "close" (keyValues $ headerAttr header) >>=
-                          parseUTCTime tz
-            }
+  = let (ident, classes, attrs) = headerAttr header
+    in Problem { probID = PID (B.fromString ident)
+               , probHeader= header
+               , probDescr = fromList $ 
+                             removeCode "doctest" $
+                             removeCode "default" blocks
+               , probCode = toCode <$> parseCode "default" blocks
+               , probSpec = toCode <$> parseCode "doctest" blocks
+               , probAttrs = [(T.pack k,T.pack v) | (k,v)<-attrs]
+               , probLimit = lookup "close" attrs >>= parseUTCTime tz
+               }
 
 removeCode :: String -> [Block] -> [Block]
 removeCode tag = filter (not . tagged)
@@ -254,8 +258,8 @@ isLate t Problem{..} = t `Interval.after` probOpen
 -}
 
 -- check if a problem can be submited and accepted
-isAcceptable :: UTCTime -> Problem -> Bool
-isAcceptable t Problem{..} = maybe True (t<=) probLimit
+--isAcceptable :: UTCTime -> Problem -> Bool
+--isAcceptable t Problem{..} = maybe True (t<=) probLimit
 
 
 
