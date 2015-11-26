@@ -6,30 +6,32 @@
 <apply template="_warnings"/>
 <problemHeader/>
 <problemDescription/>
-<ifLate><p>Submissões fecharam em: <endTime/>.</ifLate>
-<ifOpen>
-  <ifLimited>
-    <p>Tempo disponível: <remainingJsTimer/></p> 
-  </ifLimited>
-</ifOpen>
-<ifSubmitted>
+<ifTimed>
+  <ifOpen>
+    <p>Submissões terminam a <em><endTime/></em>; 
+      tempo disponível: <em><remainingTime/></em></p> 
+    <else/>
+    <p>Submissões terminaram em <em><endTime/></em>.
+  </ifOpen>
+</ifTimed>
+<ifSubmissions>
 <h2>Submissões anteriores</h2>
 <ol class="submissions">
-<submissions>
+<submissionList>
   <li class="submissionli">
-  <a href="/submissions/${problemID}/${submitID}"><span class="info"><submitStatus/><ifAccepted>&nbsp;<icon_accepted/></ifAccepted><ifRejected>&nbsp;<icon_rejected/></ifRejected><ifOverdue>&nbsp;<icon_overdue/></ifOverdue></span></a>
+  <a href="/docs/${documentPath}?problem=${problemID}&submit=${submitID}"><span class="info"><submitStatus/><ifAccepted>&nbsp;<icon_accepted/></ifAccepted><ifRejected>&nbsp;<icon_rejected/></ifRejected><ifOverdue>&nbsp;<icon_overdue/></ifOverdue></span></a>
   </li>
-</submissions>
+</submissionList>
 </ol>
-</ifSubmitted>
+</ifSubmissions>
 
 <h2>Nova submissão</h2>
 <form id="editform" method="POST" 
-      action="/submissions/${problemID}"
+      action="/docs/${documentPath}?problem=${problemID}"
       onsubmit="submitAceEditorText('editform.editor');">
 <p><inputAceEditor id="editform.editor"><problemCode/></inputAceEditor></p>
 <p><input type="submit" value="Enviar"/>  &nbsp;
-   <a href="/problems" class="button">Voltar à lista de problemas</a>
+   <a href="/docs/${documentPath}" class="button">Voltar à folha de problemas</a>
 </form>
 <script type="text/javascript">
 startAceEditor('editform.editor');

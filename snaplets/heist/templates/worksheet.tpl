@@ -3,16 +3,20 @@
 <bind tag="icon_editor"><img src="/icons/16x16/editor.png"/></bind>
 <apply template="base">
 <div class="worksheet">
-<worksheetItems>
- <ifProblem>
-   <h3><a href="/docs/${documentPath}?problem=${problemID}"><problemTitle/></a></h3>
-   <ifSubmitted><totalSubmissions/> submissões já efetuadas.<br/></ifSubmitted>
-   <ifLate>Submissões fecharam em <endTime/>.</ifLate>
-   <ifOpen>
-     <ifLimited>
-       Submissões terminam em <endTime/>; tempo disponível: <em><remainingJsTimer/></em>.
-     </ifLimited>
-   </ifOpen>
+  <worksheetItems>
+    <ifProblem>
+   <h3><a class="button" href="/docs/${documentPath}?problem=${problemID}"><problemTitle/></a><ifAccepted>&nbsp;<icon_accepted/></ifAccepted></h3>
+   <div class="info">
+     <ifTimed>
+       <ifOpen>
+	 Submissões terminam a <em><endTime/></em>; tempo disponível: <em><remainingTime/></em>.
+	 <else/>
+	 Submissões terminaram em <em><endTime/></em>.
+       </ifOpen>
+     </ifTimed>
+     <ifSubmissions><submissions/> submissões efetuadas; <accepted/> aceites.</ifSubmissions>
+
+   </div>
    <else/>
    <itemBlocks/>
  </ifProblem>

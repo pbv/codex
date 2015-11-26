@@ -58,13 +58,13 @@ import           Application
 import           Db
 import           Utils
 import           Types
+import           Language
 import           Markdown
 import           Text.Pandoc.Builder
 -- import qualified Interval as Interval
 -- import           Interval (Interval)
 import           Problem
 import           Submission
-import           Summary
 import           LdapAuth
 -- import           Report
 -- import           Printout
@@ -170,46 +170,56 @@ handleDocument = do
   uid <- require getUserID <|> unauthorized    -- ensure user is logged in
   path <- B.toString <$> getsRequest rqPathInfo
   when (takeExtension path /= ".md") pass
-  withSplices ("documentPath" ## I.textSplice (T.pack path))
-    (method GET (handleGet uid path) <|>
-     method POST (handlePost uid path))
+  withSplices ("documentPath" ## I.textSplice (T.pack path)) $ do
+    ws <- getWorksheet path
+    mpid <- getProblemID
+    case (mpid >>= lookupProblem ws) of
+      Nothing -> handleWorksheet ws uid
+      Just prob -> do
+        msid <- getSubmitID
+        case msid of
+          Just sid -> handleSubmission prob uid sid
+          Nothing -> handleProblem ws prob uid
 
---- get a worksheet  
-handleGet uid path = do
-  doc <- getWorksheet path
-  optPid <- getProblemID 
-  case optPid of
-    Nothing -> handleWorksheet doc uid
-    Just pid -> handleProblem doc uid pid
-
-
-
-handleWorksheet doc uid = do
-  doc' <- getSummary uid doc   -- get submissions summary for user
-  now <- liftIO getCurrentTime
-  renderWithSplices "worksheet" $ do
-    warningsSplices []
-    "worksheetItems" ## I.mapSplices (I.runChildrenWith . wsItemSplices now) (worksheetItems doc')
-  
-
-handleProblem doc@Worksheet{..} uid pid 
-  = case lookupProblem pid doc of
-    Nothing -> notFound
-    Just prob -> do
-      now <- liftIO $ getCurrentTime
-      renderWithSplices "problem" $ do
-        problemSplices prob
-        inputAceEditorSplices
-        timerSplices (probID prob) now (probLimit prob)
-        submissionsSplice []
-        warningsSplices []
-    
-
-lookupProblem :: ID Problem -> Worksheet Problem -> Maybe Problem
-lookupProblem pid Worksheet{..} 
+lookupProblem :: Worksheet Problem -> ProblemID -> Maybe Problem
+lookupProblem Worksheet{..}  pid
   = listToMaybe [p | Right p <- worksheetItems, probID p == pid]
 
-handlePost uid path = undefined
+
+handleWorksheet ws uid = method GET $ do
+  ws' <- getWorksheetSubmissions uid ws -- collect submissions for this worksheet
+  now <- liftIO getCurrentTime
+  renderWithSplices "worksheet" $ do
+    "worksheetItems" ## I.mapSplices (I.runChildrenWith . wsItemSplices now) (worksheetItems ws')
+  
+
+handleProblem ws@Worksheet{..} prob@Problem{..} uid
+  = method GET handleGet <|> method POST handlePost
+  where
+    handleGet = do 
+      now <- liftIO getCurrentTime
+      subs <- getSubmissions uid probID
+      renderWithSplices "problem"
+        (problemSplices prob >>
+         submissionListSplices prob subs >>
+         inputAceEditorSplices >>
+         timerSplices probID now probLimit)
+    handlePost = do
+      now <- liftIO getCurrentTime
+      code <- toCode <$> require (getTextPost "editform.editor")
+      sub <- newSubmission uid prob code
+      renderWithSplices "report"
+        (problemSplices prob >>
+         submissionSplices prob sub >>
+         inputAceEditorSplices >>
+         timerSplices probID now probLimit)
+      
+
+handleSubmission prob@Problem{..} uid sid = method GET $ do 
+  sub <- getSubmission uid probID sid
+  renderWithSplices "report" (problemSplices prob >>
+                              submissionSplices prob sub >>
+                              inputAceEditorSplices)
 
 
 
@@ -283,7 +293,7 @@ warningsSplices mesgs = do
 -- | splices related to a single problem       
 problemSplices :: Problem -> ISplices
 problemSplices Problem{..} = do
-  "problemID" ## I.textSplice (T.pack $ B.toString $ fromID probID)
+  "problemID" ## I.textSplice (T.pack $ B.toString $ fromPID probID)
   "problemSpec" ## maybe (return []) (I.textSplice . fromCode) probSpec
   "problemCode" ## maybe (return []) (I.textSplice . fromCode) probCode
   "problemHeader" ## return (blocksToHtml $ singleton probHeader)
@@ -297,31 +307,31 @@ problemSplices Problem{..} = do
 
 
 -- | splices related to worksheet items
-wsItemSplices :: UTCTime -> Either Blocks Summary -> ISplices
+wsItemSplices :: UTCTime -> Either Blocks (Problem,[Submission]) -> ISplices
 wsItemSplices now (Left blocks) = do
   "ifProblem" ## conditionalSplice False
   "itemBlocks" ## return (blocksToHtml blocks)
   
-wsItemSplices now (Right Summary{..}) = do
-  "ifProblem" ## conditionalSplice True
-  "totalSubmissions" ## I.textSplice (T.pack $ show summaryTotal)
-  "acceptedSubmissions" ## I.textSplice (T.pack $ show summaryAccepted)
-  "ifSubmitted" ## conditionalSplice (summaryTotal > 0)
-  "ifAccepted" ## conditionalSplice (summaryAccepted > 0)
-  problemSplices summaryProb
-  timerSplices (probID summaryProb) now (probLimit summaryProb)
-         
-
-
+wsItemSplices now (Right (prob@Problem{..},list)) 
+  = let tot = length list 
+        acc = length [sub | sub<-list, submitStatus sub == Accepted]
+    in do
+      "ifProblem" ## conditionalSplice True
+      "submissions" ## I.textSplice (T.pack $ show tot)
+      "accepted" ## I.textSplice (T.pack $ show acc)
+      "ifSubmissions" ## conditionalSplice (tot > 0)
+      "ifAccepted" ## conditionalSplice (acc > 0)
+      problemSplices prob
+      timerSplices probID now probLimit
 
 
 
 -- | splices related to deadlines
-timerSplices ::  ID Problem -> UTCTime -> Maybe UTCTime -> ISplices
+timerSplices ::  ProblemID -> UTCTime -> Maybe UTCTime -> ISplices
 timerSplices pid now limit = do
   "ifOpen" ## conditionalSplice (maybe True (now<=) limit)
-  "ifLate"  ## conditionalSplice (maybe False (now>) limit)
-  "ifLimited" ## conditionalSplice (isJust limit)
+  "ifClosed"  ## conditionalSplice (maybe False (now>) limit)
+  "ifTimed"  ## conditionalSplice (isJust limit)
   "endTime" ## maybe (return []) timeSplice limit
   "remainingTime" ## case limit of 
                    Nothing -> return []
@@ -330,7 +340,7 @@ timerSplices pid now limit = do
   "remainingJsTimer" ## case limit of 
                             Nothing -> return []
                             Just t -> return $ jsTimer tid $ diffUTCTime t now
-  where tid = B.toString (fromID pid) ++ "-js-timer"
+  where tid = B.toString (fromPID pid) ++ "-js-timer"
 
   
 -- | splice an UTC time as local time 
@@ -356,26 +366,30 @@ formatNominalDiffTime secs
 
 
 -- | splices relating to a list of submissions
-submissionsSplice :: [Submission] -> ISplices
-submissionsSplice list = do
-  "submissions" ## I.mapSplices (I.runChildrenWith . submissionSplices) list
-  "totalSubmissions" ## I.textSplice (T.pack $ show n)
-  "ifAccepted" ## conditionalSplice (any (\s->submitStatus s==Accepted) list)
-  "ifSubmitted" ## conditionalSplice (n>0) 
+submissionListSplices :: Problem -> [Submission] -> ISplices
+submissionListSplices prob list = do
+  "submissions" ## I.textSplice (T.pack $ show n)
+  "ifSubmissions" ## conditionalSplice (n > 0) 
+  "submissionList" ## I.mapSplices (I.runChildrenWith . submissionSplices prob) list
+  -- "ifAccepted" ##  I.textSplice "IFACCEPTED?"
+    -- conditionalSplice (any (\s->submitStatus s==Accepted) list)
   where n = length list
 
         
 -- | splices relating to a single submission
-submissionSplices :: Submission -> ISplices
-submissionSplices Submission{..} = do 
-  "submitID"   ## I.textSplice (T.pack $ show submitID)
-  "submitPID"  ## I.textSplice (T.pack $ show submitPID)
+submissionSplices :: Problem -> Submission -> ISplices
+submissionSplices Problem{..} Submission{..} = do 
+  "submitID"   ## I.textSplice (T.pack $ show $ fromSID submitID)
+  "submitPID"  ## I.textSplice (T.pack $ B.toString $ fromPID submitPID)
   "submitTime" ## timeSplice submitTime 
   "submitCode" ## I.textSplice (fromCode submitCode)
   "submitStatus" ## I.textSplice (T.pack $ show submitStatus)
   "submitReport" ## I.textSplice submitReport 
   "ifAccepted" ## conditionalSplice (submitStatus == Accepted)
-  "ifOverdue" ## return []
+  "ifOverdue" ## conditionalSplice (submitStatus == Overdue)
+  "ifRejected" ## conditionalSplice (submitStatus /= Accepted &&
+                                     submitStatus /= Overdue)
+
 
 
 {-

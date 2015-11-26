@@ -4,46 +4,33 @@
    number of attempts and number of accepted submissions
 -}
 module Summary
-    ( Summary(..)
-    , getProblemSummary
-    , getSummary
+    ( 
+     getWorksheetSubmissions
     ) where
 
 
 import            Types
--- import            Problem 
+import            Problem
 import            Submission
 import            Application
 import            Control.Applicative
 
--- | submission summary for a problem
-data Summary = Summary {
-      summaryProb :: Problem,  -- the problem
-      summaryTotal :: !Int,  -- total number of submissions
-      summaryAccepted :: !Int   -- number of accepted submitions
-    }
 
 {-
-instance Tagged ProblemSummary where
-  taglist ProblemSummary{..} = dynamic ++ taglist summaryProb
-    where dynamic = [if summaryAccepted>0  then "*accepted*"
-                     else "*not accepted*",
-                     if summaryAttempts>0 then "*submitted*"
-                     else "*not submitted*"]
+-- | submission summary for a problem
+data Summary = Summary {
+  problem :: Problem,
+  total :: !Int,     -- total number of submissions
+  accepted :: !Int   -- number of accepted submitions
+  } 
+
+getProblemSummary :: UserID -> Problem -> Pythondo Summary
+getProblemSummary uid prob@Problem{..} = do
+  total <- countSubmissions uid probID
+  accepts<- countSubmissions' uid probID Accepted
+  return (Summary prob total accepts)
 -}
 
-getProblemSummary :: ID User -> Problem -> Pythondo Summary
-getProblemSummary uid prob@Problem{..} = do
-  total <- getTotalSubmissions uid probID
-  accepts<- getSubmitCount Accepted uid probID
-  return (Summary prob total accepts)
-
-
-getSummary :: ID User -> Worksheet Problem -> Pythondo (Worksheet Summary)
-getSummary uid (Worksheet meta items) = Worksheet meta <$> mapM summary items
-  where summary (Left blocks) = return (Left blocks)
-        summary (Right prob) = Right <$> getProblemSummary uid prob
-        
   
 
 {-

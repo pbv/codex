@@ -3,14 +3,23 @@
    Evaluating, storing and fetching and submissions in database
 -}
 
-module Submission where
+module Submission
+       ( Submission(..)
+       , Status(..)
+       , newSubmission
+       , getSubmission
+       , getSubmissions
+       , getWorksheetSubmissions
+--       , countSubmissions
+--       , countSubmissions'
+       ) where
 
 import           System.FilePath
 import           System.Directory
 import           System.IO
--- import           System.Process
+
 import           Data.Time.Clock
--- import           System.Exit (ExitCode)
+
 import           Data.Maybe
 import           Data.Typeable
 import           Data.String
@@ -20,14 +29,10 @@ import           Data.Text(Text)
 import qualified Data.Text    as T
 import qualified Data.Text.IO as T
 
--- import           Text.Regex
-
---import           Control.Exception(bracket)
 import           Control.Monad.Trans (liftIO)
 import           Control.Monad.State (gets)
 import           Control.Applicative
 
-import           Data.Aeson (encode)
 import           Snap.Core
 import           Snap.Snaplet.SqliteSimple
 import qualified Database.SQLite.Simple as S
@@ -43,26 +48,71 @@ import           Tester
 
 
 
+-- | single row in the submission DB
+data Submission = Submission {
+  submitID   :: SubmitID,
+  submitUID  :: UserID,
+  submitPID  :: ProblemID,           -- problem id
+  submitIPAddr :: Text,        -- client IP address
+  submitTime :: UTCTime,       -- submit time  
+  submitCode :: Code Python,   -- program code
+  submitStatus :: Status,       -- accepted/wrong answer/etc
+  submitReport :: Text
+  }
 
+-- | convertion to/from SQL
+instance ToField Status where
+  toField s = toField (show s)
+
+instance FromField Status where
+  fromField f = do s <- fromField f 
+                   parse (reads s)
+    where 
+      parse ((s,""):_) = return s
+      parse _  = returnError ConversionFailed f "couldn't parse status field" 
+
+instance FromRow Submission where
+  fromRow = Submission <$> field <*> field <*> field <*> field <*> field <*> field <*> field <*> field
+
+
+--
+-- | post a new submission
+--
+newSubmission :: UserID -> Problem -> Code Python -> Pythondo Submission
+newSubmission uid Problem{..} code = 
+  let doctest = maybe "" id probSpec 
+  in do 
+    pyConf  <- gets pythonConf
+    safeConf <- gets safeExecConf
+    now <- liftIO getCurrentTime
+    Result status msg <- liftIO (pythonTester pyConf safeConf code doctest)
+    let status' = checkLimit status now probLimit
+    insertSubmission uid probID now code status' msg
+
+checkLimit Accepted now limit = if now`before`limit then Accepted else Overdue
+checkLimit status   _    _    = status
+
+before now limit = maybe True (now<=) limit
+          
 
 
 -- | insert a new submission into the DB
-insertSubmission :: ID User -> ID Problem -> UTCTime ->
-                    Code Python -> Status -> Text -> Pythondo Submission
-insertSubmission uid pid time code status report = do
+insertSubmission :: UserID -> ProblemID -> UTCTime -> Code Python -> Status -> Text
+                    -> Pythondo Submission
+insertSubmission uid pid time code status msg = do
   addr <- fmap (T.pack . B.toString) (getsRequest rqRemoteAddr)
   sid <- withSqlite $ \conn -> do
     S.execute conn 
       "INSERT INTO submissions \
      \ (user_id, problem_id, ip_addr, time, code, status, report) \
-     \ VALUES(?, ?, ?, ?, ?, ?, ?)" (uid, pid, addr, time, code, status, report)
-    fmap (fromString . show) (S.lastInsertRowId conn)
-  return (Submission sid uid pid addr time code status report)
+     \ VALUES(?, ?, ?, ?, ?, ?, ?)" (uid, pid, addr, time, code, status, msg)
+    fmap SubmitID (S.lastInsertRowId conn)
+  return (Submission sid uid pid addr time code status msg)
   
 
 
 -- | get a single submission 
-getSubmission :: ID User -> ID Problem -> ID Submission -> Pythondo Submission
+getSubmission :: UserID -> ProblemID -> SubmitID -> Pythondo Submission
 getSubmission uid pid sid = do
   r <- query "SELECT * FROM submissions WHERE \
              \ id = ? AND user_id = ? AND problem_id = ?" (sid,uid,pid)
@@ -72,37 +122,36 @@ getSubmission uid pid sid = do
 
 
 -- | get all submissions for a user and problem
-getSubmissions :: ID User -> ID Problem -> Pythondo [Submission]  
+getSubmissions :: UserID -> ProblemID -> Pythondo [Submission]  
 getSubmissions uid pid = 
   query "SELECT * FROM submissions \
        \ WHERE user_id = ? AND problem_id = ? ORDER BY id" (uid, pid)
 
 
--- | count the submissions for a problem
-getSubmitCount :: Status -> ID User -> ID Problem -> Pythondo Int
-getSubmitCount status uid pid = do
+-- | count all submissions
+countSubmissions :: UserID -> ProblemID -> Pythondo Int
+countSubmissions uid pid = do
+  r <- listToMaybe <$>
+       query "SELECT COUNT(*) \
+               \ FROM submissions WHERE user_id = ? AND problem_id = ?" (uid,pid)
+  return $ maybe 0 fromOnly r
+
+-- | count submissions with a given status
+countSubmissions' :: UserID -> ProblemID -> Status -> Pythondo Int
+countSubmissions' uid pid status = do
   r <- listToMaybe <$>
        query "SELECT COUNT(*) \
              \ FROM submissions WHERE status = ? \
              \ AND  user_id = ? AND problem_id = ?" (status,uid,pid)
   return $ maybe 0 fromOnly r
-    
-
--- | count the total number of submissions for a problem
-getTotalSubmissions :: ID User -> ID Problem -> Pythondo Int
-getTotalSubmissions uid pid = do
-    r <- listToMaybe <$>
-         query "SELECT COUNT(*) \
-               \ FROM submissions WHERE user_id = ? AND problem_id = ?" (uid,pid)
-    return $ maybe 0 fromOnly r
-
+  
 
 -- | get the best submission for a problem for printouts:.
 -- the last Accepted submission; or 
 -- the last overall submission (if none was accepted)
 -- Note: the query below assumes that the submissions ID key 
 -- is monotonically increasing with time i.e. later submissions have higher IDs
-getBestSubmission :: ID User -> ID Problem -> Pythondo (Maybe Submission)
+getBestSubmission :: UserID -> ProblemID -> Pythondo (Maybe Submission)
 getBestSubmission uid pid = 
   listToMaybe <$> 
   query "SELECT id,user_id,problem_id,ip_addr,time,code,status,report \
@@ -112,25 +161,12 @@ getBestSubmission uid pid =
 
 
 
---
--- | post a new submission
---
-postSubmission :: ID User -> Problem -> Code Python -> Pythondo Submission
-postSubmission uid Problem{..} code = 
-  let doctest = maybe "" id probSpec 
-  in do 
-    pyConf  <- gets pythonConf
-    safeConf <- gets safeExecConf
-    now <- liftIO getCurrentTime
-    r <- liftIO (pythonTester pyConf safeConf code doctest)
-    insertSubmission uid probID now code (resultStatus r) (resultMsg r)
 
-
-
-
-
--- | update Db table of problems
-updateProblem :: Problem -> Pythondo ()
-updateProblem Problem{..} =
-  execute "INSERT OR UPDATE problems(problem_id, attrs, time_limit) VALUES (?, ?, ?)" (probID, encode probAttrs, probLimit)
-
+getWorksheetSubmissions :: UserID ->  Worksheet Problem  
+                        -> Pythondo (Worksheet (Problem, [Submission]))
+getWorksheetSubmissions uid (Worksheet meta items)
+  = Worksheet meta <$> mapM collect items
+  where collect (Left blocks) = return (Left blocks)
+        collect (Right prob) = do subs <- getSubmissions uid (probID prob)
+                                  return (Right (prob,subs))
+        

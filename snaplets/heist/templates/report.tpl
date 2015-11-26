@@ -19,12 +19,12 @@
 
 <h2>Nova submissão</h2>
 <form id="editform" method="POST" 
-      action="/submissions/${problemID}"
+      action="/docs/${documentPath}?problem=${problemID}"
       onsubmit="submitAceEditorText('editform.editor');">
-<p><inputAceEditor id="editform.editor"><submitText/></inputAceEditor></p>
+<p><inputAceEditor id="editform.editor"><submitCode/></inputAceEditor></p>
 <p><input type="submit" value="Enviar"/> 
-&nbsp;<a class="button" href="/problems/${problemID}">Voltar ao problema</a>
-&nbsp;<a class="button" href="/problems">Voltar à lista de problemas</a>
+&nbsp;<a class="button" href="/docs/${documentPath}?problem=${problemID}">Voltar ao problema</a>
+&nbsp;<a class="button" href="/docs/${documentPath}">Voltar à folha de problemas</a>
 </form>
 <script type="text/javascript">
 startAceEditor('editform.editor');

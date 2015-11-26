@@ -97,7 +97,7 @@ incrCounter name
 
 -- | Get current logged in user ID (if any)
 --   from the authentication snaplet  
-getUserID :: Pythondo (Maybe (ID User))
+getUserID :: Pythondo (Maybe UserID)
 getUserID = do 
   opt <- with auth currentUser
   return $ fmap (fromString . T.unpack . userLogin) opt
@@ -114,11 +114,15 @@ getUserRoles = do
   opt <- with auth currentUser
   return (fmap userRoles opt)
 
-getProblemID :: Pythondo (Maybe (ID Problem))
-getProblemID = fmap ID <$> getParam "problem"
+getProblemID :: Pythondo (Maybe ProblemID)
+getProblemID = fmap ProblemID <$> getParam "problem"
 
-getSubmissionID :: Pythondo (Maybe (ID Submission))
-getSubmissionID = fmap ID <$> getParam "submit"
+getSubmitID :: Pythondo (Maybe SubmitID)
+getSubmitID = do opt <- getParam "submit"
+                 return $ do bs <- opt
+                             case reads (B.toString bs) of
+                               [(i,"")] -> Just (SubmitID i)
+                               _ -> Nothing
 
 
 

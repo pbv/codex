@@ -19,6 +19,16 @@ data Result = Result { resultStatus :: !Status
                      , resultMsg :: !Text
                      } deriving (Eq, Show)
 
+data Status = Accepted
+            | Overdue
+            | WrongAnswer
+            | CompileError
+            | RuntimeError
+            | TimeLimitExceeded
+            | MemoryLimitExceeded
+            | MiscError
+              deriving (Eq, Read, Show, Typeable)
+
 
 pythonTester :: PythonConf
                 -> SafeExecConf
@@ -27,23 +37,25 @@ pythonTester :: PythonConf
                 -> IO Result
 pythonTester PythonConf{..} safeConf (Code python) (Code doctest) 
   = withTextTemp "tmp.py" python $ \pyfile ->
-    withTextTemp "tmp.tst" doctest $ \tstfile ->
-    (pythonReport <$>
-     safeExecWith safeConf  pythonExec [pythonScript, tstfile, pyfile] "")
+    withTextTemp "tmp.tst" doctest $ \tstfile -> do
+      (pythonReport <$>
+       safeExecWith safeConf pythonExec [pythonScript, tstfile, pyfile] "")
     
 pythonReport :: (ExitCode, Text, Text) -> Result
 pythonReport (exitCode, stdout, stderr) = Result status msg
   where
-    msg = trim maxLen stdout `T.append` trim maxLen stderr
+    msg1 = trim maxLen stdout
+    msg2 = trim maxLen stderr
     maxLen = 2000
-    status
-      | T.null stdout && match "OK" stderr = Accepted
-      | match "Time Limit" stderr          = TimeLimitExceeded
-      | match "Memory Limit" stderr        = MemoryLimitExceeded
-      | match "Exception Raised" stdout    = RuntimeError
-      | match "SyntaxError" stderr         = CompileError
-      | match "Failed" stdout              = WrongAnswer
-      | otherwise                          = MiscError
+    (status, msg)
+      | T.null stdout && match "OK" stderr = (Accepted, "")
+      | match "Time Limit" stderr          = (TimeLimitExceeded, msg2)
+      | match "Memory Limit" stderr        = (MemoryLimitExceeded, msg2)
+      | match "Exception Raised" stdout    = (RuntimeError, msg1)
+      | match "SyntaxError" stderr         = (CompileError, msg1)
+      | match "Failed" stdout              = (WrongAnswer, msg1)
+      | otherwise                          = (MiscError, T.append msg1 msg2)
+
 
 match = T.isInfixOf
 

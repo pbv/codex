@@ -6,13 +6,7 @@
 module Problem ( 
   Problem(..),
   Worksheet(..),
-  -- ProblemSet(..),
-  -- readProblem,     -- read a single problem
   readWorksheet,      -- read a worksheet
-  -- isEarly,         -- check problem's acceptance dates
-  -- isLate,
-  -- isAcceptable,     -- check a problem can be accepted
-  -- Tagged, taglist, isTagged, hasTags  -- * problem tagging
   ) where
 
 import           Control.Monad
@@ -32,12 +26,16 @@ import           Data.Time.Format
 import           Data.Time.Clock
 import           System.Locale (defaultTimeLocale)
 
+import           Data.Aeson (encode)
+import           Snap.Snaplet.SqliteSimple
+
 import           Markdown
 import           Text.Pandoc
 import           Text.Pandoc.Builder
 -- import           Data.Monoid
 -- import           Text.XmlHtml 
 -- import           Text.Blaze.Renderer.XmlHtml
+import           Application
 import           Types
 import           Language
 
@@ -45,6 +43,24 @@ import           Language
 -- import           LogIO
 -- import           System.Directory(doesFileExist)
 
+
+-- individual problems
+data Problem = Problem {
+  probID       :: ProblemID,       -- unique identifier
+  probHeader   :: Block,           -- header and description 
+  probDescr    :: Blocks,
+  probCode  :: Maybe (Code Python),    -- default submission
+  probSpec  :: Maybe (Code Doctest),   -- doctest script
+  probAttrs    :: [(Text, Text)],   -- attributes (key-value pairs)
+  probLimit    :: Maybe UTCTime     -- optional deadline
+  } deriving Show
+
+
+-- worksheets
+data Worksheet a = Worksheet { worksheetMeta :: Meta
+                             , worksheetItems :: [Either Blocks a]
+                             }
+                 deriving (Show, Functor)
 
  
 -- parse time strings
@@ -245,4 +261,10 @@ isLate t Problem{..} = t `Interval.after` probOpen
 
   
 
+
+
+-- | update Db table of problems
+updateProblem :: Problem -> Pythondo ()
+updateProblem Problem{..} =
+  execute "INSERT OR UPDATE problems(problem_id, attrs, time_limit) VALUES (?, ?, ?)" (probID, encode probAttrs, probLimit)
 
