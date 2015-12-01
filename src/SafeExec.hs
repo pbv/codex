@@ -20,7 +20,7 @@ data SafeExecConf =
                , maxStack :: !Int     -- KB
                , maxFSize :: !Int     -- KB
                , maxCore :: !Int      -- KB
-               , maxProc :: !Int
+               , numProc :: !Int
                } deriving (Eq, Show)
 
 
@@ -33,7 +33,7 @@ defaultConf = SafeExecConf { safeExecPath = "safeexec"
                             , maxStack = 8*1024
                             , maxFSize = 8*1024
                             , maxCore = 0
-                            , maxProc = 0
+                            , numProc = 8
                             }
 
 
@@ -50,7 +50,7 @@ safeExecWith SafeExecConf{..} cmd args stdin
                  "--stack", show maxStack,
                  "--fsize", show maxFSize,
                  "--core", show maxCore,
-                 "--nproc", show maxProc,
+                 "--nproc", show numProc,
                  "--exec", cmd]
                    
 

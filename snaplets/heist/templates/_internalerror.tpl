@@ -8,7 +8,7 @@
 </pre>
 </li>
 <li><ifLoggedIn>
-   Voltar à <a href="/problems">lista de problemas</a>
+   Voltar à <a href="/">página inicial</a>
     </ifLoggedIn>
     <ifLoggedOut>
     Voltar à <a href="/login">página de autenticação.</a>

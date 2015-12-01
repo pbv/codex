@@ -5,7 +5,8 @@
 
 module Submission
        ( Submission(..)
-       , Status(..)
+       , Result(..)
+       , Qualifier(..)
        , newSubmission
        , getSubmission
        , getSubmissions
@@ -48,71 +49,88 @@ import           Tester
 
 
 
--- | single row in the submission DB
+-- | a row in the submssion table
 data Submission = Submission {
   submitID   :: SubmitID,
   submitUID  :: UserID,
   submitPID  :: ProblemID,           -- problem id
-  submitIPAddr :: Text,        -- client IP address
+  -- submitIPAddr :: Text,        -- client IP address
   submitTime :: UTCTime,       -- submit time  
-  submitCode :: Code Python,   -- program code
-  submitStatus :: Status,       -- accepted/wrong answer/etc
-  submitReport :: Text
+  submitCode :: Code,   -- program code
+  submitQualifier :: Qualifier,  -- in time/overdue
+  submitResult :: Result,      -- accepted/wrong answer/etc
+  submitMsg :: Text            -- detailed message
   }
 
+
+-- | in-time or overdue?
+data Qualifier = OK | Overdue deriving (Eq, Show, Read, Typeable)
+
+
 -- | convertion to/from SQL
-instance ToField Status where
+instance ToField Result where
   toField s = toField (show s)
 
-instance FromField Status where
+instance FromField Result where
   fromField f = do s <- fromField f 
                    parse (reads s)
     where 
       parse ((s,""):_) = return s
-      parse _  = returnError ConversionFailed f "couldn't parse status field" 
+      parse _  = returnError ConversionFailed f "invalid Result field"
+
+instance ToField Qualifier where
+  toField s = toField (show s)
+
+instance FromField Qualifier where
+  fromField f = do s <- fromField f
+                   parse (reads s)
+    where
+      parse ((s,""):_) = return s
+      parse _ = returnError ConversionFailed f "invalid Qualifier field"
+
 
 instance FromRow Submission where
-  fromRow = Submission <$> field <*> field <*> field <*> field <*> field <*> field <*> field <*> field
+  fromRow = (Submission <$>
+             field <*> field <*> field <*> field <*>
+             field <*> field <*> field <*> field)
 
 
---
--- | post a new submission
---
-newSubmission :: UserID -> Problem -> Code Python -> Pythondo Submission
-newSubmission uid Problem{..} code = 
-  let doctest = maybe "" id probSpec 
-  in do 
-    pyConf  <- gets pythonConf
-    safeConf <- gets safeExecConf
+-- | evaluate a new submission
+newSubmission :: UserID -> Problem -> Code -> AppHandler Submission
+newSubmission uid Problem{..} code = do 
     now <- liftIO getCurrentTime
-    Result status msg <- liftIO (pythonTester pyConf safeConf code doctest)
-    let status' = checkLimit status now probLimit
-    insertSubmission uid probID now code status' msg
+    (result, msg) <- probTester code
+    let qualifier = if now `before` probLimit then OK else Overdue
+    insertSubmission uid probID now code qualifier result msg
 
-checkLimit Accepted now limit = if now`before`limit then Accepted else Overdue
-checkLimit status   _    _    = status
-
+before :: Ord t => t -> Maybe t -> Bool
 before now limit = maybe True (now<=) limit
           
 
 
 -- | insert a new submission into the DB
-insertSubmission :: UserID -> ProblemID -> UTCTime -> Code Python -> Status -> Text
-                    -> Pythondo Submission
-insertSubmission uid pid time code status msg = do
-  addr <- fmap (T.pack . B.toString) (getsRequest rqRemoteAddr)
+insertSubmission :: UserID ->
+                    ProblemID ->
+                    UTCTime ->
+                    Code ->
+                    Qualifier -> 
+                    Result ->
+                    Text ->
+                    AppHandler Submission
+insertSubmission uid pid time code qualifier result msg = do
+--  addr <- fmap (T.pack . B.toString) (getsRequest rqRemoteAddr)
   sid <- withSqlite $ \conn -> do
     S.execute conn 
       "INSERT INTO submissions \
-     \ (user_id, problem_id, ip_addr, time, code, status, report) \
-     \ VALUES(?, ?, ?, ?, ?, ?, ?)" (uid, pid, addr, time, code, status, msg)
+     \ (user_id, problem_id, time, code, qualifier, result, msg) \
+     \ VALUES(?, ?, ?, ?, ?, ?, ?)" (uid, pid, time, code, qualifier, result, msg)
     fmap SubmitID (S.lastInsertRowId conn)
-  return (Submission sid uid pid addr time code status msg)
+  return (Submission sid uid pid time code qualifier result msg)
   
 
 
 -- | get a single submission 
-getSubmission :: UserID -> ProblemID -> SubmitID -> Pythondo Submission
+getSubmission :: UserID -> ProblemID -> SubmitID -> AppHandler Submission
 getSubmission uid pid sid = do
   r <- query "SELECT * FROM submissions WHERE \
              \ id = ? AND user_id = ? AND problem_id = ?" (sid,uid,pid)
@@ -122,14 +140,14 @@ getSubmission uid pid sid = do
 
 
 -- | get all submissions for a user and problem
-getSubmissions :: UserID -> ProblemID -> Pythondo [Submission]  
+getSubmissions :: UserID -> ProblemID -> AppHandler [Submission]  
 getSubmissions uid pid = 
   query "SELECT * FROM submissions \
        \ WHERE user_id = ? AND problem_id = ? ORDER BY id" (uid, pid)
 
 
 -- | count all submissions
-countSubmissions :: UserID -> ProblemID -> Pythondo Int
+countSubmissions :: UserID -> ProblemID -> AppHandler Int
 countSubmissions uid pid = do
   r <- listToMaybe <$>
        query "SELECT COUNT(*) \
@@ -137,12 +155,12 @@ countSubmissions uid pid = do
   return $ maybe 0 fromOnly r
 
 -- | count submissions with a given status
-countSubmissions' :: UserID -> ProblemID -> Status -> Pythondo Int
-countSubmissions' uid pid status = do
+countSubmissions' :: UserID -> ProblemID -> Result -> AppHandler Int
+countSubmissions' uid pid result = do
   r <- listToMaybe <$>
        query "SELECT COUNT(*) \
-             \ FROM submissions WHERE status = ? \
-             \ AND  user_id = ? AND problem_id = ?" (status,uid,pid)
+             \ FROM submissions WHERE result = ? \
+             \ AND  user_id = ? AND problem_id = ?" (result,uid,pid)
   return $ maybe 0 fromOnly r
   
 
@@ -151,7 +169,7 @@ countSubmissions' uid pid status = do
 -- the last overall submission (if none was accepted)
 -- Note: the query below assumes that the submissions ID key 
 -- is monotonically increasing with time i.e. later submissions have higher IDs
-getBestSubmission :: UserID -> ProblemID -> Pythondo (Maybe Submission)
+getBestSubmission :: UserID -> ProblemID -> AppHandler (Maybe Submission)
 getBestSubmission uid pid = 
   listToMaybe <$> 
   query "SELECT id,user_id,problem_id,ip_addr,time,code,status,report \
@@ -163,7 +181,7 @@ getBestSubmission uid pid =
 
 
 getWorksheetSubmissions :: UserID ->  Worksheet Problem  
-                        -> Pythondo (Worksheet (Problem, [Submission]))
+                        -> AppHandler (Worksheet (Problem, [Submission]))
 getWorksheetSubmissions uid (Worksheet meta items)
   = Worksheet meta <$> mapM collect items
   where collect (Left blocks) = return (Left blocks)

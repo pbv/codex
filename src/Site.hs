@@ -16,6 +16,7 @@ import           Control.Applicative
 import           Control.Concurrent.MVar
 import           Control.Lens
 
+import           Data.Char (toLower)
 import           Data.ByteString.UTF8 (ByteString)
 import qualified Data.ByteString.UTF8 as B
 import qualified Data.ByteString      as B
@@ -75,13 +76,13 @@ import           Data.Version (showVersion)
 import           AceEditor
 
 -- interpreted splices for Pythondo handlers
-type ISplices = Splices (I.Splice Pythondo)
+type ISplices = Splices (I.Splice AppHandler)
 
 
 
 ------------------------------------------------------------------------------
 -- | Handle login requests 
-handleLogin :: Pythondo ()
+handleLogin :: AppHandler ()
 handleLogin 
   = method GET (with auth $ handleLoginForm Nothing) <|>
     method POST (do { user <- require (getParam "login") 
@@ -117,7 +118,7 @@ handleLoginSubmit ldapConf user passwd = do
   optAuth <- withBackend (\r -> liftIO $ dummyAuth r ldapConf user passwd)
   case optAuth of 
     Nothing -> handleLoginForm err
-    Just u -> forceLogin u >> redirect "/problems"
+    Just u -> forceLogin u >> redirect indexPage
   where 
     err = Just "Utilizador ou password incorreto"
 
@@ -125,7 +126,7 @@ handleLoginSubmit ldapConf user passwd = do
 ------------------------------------------------------------------------------
 -- Logs out and redirects the user to the site index.
 -- in exam mode procedeed to printout 
-handleLogout :: Pythondo ()
+handleLogout :: AppHandler ()
 handleLogout = method GET $ do
   uid <- require getUserID <|> unauthorized
   with auth logout 
@@ -138,7 +139,7 @@ handleLogout = method GET $ do
 
 {-
 -- make a printout before ending session
-handlePrintout :: UID -> [Problem] -> Pythondo ()
+handlePrintout :: UID -> [Problem] -> AppHandler ()
 handlePrintout uid probs = do
   subs <- mapM (getBestSubmission uid) (map probID probs)
   report <- genReport (zip probs subs)
@@ -149,7 +150,7 @@ handlePrintout uid probs = do
 {-
 ------------------------------------------------------------------------------
 -- | Handle new user form submit
-handleNewUser :: Handler Pythondo (AuthManager Pythondo) ()
+handleNewUser :: Handler AppHandler (AuthManager AppHandler) ()
 handleNewUser = method GET handleForm <|> method POST handleFormSubmit
   where
 
@@ -164,14 +165,15 @@ handleForm = render "register"
 
 
 
--- | handle document requests
-handleDocument :: Pythondo ()
-handleDocument = do
+-- | handle problem requests
+handleDocument :: FilePath -> AppHandler ()
+handleDocument root = do
   uid <- require getUserID <|> unauthorized    -- ensure user is logged in
   path <- B.toString <$> getsRequest rqPathInfo
-  when (takeExtension path /= ".md") pass
+  when (null path) $ redirect indexPage
+  when (not $ isMarkdown path) pass
   withSplices ("documentPath" ## I.textSplice (T.pack path)) $ do
-    ws <- getWorksheet path
+    ws <- getWorksheet (root </> path)
     mpid <- getProblemID
     case (mpid >>= lookupProblem ws) of
       Nothing -> handleWorksheet ws uid
@@ -226,7 +228,7 @@ handleSubmission prob@Problem{..} uid sid = method GET $ do
 {-
 -----------------------------------------------------------------------------
 -- | problem description request 
-handleProblem :: Pythondo ()
+handleProblem :: AppHandler ()
 handleProblem = method GET $ do
     uid <- require getUserID  <|> unauthorized
     pid <- require getProblemID
@@ -244,7 +246,7 @@ handleProblem = method GET $ do
 {-
    
 -- | problem set listing handler
-handleProblemList :: Pythondo ()
+handleProblemList :: AppHandler ()
 handleProblemList = method GET $ do
   uid <- require getUserID <|> unauthorized
   now <- liftIO getCurrentTime
@@ -276,7 +278,7 @@ handleProblemList = method GET $ do
 
 {-
 -- get tag list from query string
-getQueryTags :: Pythondo [Tag]
+getQueryTags :: AppHandler [Tag]
 getQueryTags = do
   params <- getParams
   return (map (T.pack . B.toString) $ Map.findWithDefault [] "tag" params)
@@ -294,7 +296,7 @@ warningsSplices mesgs = do
 problemSplices :: Problem -> ISplices
 problemSplices Problem{..} = do
   "problemID" ## I.textSplice (T.pack $ B.toString $ fromPID probID)
-  "problemSpec" ## maybe (return []) (I.textSplice . fromCode) probSpec
+  "problemLanguage" ## maybe (return []) I.textSplice (lookup "language" probAttrs)
   "problemCode" ## maybe (return []) (I.textSplice . fromCode) probCode
   "problemHeader" ## return (blocksToHtml $ singleton probHeader)
   "problemTitle" ## return (inlinesToHtml $ headerInlines probHeader)
@@ -314,7 +316,8 @@ wsItemSplices now (Left blocks) = do
   
 wsItemSplices now (Right (prob@Problem{..},list)) 
   = let tot = length list 
-        acc = length [sub | sub<-list, submitStatus sub == Accepted]
+        acc = length [sub | sub@Submission{..}<-list,
+                      submitResult == Accepted && submitQualifier==OK ]
     in do
       "ifProblem" ## conditionalSplice True
       "submissions" ## I.textSplice (T.pack $ show tot)
@@ -344,7 +347,7 @@ timerSplices pid now limit = do
 
   
 -- | splice an UTC time as local time 
-timeSplice :: UTCTime -> I.Splice Pythondo
+timeSplice :: UTCTime -> I.Splice AppHandler
 timeSplice time = do tz <- liftIO getCurrentTimeZone
                      I.textSplice $ T.pack $
                        formatTime defaultTimeLocale "%c" $ utcToZonedTime tz time
@@ -383,17 +386,19 @@ submissionSplices Problem{..} Submission{..} = do
   "submitPID"  ## I.textSplice (T.pack $ B.toString $ fromPID submitPID)
   "submitTime" ## timeSplice submitTime 
   "submitCode" ## I.textSplice (fromCode submitCode)
-  "submitStatus" ## I.textSplice (T.pack $ show submitStatus)
-  "submitReport" ## I.textSplice submitReport 
-  "ifAccepted" ## conditionalSplice (submitStatus == Accepted)
-  "ifOverdue" ## conditionalSplice (submitStatus == Overdue)
+  "submitResult" ## I.textSplice (T.pack $ show submitResult)
+  "submitQualifier" ## I.textSplice (T.pack $ show submitQualifier)  
+  "submitMsg" ## I.textSplice submitMsg
+  "ifAccepted" ## conditionalSplice (submitResult == Accepted)
+  "ifOverdue" ## conditionalSplice (submitQualifier == Overdue)
+  {-
   "ifRejected" ## conditionalSplice (submitStatus /= Accepted &&
                                      submitStatus /= Overdue)
-
+-}
 
 
 {-
-handleGetSubmission, handlePostSubmission :: Pythondo ()
+handleGetSubmission, handlePostSubmission :: AppHandler ()
 handleGetSubmission 
     = method GET $ do 
         uid <- require getUserID <|> unauthorized
@@ -426,14 +431,14 @@ handlePostSubmission = method POST $ do
 {-
 -- in exam mode show final report before loggin out
 -- otherwise, logout immediately
-handleConfirmLogout :: Pythondo ()
+handleConfirmLogout :: AppHandler ()
 handleConfirmLogout = method GET $ do
   uid <- require getUserID <|> badRequest
   (probset,_) <- getProblemSet
   handleFinalReport uid probset
 
 
-handleFinalReport :: UID -> ProblemSet -> Pythondo ()
+handleFinalReport :: UID -> ProblemSet -> AppHandler ()
 handleFinalReport uid ProblemSet{..} | probsetExam = do
     let pids = map probID probsetProbs
     subs <- mapM (getBestSubmission uid) pids
@@ -450,7 +455,7 @@ handleFinalReport _ _ = handleLogout
 -- administrator interface
 -----------------------------------------------------------------------------
 {-
-handleAdminEdit :: Pythondo ()
+handleAdminEdit :: AppHandler ()
 handleAdminEdit = do
       uid <- require getUserID
       roles <- require getUserRoles
@@ -491,7 +496,7 @@ handleAdminSubmissions = method GET $ do
 ------------------------------------------------------------------------------
 -- | The application's routes.
   {-
-routes :: [(ByteString, Pythondo ())]
+routes :: [(ByteString, AppHandler ())]
 routes = [ ("/login",                 handleLogin `catch` internalError)
          , ("/logout",                handleLogout `catch` internalError)
          , ("/problems",              handleProblemList `catch` internalError )  
@@ -507,11 +512,12 @@ routes = [ ("/login",                 handleLogin `catch` internalError)
 -}
 
 
-routes :: [(ByteString, Pythondo ())]
-routes = [ ("/login",                 handleLogin `catch` internalError)
-         , ("/logout",                handleLogout `catch` internalError)
-         , ("/docs",                  handleDocument `catch` internalError )
-         , ("",                       serveDirectory "static" <|> notFound)
+routes :: [(ByteString, AppHandler ())]
+routes = [ ("/login",    handleLogin `catch` internalError)
+         , ("/logout",   handleLogout `catch` internalError)
+         , ("",   serveDirectory staticPath <|>
+                  (handleDocument publicPath `catch` internalError) <|>
+                   notFound)
          ]
 
 
@@ -528,13 +534,13 @@ authRoles authmgr cond = do
    maybe (return []) (\u -> conditionalSplice (cond $ userRoles u)) u
 
 -- | splice for current date & time
-nowSplice :: I.Splice Pythondo
+nowSplice :: I.Splice AppHandler
 nowSplice = do t <- liftIO (getCurrentTime >>= utcToLocalZonedTime)
                I.textSplice (T.pack $ formatTime defaultTimeLocale "%c" t)
 
 
 
-versionSplice :: I.Splice Pythondo
+versionSplice :: I.Splice AppHandler
 versionSplice = I.textSplice (T.pack (showVersion version))
 
 ------------------------------------------------------------------------------
@@ -561,14 +567,11 @@ app =
     -- Grab the DB connection pool from the sqlite snaplet and call
     -- into the Model to create all the DB tables if necessary.
     let c = sqliteConn $ d ^# snapletValue
-    liftIO $ withMVar c $
-      \conn -> do Db.createTables conn
-                  -- putStrLn "Updating problem tags db table"
-                  -- probs <- readProblemDir >>= mapM readProblem
-                  -- Db.updateProblems conn probs
+    liftIO $ withMVar c $ \conn -> Db.createTables conn
     addRoutes routes
 
     py <- liftIO $ configPython conf
+    hs <- liftIO $ configHaskell conf
     safe <- liftIO $ configSafeExec conf
     prt <- liftIO $ configPrintConf conf
     ldap <- liftIO $ configLdapConf conf
@@ -577,6 +580,7 @@ app =
                  , _auth = a
                  , _db   = d
                  , pythonConf= py
+                 , haskellConf = hs
                  , safeExecConf = safe
                  , ldapConf = ldap
                  , printConf = prt
@@ -602,10 +606,10 @@ initEkg conf = do enabled <- Configurator.require conf "ekg.enabled"
 -- | get the current problem set
 -- TODO: avoid re-reading the same problems every time
 -- with some caching mechanism
-getProblemSet :: Pythondo (ProblemSet, [Text])
+getProblemSet :: AppHandler (ProblemSet, [Text])
 getProblemSet = liftIO (readProblemSet problemSetPath)
 
-getProblem :: PID -> Pythondo (Problem, [Text])
+getProblem :: PID -> AppHandler (Problem, [Text])
 getProblem pid = do
   (probset,mesgs) <- getProblemSet
   case lookupProblemSet pid probset of
@@ -614,11 +618,20 @@ getProblem pid = do
 -}
 
 -- get a worksheet by path
-getWorksheet :: String -> Pythondo (Worksheet Problem)
-getWorksheet path = liftIO (readWorksheet $ documentRoot </> path)
+getWorksheet :: FilePath -> AppHandler (Worksheet Problem)
+getWorksheet  path = liftIO (readWorksheet path)
 
-documentRoot :: FilePath
-documentRoot = "docs"
+publicPath :: FilePath
+publicPath = "public"
+
+staticPath :: FilePath
+staticPath = "static"
+
+isMarkdown :: FilePath -> Bool
+isMarkdown path = map toLower (takeExtension path) == ".md"
+
+indexPage :: ByteString
+indexPage = "/index.md"
 
 
 {-

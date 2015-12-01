@@ -13,29 +13,29 @@
   <body>
      <div id="topbar">
        <p><em><timeNow/></em><br/>
-	 <ifLoggedIn> 
-	   <strong>Login:</strong> <code><loggedInUser/></code> 
-   (<em><loggedInName/></em
+       <ifLoggedIn> 
+       <strong>Login:</strong> <code><loggedInUser/></code> 
+       (<em><loggedInName/></em
        ><ifAdmin>&nbsp;<strong>Administrator</strong></ifAdmin>).
-    <div id="actions">
-      <ifAdmin><a class="button" href="/admin/submissions">Download submissions</a></ifAdmin>
-      <a class="button" href="/asklogout">Terminar sessão</a>
-      </div>
-	 </ifLoggedIn>
-       </p>
+     <div id="actions">
+       <ifAdmin><a class="button" href="/admin/submissions">Download submissions</a></ifAdmin>
+       <a class="button" href="/logout">Terminar sessão</a>
      </div>
-    <div id="content">
-      <apply-content/>
-    </div>
-    <div id="footer">
-      <p class="info">Pythondo <version/> &copy; 2014, 2015 Pedro Vasconcelos.<br>
-	Departamento de Ciência de Computadores, Faculdade de Ciências,
-	Universidade do Porto.<br>
-    Construido usando
-    <a href="http://snapframework.com/">Snap</a>,
-    <a href="http://johnmacfarlane.net/pandoc/">Pandoc</a>,
-    <a href="http://ace.ajax.org">ACE</a>  e
-    <a href="http://www.mathjax.org">MathJax</a>.</p>
-    </div>
-  </body>
+     </ifLoggedIn>
+     </p>
+     </div>
+     <div id="content">
+       <apply-content/>
+     </div>
+     <div id="footer">
+       <p class="info">Pythondo <version/> &copy; 2014, 2015 Pedro Vasconcelos.<br>
+       Departamento de Ciência de Computadores, Faculdade de Ciências,
+       Universidade do Porto.<br>
+       Construido usando
+       <a href="http://snapframework.com/">Snap</a>,
+       <a href="http://johnmacfarlane.net/pandoc/">Pandoc</a>,
+       <a href="http://ace.ajax.org">ACE</a>  e
+       <a href="http://www.mathjax.org">MathJax</a>.</p>
+     </div>
+   </body>
 </html>

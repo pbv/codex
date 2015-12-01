@@ -2,10 +2,7 @@
     <head>
        <meta charset="UTF-8">
        <ifLoggedIn>
-       <meta http-equiv="refresh" content="1;url=/problems"/>
-       <script type="text/javascript">
-            window.location.href = "/problems"
-        </script>
+       <meta http-equiv="refresh" content="1;url=/index.md"/>
        </ifLoggedIn>
        <ifLoggedOut>
        <meta http-equiv="refresh" content="1;url=/login"/>
@@ -15,7 +12,7 @@
     <body>
         <p>Se não for redirecionado automaticamente, siga a ligação para a
       <ifLoggedIn>
-	<a href="/problems">lista de problemas.</a>
+	<a href="/index.md">página inicial.</a>
       </ifLoggedIn>
       <ifLoggedOut>
 	<a href="/login">autenticação.</a>

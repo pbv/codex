@@ -20,6 +20,7 @@ import Snap.Snaplet.SqliteSimple
 import System.Remote.Monitoring
 
 import Types
+import Language
 import SafeExec 
 
 ------------------------------------------------------------------------------
@@ -28,8 +29,9 @@ data App = App
     , _sess  :: Snaplet SessionManager
     , _auth  :: Snaplet (AuthManager App)
     , _db    :: Snaplet Sqlite
-    , pythonConf :: PythonConf          -- python configuration
     , safeExecConf :: SafeExecConf      -- safeexec configuration
+    , pythonConf :: PythonConf          -- python configuration
+    , haskellConf :: HaskellConf
     , ldapConf :: LdapConf              -- LDAP configuration
     , printConf :: PrintConf            -- printout configuration
     , ekg :: Maybe Server           -- optional EKG monitoring server
@@ -44,5 +46,5 @@ instance HasSqlite (Handler App App) where
    getSqliteState = with db get
    
 ------------------------------------------------------------------------------
-type Pythondo = Handler App App
+type AppHandler = Handler App App
 ------------------------------------------------------------------------------

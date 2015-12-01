@@ -5,7 +5,7 @@
 <div class="worksheet">
   <worksheetItems>
     <ifProblem>
-   <h3><a class="button" href="/docs/${documentPath}?problem=${problemID}"><problemTitle/></a><ifAccepted>&nbsp;<icon_accepted/></ifAccepted></h3>
+   <h3><a class="button" href="/${documentPath}?problem=${problemID}"><problemTitle/></a><ifAccepted>&nbsp;<icon_accepted/></ifAccepted></h3>
    <div class="info">
      <ifTimed>
        <ifOpen>

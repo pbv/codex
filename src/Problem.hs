@@ -1,4 +1,5 @@
 {-# LANGUAGE OverloadedStrings, RecordWildCards, DeriveFunctor #-}
+{-# LANGUAGE ExistentialQuantification, FlexibleContexts #-}
 {-
   Data types and methods for problems 
 -}
@@ -30,14 +31,15 @@ import           Data.Aeson (encode)
 import           Snap.Snaplet.SqliteSimple
 
 import           Markdown
-import           Text.Pandoc
-import           Text.Pandoc.Builder
+import           Text.Pandoc hiding (Code)
+import           Text.Pandoc.Builder hiding (Code)
 -- import           Data.Monoid
 -- import           Text.XmlHtml 
 -- import           Text.Blaze.Renderer.XmlHtml
 import           Application
 import           Types
 import           Language
+import           Tester
 
 -- import           ParseMeta
 -- import           LogIO
@@ -49,12 +51,11 @@ data Problem = Problem {
   probID       :: ProblemID,       -- unique identifier
   probHeader   :: Block,           -- header and description 
   probDescr    :: Blocks,
-  probCode  :: Maybe (Code Python),    -- default submission
-  probSpec  :: Maybe (Code Doctest),   -- doctest script
+  probCode     :: Maybe Code,       -- optional default code
+  probTester   :: Code -> AppHandler (Result, Text),  -- tester
   probAttrs    :: [(Text, Text)],   -- attributes (key-value pairs)
   probLimit    :: Maybe UTCTime     -- optional deadline
-  } deriving Show
-
+  } 
 
 -- worksheets
 data Worksheet a = Worksheet { worksheetMeta :: Meta
@@ -88,7 +89,7 @@ parseProblemItems tz [] = []
 
 -- checkers for problem start & end
 problemStart :: Block -> Bool
-problemStart (Header _ attr _) = "pythondo" `elem` classes attr
+problemStart (Header _ attr _) = "problem" `elem` classes attr
 problemStart _                 = False
 
 problemEnd :: Block -> Bool
@@ -100,13 +101,20 @@ problemEnd block             = problemStart block
 parseProblem :: TimeZone -> Block -> [Block] -> Problem
 parseProblem tz header blocks
   = let (ident, classes, attrs) = headerAttr header
+        lang = lookup "language" attrs
+        tsts = maybe "" id (parseTests "tests" blocks)
+        tester = case lang of
+          Just "python" -> pythonTester tsts 
+          Just "haskell" -> haskellTester tsts
+          _         -> const $ return (MiscError,"no language defined")
     in Problem { probID = fromString ident
                , probHeader= header
                , probDescr = fromList $ 
-                             removeCode "doctest" $
+                             removeCode "tests" $
                              removeCode "default" blocks
                , probCode = parseCode "default" blocks
-               , probSpec = parseCode "doctest" blocks
+               -- , probSpec = 
+               , probTester = tester
                , probAttrs = [(T.pack k,T.pack v) | (k,v)<-attrs]
                , probLimit = lookup "close" attrs >>= parseUTCTime tz
                }
@@ -117,10 +125,16 @@ removeCode tag = filter (not . tagged)
         tagged _ = False
 
 
-parseCode :: String -> [Block] -> Maybe (Code lang)
-parseCode tag bs
+parseCode :: String -> [Block] -> Maybe Code
+parseCode tag bs = Code <$> parseCodeBlock tag bs
+
+parseTests :: String -> [Block] -> Maybe Tests
+parseTests tag bs = Tests <$> parseCodeBlock tag bs
+
+parseCodeBlock :: String -> [Block] -> Maybe Text
+parseCodeBlock tag bs
   = case cs of [] -> Nothing
-               _  -> Just (toCode $ T.concat cs)
+               _  -> Just (T.concat cs)
   where cs = [T.pack txt | CodeBlock attr txt <- bs, tag `elem` classes attr]
 
 
@@ -262,9 +276,9 @@ isLate t Problem{..} = t `Interval.after` probOpen
   
 
 
-
+{-
 -- | update Db table of problems
-updateProblem :: Problem -> Pythondo ()
+updateProblem :: Problem -> AppHandler ()
 updateProblem Problem{..} =
   execute "INSERT OR UPDATE problems(problem_id, attrs, time_limit) VALUES (?, ?, ?)" (probID, encode probAttrs, probLimit)
-
+-}

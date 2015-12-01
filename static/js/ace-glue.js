@@ -4,14 +4,23 @@
  */
 
 /* start up the editor */
-function startAceEditor(id) {
- var textarea = document.getElementById(id);
- var div = document.getElementById(id+'.div');
- textarea.style.display = 'none';
+function startAceEditor(id, mode) {
+ var div = document.getElementById(id);
+ var textarea = document.getElementsByName(id)[0]; 
  div.style.display = 'block';
+ textarea.style.display = 'none';
  editor = ace.edit(div);
  editor.setFontSize(16);
+ editor.getSession().setMode(mode);
 }
+
+/* copy text into textarea before submission */
+function submitAceEditorText(id) {
+  var textarea = document.getElementsByName(id)[0];
+  var editor = ace.edit(id);
+  textarea.value = editor.getSession().getValue();
+}
+
 
 /* set the editing mode directly */
 function setAceEditorMode(id, mode) {
@@ -28,9 +37,3 @@ function setAceEditorModeExt(id, other) {
     editor.getSession().setMode(mode);
 }
 
-/* copy text into textarea before submission */
-function submitAceEditorText(id) {
-  var textarea = document.getElementById(id);
-  var editor = ace.edit(id+'.div');
-  textarea.value = editor.getSession().getValue();
-}

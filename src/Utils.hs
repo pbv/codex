@@ -5,12 +5,14 @@
 module Utils where
 
 import           Control.Monad.State
-import           Data.Text(Text)
+import           Control.Exception
 import           Data.ByteString.UTF8 (ByteString)
 import qualified Data.ByteString.UTF8 as B
+import           Data.Text(Text)
 import qualified Data.Text as T
 import qualified Data.Text.Encoding as T
 import qualified Data.Text.Encoding.Error as T
+import qualified Data.Text.IO as T
 import           Data.String
 
 import           Snap.Core
@@ -33,9 +35,13 @@ import           Control.Exception (SomeException)
 import           System.Remote.Monitoring
 import           System.Remote.Counter as Counter
 
-import           SafeExec
-import           Application
+import           System.Directory
+import           System.IO
+
 import           Types
+import           SafeExec
+import           Language
+import           Application
 import           LdapAuth
 
 
@@ -52,6 +58,11 @@ configPython conf = do
      pythonScript = maybe "python/pytest.py" id script
     }
 
+configHaskell :: Config -> IO HaskellConf
+configHaskell conf = do
+  exec <- Configurator.lookup conf "haskell.exec"
+  return HaskellConf { haskellExec = maybe "runhaskell" id exec }
+
 
 configSafeExec :: Config -> IO SafeExecConf
 configSafeExec conf = do
@@ -60,11 +71,13 @@ configSafeExec conf = do
   cpu   <- Configurator.lookup conf "safeexec.max_cpu"
   clock <- Configurator.lookup conf "safeexec.max_clock"
   mem   <- Configurator.lookup conf "safeexec.max_memory"
+  nproc <- Configurator.lookup conf "safexec.num_proc"
   return defaultConf {
     safeExecPath = maybe (safeExecPath defaultConf) id path
     , maxCpuTime = maybe (maxCpuTime defaultConf) id cpu 
     , maxClockTime = maybe (maxClockTime defaultConf) id clock
     , maxMemory = maybe (maxMemory defaultConf) id mem
+    , numProc = maybe (numProc defaultConf) id nproc
     }
 
 configPrintConf :: Config -> IO PrintConf
@@ -84,7 +97,7 @@ configLdapConf conf = do
 
 
 -- | increment an EKG counter
-incrCounter :: Text -> Pythondo ()
+incrCounter :: Text -> AppHandler ()
 incrCounter name 
   = gets ekg >>= 
     maybe (return ())  (\ekg -> liftIO $ getCounter name ekg >>= Counter.inc) 
@@ -97,27 +110,27 @@ incrCounter name
 
 -- | Get current logged in user ID (if any)
 --   from the authentication snaplet  
-getUserID :: Pythondo (Maybe UserID)
+getUserID :: AppHandler (Maybe UserID)
 getUserID = do 
   opt <- with auth currentUser
   return $ fmap (fromString . T.unpack . userLogin) opt
 
 
-getFullName :: Pythondo (Maybe Text)
+getFullName :: AppHandler (Maybe Text)
 getFullName = do
   opt <- with auth currentUser
   return (fmap userName opt)
 
 -- | Get user id and roles
-getUserRoles :: Pythondo (Maybe [Role])
+getUserRoles :: AppHandler (Maybe [Role])
 getUserRoles = do
   opt <- with auth currentUser
   return (fmap userRoles opt)
 
-getProblemID :: Pythondo (Maybe ProblemID)
+getProblemID :: AppHandler (Maybe ProblemID)
 getProblemID = fmap ProblemID <$> getParam "problem"
 
-getSubmitID :: Pythondo (Maybe SubmitID)
+getSubmitID :: AppHandler (Maybe SubmitID)
 getSubmitID = do opt <- getParam "submit"
                  return $ do bs <- opt
                              case reads (B.toString bs) of
@@ -127,7 +140,7 @@ getSubmitID = do opt <- getParam "submit"
 
 
 -- | try a Maybe-handler and "pass" if it yields Nothing 
-require :: Pythondo (Maybe a) -> Pythondo a
+require :: AppHandler (Maybe a) -> AppHandler a
 require handler = do
   opt <- handler
   case opt of
@@ -145,13 +158,13 @@ getTextPost name =
 ---------------------------------------------------------------------
 -- | error handlers
 ---------------------------------------------------------------------    
-unauthorized, badRequest, notFound :: Pythondo a
+unauthorized, badRequest, notFound :: AppHandler a
 unauthorized = render "_unauthorized" >> finishError 401 "Unauthorized"
 badRequest   = render "_badrequest" >> finishError 400 "Bad request"
 notFound     = render "_notfound" >> finishError 404 "Not found"
 
 
-internalError :: SomeException -> Pythondo a
+internalError :: SomeException -> AppHandler a
 internalError e
   = do renderWithSplices  "_internalerror" 
              ("errorMsg" ## I.textSplice (T.pack $ show e))
@@ -202,7 +215,23 @@ jsTimer id secs
      javascript $ T.pack $
      "start_countdown(" ++ show id ++ "," ++ show (floor secs :: Int) ++ ");"]
 
+javascript :: Text -> X.Node
 javascript txt = X.Element "script" [("type","text/javascript")] [X.TextNode txt]
+
+
+
+
+-- aquire and release a text temporary file
+withTextTemp :: String -> Text -> (FilePath -> IO a) -> IO a
+withTextTemp name txt cont = withTempFile name cont'
+   where cont' (f,h) = T.hPutStr h txt >> hClose h >> cont f
+
+
+withTempFile :: String -> ((FilePath,Handle) -> IO a) -> IO a
+withTempFile name k = bracket createTemp (\(f,_)->removeFile f) k
+  where createTemp = do
+          tempDir <- getTemporaryDirectory
+          openTempFileWithDefaultPermissions tempDir name
 
                                
 

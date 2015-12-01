@@ -56,20 +56,12 @@ instance ToField SubmitID where
 instance FromField SubmitID where
   fromField f = SubmitID <$> fromField f
 
-
 instance FromRow UserID where
     fromRow = field
 
 instance FromRow ProblemID where
     fromRow = field
 
-
--- | Python interpreter configuration
-data PythonConf = PythonConf { pythonExec :: !FilePath
-                             , pythonScript :: !FilePath
-                             } deriving (Eq, Show)
-
-  
 -- | LDAP configuration
 data LdapConf = LdapConf { ldapURI :: String
                          , ldapBase :: String

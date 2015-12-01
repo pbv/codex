@@ -32,28 +32,12 @@ initCmds = ["CREATE TABLE submissions (\
             \id INTEGER PRIMARY KEY, \
             \user_id TEXT NOT NULL, \
             \problem_id TEXT NOT NULL, \
-            \ip_addr TEXT NOT NULL, \
             \time TIMESTAMP NOT NULL, \
             \code TEXT NOT NULL, \
-            \status TEXT NOT NULL, \
-            \report TEXT NOT NULL)",
-            "CREATE TABLE problems (\
-           \id INTEGER PRIMARY KEY, \
-           \problem_id TEXT NOT NULL, \
-           \attrs TEXT NOT NULL, \
-           \time_limit TIMESTAMP)",
-            "CREATE INDEX user_index ON submissions(user_id)",
-            "CREATE INDEX problem_index ON problems(problem_id)"
+            \qualifier TEXT NOT NULL, \
+            \result TEXT NOT NULL, \
+            \msg TEXT NOT NULL)",
+            "CREATE INDEX user_index ON submissions(user_id)"
            ]
 
-
-{-
--- remove all problem tags and insert new ones
-updateProblems :: S.Connection -> [Problem] -> IO ()
-updateProblems conn probs = S.withTransaction conn $ do
-  S.execute_ conn "DELETE FROM problemtags"
-  sequence_ [ insert probID tag | Problem{..} <- probs, tag <- probTags]
-  where
-    insert pid tag = S.execute conn "INSERT INTO problemtags(problem_id, tag) VALUES(?,?)" (pid,tag)
--}
 
