@@ -11,6 +11,8 @@ module Problem (
   ) where
 
 import           Control.Monad
+import           Control.Monad.State
+import           Control.Monad.Trans
 import           Control.Applicative ((<$>))
 
 import qualified Data.ByteString.UTF8 as B
@@ -18,9 +20,7 @@ import qualified Data.ByteString.UTF8 as B
 import           Data.String
 import           Data.Text(Text)
 import qualified Data.Text             as T
--- import           Data.Maybe (listToMaybe)
 
--- import qualified Data.Set as Set
 
 import           Data.Time.LocalTime
 import           Data.Time.Format
@@ -144,6 +144,20 @@ readWorksheet filepath = do
   txt <- readFile filepath
   let Pandoc meta blocks = readMarkdown myReaderOptions txt
   return (Worksheet meta (parseProblemItems tz blocks))
+
+
+
+
+haskellTester :: Tests -> Code -> AppHandler (Result,Text)
+haskellTester quickcheck haskell = do
+    hsConf <- gets haskellConf
+    liftIO $ haskellTesterIO hsConf quickcheck haskell
+
+
+pythonTester :: Tests -> Code -> AppHandler (Result,Text)
+pythonTester doctest python = do
+    pyConf <- gets pythonConf
+    liftIO $ pythonTesterIO pyConf doctest python
 
 
 

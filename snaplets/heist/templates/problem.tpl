@@ -3,7 +3,6 @@
 <bind tag="icon_overdue"><img src="/icons/16x16/overdue.png"/></bind>
 <bind tag="icon_editor"><img src="/icons/16x16/editor.png"/></bind>
 <apply template="base">
-<apply template="_warnings"/>
 <problemHeader/>
 <problemDescription/>
 <ifTimed>
@@ -17,12 +16,11 @@
 
 <ifSubmissions>
 <input class="toggle-box" id="header1" type="checkbox" >
-<label for="header1">Submissões anteriores</label>
+<label for="header1">Submissões anteriores</label> 
 <div class="submissions">
 <ol>
 <submissionList>
-  <li class="submissionli">
-  <a href="/${documentPath}?problem=${problemID}&submit=${submitID}"><submitResult/><ifOverdue>&nbsp;<icon_overdue/></ifOverdue></a>
+  <li class="submissionli"><a href="/${documentPath}?problem=${problemID}&submit=${submitID}"><submitResult/><ifOverdue>&nbsp;<icon_overdue/></ifOverdue></a>
   </li>
 </submissionList>
 </ol>

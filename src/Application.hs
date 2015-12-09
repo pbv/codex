@@ -21,7 +21,7 @@ import System.Remote.Monitoring
 
 import Types
 import Language
-import SafeExec 
+-- import SafeExec 
 
 ------------------------------------------------------------------------------
 data App = App
@@ -29,7 +29,7 @@ data App = App
     , _sess  :: Snaplet SessionManager
     , _auth  :: Snaplet (AuthManager App)
     , _db    :: Snaplet Sqlite
-    , safeExecConf :: SafeExecConf      -- safeexec configuration
+    -- , safeExecConf :: SafeExecConf      -- safeexec configuration
     , pythonConf :: PythonConf          -- python configuration
     , haskellConf :: HaskellConf
     , ldapConf :: LdapConf              -- LDAP configuration

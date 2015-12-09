@@ -38,12 +38,17 @@ img {
     padding-bottom: 2ex;
 }
 
+.problemlist {
+    float: left;
+    width: 30em;
+}
+
+
 .submissions {
-    width: 50em;  /* list-style-type: none; */
     -webkit-column-count: 4; /* Chrome, Safari, Opera */
     -moz-column-count: 4; /* Firefox */
     column-count: 4;
-  font-size: 90%;     
+    font-size: 90%; 
 }
 
 .submissionli {
@@ -141,12 +146,6 @@ pre {
     margin-left: 1em;
     width: 14em;
 }
-
-.problemlist {
-    float: left;
-    width: 30em;
-}
-
 
 /* --- code highlighting --- */
 

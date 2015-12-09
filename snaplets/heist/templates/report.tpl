@@ -9,7 +9,7 @@
   <p>A sua submissão passou todos os testes, mas foi enviada
     fora do tempo.</p>
 <else/>
-  <p>Parabens! A sua submissão passou todos os testes.</p>
+  <p>Parabéns! A sua submissão passou todos os testes.</p>
 </ifOverdue>
 <else/>
   <p>A submissão foi <strong>rejeitada</strong>.</p>

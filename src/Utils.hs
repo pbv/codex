@@ -5,7 +5,6 @@
 module Utils where
 
 import           Control.Monad.State
-import           Control.Exception
 import           Data.ByteString.UTF8 (ByteString)
 import qualified Data.ByteString.UTF8 as B
 import           Data.Text(Text)
@@ -14,6 +13,7 @@ import qualified Data.Text.Encoding as T
 import qualified Data.Text.Encoding.Error as T
 import qualified Data.Text.IO as T
 import           Data.String
+import           Data.Monoid
 
 import           Snap.Core
 import           Snap.Snaplet
@@ -49,36 +49,45 @@ import           Data.Time.Clock
 
 
 -- | read configuration parameters
-configPython :: Config -> IO PythonConf
+configPython :: Config  -> IO PythonConf
 configPython conf = do
+  sf <- configSafeExec "python" conf
   exec <- Configurator.lookup conf "python.exec"
   script <- Configurator.lookup conf "python.script"
   return PythonConf {
      pythonExec = maybe "python" id exec,
-     pythonScript = maybe "python/pytest.py" id script
+     pythonScript = maybe "python/pytest.py" id script,
+     pythonSfConf = sf
     }
 
 configHaskell :: Config -> IO HaskellConf
 configHaskell conf = do
+  sf <- configSafeExec "haskell" conf
   exec <- Configurator.lookup conf "haskell.exec"
-  return HaskellConf { haskellExec = maybe "runhaskell" id exec }
+  return HaskellConf { haskellExec = maybe "runhaskell" id exec
+                     , haskellSfConf = sf
+                     }
 
-
-configSafeExec :: Config -> IO SafeExecConf
-configSafeExec conf = do
-  -- python   <- Configurator.require conf "submissions.python"
-  path <-Configurator.lookup conf "safeexec.path"
-  cpu   <- Configurator.lookup conf "safeexec.max_cpu"
-  clock <- Configurator.lookup conf "safeexec.max_clock"
-  mem   <- Configurator.lookup conf "safeexec.max_memory"
-  nproc <- Configurator.lookup conf "safexec.num_proc"
-  return defaultConf {
-    safeExecPath = maybe (safeExecPath defaultConf) id path
-    , maxCpuTime = maybe (maxCpuTime defaultConf) id cpu 
-    , maxClockTime = maybe (maxClockTime defaultConf) id clock
-    , maxMemory = maybe (maxMemory defaultConf) id mem
-    , numProc = maybe (numProc defaultConf) id nproc
+configSafeExec' :: Name -> SafeExecConf -> Config -> IO SafeExecConf
+configSafeExec' prefix def conf = do
+  path <- Configurator.lookup conf (prefix <> "safeexec.path")
+  cpu  <- Configurator.lookup conf (prefix <> "safeexec.max_cpu")
+  clock<- Configurator.lookup conf (prefix <> "safeexec.max_clock")
+  mem  <- Configurator.lookup conf (prefix <> "safeexec.max_memory")
+  nproc<- Configurator.lookup conf (prefix <> "safeexec.num_proc")
+  return def {
+    safeExecPath = maybe (safeExecPath def) id path
+    , maxCpuTime = maybe (maxCpuTime def) id cpu 
+    , maxClockTime = maybe (maxClockTime def) id clock
+    , maxMemory = maybe (maxMemory def) id mem
+    , numProc = maybe (numProc def) id nproc
     }
+
+
+configSafeExec prefix conf = do
+  sf <- configSafeExec' "" defaultSafeExecConf conf
+  configSafeExec' prefix sf conf
+
 
 configPrintConf :: Config -> IO PrintConf
 configPrintConf conf = do
@@ -219,19 +228,6 @@ javascript :: Text -> X.Node
 javascript txt = X.Element "script" [("type","text/javascript")] [X.TextNode txt]
 
 
-
-
--- aquire and release a text temporary file
-withTextTemp :: String -> Text -> (FilePath -> IO a) -> IO a
-withTextTemp name txt cont = withTempFile name cont'
-   where cont' (f,h) = T.hPutStr h txt >> hClose h >> cont f
-
-
-withTempFile :: String -> ((FilePath,Handle) -> IO a) -> IO a
-withTempFile name k = bracket createTemp (\(f,_)->removeFile f) k
-  where createTemp = do
-          tempDir <- getTemporaryDirectory
-          openTempFileWithDefaultPermissions tempDir name
 
                                
 

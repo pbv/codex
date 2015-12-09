@@ -572,7 +572,6 @@ app =
 
     py <- liftIO $ configPython conf
     hs <- liftIO $ configHaskell conf
-    safe <- liftIO $ configSafeExec conf
     prt <- liftIO $ configPrintConf conf
     ldap <- liftIO $ configLdapConf conf
     return $ App { _heist = h
@@ -581,7 +580,6 @@ app =
                  , _db   = d
                  , pythonConf= py
                  , haskellConf = hs
-                 , safeExecConf = safe
                  , ldapConf = ldap
                  , printConf = prt
                  , ekg = e

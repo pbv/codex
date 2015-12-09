@@ -25,16 +25,16 @@ data SafeExecConf =
 
 
 -- | default parameters
-defaultConf :: SafeExecConf
-defaultConf = SafeExecConf { safeExecPath = "safeexec"
-                            , maxCpuTime = 2
-                            , maxClockTime = 15
-                            , maxMemory= 10*1024
-                            , maxStack = 8*1024
-                            , maxFSize = 8*1024
-                            , maxCore = 0
-                            , numProc = 8
-                            }
+defaultSafeExecConf :: SafeExecConf
+defaultSafeExecConf = SafeExecConf { safeExecPath = "safeexec"
+                                   , maxCpuTime = 2
+                                   , maxClockTime = 15
+                                   , maxMemory= 10*1024
+                                   , maxStack = 8*1024
+                                   , maxFSize = 8*1024
+                                   , maxCore = 0
+                                   , numProc = 8
+                                   }
 
 
 safeExecWith :: SafeExecConf
@@ -55,7 +55,7 @@ safeExecWith SafeExecConf{..} cmd args stdin
                    
 
 safeExec :: FilePath -> [String] -> Text -> IO (ExitCode,Text,Text)
-safeExec = safeExecWith defaultConf
+safeExec = safeExecWith defaultSafeExecConf
 
 
 

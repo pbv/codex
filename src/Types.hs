@@ -77,6 +77,33 @@ data PrintConf = PrintConf { printEnabled :: Bool
                 deriving (Eq,Show)
 
 
+-- | code and test fragments 
+newtype Code = Code { fromCode :: Text } deriving (Eq,Show)
+
+toCode :: Text -> Code 
+toCode = Code 
+
+newtype Tests = Tests { fromTests :: Text } deriving (Eq,Show)
+
+toTests :: Text -> Tests 
+toTests = Tests
+  
+instance IsString Code where
+  fromString s = Code (T.pack s)
+
+instance IsString Tests where
+  fromString s = Tests (T.pack s)
+
+-- | convertion to/from SQL fields
+instance ToField Code where
+  toField (Code txt) = toField txt
+
+instance FromField Code where
+  fromField f = Code <$> fromField f
+
+
+
+
 {-
 -- | problem tags
 type Tag = Text
