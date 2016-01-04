@@ -23,6 +23,7 @@ import           Database.SQLite.Simple.FromRow
 
 import           Text.Pandoc.Builder hiding (Code)
 
+import           SafeExec
 
 -- | identifiers
 newtype UserID = UserID {fromUID :: ByteString} deriving (Eq, Ord, Show)
@@ -75,6 +76,19 @@ data PrintConf = PrintConf { printEnabled :: Bool
                            , printOptions :: [String]
                            } 
                 deriving (Eq,Show)
+
+-- | Haskell configuration
+data HaskellConf = HaskellConf { haskellExec :: !FilePath
+                               , haskellSfConf :: !SafeExecConf
+                               } deriving (Eq, Show)
+
+
+-- | Python configuration
+data PythonConf = PythonConf { pythonExec :: !FilePath
+                             , pythonScript :: !FilePath
+                             , pythonSfConf :: !SafeExecConf
+                             } deriving (Eq, Show)
+
 
 
 -- | code and test fragments 

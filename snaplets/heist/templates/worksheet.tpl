@@ -9,13 +9,12 @@
    <div class="info">
      <ifTimed>
        <ifOpen>
-	 Submissões terminam a <em><endTime/></em>; tempo disponível: <em><remainingTime/></em>.
+	 Submissions will end on <em><endTime/></em>; remaining time: <em><remainingTime/></em>.
 	 <else/>
-	 Submissões terminaram em <em><endTime/></em>.
+	 Submissions ended on <em><endTime/></em>.
        </ifOpen>
      </ifTimed>
-     <ifSubmissions><submissions/> submissões efetuadas; <accepted/> aceites.</ifSubmissions>
-
+     <ifSubmissions><submissions/> submissions; <accepted/> accepted.</ifSubmissions>
    </div>
    <else/>
    <itemBlocks/>

@@ -1,7 +1,10 @@
 {-# LANGUAGE OverloadedStrings, RecordWildCards #-}
-module Language.Haskell where
+module Language.Haskell (
+  haskellTester
+  ) where
 
 import           Control.Applicative
+import           Control.Monad.State
 import           Data.String
 import           Data.Text (Text)
 import qualified Data.Text as T
@@ -16,22 +19,23 @@ import           System.IO
 
 import           Types
 import           Tester
+import           Application
 import           SafeExec
 
--- | Haskell configuration
-data HaskellConf = HaskellConf { haskellExec :: !FilePath
-                               , haskellSfConf :: !SafeExecConf
-                               } deriving (Eq, Show)
+
 
 
 --------------------------------------------------------------------------
--- test haskell with QuickCheck
+-- test haskell code with QuickCheck
 --------------------------------------------------------------------------
+--  | haskellTester :: Tests -> Code -> AppHandler (Result,Text)
+haskellTester :: Tests -> Tester AppHandler 
+haskellTester quickcheck haskell = do
+    hsConf <- gets haskellConf
+    liftIO $ haskellTesterIO hsConf quickcheck haskell
 
-haskellTesterIO :: HaskellConf
-                   -> Tests 
-                   -> Code
-                   -> IO (Result,Text)
+
+haskellTesterIO :: HaskellConf -> Tests -> Tester IO
 haskellTesterIO HaskellConf{..} (Tests props) (Code code) = 
    withTempFile "Temp.hs" $ \(codefile, h) ->
    let codemod = T.pack (takeBaseName codefile)
@@ -40,20 +44,20 @@ haskellTesterIO HaskellConf{..} (Tests props) (Code code) =
          T.hPutStrLn h code
          hClose h
          withTextTemp "Main.hs" (testScript codemod props) $ \tstfile -> 
-           safeExecWith haskellSfConf haskellExec ["-i"++dir, tstfile] "" >>=
-           (return . haskellResult)
+           haskellResult <$>
+           safeExecWith haskellSfConf haskellExec ["-i"++dir, tstfile] "" 
 
 
 
 testScript :: Text -> Text -> Text
 testScript codemod props
   = T.unlines
-    [ languageHeader "TemplateHaskell",
-      moduleHeader "Main",
-      importHeader "System.Exit",
-      importHeader "Test.QuickCheck",
-      importHeader "Test.QuickCheck.Function",
-      importHeader codemod,
+    [ "{-# LANGUAGE TemplateHaskell #-}",
+      "module Main where",
+      "import System.Exit",
+      "import Test.QuickCheck",
+      "import Test.QuickCheck.Function",
+      "import " <> codemod,
       "",
       props,
       "",
@@ -64,19 +68,6 @@ testScript codemod props
 
 moduleHeader :: Text -> Text
 moduleHeader name = "module " <> name <> " where"
-
-importHeader :: Text -> Text
-importHeader mod = "import "<>  mod 
-
-languageHeader :: Text -> Text
-languageHeader ext =  "{-# LANGUAGE " <> ext <> "#-}"
-
-{-
-  putStr "exitCode=" >> print exitCode
-  putStrLn "stdout=" >> putStrLn (T.unpack stdout)
-  putStrLn "stderr=" >> putStrLn (T.unpack stderr)  
-  return (result,msg)
--}
 
 haskellResult (exitCode, stdout, stderr)  
   | match "Not in scope" stderr ||

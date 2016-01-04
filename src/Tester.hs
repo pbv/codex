@@ -18,13 +18,10 @@ import           System.Directory
 
 import qualified Data.ByteString.Char8 as B
 
-{-
 import           Types
-import           Application
-import           SafeExec
-import           Language
-import           Utils
--}
+
+-- | tester in some monad m
+type Tester m = Code -> m (Result,Text)
 
 data Result = Accepted
             | WrongAnswer

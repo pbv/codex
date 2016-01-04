@@ -51,10 +51,10 @@ data Problem = Problem {
   probID       :: ProblemID,       -- unique identifier
   probHeader   :: Block,           -- header and description 
   probDescr    :: Blocks,
-  probCode     :: Maybe Code,       -- optional default code
-  probTester   :: Code -> AppHandler (Result, Text),  -- tester
+  probSubmit   :: Maybe Code,       -- optional default code
   probAttrs    :: [(Text, Text)],   -- attributes (key-value pairs)
-  probLimit    :: Maybe UTCTime     -- optional deadline
+  probLimit    :: Maybe UTCTime,     -- optional deadline
+  probTester   :: Tester AppHandler  -- tester in the application monad
   } 
 
 -- worksheets
@@ -63,29 +63,15 @@ data Worksheet a = Worksheet { worksheetMeta :: Meta
                              }
                  deriving (Show, Functor)
 
- 
--- parse time strings
-parseLocalTime :: String -> Maybe LocalTime
-parseLocalTime txt 
-  = msum [parseTime defaultTimeLocale fmt txt | fmt<-timeFormats] 
-  where timeFormats = ["%H:%M %d/%m/%Y", "%d/%m/%Y", "%c"]
-
-parseUTCTime :: TimeZone -> String -> Maybe UTCTime
-parseUTCTime tz txt = localTimeToUTC tz <$> parseLocalTime txt 
-
-
--- parse problems into a worksheet
-parseProblemItems :: TimeZone -> [Block] -> [Either Blocks Problem]
-parseProblemItems tz (block : blocks)
-  | problemStart block = Right p : parseProblemItems tz blocks''
-   where
-     (blocks', blocks'') = break problemEnd blocks
-     p = parseProblem tz block blocks'
-parseProblemItems tz (b : blocks)
-  = Left (fromList (b:blocks')) : parseProblemItems tz blocks''
+-- split a list of blocks into worksheet items
+splitItems :: [Block] -> [Either Blocks [Block]]
+splitItems [] = []
+splitItems (block : blocks)
+  | problemStart block = Right (block:blocks') : splitItems blocks''
+   where (blocks', blocks'') = break problemEnd blocks
+splitItems (block : blocks)
+  = Left (fromList (block:blocks')) : splitItems blocks''
   where (blocks',blocks'') = break problemStart blocks 
-parseProblemItems tz [] = []
-
 
 -- checkers for problem start & end
 problemStart :: Block -> Bool
@@ -98,26 +84,38 @@ problemEnd block             = problemStart block
 
 
 -- parse a single problem
-parseProblem :: TimeZone -> Block -> [Block] -> Problem
-parseProblem tz header blocks
+parseProblem :: TimeZone -> [Block] -> Problem
+parseProblem tz (header:blocks)
   = let (ident, classes, attrs) = headerAttr header
         lang = lookup "language" attrs
-        tsts = maybe "" id (parseTests "tests" blocks)
-        tester = case lang of
-          Just "python" -> pythonTester tsts 
-          Just "haskell" -> haskellTester tsts
-          _         -> const $ return (MiscError,"no language defined")
+        blocks' = removeCode "submit" blocks
+        (descr, tester) = case lang of
+          Just "python" -> parsePythonProblem blocks'
+          Just "haskell" -> parseHaskellProblem blocks'
+          _         ->  (blocks',  errorTester "undefined language")
     in Problem { probID = fromString ident
                , probHeader= header
-               , probDescr = fromList $ 
-                             removeCode "tests" $
-                             removeCode "default" blocks
-               , probCode = parseCode "default" blocks
-               -- , probSpec = 
+               , probDescr = fromList descr
+               , probSubmit= parseCode "submit" blocks
                , probTester = tester
                , probAttrs = [(T.pack k,T.pack v) | (k,v)<-attrs]
                , probLimit = lookup "close" attrs >>= parseUTCTime tz
                }
+
+errorTester :: Monad m => Text -> Tester m 
+errorTester msg = const $ return (MiscError, msg)
+
+parseHaskellProblem :: [Block] -> ([Block], Tester AppHandler)
+parseHaskellProblem blocks
+  = (descr, maybe (errorTester "missing quickcheck block") haskellTester props)
+  where descr = removeCode "quickcheck" blocks
+        props = parseTests "quickcheck" blocks
+
+parsePythonProblem blocks
+  = (descr, maybe (errorTester "missing doctest block") pythonTester tests)
+  where descr = removeCode "doctest" blocks
+        tests = parseTests "doctest" blocks
+
 
 removeCode :: String -> [Block] -> [Block]
 removeCode tag = filter (not . tagged)
@@ -138,26 +136,22 @@ parseCodeBlock tag bs
   where cs = [T.pack txt | CodeBlock attr txt <- bs, tag `elem` classes attr]
 
 
+-- parse time strings
+parseLocalTime :: String -> Maybe LocalTime
+parseLocalTime txt 
+  = msum [parseTime defaultTimeLocale fmt txt | fmt<-timeFormats] 
+  where timeFormats = ["%H:%M %d/%m/%Y", "%d/%m/%Y", "%c"]
+
+parseUTCTime :: TimeZone -> String -> Maybe UTCTime
+parseUTCTime tz txt = localTimeToUTC tz <$> parseLocalTime txt 
+
+
 readWorksheet :: FilePath -> IO (Worksheet Problem)
 readWorksheet filepath = do
   tz <- getCurrentTimeZone
   txt <- readFile filepath
   let Pandoc meta blocks = readMarkdown myReaderOptions txt
-  return (Worksheet meta (parseProblemItems tz blocks))
-
-
-
-
-haskellTester :: Tests -> Code -> AppHandler (Result,Text)
-haskellTester quickcheck haskell = do
-    hsConf <- gets haskellConf
-    liftIO $ haskellTesterIO hsConf quickcheck haskell
-
-
-pythonTester :: Tests -> Code -> AppHandler (Result,Text)
-pythonTester doctest python = do
-    pyConf <- gets pythonConf
-    liftIO $ pythonTesterIO pyConf doctest python
+  return (Worksheet meta (map (parseProblem tz <$>) (splitItems blocks)))
 
 
 

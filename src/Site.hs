@@ -297,7 +297,7 @@ problemSplices :: Problem -> ISplices
 problemSplices Problem{..} = do
   "problemID" ## I.textSplice (T.pack $ B.toString $ fromPID probID)
   "problemLanguage" ## maybe (return []) I.textSplice (lookup "language" probAttrs)
-  "problemCode" ## maybe (return []) (I.textSplice . fromCode) probCode
+  "problemSubmit" ## maybe (return []) (I.textSplice . fromCode) probSubmit
   "problemHeader" ## return (blocksToHtml $ singleton probHeader)
   "problemTitle" ## return (inlinesToHtml $ headerInlines probHeader)
   "problemDescription" ## return (blocksToHtml probDescr)

@@ -31,7 +31,7 @@
 <form id="editform" method="POST" 
       action="/${documentPath}?problem=${problemID}"
       onsubmit="submitAceEditorText('editform.editor');">
-<p><inputAceEditor id='editform.editor' mode='ace/mode/${problemLanguage}'><problemCode/></inputAceEditor></p>
+<p><inputAceEditor id='editform.editor' mode='ace/mode/${problemLanguage}'><problemSubmit/></inputAceEditor></p>
 <p><input type="submit" value="Enviar"/>  &nbsp;
    <a href="/${documentPath}" class="button">Voltar à folha de problemas</a>
 </form>

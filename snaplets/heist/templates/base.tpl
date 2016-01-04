@@ -1,7 +1,8 @@
+<bind tag="application">Quasimodo</bind>
 <html>
  <head>
     <meta charset="UTF-8">
-    <title>Pythondo server</title>
+    <title><application/> server</title>
     <link rel="stylesheet" type="text/css" href="/screen.css"/>
     <script type="text/javascript"
 	    src="/mathjax/MathJax.js?config=TeX-AMS-MML_HTMLorMML"/>
@@ -19,7 +20,7 @@
        ><ifAdmin>&nbsp;<strong>Administrator</strong></ifAdmin>).
      <div id="actions">
        <ifAdmin><a class="button" href="/admin/submissions">Download submissions</a></ifAdmin>
-       <a class="button" href="/logout">Terminar sessão</a>
+       <a class="button" href="/logout">Logout session</a>
      </div>
      </ifLoggedIn>
      </p>
@@ -28,10 +29,10 @@
        <apply-content/>
      </div>
      <div id="footer">
-       <p class="info">Pythondo <version/> &copy; 2014, 2015 Pedro Vasconcelos.<br>
+       <p class="info"><application/> <version/> &copy; 2014, 2015 Pedro Vasconcelos.<br>
        Departamento de Ciência de Computadores, Faculdade de Ciências,
        Universidade do Porto.<br>
-       Construido usando
+       Built using
        <a href="http://snapframework.com/">Snap</a>,
        <a href="http://johnmacfarlane.net/pandoc/">Pandoc</a>,
        <a href="http://ace.ajax.org">ACE</a>  e

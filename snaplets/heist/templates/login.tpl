@@ -1,11 +1,15 @@
+<bind tag="application">Quasimodo</bind>
 <apply template="base">
-<h1>Bem-vindo!</h1>
+<h1>Welcome!</h1>
 
-<p><em>Pythondo</em> é um sistema <em>web</em> para resolução
- de problemas de programação na 
- <a href="http://www.python.org">linguagem Python.</a>
+<p><em><application/></em> is a <em>web</em> system for
+setting programming problems with automatic assement
+for a class environment.</p>
+<p>Currently <application/> supports both the
+ <a href="http://www.python.org">Python</a> and
+ <a href="http://www.haskell.org">Haskell</a> programming languages.
 </p>
-<p>Por favor autentique-se para iniciar uma sessão.</p>
+<p>Please log in to begin your session.</p>
 
 <bind tag="post_action">/login</bind>
 <bind tag="submit_label">Login</bind>
