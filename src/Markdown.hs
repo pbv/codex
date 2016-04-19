@@ -1,62 +1,103 @@
-
+{-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE TypeSynonymInstances #-}
+{-# LANGUAGE FlexibleInstances #-}
+{-# LANGUAGE OverlappingInstances #-}
 module Markdown where
 
-import           Text.Pandoc
-import           Text.Pandoc.Builder
+import           Text.Pandoc hiding (Code)
+import           Text.Pandoc.Builder hiding (Code)
+import qualified Text.Pandoc ( Inline(Code) )
+import           Text.Pandoc.Walk
 import           Text.XmlHtml 
 import           Text.Blaze.Renderer.XmlHtml
 
--- acessors for markdown attributes
-classes :: Attr -> [String]
-classes (_, cs, _) = cs
+import           Data.Text (Text)
+import qualified Data.Text as T
+import qualified Data.Map as Map
+import           Data.Maybe
+import           Data.List (intersperse)
 
-keyValues :: Attr -> [(String, String)]
-keyValues (_, _, kvs) = kvs
-
-ident :: Attr -> String
-ident (id, _, _ ) = id
-
-headerAttr :: Block -> Attr
-headerAttr (Header _ attr _) = attr
-headerAttr _                 = error "headerAttr: not a header block"
-
-headerLevel :: Block -> Int
-headerLevel (Header n _ _) = n
-headerLevel _              = error "headerLever: not a header block"
-
-headerInlines :: Block -> Inlines
-headerInlines (Header _ _ ls) = fromList ls
-headerInlines _              = error "headerInlines: not a header block"
-
-{-
--- file extensions and associated Pandoc readers
-readersList :: [(String, String -> Pandoc)]
-readersList
-  = [(ext, readMarkdown myReaderOptions) | ext<-[".md",".mdown",".markdown"]] ++
-    [(ext, readHtml myReaderOptions)     | ext<-[".html", ".htm"]] ++
-    [(".tex", readLaTeX myReaderOptions)]
--}
+import           Types
 
 
-{-
--- | class for rendering HTML markup
-class HTML a where
-  renderNodes :: a -> [Node]
 
--- | render a Pandoc document into a list of HTML nodes
-instance HTML Pandoc where
-  renderNodes  = renderHtmlNodes . writeHtml myWriterOptions 
+-- | read from a metadata value
+class FromMetaValue a where
+  fromMeta :: MetaValue -> Maybe a
+  
+instance FromMetaValue Text where
+  fromMeta = Just . metaText
 
-instance HTML Block where
-  renderNodes = renderNodes . doc . singleton 
+instance FromMetaValue String where
+  fromMeta = Just . T.unpack . metaText 
 
-instance HTML Inline where
-  renderNodes = renderNodes . doc . from
--}
+instance FromMetaValue Bool where
+  fromMeta (MetaBool b) = Just b
+  fromMeta _            = Nothing
+
+instance FromMetaValue a => FromMetaValue [a] where
+  fromMeta (MetaList l) = mapM fromMeta l
+  fromMeta _            = Nothing
 
 
+-- | lookup from metadata value
+lookupFromMeta :: FromMetaValue a => String -> Meta -> Maybe a
+lookupFromMeta tag meta = lookupMeta tag meta >>= fromMeta
+
+
+-- collect text in inline and block elements
+inlineText :: Inline -> Text
+inlineText (Str s)   = T.pack s
+inlineText Space     = T.singleton ' '
+inlineText LineBreak = T.singleton '\n'
+inlineText (Math _ s)= T.pack s
+inlineText (Text.Pandoc.Code _ s) = T.pack s
+inlineText (RawInline _ s) = T.pack s
+inlineText _         = T.empty
+
+blockText :: Block -> Text
+blockText (Plain l)       = query inlineText l
+blockText (Para p)        = query inlineText p
+blockText (Header _ _ l)  = query inlineText l
+blockText (CodeBlock _ s) = T.pack s
+blockText (RawBlock  _ s) = T.pack s
+blockText _               = T.empty
+
+inlineString :: Inline -> String
+inlineString = T.unpack . inlineText
+
+
+-- | collect text from a meta value
+metaText :: MetaValue -> Text
+metaText (MetaString s) =
+  T.pack s
+metaText (MetaBool b) =
+  T.pack (show b)
+metaText (MetaInlines l) =
+  T.concat (map inlineText l)
+metaText (MetaBlocks l) =
+  T.concat (map blockText l)
+metaText (MetaList l) =
+  T.concat (intersperse "," $ map metaText l)
+metaText (MetaMap m) =
+  T.concat $
+  intersperse ","  $
+  [ T.concat [T.pack k, ":", metaText v] | (k,v)<- Map.assocs m]
+
+
+
+
+-- | convert Pandoc to HTML nodes
 pandocToHtml :: Pandoc -> [Node]
 pandocToHtml = renderHtmlNodes . writeHtml myWriterOptions
+  where
+    myWriterOptions :: WriterOptions
+    myWriterOptions = def { writerExtensions = pandocExtensions
+                          , writerHTMLMathMethod = MathJax "/mathjax",
+                            writerHighlight = True
+                          }
+
+
 
 blocksToHtml :: Blocks -> [Node]
 blocksToHtml = pandocToHtml . doc
@@ -64,15 +105,12 @@ blocksToHtml = pandocToHtml . doc
 inlinesToHtml :: Inlines -> [Node]
 inlinesToHtml = blocksToHtml . plain
 
+-- | read a file and parse markdown to a Pandoc document
+readMarkdownFile :: FilePath -> IO Pandoc
+readMarkdownFile  = fmap (readMarkdown myReaderOptions) . readFile
+  where
+    myReaderOptions :: ReaderOptions
+    myReaderOptions = def { readerExtensions = pandocExtensions
+                          , readerSmart = True 
+                          }
 
---- pandoc reader and writter options
-myReaderOptions :: ReaderOptions
-myReaderOptions = def { readerExtensions = pandocExtensions
-                      , readerSmart = True 
-                      }
-
-myWriterOptions :: WriterOptions
-myWriterOptions = def { writerExtensions = pandocExtensions
-                      , writerHTMLMathMethod = MathJax "/mathjax",
-                        writerHighlight = True
-                      }

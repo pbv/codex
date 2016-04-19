@@ -1,25 +1,26 @@
-{-# LANGUAGE OverloadedStrings, RecordWildCards, DeriveFunctor #-}
-{-# LANGUAGE ExistentialQuantification, FlexibleContexts #-}
+{-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE RecordWildCards #-}
 {-
-  Data types and methods for problems 
+  Data types and methods for problems
 -}
 
-module Problem ( 
-  Problem(..),
-  Worksheet(..),
-  readWorksheet,      -- read a worksheet
-  ) where
+module Problem  where
 
 import           Control.Monad
-import           Control.Monad.State
-import           Control.Monad.Trans
-import           Control.Applicative ((<$>))
+-- import           Control.Monad.State
+-- import           Control.Monad.Trans
+import           Control.Applicative 
 
-import qualified Data.ByteString.UTF8 as B
+-- import qualified Data.ByteString.UTF8 as B
 
+import           Data.Maybe
+import           Data.Monoid
 import           Data.String
 import           Data.Text(Text)
 import qualified Data.Text             as T
+
+---import qualified Data.HashSet as Set
+-- import           Data.HashSet (HashSet)
 
 
 import           Data.Time.LocalTime
@@ -27,113 +28,80 @@ import           Data.Time.Format
 import           Data.Time.Clock
 import           System.Locale (defaultTimeLocale)
 
-import           Data.Aeson (encode)
-import           Snap.Snaplet.SqliteSimple
+-- import           Data.Aeson (encode)
+-- import           Snap.Snaplet.SqliteSimple
 
+import           Language.Types
 import           Markdown
+-- import           FromMeta
 import           Text.Pandoc hiding (Code)
-import           Text.Pandoc.Builder hiding (Code)
+import           Text.Pandoc.Walk
+-- import           Text.Pandoc.Builder hiding (Code)
 -- import           Data.Monoid
 -- import           Text.XmlHtml 
 -- import           Text.Blaze.Renderer.XmlHtml
-import           Application
+-- import           Application
 import           Types
-import           Language
-import           Tester
 
+-- import           Language
+-- import           Tester
 -- import           ParseMeta
 -- import           LogIO
--- import           System.Directory(doesFileExist)
+import           System.FilePath
+import           System.Directory
 
 
--- individual problems
-data Problem = Problem {
-  probID       :: ProblemID,       -- unique identifier
-  probHeader   :: Block,           -- header and description 
-  probDescr    :: Blocks,
-  probSubmit   :: Maybe Code,       -- optional default code
-  probAttrs    :: [(Text, Text)],   -- attributes (key-value pairs)
-  probLimit    :: Maybe UTCTime,     -- optional deadline
-  probTester   :: Tester AppHandler  -- tester in the application monad
-  } 
-
--- worksheets
-data Worksheet a = Worksheet { worksheetMeta :: Meta
-                             , worksheetItems :: [Either Blocks a]
-                             }
-                 deriving (Show, Functor)
-
--- split a list of blocks into worksheet items
-splitItems :: [Block] -> [Either Blocks [Block]]
-splitItems [] = []
-splitItems (block : blocks)
-  | problemStart block = Right (block:blocks') : splitItems blocks''
-   where (blocks', blocks'') = break problemEnd blocks
-splitItems (block : blocks)
-  = Left (fromList (block:blocks')) : splitItems blocks''
-  where (blocks',blocks'') = break problemStart blocks 
-
--- checkers for problem start & end
-problemStart :: Block -> Bool
-problemStart (Header _ attr _) = "problem" `elem` classes attr
-problemStart _                 = False
-
-problemEnd :: Block -> Bool
-problemEnd HorizontalRule    = True
-problemEnd block             = problemStart block
+-- | a page: either a single problem or a worksheet
+data Page
+  = Worksheet { path :: FilePath
+              , meta :: Meta
+              , description :: [Block]
+              , contents :: [Page]
+              }
+  | Problem { path :: FilePath
+            , meta :: Meta
+            , description :: [Block]
+            , limit :: Maybe UTCTime
+            } deriving Show
 
 
--- parse a single problem
-parseProblem :: TimeZone -> [Block] -> Problem
-parseProblem tz (header:blocks)
-  = let (ident, classes, attrs) = headerAttr header
-        lang = lookup "language" attrs
-        blocks' = removeCode "submit" blocks
-        (descr, tester) = case lang of
-          Just "python" -> parsePythonProblem blocks'
-          Just "haskell" -> parseHaskellProblem blocks'
-          _         ->  (blocks',  errorTester "undefined language")
-    in Problem { probID = fromString ident
-               , probHeader= header
-               , probDescr = fromList descr
-               , probSubmit= parseCode "submit" blocks
-               , probTester = tester
-               , probAttrs = [(T.pack k,T.pack v) | (k,v)<-attrs]
-               , probLimit = lookup "close" attrs >>= parseUTCTime tz
-               }
 
-errorTester :: Monad m => Text -> Tester m 
-errorTester msg = const $ return (MiscError, msg)
+isProblem, isWorksheet :: Page -> Bool
+isProblem Problem{..} = True
+isProblem _           = False
 
-parseHaskellProblem :: [Block] -> ([Block], Tester AppHandler)
-parseHaskellProblem blocks
-  = (descr, maybe (errorTester "missing quickcheck block") haskellTester props)
-  where descr = removeCode "quickcheck" blocks
-        props = parseTests "quickcheck" blocks
+isWorksheet Worksheet{..} = True
+isWorksheet _             = False
 
-parsePythonProblem blocks
-  = (descr, maybe (errorTester "missing doctest block") pythonTester tests)
-  where descr = removeCode "doctest" blocks
-        tests = parseTests "doctest" blocks
+-- | fetch page title
+getTitle :: Page -> Text
+getTitle page
+  = fromMaybe (T.pack $ path page) 
+      (lookupFromMeta "title" (meta page) <|>
+       firstHeader (description page))
+
+  
+-- help function;
+-- get first header frm a list of blocks
+firstHeader :: [Block] -> Maybe Text
+firstHeader blocks = listToMaybe [query inlineText h | Header _ _ h <- blocks]
+
+-- | fetch page tags
+getTags :: Page -> [Text]
+getTags page = fromMaybe [] (lookupFromMeta "tags" (meta page))
+
+getLanguage :: Page -> Maybe Language
+getLanguage page = lookupFromMeta "language" (meta page)
 
 
-removeCode :: String -> [Block] -> [Block]
-removeCode tag = filter (not . tagged)
-  where tagged (CodeBlock attr _) = tag `elem` classes attr 
-        tagged _ = False
+getCodeText :: Page -> Maybe Text
+getCodeText page = lookupFromMeta "code" (meta page)
 
-
-parseCode :: String -> [Block] -> Maybe Code
-parseCode tag bs = Code <$> parseCodeBlock tag bs
-
-parseTests :: String -> [Block] -> Maybe Tests
-parseTests tag bs = Tests <$> parseCodeBlock tag bs
-
-parseCodeBlock :: String -> [Block] -> Maybe Text
-parseCodeBlock tag bs
-  = case cs of [] -> Nothing
-               _  -> Just (T.concat cs)
-  where cs = [T.pack txt | CodeBlock attr txt <- bs, tag `elem` classes attr]
+getCode :: Page -> Maybe Code
+getCode page = do
+  lang <- getLanguage page
+  txt <- getCodeText page
+  return (Code lang txt)
 
 
 -- parse time strings
@@ -143,43 +111,65 @@ parseLocalTime txt
   where timeFormats = ["%H:%M %d/%m/%Y", "%d/%m/%Y", "%c"]
 
 parseUTCTime :: TimeZone -> String -> Maybe UTCTime
-parseUTCTime tz txt = localTimeToUTC tz <$> parseLocalTime txt 
+parseUTCTime tz txt = localTimeToUTC tz <$> parseLocalTime txt
 
 
-readWorksheet :: FilePath -> IO (Worksheet Problem)
-readWorksheet filepath = do
+readPage :: FilePath -> IO Page
+readPage filepath = do
   tz <- getCurrentTimeZone
-  txt <- readFile filepath
-  let Pandoc meta blocks = readMarkdown myReaderOptions txt
-  return (Worksheet meta (map (parseProblem tz <$>) (splitItems blocks)))
+  readPageAux tz maxDepth mempty filepath
+  where maxDepth = 4
+
+readPageAux :: TimeZone -> Int -> Meta -> FilePath -> IO Page
+readPageAux tz n m filepath = do
+  Pandoc meta blocks <- readMarkdownFile filepath
+  let m' = meta <> m
+  case lookupFromMeta "contents" meta of
+    Just paths -> do
+      pages <- readPaths m' paths
+      return Worksheet { path = normalise filepath
+                       , meta = m'
+                       , description = blocks
+                       , contents =  pages
+                       }
+    Nothing -> do
+      let t = lookupFromMeta "limit" meta >>= parseUTCTime tz
+      return Problem { path = normalise filepath
+                     , meta = m'
+                     , description = blocks
+                     , limit = t
+                     }
+  where
+    readPaths m' paths | n>0 = do
+      let dir = takeDirectory filepath
+      mapM (\path -> readPageAux tz (n-1) m' (dir</>path)) paths
+    readPaths _ _  = return []
+
+
+
 
 
 
 {-
--- | collect all tags from problems and problem sets
-instance Tagged Problem where
-    taglist = probTags
+-- | read a worksheet document and fetches problems;
+-- appends the worksheet metadata to each problem
+readWorksheet :: FilePath -> IO Worksheet
+readWorksheet filepath = do
+  let dir = takeDirectory filepath   -- get the worksheet directory
+  Pandoc meta blocks <- readMarkdownFile filepath -- read Pandoc document
+  let paths =  fromMaybe [] $ lookupFromMeta "problems" meta  -- fetch paths
+  probs <- mapM readProblem (map (dir</>) paths)  -- read each problem
+  return Worksheet { wsPath = normalise filepath
+                   , wsMeta = meta
+                   , wsDescription = blocks
+                   , wsProblems = map (appendMeta meta) probs
+                   }
 
-instance Tagged a => Tagged [a] where
-    taglist l = Set.toList $ Set.fromList $ concatMap taglist l
-
-instance Tagged ProblemSet where
-    taglist ProblemSet{..} = dynamic ++ taglist probsetProbs
-      where  dynamic = ["*accepted*", "*not accepted*", 
-                        "*submitted*", "*not submitted*"]
 -}
 
 
-{-
-lookupFromMeta :: ParseMeta a => String -> Meta -> LogIO (Maybe a)
-lookupFromMeta tag meta = case lookupMeta tag meta of
-  Nothing -> return Nothing
-  Just v -> case parseMeta v of
-    Left err -> logString ("metadata " ++ show tag ++ ": " ++ err) >>
-                return Nothing
-    Right r -> return (Just r)
-    
-                   
+
+{-             
 lookupUTC :: TimeZone -> String -> Meta -> LogIO (Maybe UTCTime)
 lookupUTC tz tag meta = fmap (localTimeToUTC tz) <$> lookupFromMeta tag meta
 -}
@@ -280,13 +270,3 @@ isLate t Problem{..} = t `Interval.after` probOpen
 --isAcceptable t Problem{..} = maybe True (t<=) probLimit
 
 
-
-  
-
-
-{-
--- | update Db table of problems
-updateProblem :: Problem -> AppHandler ()
-updateProblem Problem{..} =
-  execute "INSERT OR UPDATE problems(problem_id, attrs, time_limit) VALUES (?, ?, ?)" (probID, encode probAttrs, probLimit)
--}

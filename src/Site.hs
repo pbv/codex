@@ -64,7 +64,7 @@ import           Markdown
 import           Text.Pandoc.Builder
 -- import qualified Interval as Interval
 -- import           Interval (Interval)
-import           Problem
+import           Problem 
 import           Submission
 import           LdapAuth
 -- import           Report
@@ -294,17 +294,15 @@ warningsSplices mesgs = do
 
 -- | splices related to a single problem       
 problemSplices :: Problem -> ISplices
-problemSplices Problem{..} = do
-  "problemID" ## I.textSplice (T.pack $ B.toString $ fromPID probID)
-  "problemLanguage" ## maybe (return []) I.textSplice (lookup "language" probAttrs)
-  "problemSubmit" ## maybe (return []) (I.textSplice . fromCode) probSubmit
-  "problemHeader" ## return (blocksToHtml $ singleton probHeader)
-  "problemTitle" ## return (inlinesToHtml $ headerInlines probHeader)
-  "problemDescription" ## return (blocksToHtml probDescr)
-  {-
-   "problemTags" ## I.textSplice (T.unwords probTags)
-   "problemPath" ## I.textSplice (T.pack probPath)
-   -}
+problemSplices prob = do
+  "problemPath" ##
+    I.textSplice (Problem.path prob)
+  "problemCode" ##
+    maybe (return []) (I.textSplice $ fromCode $ Problem.code prob)
+  "problemTitle" ##
+    maybe (return []) (I.textSplice $ Problem.title prob)
+  "problemDescription" ##
+    return (blocksToHtml $ Problem.description prob)
 
 
 

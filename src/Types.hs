@@ -1,4 +1,6 @@
-{-# LANGUAGE OverloadedStrings, DeriveDataTypeable, DeriveFunctor, EmptyDataDecls #-}
+{-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE DeriveDataTypeable #-}
+{-# LANGUAGE DeriveFunctor #-}
 {-
   Types for various entities
 -}
@@ -26,12 +28,27 @@ import           Text.Pandoc.Builder hiding (Code)
 import           SafeExec
 
 -- | identifiers
-newtype UserID = UserID {fromUID :: ByteString} deriving (Eq, Ord, Show)
+newtype UserID = UserID ByteString deriving (Eq, Ord, Read, Show) 
 
-newtype ProblemID = ProblemID {fromPID :: ByteString} deriving (Eq, Ord, Show)
+newtype ProblemID = ProblemID ByteString deriving (Eq, Ord, Read, Show) 
 
-newtype SubmitID = SubmitID {fromSID :: Int64} deriving (Eq, Ord, Show)
+newtype SubmitID = SubmitID Int64 deriving (Eq, Ord, Read, Show) 
 
+
+-- | conversion to text
+class ToText a where
+  toText :: a -> Text
+
+instance ToText UserID where
+  toText (UserID uid) = T.pack (B.toString uid)
+
+instance ToText ProblemID where
+  toText (ProblemID pid) = T.pack (B.toString pid)
+
+instance ToText SubmitID where
+  toText (SubmitID sid) = T.pack (show sid)
+
+-- | conversion from strings
 instance IsString UserID where
   fromString s = UserID (B.fromString s)
 
@@ -91,31 +108,22 @@ data PythonConf = PythonConf { pythonExec :: !FilePath
 
 
 
--- | code and test fragments 
-newtype Code = Code { fromCode :: Text } deriving (Eq,Show)
 
-toCode :: Text -> Code 
-toCode = Code 
+-- fromCode :: Code lang -> Text
+-- fromCode (Code text) = text
 
-newtype Tests = Tests { fromTests :: Text } deriving (Eq,Show)
-
-toTests :: Text -> Tests 
-toTests = Tests
-  
-instance IsString Code where
+{-
+-- convertions to/from strings
+instance IsString (Code lang) where
   fromString s = Code (T.pack s)
 
-instance IsString Tests where
-  fromString s = Tests (T.pack s)
-
--- | convertion to/from SQL fields
-instance ToField Code where
+-- convertions to/from SQL fields
+instance ToField (Code lang) where
   toField (Code txt) = toField txt
 
-instance FromField Code where
+instance FromField (Code lang) where
   fromField f = Code <$> fromField f
-
-
+-}
 
 
 {-

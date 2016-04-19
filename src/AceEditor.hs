@@ -81,3 +81,4 @@ inputAceEditor = do
 
 inputAceEditorSplices :: (Functor m, Monad m) => Splices (Splice m)
 inputAceEditorSplices = "inputAceEditor" ## inputAceEditor
+

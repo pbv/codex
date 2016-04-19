@@ -1,47 +1,65 @@
-{-# LANGUAGE OverloadedStrings, RecordWildCards #-}
+{-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE RecordWildCards #-}
 module Language.Python(
-  pythonTester
+   pythonTester
   ) where
 
 import           Control.Applicative
+import           Control.Monad.IO.Class
 import           Control.Monad.State
 import           Data.String
+import           Data.Maybe
 import           Data.Text (Text)
 import qualified Data.Text as T
-import           Database.SQLite.Simple.ToField
-import           Database.SQLite.Simple.FromField
+
+import           Snap.Core(pass)
+
+import           Text.Pandoc hiding (Code)
 
 import           Types
+import           Language.Types
+import           Markdown
 import           Application
+import           Problem
 import           Tester
 import           SafeExec
 
 import           System.Exit
+import           System.FilePath
+import           System.Directory
 
 
-pythonTester :: Tests -> Tester AppHandler 
-pythonTester doctest python = do
+pythonTester :: Page -> Code -> AppHandler Result
+pythonTester Problem{..} (Code Python code) = do
     pyConf <- gets pythonConf
-    liftIO $ pythonTesterIO pyConf doctest python
-  
-pythonTesterIO ::  PythonConf -> Tests -> Tester IO 
-pythonTesterIO PythonConf{..} (Tests doctest) (Code python) = 
+    let tstfile = getDoctest page
+    liftIO $ do
+      c <- doesFileExist tstfile
+      if c then pythonTesterIO pyConf code tstfile
+        else return (miscError $ T.pack $ "missing doctest file: " ++ tstfile)
+pythonTester _ _ = pass             
+
+type Doctest = FilePath   -- doctest script
+
+-- get the doctest file for a problem
+getDoctest :: Page -> Doctest
+getDoctest Page{..} 
+  = fromMaybe (replaceExtension path ".tst") (lookupFromMeta "doctest" meta)
+
+
+pythonTesterIO ::  PythonConf -> Text -> Doctest -> IO Result
+pythonTesterIO PythonConf{..} python tstfile  = 
     withTextTemp "tmp.py" python $ \pyfile ->
-    withTextTemp "tmp.tst" doctest $ \tstfile ->
     pythonResult <$>
     safeExecWith pythonSfConf pythonExec [pythonScript, tstfile, pyfile] ""
 
 
-pythonResult :: (ExitCode, Text, Text) -> (Result, Text)
-pythonResult (exitCode, stdout, stderr) = (result, trim maxLen msg)
-  where
-    maxLen = 2000
-    (result, msg)
-      | T.null stdout && match "OK" stderr = (Accepted, stderr)
-      | match "Time Limit" stderr          = (TimeLimitExceeded, stderr)
-      | match "Memory Limit" stderr        = (MemoryLimitExceeded, stderr)
-      | match "Exception Raised" stdout    = (RuntimeError, stdout)
-      | match "SyntaxError" stderr         = (CompileError, stdout)
-      | match "Failed" stdout              = (WrongAnswer, stdout)
-      | otherwise                          = (MiscError, T.append stdout stderr)
-
+pythonResult :: (ExitCode, Text, Text) -> Result
+pythonResult (exitCode, stdout, stderr) 
+  | T.null stdout && match "OK" stderr = accepted stderr
+  | match "Time Limit" stderr          = timeLimitExceeded stderr
+  | match "Memory Limit" stderr        = memoryLimitExceeded stderr
+  | match "Exception Raised" stdout    = runtimeError stdout
+  | match "SyntaxError" stderr         = compileError stdout
+  | match "Failed" stdout              = wrongAnswer stdout
+  | otherwise                   = miscError (T.append stdout stderr)

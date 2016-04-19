@@ -30,7 +30,7 @@ data App = App
     , _auth  :: Snaplet (AuthManager App)
     , _db    :: Snaplet Sqlite
     , pythonConf :: PythonConf          -- python configuration
-    , haskellConf :: HaskellConf
+    , haskellConf :: HaskellConf        -- haskell configuration
     , ldapConf :: LdapConf              -- LDAP configuration
     , printConf :: PrintConf            -- printout configuration
     , ekg :: Maybe Server           -- optional EKG monitoring server

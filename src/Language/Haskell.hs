@@ -1,4 +1,9 @@
-{-# LANGUAGE OverloadedStrings, RecordWildCards #-}
+--------------------------------------------------------------------------
+-- Test Haskell code using QuickCheck
+--------------------------------------------------------------------------
+{-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE RecordWildCards #-}
+
 module Language.Haskell (
   haskellTester
   ) where
@@ -6,46 +11,62 @@ module Language.Haskell (
 import           Control.Applicative
 import           Control.Monad.State
 import           Data.String
+import           Data.Maybe
 import           Data.Text (Text)
 import qualified Data.Text as T
 import qualified Data.Text.IO as T
 import           Data.Monoid
-import           Database.SQLite.Simple.ToField
-import           Database.SQLite.Simple.FromField
 
 import           System.FilePath
 import           System.Directory
 import           System.IO
 
+import           Snap.Core(pass)
+
 import           Types
+import           Language.Types
+import           Markdown
 import           Tester
 import           Application
+import           Problem
 import           SafeExec
 
 
+  
 
-
---------------------------------------------------------------------------
--- test haskell code with QuickCheck
---------------------------------------------------------------------------
---  | haskellTester :: Tests -> Code -> AppHandler (Result,Text)
-haskellTester :: Tests -> Tester AppHandler 
-haskellTester quickcheck haskell = do
+haskellTester :: Page -> Code -> AppHandler Result
+haskellTester page (Code Haskell code) = do
     hsConf <- gets haskellConf
-    liftIO $ haskellTesterIO hsConf quickcheck haskell
+    let propfile = getProperties page
+    liftIO $ do
+      c <- doesFileExist propfile
+      if c then
+        T.readFile propfile >>= haskellTesterIO hsConf code 
+        else return (miscError $ T.pack $
+                     "missing QuickCheck properties file: " ++ propfile)
+haskellTester _ _ = pass             
 
 
-haskellTesterIO :: HaskellConf -> Tests -> Tester IO
-haskellTesterIO HaskellConf{..} (Tests props) (Code code) = 
-   withTempFile "Temp.hs" $ \(codefile, h) ->
+type Properties = FilePath   -- NB: properties-only (not a module)
+
+-- get the path to Quickcheck properties
+getProperties :: Page -> Properties
+getProperties Page{..} =
+  fromMaybe (replaceExtension path ".hs") (lookupFromMeta "quickcheck" meta)
+  
+
+haskellTesterIO :: HaskellConf -> Text -> Text -> IO Result
+haskellTesterIO HaskellConf{..} haskell props =
+   withTempFile "Temp.hs" $ \(codefile, h) ->      
    let codemod = T.pack (takeBaseName codefile)
        dir = takeDirectory codefile
-   in do T.hPutStrLn h (moduleHeader codemod)
-         T.hPutStrLn h code
-         hClose h
-         withTextTemp "Main.hs" (testScript codemod props) $ \tstfile -> 
-           haskellResult <$>
-           safeExecWith haskellSfConf haskellExec ["-i"++dir, tstfile] "" 
+   in do
+     T.hPutStrLn h (moduleHeader codemod)
+     T.hPutStrLn h haskell
+     hClose h
+     withTextTemp "Main.hs" (testScript codemod props) $ \tstfile -> 
+       haskellResult <$>
+       safeExecWith haskellSfConf haskellExec ["-i"++dir, tstfile] "" 
 
 
 
@@ -72,11 +93,11 @@ moduleHeader name = "module " <> name <> " where"
 haskellResult (exitCode, stdout, stderr)  
   | match "Not in scope" stderr ||
     match "parse error" stderr  ||
-    match "Couldn't match" stderr  = (CompileError, stderr)
-  | match "Time Limit" stderr   = (TimeLimitExceeded, stderr)
-  | match "Memory Limit" stderr = (MemoryLimitExceeded, stderr)
-  | match "Failed" stdout       = (WrongAnswer, stdout)
-  | match "Command exited with non-zero status" stderr = (MiscError, stderr)
-  | otherwise = (Accepted, stdout)
+    match "Couldn't match" stderr  = compileError stderr
+  | match "Time Limit" stderr   = timeLimitExceeded stderr
+  | match "Memory Limit" stderr = memoryLimitExceeded stderr
+  | match "Failed" stdout       = wrongAnswer stdout
+  | match "Command exited with non-zero status" stderr = miscError stderr
+  | otherwise = accepted stdout
 
 

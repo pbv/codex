@@ -1,4 +1,6 @@
-{-# LANGUAGE OverloadedStrings, RecordWildCards, DeriveDataTypeable #-}
+{-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE RecordWildCards #-}
+{-# LANGUAGE DeriveDataTypeable #-}
 {-
    Evaluating, storing and fetching and submissions in database
 -}
