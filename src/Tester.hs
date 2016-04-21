@@ -18,18 +18,20 @@ import           Control.Exception
 import           Types
 
 -- submission results
-data Result = Result { resultClass :: !Class, resultMsg :: !Text }
+data Result = Result { resultClassify :: !Classify
+                     , resultMessage :: !Text
+                     }
               deriving (Eq, Read, Show)
 
 -- classification
-data Class = Accepted
-          | WrongAnswer
-          | CompileError
-          | RuntimeError
-          | TimeLimitExceeded
-          | MemoryLimitExceeded
-          | MiscError
-          deriving (Eq, Read, Show, Typeable)
+data Classify = Accepted
+              | WrongAnswer
+              | CompileError
+              | RuntimeError
+              | TimeLimitExceeded
+              | MemoryLimitExceeded
+              | MiscError
+              deriving (Eq, Read, Show, Typeable)
 
 
 -- | auxiliary construtors

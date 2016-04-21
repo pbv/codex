@@ -30,7 +30,7 @@ import           System.Directory
 
 
 pythonTester :: Page -> Code -> AppHandler Result
-pythonTester Problem{..} (Code Python code) = do
+pythonTester page (Code (Just Python) code) = do
     pyConf <- gets pythonConf
     let tstfile = getDoctest page
     liftIO $ do
@@ -39,12 +39,13 @@ pythonTester Problem{..} (Code Python code) = do
         else return (miscError $ T.pack $ "missing doctest file: " ++ tstfile)
 pythonTester _ _ = pass             
 
-type Doctest = FilePath   -- doctest script
+type Doctest = FilePath   -- path to doctest script
 
 -- get the doctest file for a problem
 getDoctest :: Page -> Doctest
-getDoctest Page{..} 
-  = fromMaybe (replaceExtension path ".tst") (lookupFromMeta "doctest" meta)
+getDoctest Page{..}
+  = root </>
+    fromMaybe (replaceExtension path ".tst") (lookupFromMeta "doctest" meta)
 
 
 pythonTesterIO ::  PythonConf -> Text -> Doctest -> IO Result
@@ -60,6 +61,6 @@ pythonResult (exitCode, stdout, stderr)
   | match "Time Limit" stderr          = timeLimitExceeded stderr
   | match "Memory Limit" stderr        = memoryLimitExceeded stderr
   | match "Exception Raised" stdout    = runtimeError stdout
-  | match "SyntaxError" stderr         = compileError stdout
+  | match "SyntaxError" stderr         = compileError stderr
   | match "Failed" stdout              = wrongAnswer stdout
-  | otherwise                   = miscError (T.append stdout stderr)
+  | otherwise                   = miscError (stdout `T.append` stderr)

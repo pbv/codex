@@ -55,7 +55,8 @@ Executable pythondo
     configurator              >= 0.2,
     base                      >= 4.4,
     lens                      >= 3.7.6,
-    process-extras            >= 0.3.3
+    process-extras            >= 0.3.3,
+    QuickCheck                >= 2.8
 
 
 

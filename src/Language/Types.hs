@@ -20,8 +20,10 @@ data Language
   | Haskell
     deriving (Eq, Typeable, Show, Read)
 
--- submission text in some language 
-data Code = Code !Language !Text deriving (Eq, Typeable, Read, Show)
+-- program text in some language 
+data Code = Code { codeLang :: !(Maybe Language)
+                 , codeText :: !Text
+                 } deriving (Eq, Typeable, Read, Show)
 
 instance FromMetaValue Language where
   fromMeta v =  fromMeta v >>= (listToMaybe . map fst . reads . capitalize)

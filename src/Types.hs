@@ -28,11 +28,11 @@ import           Text.Pandoc.Builder hiding (Code)
 import           SafeExec
 
 -- | identifiers
-newtype UserID = UserID ByteString deriving (Eq, Ord, Read, Show) 
+newtype UserID
+  = UserID ByteString deriving (Eq, Ord, Read, Show) 
 
-newtype ProblemID = ProblemID ByteString deriving (Eq, Ord, Read, Show) 
-
-newtype SubmitID = SubmitID Int64 deriving (Eq, Ord, Read, Show) 
+newtype SubmitID
+  = SubmitID Int64 deriving (Eq, Ord, Read, Show) 
 
 
 -- | conversion to text
@@ -42,8 +42,13 @@ class ToText a where
 instance ToText UserID where
   toText (UserID uid) = T.pack (B.toString uid)
 
+{-
 instance ToText ProblemID where
   toText (ProblemID pid) = T.pack (B.toString pid)
+
+instance IsString ProblemID where
+  fromString s = ProblemID (B.fromString s)
+-}
 
 instance ToText SubmitID where
   toText (SubmitID sid) = T.pack (show sid)
@@ -52,8 +57,6 @@ instance ToText SubmitID where
 instance IsString UserID where
   fromString s = UserID (B.fromString s)
 
-instance IsString ProblemID where
-  fromString s = ProblemID (B.fromString s)
 
 -- | convertion to/from SQL fields
 instance ToField UserID where
@@ -62,11 +65,13 @@ instance ToField UserID where
 instance FromField UserID where
   fromField f = UserID <$> fromField f
 
+{-
 instance ToField ProblemID where
   toField (ProblemID id) = toField id
   
 instance FromField ProblemID where
   fromField f = ProblemID <$> fromField f
+-}
 
 instance ToField SubmitID where
   toField (SubmitID id) = toField id
@@ -77,8 +82,10 @@ instance FromField SubmitID where
 instance FromRow UserID where
     fromRow = field
 
+{-
 instance FromRow ProblemID where
     fromRow = field
+-}
 
 -- | LDAP configuration
 data LdapConf = LdapConf { ldapURI :: String
@@ -107,23 +114,6 @@ data PythonConf = PythonConf { pythonExec :: !FilePath
                              } deriving (Eq, Show)
 
 
-
-
--- fromCode :: Code lang -> Text
--- fromCode (Code text) = text
-
-{-
--- convertions to/from strings
-instance IsString (Code lang) where
-  fromString s = Code (T.pack s)
-
--- convertions to/from SQL fields
-instance ToField (Code lang) where
-  toField (Code txt) = toField txt
-
-instance FromField (Code lang) where
-  fromField f = Code <$> fromField f
--}
 
 
 {-

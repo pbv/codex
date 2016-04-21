@@ -14,6 +14,7 @@ import           Text.Blaze.Renderer.XmlHtml
 import           Data.Text (Text)
 import qualified Data.Text as T
 import qualified Data.Map as Map
+import           Data.Monoid
 import           Data.Maybe
 import           Data.List (intersperse)
 
@@ -34,6 +35,14 @@ instance FromMetaValue String where
 instance FromMetaValue Bool where
   fromMeta (MetaBool b) = Just b
   fromMeta _            = Nothing
+
+instance FromMetaValue Int where
+  fromMeta (MetaString s) =
+    case reads s of
+      ((n,""):_) -> Just n
+      _ -> Nothing
+  fromMeta _ = Nothing
+
 
 instance FromMetaValue a => FromMetaValue [a] where
   fromMeta (MetaList l) = mapM fromMeta l
@@ -99,11 +108,13 @@ pandocToHtml = renderHtmlNodes . writeHtml myWriterOptions
 
 
 
-blocksToHtml :: Blocks -> [Node]
-blocksToHtml = pandocToHtml . doc
+blocksToHtml :: [Block] -> [Node]
+blocksToHtml = pandocToHtml . makeDoc
 
-inlinesToHtml :: Inlines -> [Node]
-inlinesToHtml = blocksToHtml . plain
+makeDoc = Pandoc mempty 
+
+-- inlinesToHtml :: Inlines -> [Node]
+--inlinesToHtml = blocksToHtml . plain
 
 -- | read a file and parse markdown to a Pandoc document
 readMarkdownFile :: FilePath -> IO Pandoc

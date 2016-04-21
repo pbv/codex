@@ -31,12 +31,12 @@ initCmds :: [S.Query]
 initCmds = ["CREATE TABLE submissions (\
             \id INTEGER PRIMARY KEY, \
             \user_id TEXT NOT NULL, \
-            \problem_id TEXT NOT NULL, \
+            \path TEXT NOT NULL, \
             \time TIMESTAMP NOT NULL, \
+            \language TEXT, \
             \code TEXT NOT NULL, \
-            \qualifier TEXT NOT NULL, \
-            \result TEXT NOT NULL, \
-            \msg TEXT NOT NULL)",
+            \class TEXT NOT NULL, \
+            \message TEXT NOT NULL)",
             "CREATE INDEX user_index ON submissions(user_id)"
            ]
 

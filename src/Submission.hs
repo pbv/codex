@@ -5,17 +5,7 @@
    Evaluating, storing and fetching and submissions in database
 -}
 
-module Submission
-       ( Submission(..)
-       , Result(..)
-       , Qualifier(..)
-       , newSubmission
-       , getSubmission
-       , getSubmissions
-       , getWorksheetSubmissions
---       , countSubmissions
---       , countSubmissions'
-       ) where
+module Submission where
 
 import           System.FilePath
 import           System.Directory
@@ -53,107 +43,105 @@ import           Tester
 
 -- | a row in the submssion table
 data Submission = Submission {
-  submitID   :: SubmitID,
-  submitUID  :: UserID,
-  submitPID  :: ProblemID,           -- problem id
-  -- submitIPAddr :: Text,        -- client IP address
-  submitTime :: UTCTime,       -- submit time  
-  submitCode :: Code,   -- program code
-  submitQualifier :: Qualifier,  -- in time/overdue
-  submitResult :: Result,      -- accepted/wrong answer/etc
-  submitMsg :: Text            -- detailed message
+  id :: SubmitID,     -- submission id
+  userID  :: UserID,    -- user id
+  path  :: FilePath,  -- problem path
+  time :: UTCTime,    -- submit time  
+  code :: Code,       -- program code
+  result :: Result    -- accepted/wrong answer/etc
   }
 
 
--- | in-time or overdue?
-data Qualifier = OK | Overdue deriving (Eq, Show, Read, Typeable)
-
-
--- | convertion to/from SQL
-instance ToField Result where
+-- | convertions to/from SQL 
+instance ToField Classify where
   toField s = toField (show s)
 
-instance FromField Result where
+instance FromField Classify where
   fromField f = do s <- fromField f 
                    parse (reads s)
     where 
       parse ((s,""):_) = return s
-      parse _  = returnError ConversionFailed f "invalid Result field"
+      parse _  = returnError ConversionFailed f "invalid Classify field"
 
-instance ToField Qualifier where
+
+instance ToField Language where
   toField s = toField (show s)
 
-instance FromField Qualifier where
-  fromField f = do s <- fromField f
+instance FromField Language where
+  fromField f = do s <- fromField f 
                    parse (reads s)
-    where
+    where 
       parse ((s,""):_) = return s
-      parse _ = returnError ConversionFailed f "invalid Qualifier field"
-
+      parse _  = returnError ConversionFailed f "invalid Language field"
+  
 
 instance FromRow Submission where
-  fromRow = (Submission <$>
-             field <*> field <*> field <*> field <*>
-             field <*> field <*> field <*> field)
+  fromRow = do
+    id <- field
+    uid <- field
+    path <- field
+    time <- field
+    lang <- field
+    text <- field
+    classf <- field
+    msg <- field
+    let code = Code lang text
+    let result = Result classf msg
+    return (Submission id uid path time code result)
+
 
 
 -- | evaluate a new submission
-newSubmission :: UserID -> Problem -> Code -> AppHandler Submission
-newSubmission uid Problem{..} code = do 
-    now <- liftIO getCurrentTime
-    (result, msg) <- probTester code
-    let qualifier = if now `before` probLimit then OK else Overdue
-    insertSubmission uid probID now code qualifier result msg
+newSubmission :: Page -> UserID -> Code -> AppHandler Submission
+newSubmission page@Page{..} uid code = do 
+    result <- codeTester page code
+    -- now <- liftIO getCurrentTime
+    -- let qualifier = if now `before` probLimit then OK else Overdue
+    insertSubmission uid path code result 
 
-before :: Ord t => t -> Maybe t -> Bool
-before now limit = maybe True (now<=) limit
+-- before :: Ord t => t -> Maybe t -> Bool
+-- before now limit = maybe True (now<=) limit
           
 
 
 -- | insert a new submission into the DB
-insertSubmission :: UserID ->
-                    ProblemID ->
-                    UTCTime ->
-                    Code ->
-                    Qualifier -> 
-                    Result ->
-                    Text ->
-                    AppHandler Submission
-insertSubmission uid pid time code qualifier result msg = do
---  addr <- fmap (T.pack . B.toString) (getsRequest rqRemoteAddr)
+insertSubmission ::
+  UserID -> FilePath  -> Code -> Result -> AppHandler Submission
+insertSubmission uid path code@(Code lang text) result@(Result classf msg) = do
+  time <- liftIO getCurrentTime
   sid <- withSqlite $ \conn -> do
     S.execute conn 
       "INSERT INTO submissions \
-     \ (user_id, problem_id, time, code, qualifier, result, msg) \
-     \ VALUES(?, ?, ?, ?, ?, ?, ?)" (uid, pid, time, code, qualifier, result, msg)
+     \ (user_id, path, time, language, code, class, message) \
+     \ VALUES(?, ?, ?, ?, ?, ?, ?)" (uid, path, time, lang, text, classf, msg)
     fmap SubmitID (S.lastInsertRowId conn)
-  return (Submission sid uid pid time code qualifier result msg)
+  return (Submission sid uid path time code result)
   
 
 
 -- | get a single submission 
-getSubmission :: UserID -> ProblemID -> SubmitID -> AppHandler Submission
-getSubmission uid pid sid = do
+getSubmission :: UserID -> SubmitID -> AppHandler Submission
+getSubmission uid sid = do
   r <- query "SELECT * FROM submissions WHERE \
-             \ id = ? AND user_id = ? AND problem_id = ?" (sid,uid,pid)
+             \ id = ? AND user_id = ?" (sid,uid)
   case r of
     [s] -> return s
     _   -> notFound
 
 
--- | get all submissions for a user and problem
-getSubmissions :: UserID -> ProblemID -> AppHandler [Submission]  
-getSubmissions uid pid = 
+-- | get all user submissions for a  path
+getSubmissions :: UserID -> FilePath -> AppHandler [Submission]  
+getSubmissions uid path = 
   query "SELECT * FROM submissions \
-       \ WHERE user_id = ? AND problem_id = ? ORDER BY id" (uid, pid)
+       \ WHERE user_id = ? AND path = ? ORDER BY id" (uid, path)
 
-
+{-
 -- | count all submissions
-countSubmissions :: UserID -> ProblemID -> AppHandler Int
-countSubmissions uid pid = do
+countSubmissions :: UserID -> FilePath -> AppHandler Int
+countSubmissions uid path = do
   r <- listToMaybe <$>
        query "SELECT COUNT(*) \
-               \ FROM submissions WHERE user_id = ? AND problem_id = ?" (uid,pid)
+               \ FROM submissions WHERE user_id = ? AND path = ?" (uid,path)
   return $ maybe 0 fromOnly r
 
 -- | count submissions with a given status
@@ -178,15 +166,6 @@ getBestSubmission uid pid =
        \ FROM (SELECT *,status IN ('Accepted', 'Overdue') as accept \
              \ FROM submissions WHERE user_id = ? AND problem_id = ? \
              \ ORDER BY accept DESC, id DESC LIMIT 1)" (uid,pid) 
+-}
 
 
-
-
-getWorksheetSubmissions :: UserID ->  Worksheet Problem  
-                        -> AppHandler (Worksheet (Problem, [Submission]))
-getWorksheetSubmissions uid (Worksheet meta items)
-  = Worksheet meta <$> mapM collect items
-  where collect (Left blocks) = return (Left blocks)
-        collect (Right prob) = do subs <- getSubmissions uid (probID prob)
-                                  return (Right (prob,subs))
-        

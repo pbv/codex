@@ -1,17 +1,12 @@
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE RecordWildCards #-}
 {-
-  Data types and methods for problems
+  Data types and methods for problem and worksheet pages
 -}
-
 module Problem  where
 
 import           Control.Monad
--- import           Control.Monad.State
--- import           Control.Monad.Trans
 import           Control.Applicative 
-
--- import qualified Data.ByteString.UTF8 as B
 
 import           Data.Maybe
 import           Data.Monoid
@@ -19,66 +14,41 @@ import           Data.String
 import           Data.Text(Text)
 import qualified Data.Text             as T
 
----import qualified Data.HashSet as Set
--- import           Data.HashSet (HashSet)
-
-
 import           Data.Time.LocalTime
 import           Data.Time.Format
 import           Data.Time.Clock
 import           System.Locale (defaultTimeLocale)
 
--- import           Data.Aeson (encode)
--- import           Snap.Snaplet.SqliteSimple
-
 import           Language.Types
 import           Markdown
--- import           FromMeta
 import           Text.Pandoc hiding (Code)
 import           Text.Pandoc.Walk
--- import           Text.Pandoc.Builder hiding (Code)
--- import           Data.Monoid
--- import           Text.XmlHtml 
--- import           Text.Blaze.Renderer.XmlHtml
--- import           Application
 import           Types
 
--- import           Language
--- import           Tester
--- import           ParseMeta
--- import           LogIO
 import           System.FilePath
 import           System.Directory
 
 
 -- | a page: either a single problem or a worksheet
 data Page
-  = Worksheet { path :: FilePath
-              , meta :: Meta
-              , description :: [Block]
-              , contents :: [Page]
-              }
-  | Problem { path :: FilePath
-            , meta :: Meta
-            , description :: [Block]
-            , limit :: Maybe UTCTime
-            } deriving Show
+  = Page { root :: FilePath        -- root dir for this page
+         , path :: FilePath        -- relative path
+         , meta :: Meta
+         , description :: [Block]
+         , contents :: Contents  
+         } deriving Show
 
-
-
-isProblem, isWorksheet :: Page -> Bool
-isProblem Problem{..} = True
-isProblem _           = False
-
-isWorksheet Worksheet{..} = True
-isWorksheet _             = False
+data Contents
+  = Problem                -- terminal page
+  | Worksheet [FilePath]   -- relative paths to linked pages
+  deriving Show
+                         
 
 -- | fetch page title
 getTitle :: Page -> Text
-getTitle page
-  = fromMaybe (T.pack $ path page) 
-      (lookupFromMeta "title" (meta page) <|>
-       firstHeader (description page))
+getTitle Page{..}
+  = fromMaybe (T.pack path) 
+    (lookupFromMeta "title" meta <|>  firstHeader description )
 
   
 -- help function;
@@ -88,20 +58,17 @@ firstHeader blocks = listToMaybe [query inlineText h | Header _ _ h <- blocks]
 
 -- | fetch page tags
 getTags :: Page -> [Text]
-getTags page = fromMaybe [] (lookupFromMeta "tags" (meta page))
+getTags Page{..} = fromMaybe [] (lookupFromMeta "tags" meta)
 
 getLanguage :: Page -> Maybe Language
-getLanguage page = lookupFromMeta "language" (meta page)
-
+getLanguage Page{..} = lookupFromMeta "language" meta
 
 getCodeText :: Page -> Maybe Text
-getCodeText page = lookupFromMeta "code" (meta page)
+getCodeText Page{..} = lookupFromMeta "code" meta
 
 getCode :: Page -> Maybe Code
-getCode page = do
-  lang <- getLanguage page
-  txt <- getCodeText page
-  return (Code lang txt)
+getCode page = Code (getLanguage page) <$> getCodeText page
+
 
 
 -- parse time strings
@@ -114,36 +81,31 @@ parseUTCTime :: TimeZone -> String -> Maybe UTCTime
 parseUTCTime tz txt = localTimeToUTC tz <$> parseLocalTime txt
 
 
-readPage :: FilePath -> IO Page
-readPage filepath = do
-  tz <- getCurrentTimeZone
-  readPageAux tz maxDepth mempty filepath
-  where maxDepth = 4
-
-readPageAux :: TimeZone -> Int -> Meta -> FilePath -> IO Page
-readPageAux tz n m filepath = do
+-- | read a page from a markdown file
+readPage :: FilePath -> FilePath -> IO Page
+readPage root path = do
+  let filepath = root </> path
   Pandoc meta blocks <- readMarkdownFile filepath
-  let m' = meta <> m
   case lookupFromMeta "contents" meta of
     Just paths -> do
-      pages <- readPaths m' paths
-      return Worksheet { path = normalise filepath
-                       , meta = m'
-                       , description = blocks
-                       , contents =  pages
-                       }
+      -- interpret paths relative to the current page 
+      let dir = takeDirectory path
+      let paths' = map (normalise . (dir</>)) paths
+      return Page { root = root
+                  , path = path
+                  , meta = meta
+                  , description = blocks
+                  , contents = Worksheet paths'
+                  }
     Nothing -> do
-      let t = lookupFromMeta "limit" meta >>= parseUTCTime tz
-      return Problem { path = normalise filepath
-                     , meta = m'
-                     , description = blocks
-                     , limit = t
-                     }
-  where
-    readPaths m' paths | n>0 = do
-      let dir = takeDirectory filepath
-      mapM (\path -> readPageAux tz (n-1) m' (dir</>path)) paths
-    readPaths _ _  = return []
+        -- tz <- getCurrentTimeZone  
+        -- let time = lookupFromMeta "limit" meta >>= parseUTCTime tz
+        return Page { root = root
+                    , path = path
+                    , meta = meta
+                    , description = blocks
+                    , contents = Problem 
+                    }
 
 
 

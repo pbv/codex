@@ -31,32 +31,49 @@ import           Application
 import           Problem
 import           SafeExec
 
-
+import           Test.QuickCheck (Args(..), stdArgs)
   
 
 haskellTester :: Page -> Code -> AppHandler Result
-haskellTester page (Code Haskell code) = do
+haskellTester page (Code (Just Haskell) code) = do
     hsConf <- gets haskellConf
-    let propfile = getProperties page
+    let path = getQuickcheckPath page
+    let args = getQuickcheckArgs page
     liftIO $ do
-      c <- doesFileExist propfile
+      c <- doesFileExist path
       if c then
-        T.readFile propfile >>= haskellTesterIO hsConf code 
+        T.readFile path >>= haskellTesterIO hsConf args code 
         else return (miscError $ T.pack $
-                     "missing QuickCheck properties file: " ++ propfile)
-haskellTester _ _ = pass             
+                     "missing QuickCheck file: " ++ path)
+haskellTester _ _  = pass             
 
 
-type Properties = FilePath   -- NB: properties-only (not a module)
 
--- get the path to Quickcheck properties
-getProperties :: Page -> Properties
-getProperties Page{..} =
-  fromMaybe (replaceExtension path ".hs") (lookupFromMeta "quickcheck" meta)
-  
+-- get the filepath to Quickcheck properties
+-- NB: properties-only (not a module)
+getQuickcheckPath :: Page -> FilePath
+getQuickcheckPath Page{..} 
+  = root </>
+    fromMaybe (replaceExtension path ".hs") (lookupFromMeta "quickcheck" meta)
 
-haskellTesterIO :: HaskellConf -> Text -> Text -> IO Result
-haskellTesterIO HaskellConf{..} haskell props =
+
+getQuickcheckArgs :: Page -> Args
+getQuickcheckArgs Page{..} =
+  let success = fromMaybe (maxSuccess stdArgs) $
+                lookupFromMeta "maxSuccess" meta
+      size = fromMaybe (maxSize stdArgs) $
+             lookupFromMeta "maxSize" meta
+      discard = fromMaybe (maxDiscardRatio stdArgs) $
+                lookupFromMeta "maxDiscardRatio" meta
+  in stdArgs { maxSuccess = success,
+               maxSize = size,
+               maxDiscardRatio = discard
+             }
+
+     
+
+haskellTesterIO :: HaskellConf -> Args -> Text -> Text -> IO Result
+haskellTesterIO HaskellConf{..} args haskell props =
    withTempFile "Temp.hs" $ \(codefile, h) ->      
    let codemod = T.pack (takeBaseName codefile)
        dir = takeDirectory codefile
@@ -64,14 +81,14 @@ haskellTesterIO HaskellConf{..} haskell props =
      T.hPutStrLn h (moduleHeader codemod)
      T.hPutStrLn h haskell
      hClose h
-     withTextTemp "Main.hs" (testScript codemod props) $ \tstfile -> 
+     withTextTemp "Main.hs" (testScript args codemod props) $ \tstfile -> 
        haskellResult <$>
        safeExecWith haskellSfConf haskellExec ["-i"++dir, tstfile] "" 
 
 
 
-testScript :: Text -> Text -> Text
-testScript codemod props
+testScript :: Args -> Text -> Text -> Text
+testScript args codemod props
   = T.unlines
     [ "{-# LANGUAGE TemplateHaskell #-}",
       "module Main where",
@@ -83,7 +100,9 @@ testScript codemod props
       props,
       "",
       "return []",
-      "main = $quickCheckAll >>= \\c -> if c then exitSuccess else exitFailure"
+      "main = $forAllProperties (quickCheckWithResult " <>
+      T.pack (show args) <>
+      ") >>= \\c -> if c then exitSuccess else exitFailure"
     ]
     
 

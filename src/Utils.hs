@@ -136,8 +136,8 @@ getUserRoles = do
   opt <- with auth currentUser
   return (fmap userRoles opt)
 
-getProblemID :: AppHandler (Maybe ProblemID)
-getProblemID = fmap ProblemID <$> getParam "problem"
+-- getProblemID :: AppHandler (Maybe ProblemID)
+-- getProblemID = fmap ProblemID <$> getParam "problem"
 
 getSubmitID :: AppHandler (Maybe SubmitID)
 getSubmitID = do opt <- getParam "submit"

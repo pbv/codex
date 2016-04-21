@@ -59,13 +59,16 @@ import           Application
 import           Db
 import           Utils
 import           Types
+import           Tester
 import           Language
 import           Markdown
-import           Text.Pandoc.Builder
+import           Text.Pandoc.Builder hiding (Code)
 -- import qualified Interval as Interval
 -- import           Interval (Interval)
-import           Problem 
-import           Submission
+import           Problem  (Page(..), Contents(..))
+import qualified Problem
+import           Submission (Submission(..))
+import qualified Submission
 import           LdapAuth
 -- import           Report
 -- import           Printout
@@ -166,6 +169,87 @@ handleForm = render "register"
 
 
 -- | handle problem requests
+handlePage :: FilePath -> AppHandler ()
+handlePage root = do
+  uid <- require getUserID <|> unauthorized    -- ensure user is logged in
+  path <- B.toString <$> getsRequest rqPathInfo
+  page <- liftIO $ Problem.readPage root path
+  case Problem.contents page of
+    Problem ->
+      method GET (renderProblem page) <|>
+      (method POST $ do
+        txt <- require (getTextPost "editform.editor")
+        let lang = Problem.getLanguage page
+        sub <- Submission.newSubmission page uid (Code lang txt)
+        renderWithSplices "report" (pageSplices page >>
+                                    problemSplices page >>
+                                    submissionSplices sub >>
+                                    inputAceEditorSplices))
+        
+    Worksheet paths -> method GET $ do
+      pages <- liftIO $ mapM (Problem.readPage root) paths
+      renderWithSplices "worksheet" (pageSplices page >>
+                                     sheetSplices pages)
+
+
+renderProblem :: Page -> AppHandler ()
+renderProblem page =
+  renderWithSplices "problem" (pageSplices page >>
+                               problemSplices page >>
+                               inputAceEditorSplices)
+
+
+
+-- | splices related to a page
+pageSplices :: Page -> ISplices
+pageSplices page = do
+  "pagePath" ##
+    I.textSplice (T.pack $ Problem.path page)
+  "pageTitle" ##
+    I.textSplice (Problem.getTitle page)
+  "pageDescription" ##
+    return (blocksToHtml $ Problem.description page)
+
+
+problemSplices :: Page -> ISplices
+problemSplices page = do
+  "problemCodeText" ##
+    maybe (return []) I.textSplice (Problem.getCodeText page)
+  "problemLanguage" ##
+    maybe (return [])
+    (I.textSplice . T.pack . map toLower . show)
+    (Problem.getLanguage page)
+
+
+sheetSplices :: [Page] -> ISplices
+sheetSplices pages = do
+  "pageList" ## I.mapSplices (I.runChildrenWith . pageSplices) pages
+
+
+-- | splices relating to a single submission
+submissionSplices :: Submission -> ISplices
+submissionSplices Submission{..} = do 
+  "submitID"   ##
+    I.textSplice (toText id)
+  "submitPath"  ##
+    I.textSplice (T.pack path)
+  "submitTime" ##
+    timeSplice time 
+  "submitCodeText" ##
+    I.textSplice (codeText code)
+  "submitClassify" ##
+    I.textSplice (T.pack $ show $ resultClassify result)
+  "submitMessage" ##
+    I.textSplice (resultMessage result)
+
+{-
+"ifAccepted" ## conditionalSplice (submitResult == Accepted)
+  "ifOverdue" ## conditionalSplice (submitQualifier == Overdue)
+  "ifRejected" ## conditionalSplice (submitStatus /= Accepted &&
+                                     submitStatus /= Overdue)
+-}
+
+{-  
 handleDocument :: FilePath -> AppHandler ()
 handleDocument root = do
   uid <- require getUserID <|> unauthorized    -- ensure user is logged in
@@ -222,7 +306,7 @@ handleSubmission prob@Problem{..} uid sid = method GET $ do
   renderWithSplices "report" (problemSplices prob >>
                               submissionSplices prob sub >>
                               inputAceEditorSplices)
-
+-}
 
 
 {-
@@ -242,6 +326,8 @@ handleProblem = method GET $ do
          timerSplices pid now (probDeadline prob)
          warningsSplices mesgs
 -}
+
+
 
 {-
    
@@ -284,28 +370,14 @@ getQueryTags = do
   return (map (T.pack . B.toString) $ Map.findWithDefault [] "tag" params)
 -}
 
-
+{-
 warningsSplices :: [Text] -> ISplices
 warningsSplices mesgs = do
   "warnings" ## I.mapSplices (I.runChildrenWith . mesgSplice) mesgs
   where mesgSplice msg = "message" ## I.textSplice msg
+-}
 
-
-
--- | splices related to a single problem       
-problemSplices :: Problem -> ISplices
-problemSplices prob = do
-  "problemPath" ##
-    I.textSplice (Problem.path prob)
-  "problemCode" ##
-    maybe (return []) (I.textSplice $ fromCode $ Problem.code prob)
-  "problemTitle" ##
-    maybe (return []) (I.textSplice $ Problem.title prob)
-  "problemDescription" ##
-    return (blocksToHtml $ Problem.description prob)
-
-
-
+{-
 -- | splices related to worksheet items
 wsItemSplices :: UTCTime -> Either Blocks (Problem,[Submission]) -> ISplices
 wsItemSplices now (Left blocks) = do
@@ -324,9 +396,9 @@ wsItemSplices now (Right (prob@Problem{..},list))
       "ifAccepted" ## conditionalSplice (acc > 0)
       problemSplices prob
       timerSplices probID now probLimit
+-}
 
-
-
+{-
 -- | splices related to deadlines
 timerSplices ::  ProblemID -> UTCTime -> Maybe UTCTime -> ISplices
 timerSplices pid now limit = do
@@ -342,7 +414,7 @@ timerSplices pid now limit = do
                             Nothing -> return []
                             Just t -> return $ jsTimer tid $ diffUTCTime t now
   where tid = B.toString (fromPID pid) ++ "-js-timer"
-
+-}
   
 -- | splice an UTC time as local time 
 timeSplice :: UTCTime -> I.Splice AppHandler
@@ -365,7 +437,7 @@ formatNominalDiffTime secs
         d = (h `div` 24)  
 
 
-
+{-
 -- | splices relating to a list of submissions
 submissionListSplices :: Problem -> [Submission] -> ISplices
 submissionListSplices prob list = do
@@ -389,7 +461,6 @@ submissionSplices Problem{..} Submission{..} = do
   "submitMsg" ## I.textSplice submitMsg
   "ifAccepted" ## conditionalSplice (submitResult == Accepted)
   "ifOverdue" ## conditionalSplice (submitQualifier == Overdue)
-  {-
   "ifRejected" ## conditionalSplice (submitStatus /= Accepted &&
                                      submitStatus /= Overdue)
 -}
@@ -513,9 +584,8 @@ routes = [ ("/login",                 handleLogin `catch` internalError)
 routes :: [(ByteString, AppHandler ())]
 routes = [ ("/login",    handleLogin `catch` internalError)
          , ("/logout",   handleLogout `catch` internalError)
-         , ("",   serveDirectory staticPath <|>
-                  (handleDocument publicPath `catch` internalError) <|>
-                   notFound)
+         , ("/pub", handlePage publicPath  `catch` internalError)
+         , ("",   serveDirectory staticPath <|> notFound) 
          ]
 
 
@@ -614,8 +684,8 @@ getProblem pid = do
 -}
 
 -- get a worksheet by path
-getWorksheet :: FilePath -> AppHandler (Worksheet Problem)
-getWorksheet  path = liftIO (readWorksheet path)
+-- getWorksheet :: FilePath -> AppHandler (Worksheet Problem)
+-- getWorksheet  path = liftIO (readWorksheet path)
 
 publicPath :: FilePath
 publicPath = "public"
