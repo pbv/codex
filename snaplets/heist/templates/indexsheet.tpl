@@ -5,9 +5,11 @@
   <div class="description">
     <pageDescription/>
   </div>
-  <dl>
-    <pageList>
-      <dt><a href="${pagePath}"><pageTitle/></a></dt>
-    </pageList>
-  </dl>
+  <div class="index">
+    <dl>
+      <indexList>
+	<dt><a href="${pagePath}"><pageTitle/></a></dt>
+      </indexList>
+    </dl>
+</div>
 </apply>

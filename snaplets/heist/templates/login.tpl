@@ -1,4 +1,4 @@
-<bind tag="application">Quasimodo</bind>
+<bind tag="application">Codex</bind>
 <apply template="base">
 <h1>Welcome!</h1>
 

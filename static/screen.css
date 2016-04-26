@@ -51,12 +51,10 @@ img {
     font-size: 90%; 
 }
 
-.submissionli {
-    /* display: inline;                
-    padding-right: 1em;
-    padding-bottom: 0.5ex;  
-    line-height: 150%; */
-    padding-bottom: 0.5ex;  
+.submissions li {
+    display: inline;
+    list-style-type: square;
+    padding-right: 2em;
 }
 
 

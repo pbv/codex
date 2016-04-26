@@ -1,4 +1,4 @@
-<bind tag="application">Quasimodo</bind>
+<bind tag="application">Codex</bind>
 <html>
  <head>
     <meta charset="UTF-8">
@@ -19,7 +19,6 @@
        (<em><loggedInName/></em
        ><ifAdmin>&nbsp;<strong>Administrator</strong></ifAdmin>).
      <div id="actions">
-       <ifAdmin><a class="button" href="/admin/submissions">Download submissions</a></ifAdmin>
        <a class="button" href="/logout">Logout session</a>
      </div>
      </ifLoggedIn>
