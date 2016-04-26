@@ -5,7 +5,12 @@
    Evaluating, storing and fetching and submissions in database
 -}
 
-module Submission where
+module Submission (
+  Submission(..),
+  evaluate,
+  getSingle,
+  getAll  
+  ) where
 
 import           System.FilePath
 import           System.Directory
@@ -36,7 +41,7 @@ import           Application
 import           Utils
 import           Types
 import           Language
-import           Problem
+import           Page
 import           Tester
 
 
@@ -65,15 +70,11 @@ instance FromField Classify where
 
 
 instance ToField Language where
-  toField s = toField (show s)
+  toField (Language l) = toField l
 
 instance FromField Language where
-  fromField f = do s <- fromField f 
-                   parse (reads s)
-    where 
-      parse ((s,""):_) = return s
-      parse _  = returnError ConversionFailed f "invalid Language field"
-  
+  fromField f = Language <$> fromField f
+
 
 instance FromRow Submission where
   fromRow = do
@@ -91,23 +92,17 @@ instance FromRow Submission where
 
 
 
--- | evaluate a new submission
-newSubmission :: Page -> UserID -> Code -> AppHandler Submission
-newSubmission page@Page{..} uid code = do 
+-- | evaluate and store a new submission
+evaluate :: UserID -> Page ->  Code -> AppHandler Submission
+evaluate uid page@Page{..} code = do 
     result <- codeTester page code
     -- now <- liftIO getCurrentTime
     -- let qualifier = if now `before` probLimit then OK else Overdue
-    insertSubmission uid path code result 
+    insertDb uid path code result 
 
--- before :: Ord t => t -> Maybe t -> Bool
--- before now limit = maybe True (now<=) limit
-          
-
-
--- | insert a new submission into the DB
-insertSubmission ::
-  UserID -> FilePath  -> Code -> Result -> AppHandler Submission
-insertSubmission uid path code@(Code lang text) result@(Result classf msg) = do
+-- insert into the DB
+insertDb :: UserID -> FilePath  -> Code -> Result -> AppHandler Submission
+insertDb uid path code@(Code lang text) result@(Result classf msg) = do
   time <- liftIO getCurrentTime
   sid <- withSqlite $ \conn -> do
     S.execute conn 
@@ -120,8 +115,8 @@ insertSubmission uid path code@(Code lang text) result@(Result classf msg) = do
 
 
 -- | get a single submission 
-getSubmission :: UserID -> SubmitID -> AppHandler Submission
-getSubmission uid sid = do
+getSingle :: UserID -> SubmitID -> AppHandler Submission
+getSingle uid sid = do
   r <- query "SELECT * FROM submissions WHERE \
              \ id = ? AND user_id = ?" (sid,uid)
   case r of
@@ -130,8 +125,8 @@ getSubmission uid sid = do
 
 
 -- | get all user submissions for a  path
-getSubmissions :: UserID -> FilePath -> AppHandler [Submission]  
-getSubmissions uid path = 
+getAll :: UserID -> FilePath -> AppHandler [Submission]  
+getAll uid path = 
   query "SELECT * FROM submissions \
        \ WHERE user_id = ? AND path = ? ORDER BY id" (uid, path)
 

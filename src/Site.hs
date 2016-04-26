@@ -65,15 +65,15 @@ import           Markdown
 import           Text.Pandoc.Builder hiding (Code)
 -- import qualified Interval as Interval
 -- import           Interval (Interval)
-import           Problem  (Page(..), Contents(..))
-import qualified Problem
+import           Page  (Page(..), Contents(..))
+import qualified Page
 import           Submission (Submission(..))
 import qualified Submission
 import           LdapAuth
 -- import           Report
 -- import           Printout
 
-import           Paths_pythondo(version)
+import           Paths_codex(version)
 import           Data.Version (showVersion)  
 
 import           AceEditor
@@ -168,35 +168,54 @@ handleForm = render "register"
 
 
 
--- | handle problem requests
-handlePage :: FilePath -> AppHandler ()
-handlePage root = do
+-- handle page requests
+handlePage :: AppHandler ()
+handlePage = do
   uid <- require getUserID <|> unauthorized    -- ensure user is logged in
   path <- B.toString <$> getsRequest rqPathInfo
-  page <- liftIO $ Problem.readPage root path
-  case Problem.contents page of
-    Problem ->
-      method GET (renderProblem page) <|>
-      (method POST $ do
-        txt <- require (getTextPost "editform.editor")
-        let lang = Problem.getLanguage page
-        sub <- Submission.newSubmission page uid (Code lang txt)
-        renderWithSplices "report" (pageSplices page >>
-                                    problemSplices page >>
-                                    submissionSplices sub >>
-                                    inputAceEditorSplices))
-        
-    Worksheet paths -> method GET $ do
-      pages <- liftIO $ mapM (Problem.readPage root) paths
-      renderWithSplices "worksheet" (pageSplices page >>
-                                     sheetSplices pages)
+  page <- liftIO $ Page.readPage pageFileRoot path
+  case Page.contents page of
+    Exercise ->
+      method GET (do subs <- Submission.getAll uid path
+                     renderExercise page subs)
+      <|> method POST (handlePost uid page)
+
+    Index paths -> method GET $ do
+      linkedpages <- liftIO $ mapM (Page.readPage pageFileRoot) paths
+      renderWithSplices "indexsheet" (pageSplices page >>
+                                      indexSplices linkedpages)
+
+--  render an exercise page
+renderExercise :: Page -> [Submission] -> AppHandler ()
+renderExercise page subs =
+  renderWithSplices "exercise" (pageSplices page >>
+                                exerciseSplices page >>
+                                submissionListSplices subs >>
+                                inputAceEditorSplices)
 
 
-renderProblem :: Page -> AppHandler ()
-renderProblem page =
-  renderWithSplices "problem" (pageSplices page >>
-                               problemSplices page >>
-                               inputAceEditorSplices)
+-- handle submission of an exercise
+handlePost :: UserID -> Page -> AppHandler ()
+handlePost uid page = do
+  text <- require (getTextPost "editform.editor")
+  let lang = Page.getLanguage page
+  sub <- Submission.evaluate uid page (Code lang text)
+  renderWithSplices "report" (pageSplices page >>
+                              exerciseSplices page >>
+                              submissionSplices sub >>
+                              inputAceEditorSplices)
+
+
+-- handle get request for a previous submission
+handleSubmission = method GET $ do 
+  uid <- require getUserID <|> unauthorized
+  sid <- require getSubmitID
+  sub <- Submission.getSingle uid sid
+  page <- liftIO $ Page.readPage pageFileRoot (Submission.path sub)
+  renderWithSplices "report" (pageSplices page >>
+                              exerciseSplices page >>
+                              submissionSplices sub >>
+                              inputAceEditorSplices)
 
 
 
@@ -204,26 +223,23 @@ renderProblem page =
 pageSplices :: Page -> ISplices
 pageSplices page = do
   "pagePath" ##
-    I.textSplice (T.pack $ Problem.path page)
+    I.textSplice (T.pack $ B.toString pageContextPath </> Page.path page)
   "pageTitle" ##
-    I.textSplice (Problem.getTitle page)
+    I.textSplice (Page.getTitle page)
   "pageDescription" ##
-    return (blocksToHtml $ Problem.description page)
+    return (blocksToHtml $ Page.description page)
+
+exerciseSplices :: Page -> ISplices
+exerciseSplices page = do
+  "pageLanguage" ##
+    I.textSplice (fromLanguage (Page.getLanguage page))
+  "pageCodeText" ##
+    maybe (return []) I.textSplice (Page.getCodeText page)
 
 
-problemSplices :: Page -> ISplices
-problemSplices page = do
-  "problemCodeText" ##
-    maybe (return []) I.textSplice (Problem.getCodeText page)
-  "problemLanguage" ##
-    maybe (return [])
-    (I.textSplice . T.pack . map toLower . show)
-    (Problem.getLanguage page)
-
-
-sheetSplices :: [Page] -> ISplices
-sheetSplices pages = do
-  "pageList" ## I.mapSplices (I.runChildrenWith . pageSplices) pages
+indexSplices :: [Page] -> ISplices
+indexSplices pages = do
+  "indexList" ## I.mapSplices (I.runChildrenWith . pageSplices) pages
 
 
 -- | splices relating to a single submission
@@ -241,9 +257,22 @@ submissionSplices Submission{..} = do
     I.textSplice (T.pack $ show $ resultClassify result)
   "submitMessage" ##
     I.textSplice (resultMessage result)
+  "ifAccepted" ##
+    conditionalSplice (resultClassify result == Accepted)
+
+
+
+-- | splices relating to a list of submissions
+submissionListSplices :: [Submission] -> ISplices
+submissionListSplices list = do
+  "submissionsCount" ## I.textSplice (T.pack $ show count)
+  "ifSubmissions" ## conditionalSplice (count > 0) 
+  "submissionList" ## I.mapSplices (I.runChildrenWith . submissionSplices) list
+  where count = length list
+
+
 
 {-
-"ifAccepted" ## conditionalSplice (submitResult == Accepted)
   "ifOverdue" ## conditionalSplice (submitQualifier == Overdue)
   "ifRejected" ## conditionalSplice (submitStatus /= Accepted &&
                                      submitStatus /= Overdue)
@@ -584,9 +613,23 @@ routes = [ ("/login",                 handleLogin `catch` internalError)
 routes :: [(ByteString, AppHandler ())]
 routes = [ ("/login",    handleLogin `catch` internalError)
          , ("/logout",   handleLogout `catch` internalError)
-         , ("/pub", handlePage publicPath  `catch` internalError)
-         , ("",   serveDirectory staticPath <|> notFound) 
+         , ("/page",     handlePage  `catch` internalError)
+         , ("/submit/:sid", handleSubmission `catch` internalError)
+         , ("",   serveDirectory staticFilePath <|> notFound) 
          ]
+
+
+pageFileRoot :: FilePath
+pageFileRoot = "public"
+
+staticFilePath :: FilePath
+staticFilePath = "static"
+
+pageContextPath :: ByteString
+pageContextPath = "/page"
+
+indexPage :: ByteString
+indexPage = "index.md"
 
 
 -- | current logged in full user name  
@@ -615,7 +658,7 @@ versionSplice = I.textSplice (T.pack (showVersion version))
 -- | The application initializer.
 app :: SnapletInit App App
 app = 
-  makeSnaplet "pythondo" "Web system for learning Python programming." Nothing $ do
+  makeSnaplet "codex" "Web server for programming exercises." Nothing $ do
     conf <- getSnapletUserConfig
     e <- liftIO $ initEkg conf
     h <- nestSnaplet "" heist $ heistInit "templates"
@@ -654,9 +697,6 @@ app =
                  }
 
 
--- emptyConfig :: HeistConfig m
--- emptyConfig = HeistConfig noSplices noSplices noSplices noSplices []
-
 
 -- initialize EKG server (if configured)
 initEkg :: Config -> IO (Maybe Server)
@@ -668,41 +708,7 @@ initEkg conf = do enabled <- Configurator.require conf "ekg.enabled"
                     else return Nothing
   
 
-{-
--- | get the current problem set
--- TODO: avoid re-reading the same problems every time
--- with some caching mechanism
-getProblemSet :: AppHandler (ProblemSet, [Text])
-getProblemSet = liftIO (readProblemSet problemSetPath)
-
-getProblem :: PID -> AppHandler (Problem, [Text])
-getProblem pid = do
-  (probset,mesgs) <- getProblemSet
-  case lookupProblemSet pid probset of
-    Nothing -> badRequest
-    Just p -> return (p,mesgs)
--}
-
--- get a worksheet by path
--- getWorksheet :: FilePath -> AppHandler (Worksheet Problem)
--- getWorksheet  path = liftIO (readWorksheet path)
-
-publicPath :: FilePath
-publicPath = "public"
-
-staticPath :: FilePath
-staticPath = "static"
-
-isMarkdown :: FilePath -> Bool
-isMarkdown path = map toLower (takeExtension path) == ".md"
-
-indexPage :: ByteString
-indexPage = "/index.md"
 
 
-{-
-lookupProblemSet :: PID -> ProblemSet -> Maybe Problem
-lookupProblemSet pid ProblemSet{..} =
-  listToMaybe [p | p <- probsetProbs, probID p == pid] 
--}    
+
 

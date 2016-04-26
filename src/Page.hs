@@ -1,9 +1,9 @@
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE RecordWildCards #-}
 {-
-  Data types and methods for problem and worksheet pages
+  Data types and methods for exercise pages
 -}
-module Problem  where
+module Page where
 
 import           Control.Monad
 import           Control.Applicative 
@@ -15,15 +15,14 @@ import           Data.Text(Text)
 import qualified Data.Text             as T
 
 import           Data.Time.LocalTime
-import           Data.Time.Format
-import           Data.Time.Clock
-import           System.Locale (defaultTimeLocale)
 
 import           Language.Types
 import           Markdown
+import           Types
+import           Interval
 import           Text.Pandoc hiding (Code)
 import           Text.Pandoc.Walk
-import           Types
+
 
 import           System.FilePath
 import           System.Directory
@@ -31,24 +30,25 @@ import           System.Directory
 
 -- | a page: either a single problem or a worksheet
 data Page
-  = Page { root :: FilePath        -- root dir for this page
+  = Page { root :: FilePath        -- file root dir for this page
          , path :: FilePath        -- relative path
          , meta :: Meta
          , description :: [Block]
-         , contents :: Contents  
+         , contents :: Contents
          } deriving Show
 
 data Contents
-  = Problem                -- terminal page
-  | Worksheet [FilePath]   -- relative paths to linked pages
+  = Exercise Interval  -- exercise page
+  | Index [FilePath]   -- worksheet of linked pages
   deriving Show
+
                          
 
 -- | fetch page title
 getTitle :: Page -> Text
 getTitle Page{..}
   = fromMaybe (T.pack path) 
-    (lookupFromMeta "title" meta <|>  firstHeader description )
+    (lookupFromMeta "title" meta <|>  firstHeader description)
 
   
 -- help function;
@@ -60,8 +60,8 @@ firstHeader blocks = listToMaybe [query inlineText h | Header _ _ h <- blocks]
 getTags :: Page -> [Text]
 getTags Page{..} = fromMaybe [] (lookupFromMeta "tags" meta)
 
-getLanguage :: Page -> Maybe Language
-getLanguage Page{..} = lookupFromMeta "language" meta
+getLanguage :: Page -> Language
+getLanguage Page{..} = fromMaybe (Language "text") (lookupFromMeta "language" meta)
 
 getCodeText :: Page -> Maybe Text
 getCodeText Page{..} = lookupFromMeta "code" meta
@@ -71,44 +71,33 @@ getCode page = Code (getLanguage page) <$> getCodeText page
 
 
 
--- parse time strings
-parseLocalTime :: String -> Maybe LocalTime
-parseLocalTime txt 
-  = msum [parseTime defaultTimeLocale fmt txt | fmt<-timeFormats] 
-  where timeFormats = ["%H:%M %d/%m/%Y", "%d/%m/%Y", "%c"]
-
-parseUTCTime :: TimeZone -> String -> Maybe UTCTime
-parseUTCTime tz txt = localTimeToUTC tz <$> parseLocalTime txt
-
-
 -- | read a page from a markdown file
 readPage :: FilePath -> FilePath -> IO Page
 readPage root path = do
   let filepath = root </> path
   Pandoc meta blocks <- readMarkdownFile filepath
-  case lookupFromMeta "contents" meta of
+  -- worksheet or exercise?
+  case lookupFromMeta "index" meta of
     Just paths -> do
-      -- interpret paths relative to the current page 
+      -- interpret path relative to current page directory
       let dir = takeDirectory path
-      let paths' = map (normalise . (dir</>)) paths
+      let paths' = map (normalise.(dir</>)) paths
       return Page { root = root
                   , path = path
                   , meta = meta
                   , description = blocks
-                  , contents = Worksheet paths'
+                  , contents = Index paths'
                   }
     Nothing -> do
-        -- tz <- getCurrentTimeZone  
-        -- let time = lookupFromMeta "limit" meta >>= parseUTCTime tz
-        return Page { root = root
-                    , path = path
-                    , meta = meta
-                    , description = blocks
-                    , contents = Problem 
-                    }
-
-
-
+      t <- getZonedTime
+      let valid = fromMaybe Always (lookupFromMeta "valid" meta >>=
+                                    readInterval t)
+      return Page { root = root
+                  , path = path
+                  , meta = meta
+                  , description = blocks
+                  , contents = Exercise valid
+                  }
 
 
 

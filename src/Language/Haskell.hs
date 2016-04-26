@@ -28,14 +28,22 @@ import           Language.Types
 import           Markdown
 import           Tester
 import           Application
-import           Problem
+import           Page
 import           SafeExec
 
-import           Test.QuickCheck (Args(..), stdArgs)
-  
+
+-- QuickCheck arguments
+data QuickCheckArgs =
+  QuickCheckArgs { maxSuccess :: Int
+                 , maxDiscardRatio :: Int
+                 , maxSize :: Int
+                 , optSeed :: Maybe Int
+                 } deriving Show
+
+
 
 haskellTester :: Page -> Code -> AppHandler Result
-haskellTester page (Code (Just Haskell) code) = do
+haskellTester page (Code (Language "haskell") code) = do
     hsConf <- gets haskellConf
     let path = getQuickcheckPath page
     let args = getQuickcheckArgs page
@@ -53,33 +61,35 @@ haskellTester _ _  = pass
 -- NB: properties-only (not a module)
 getQuickcheckPath :: Page -> FilePath
 getQuickcheckPath Page{..} 
-  = root </>
-    fromMaybe (replaceExtension path ".hs") (lookupFromMeta "quickcheck" meta)
+  = root </> takeDirectory path </>
+    fromMaybe (replaceExtension path ".hs")
+    (lookupFromMeta "quickcheck" meta)
 
 
-getQuickcheckArgs :: Page -> Args
+
+getQuickcheckArgs :: Page -> QuickCheckArgs
 getQuickcheckArgs Page{..} =
-  let success = fromMaybe (maxSuccess stdArgs) $
-                lookupFromMeta "maxSuccess" meta
-      size = fromMaybe (maxSize stdArgs) $
-             lookupFromMeta "maxSize" meta
-      discard = fromMaybe (maxDiscardRatio stdArgs) $
-                lookupFromMeta "maxDiscardRatio" meta
-  in stdArgs { maxSuccess = success,
-               maxSize = size,
-               maxDiscardRatio = discard
-             }
+  let success = fromMaybe 100 (lookupFromMeta "maxSuccess" meta)
+      size = fromMaybe 100 (lookupFromMeta "maxSize" meta)
+      discard = fromMaybe 10 (lookupFromMeta "maxDiscardRatio" meta)
+      optSeed = lookupFromMeta "randomSeed" meta
+  in QuickCheckArgs { maxSuccess = success,
+                      maxSize = size,
+                      maxDiscardRatio = discard,
+                      optSeed = optSeed
+                    }
+
 
      
 
-haskellTesterIO :: HaskellConf -> Args -> Text -> Text -> IO Result
-haskellTesterIO HaskellConf{..} args haskell props =
+haskellTesterIO :: HaskellConf -> QuickCheckArgs -> Text -> Text -> IO Result
+haskellTesterIO HaskellConf{..} args code props =
    withTempFile "Temp.hs" $ \(codefile, h) ->      
    let codemod = T.pack (takeBaseName codefile)
        dir = takeDirectory codefile
    in do
      T.hPutStrLn h (moduleHeader codemod)
-     T.hPutStrLn h haskell
+     T.hPutStrLn h code
      hClose h
      withTextTemp "Main.hs" (testScript args codemod props) $ \tstfile -> 
        haskellResult <$>
@@ -87,7 +97,7 @@ haskellTesterIO HaskellConf{..} args haskell props =
 
 
 
-testScript :: Args -> Text -> Text -> Text
+testScript :: QuickCheckArgs -> Text -> Text -> Text
 testScript args codemod props
   = T.unlines
     [ "{-# LANGUAGE TemplateHaskell #-}",
@@ -101,10 +111,12 @@ testScript args codemod props
       "",
       "return []",
       "main = $forAllProperties (quickCheckWithResult " <>
-      T.pack (show args) <>
-      ") >>= \\c -> if c then exitSuccess else exitFailure"
+      "stdArgs { maxSuccess = " <> T.pack (show $ maxSuccess args) <>
+      ", maxSize = " <> T.pack (show $ maxSize args) <>
+      ", maxDiscardRatio = " <> T.pack (show $ maxDiscardRatio args) <>
+      "}) >>= \\c -> if c then exitSuccess else exitFailure"
     ]
-    
+
 
 moduleHeader :: Text -> Text
 moduleHeader name = "module " <> name <> " where"

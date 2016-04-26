@@ -7,7 +7,7 @@ module Language(
   codeTester
   ) where
 
-import Problem
+import Page
 import Application
 import Control.Applicative
 import Tester

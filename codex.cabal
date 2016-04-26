@@ -1,7 +1,7 @@
-Name:                pythondo
+Name:                codex
 Version:             0.8
-Synopsis:            A simple web sandbox for the Python programming language
-Description:         A simple web sandbox for the Python programming language
+Synopsis:            A web server for programming exercises
+Description:         A web server for programming exercises
 License:             AllRightsReserved
 Author:              Pedro Vasconcelos
 Maintainer:          pbv@dcc.fc.up.pt
@@ -18,7 +18,7 @@ Flag old-base
   default: False
   manual: False
 
-Executable pythondo
+Executable codex
   hs-source-dirs: src
   main-is: Main.hs
 
@@ -55,10 +55,7 @@ Executable pythondo
     configurator              >= 0.2,
     base                      >= 4.4,
     lens                      >= 3.7.6,
-    process-extras            >= 0.3.3,
-    QuickCheck                >= 2.8
-
-
+    process-extras            >= 0.3.3
 
   if flag(development)
     build-depends:

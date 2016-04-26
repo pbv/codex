@@ -1,115 +1,157 @@
-{-
-  Time intervals
--}
 
-module Interval
-    (Interval,
-     interval,
-     -- empty,
-     forever,
-     within,
-     after,
-     before,
-     elem, notElem,
-     limited,
-     start,
-     end,
-     -- union, intersect            
-    ) where
 
-import Prelude hiding (elem, notElem)
+module Interval where
 
--- intervals are pairs of optional lower and upper bounds
-data Interval t = Interval { start :: !(Maybe t), end :: !(Maybe t) }
---                | Empty
-                  deriving (Eq, Ord, Show, Read)
+import           Data.Char
+import           Data.Maybe
+import           Data.Time
+import           Data.Time.LocalTime
+import           System.Locale
+import           Control.Applicative
 
-instance Functor Interval where
-    fmap f (Interval l u) = Interval (fmap f l) (fmap f u)
-    -- fmap f Empty          = Empty
+import           Text.ParserCombinators.ReadP
+
+
+-- abstract syntax
+
+-- | a time interval
+data Interval = Always
+              | Until !TimeExpr
+              | After !TimeExpr
+              | Between !TimeExpr !TimeExpr
+              deriving (Eq, Show)
+
+-- | a time expression
+data TimeExpr = Absolute !UTCTime
+              | Event !String
+              | Add !NominalDiffTime !TimeExpr
+          deriving (Eq, Show)
+
+
+
+-- parse intervals
+
+readInterval :: ZonedTime -> String -> Maybe Interval
+readInterval t txt
+  = let tz = zonedTimeZone t
+        loc= zonedTimeToLocalTime t
+        parseI = do i<-parseInterval tz loc; skipSpaces; return i
+    in
+     case readP_to_S parseI txt of
+       ((i, ""):_) -> Just i
+       _ -> Nothing
+
+parseInterval :: TimeZone -> LocalTime -> ReadP Interval
+parseInterval tz now =
+  do string "always"
+     return Always
+  <|>
+  do string "until"
+     skipSpaces
+     Until <$> parseTimeExpr tz now
+  <|>
+  do string "after"
+     skipSpaces
+     After <$> parseTimeExpr tz now
+  <|>
+  do string "between"
+     skipSpaces
+     start <- parseTimeExpr tz now
+     skipSpaces
+     string "and"
+     skipSpaces
+     end <- parseTimeExpr tz now
+     return (Between start end)
+  
+     
+-- parse time expressions
+parseTimeExpr :: TimeZone  -> LocalTime -> ReadP TimeExpr
+parseTimeExpr tz now =
+  do expr <- base
+     skipSpaces
+     (do diff <- parseDiff; return (Add diff expr)
+      <++ return expr)
+  where base = Absolute <$> parseUTCTime tz now
+               <|>
+               Event <$> parseName
+
+-- parse time strings
+parseLocalTime :: LocalTime -> ReadP LocalTime
+parseLocalTime now  =
+  readS_to_P (readsTime defaultTimeLocale "%H:%M %d/%m/%0Y")
+  <++
+  readS_to_P (readsTime defaultTimeLocale "%d/%m/%0Y")
+  <++
+  (readS_to_P (readsTime defaultTimeLocale "%H:%M") >>= \t ->
+    return t { localDay = localDay now })
+
+parseUTCTime :: TimeZone  -> LocalTime -> ReadP UTCTime
+parseUTCTime tz  now  = localTimeToUTC tz <$> parseLocalTime now
+
+parseName :: ReadP String
+parseName = do
+  x <- satisfy isAlpha
+  xs<- munch isAlphaNum
+  return (x:xs)
+  
+
+parseDiff :: ReadP NominalDiffTime
+parseDiff 
+  = do s <- parseSign
+       skipSpaces
+       ds <- many1' diff
+       return (s * sum ds)
+  where diff =  do
+          x <- readS_to_P reads :: ReadP Int
+          skipSpaces
+          u <- parseUnit
+          skipSpaces
+          return (fromIntegral x * u)
+
+parseSign = do char '+'; return 1
+            <|> do char '-'; return (-1)
+
+parseUnit :: ReadP NominalDiffTime
+parseUnit = do char 'd'; return (24*3600)   -- 1 day
+            <|> do char 'h'; return 3600    -- 1 hour
+            <|> do char 'm'; return 60      -- 1 minute
+            <|> do char 's'; return 1       -- 1 second
+             
+
+
+-- non-backtracking versions of the parsing combinators
+many', many1' :: ReadP a -> ReadP [a]
+many1' p = do x <- p; 
+              (do xs <-many' p; return (x:xs)) <++ return [x]
+              
+many' p = many1' p <++ return []
+
+
+
+
+
+-- * semantics
+-- | a time environment
+type TimeEnv = [(String, UTCTime)]
+
+-- | time value 
+timeVal :: TimeEnv -> TimeExpr -> Maybe UTCTime
+timeVal env (Absolute t) = return t
+timeVal env (Event n)    = lookup n env
+timeVal env (Add d e)    = addUTCTime d <$> timeVal env e
+
+
+-- | inside a time interval
+inside :: TimeEnv -> Interval -> UTCTime -> Bool
+inside env Always    t = True
+inside env (Until e) t
+  = maybe False (t <) (timeVal env e)
+inside env (After e) t
+  = maybe False (<= t)  (timeVal env e)
+inside env (Between e1 e2) t
+  = fromMaybe False $ do t1 <- timeVal env e1
+                         t2 <- timeVal env e2
+                         return (t1 <= t && t < t2)
     
 
--- interval constructors
-interval :: Ord t => Maybe t -> Maybe t -> Interval t
-interval (Just t1) (Just t2) = within t1 t2
-interval l r                 = Interval l r 
 
-
-within :: Ord t => t -> t -> Interval t
-within t1 t2 | t1<=t2   = Interval (Just t1) (Just t2)
-             | otherwise =Interval (Just t2) (Just t1)
-
--- empty :: Interval t
--- empty = Empty
-
-forever :: Interval t
-forever = Interval Nothing Nothing
-
-limited :: Interval t -> Bool
--- limited Empty                 = False
-limited (Interval _ Nothing)  = False
-limited (Interval _ (Just _)) = True
-
-{-
--- end point projections 
-start, end :: Interval t -> Maybe t
--- start Empty          = Nothing
-start (Interval l _) = l
-
--- end Empty          = Nothing
-end (Interval _ u) = u
--}
-
--- comparisions with times
-after, before :: Ord t => t -> Interval t -> Bool
--- t `after` Empty               = False
-t `after` Interval _ Nothing  = False
-t `after` Interval _ (Just u) = t>u
-
--- t `before` Empty              = False
-t `before` Interval Nothing _ = False
-t `before` Interval (Just l) _ = t<l
-
--- check that a time is within an interval
-elem, notElem :: Ord t => t -> Interval t -> Bool
--- t `elem` Empty                        = False
-t `elem` (Interval (Just l) (Just u)) = l<=t && t<=u
-t `elem` (Interval (Just l) Nothing ) = l<=t
-t `elem` (Interval Nothing  (Just u)) = t<=u
-t `elem` (Interval Nothing Nothing)   = True
-
-notElem time int = not (elem time int)
-
-
-{-
--- * union and intersection
-union, intersect :: Ord t => Interval t -> Interval t -> Interval t
-union Empty int                       = int
-union int Empty                       = int
-union (Interval l u) (Interval l' u') = Interval (minLeft l l') (maxRight u u')
-
-intersect (Interval l u) (Interval l' u') = interval (maxLeft l l') (minRight u u')
-intersect Empty          _                = Empty
-intersect _              Empty            = Empty
-
-
-maxLeft, maxRight, minLeft, minRight :: Ord t => Maybe t -> Maybe t -> Maybe t
-
-maxLeft Nothing l  = l
-maxLeft l  Nothing = l
-maxLeft (Just a) (Just b) = Just (max a b)
-
-maxRight Nothing r = Nothing
-maxRight r Nothing = Nothing
-maxRight (Just a) (Just b) = Just (max a b)
-
-
-minLeft Nothing l = Nothing
-minLeft l Nothing = Nothing
-minLeft (Just a) (Just b) = Just (min a b)
-
-minRight Nothing r = r
-minRight r Nothing = r
-minRight (Just a) (Just b) = Just (min a b)
--}
-                

@@ -20,7 +20,7 @@ import           Types
 import           Language.Types
 import           Markdown
 import           Application
-import           Problem
+import           Page
 import           Tester
 import           SafeExec
 
@@ -30,7 +30,7 @@ import           System.Directory
 
 
 pythonTester :: Page -> Code -> AppHandler Result
-pythonTester page (Code (Just Python) code) = do
+pythonTester page (Code (Language "python") code) = do
     pyConf <- gets pythonConf
     let tstfile = getDoctest page
     liftIO $ do
@@ -44,7 +44,7 @@ type Doctest = FilePath   -- path to doctest script
 -- get the doctest file for a problem
 getDoctest :: Page -> Doctest
 getDoctest Page{..}
-  = root </>
+  = root </> takeDirectory path </>
     fromMaybe (replaceExtension path ".tst") (lookupFromMeta "doctest" meta)
 
 

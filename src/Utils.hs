@@ -140,7 +140,7 @@ getUserRoles = do
 -- getProblemID = fmap ProblemID <$> getParam "problem"
 
 getSubmitID :: AppHandler (Maybe SubmitID)
-getSubmitID = do opt <- getParam "submit"
+getSubmitID = do opt <- getParam "sid"
                  return $ do bs <- opt
                              case reads (B.toString bs) of
                                [(i,"")] -> Just (SubmitID i)
