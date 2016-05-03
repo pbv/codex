@@ -21,7 +21,7 @@ import           Data.ByteString.UTF8 (ByteString)
 import qualified Data.ByteString.UTF8 as B
 import qualified Data.ByteString      as B
 import           Data.Monoid
-import           Data.Maybe(listToMaybe, isJust)
+import           Data.Maybe(listToMaybe, maybeToList, isJust)
 -- import           Data.Map (Map)
 import qualified Data.Map as Map
 import           Data.Text (Text)
@@ -62,6 +62,7 @@ import           Types
 import           Tester
 import           Language
 import           Markdown
+import           Interval
 import           Text.Pandoc.Builder hiding (Code)
 -- import qualified Interval as Interval
 -- import           Interval (Interval)
@@ -102,16 +103,6 @@ handleLoginForm authError = heistLocal (I.bindSplices errs) $ render "login"
     errs = "loginError" ## maybe (return []) I.textSplice authError
 
 ------------------------------------------------------------------------------
-{-
--- | Handle login submit
-handleLoginSubmit :: Handler App (AuthManager App) ()
-handleLoginSubmit =
-    loginUser "login" "password" Nothing
-              (\_ -> handleLoginForm err) (redirect "/problems")
-  where
-    err = Just "Incorrect user or password"
-
--}
 
 -- | Handle login submit using LDAP authentication
 handleLoginSubmit :: 
@@ -150,22 +141,6 @@ handlePrintout uid probs = do
 -}
 
 
-{-
-------------------------------------------------------------------------------
--- | Handle new user form submit
-handleNewUser :: Handler AppHandler (AuthManager AppHandler) ()
-handleNewUser = method GET handleForm <|> method POST handleFormSubmit
-  where
-
-handleForm = render "register"
-    handleFormSubmit = do
-      login <- reqParam "login" 
-      b <- usernameExists (T.pack $ B.toString login)
-      if b then render "user_exists"
-        else 
-        registerUser "login" "password" >> redirect "/"
--}
-
 
 
 -- handle page requests
@@ -187,9 +162,13 @@ handlePage = do
 
 --  render an exercise page
 renderExercise :: Page -> [Submission] -> AppHandler ()
-renderExercise page subs =
+renderExercise page subs = do
+  tz <- liftIO getCurrentTimeZone
+  now <- liftIO getCurrentTime
+  env <- require getUserEvents
   renderWithSplices "exercise" (pageSplices page >>
                                 exerciseSplices page >>
+                                timeSplices tz now env page >>
                                 submissionListSplices subs >>
                                 inputAceEditorSplices)
 
@@ -197,24 +176,32 @@ renderExercise page subs =
 -- handle submission of an exercise
 handlePost :: UserID -> Page -> AppHandler ()
 handlePost uid page = do
+  tz <- liftIO getCurrentTimeZone
+  now <- liftIO getCurrentTime
+  env <- require getUserEvents
   text <- require (getTextPost "editform.editor")
   let lang = Page.getLanguage page
   sub <- Submission.evaluate uid page (Code lang text)
   renderWithSplices "report" (pageSplices page >>
                               exerciseSplices page >>
                               submissionSplices sub >>
+                              timeSplices tz now env page >>
                               inputAceEditorSplices)
 
 
 -- handle get request for a previous submission
-handleSubmission = method GET $ do 
+handleSubmission = method GET $ do
+  tz <- liftIO getCurrentTimeZone
+  now <- liftIO getCurrentTime
   uid <- require getUserID <|> unauthorized
   sid <- require getSubmitID
+  env <- require getUserEvents
   sub <- Submission.getSingle uid sid
   page <- liftIO $ Page.readPage pageFileRoot (Submission.path sub)
   renderWithSplices "report" (pageSplices page >>
                               exerciseSplices page >>
                               submissionSplices sub >>
+                              timeSplices tz now env page >>
                               inputAceEditorSplices)
 
 
@@ -239,15 +226,16 @@ exerciseSplices page = do
 
 indexSplices :: [Page] -> ISplices
 indexSplices pages = do
-  "indexList" ## I.mapSplices (I.runChildrenWith . pageSplices) pages
+  "indexList" ##
+    I.mapSplices (I.runChildrenWith . pageSplices) pages
 
 
 -- | splices relating to a single submission
 submissionSplices :: Submission -> ISplices
-submissionSplices Submission{..} = do 
-  "submitID"   ##
+submissionSplices Submission{..} = do
+  "submitID" ##
     I.textSplice (toText id)
-  "submitPath"  ##
+  "submitPath" ##
     I.textSplice (T.pack path)
   "submitTime" ##
     timeSplice time 
@@ -257,19 +245,48 @@ submissionSplices Submission{..} = do
     I.textSplice (T.pack $ show $ resultClassify result)
   "submitMessage" ##
     I.textSplice (resultMessage result)
+  "ifOnTime" ##
+    conditionalSplice (timing == Just OnTime)
+  "ifEarly" ##
+    conditionalSplice (timing == Just Early)
+  "ifOverdue" ##
+    conditionalSplice (timing == Just Overdue)
   "ifAccepted" ##
     conditionalSplice (resultClassify result == Accepted)
+
 
 
 
 -- | splices relating to a list of submissions
 submissionListSplices :: [Submission] -> ISplices
 submissionListSplices list = do
-  "submissionsCount" ## I.textSplice (T.pack $ show count)
-  "ifSubmissions" ## conditionalSplice (count > 0) 
-  "submissionList" ## I.mapSplices (I.runChildrenWith . submissionSplices) list
+  "submissionsCount" ##
+    I.textSplice (T.pack $ show count)
+  "ifSubmitted" ##
+    conditionalSplice (count > 0) 
+  "submissionList" ##
+    I.mapSplices (I.runChildrenWith . submissionSplices) list
   where count = length list
 
+
+
+timeSplices :: TimeZone -> UTCTime -> Events -> Page -> ISplices
+timeSplices tz now env Page{..} = do
+  let timing = Interval.timingVal env interval now
+  "ifOnTime" ##
+    conditionalSplice (timing == Just OnTime)
+  "ifEarly" ##
+    conditionalSplice (timing == Just Early)  
+  "ifOverdue" ##
+    conditionalSplice (timing == Just Overdue)
+  "validFrom" ##
+    maybe (return [])
+    (I.textSplice . T.pack)
+    (Interval.from interval >>= showTimeExpr tz env)
+  "validUntil" ##
+    maybe (return [])
+    (I.textSplice . T.pack)
+    (Interval.until interval >>= showTimeExpr tz env)
 
 
 {-
@@ -451,19 +468,6 @@ timeSplice time = do tz <- liftIO getCurrentTimeZone
                      I.textSplice $ T.pack $
                        formatTime defaultTimeLocale "%c" $ utcToZonedTime tz time
     
-
--- format a time difference
-formatNominalDiffTime :: NominalDiffTime -> String
-formatNominalDiffTime secs 
-  | secs>=0  = unwords $ 
-               [show d ++ "d" | d>0] ++ 
-               [show (h`rem`24) ++ "h" | h>0] ++
-               [show (m`rem`60) ++ "m" | m>0] ++
-               ["<1m" | secs<60]
-  | otherwise = "--/--"
-  where m = (floor (secs / 60)) :: Int
-        h = (m `div` 60) 
-        d = (h `div` 24)  
 
 
 {-

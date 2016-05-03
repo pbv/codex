@@ -41,11 +41,13 @@ pythonTester _ _ = pass
 
 type Doctest = FilePath   -- path to doctest script
 
--- get the doctest file for a problem
+-- get the doctest path for a problem
 getDoctest :: Page -> Doctest
 getDoctest Page{..}
-  = root </> takeDirectory path </>
-    fromMaybe (replaceExtension path ".tst") (lookupFromMeta "doctest" meta)
+  = root </> (maybe
+              (replaceExtension path ".tst")
+              (takeDirectory path </>)
+              (lookupFromMeta "doctest" meta))
 
 
 pythonTesterIO ::  PythonConf -> Text -> Doctest -> IO Result

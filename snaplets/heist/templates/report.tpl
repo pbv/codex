@@ -1,10 +1,15 @@
 <apply template="base">
 <h1><pageTitle/></h1>
 <h2>Submissão <submitID/></h2>
-<h2>Resultado: <em><submitClassify/></em></h2>
-<pre>
-  <submitMessage/>
-</pre>
+<ifEarly>
+  <p>Submissão antecipada; o resultado será visível depois de <validFrom/>.</p>
+<else/>
+  <h2>Resultado: <em><submitClassify/></em></h2>
+  <pre>
+    <submitMessage/>
+  </pre>
+</ifEarly>
+
 <h2>Nova submissão</h2>
 <form id="editform" method="POST" 
       action=""

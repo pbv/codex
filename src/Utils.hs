@@ -14,6 +14,7 @@ import qualified Data.Text.Encoding.Error as T
 import qualified Data.Text.IO as T
 import           Data.String
 import           Data.Monoid
+import           Data.Maybe (maybeToList)
 
 import           Snap.Core
 import           Snap.Snaplet
@@ -39,6 +40,7 @@ import           System.Directory
 import           System.IO
 
 import           Types
+import           Interval
 import           SafeExec
 import           Language
 import           Application
@@ -135,6 +137,18 @@ getUserRoles :: AppHandler (Maybe [Role])
 getUserRoles = do
   opt <- with auth currentUser
   return (fmap userRoles opt)
+
+
+getUserEvents :: AppHandler (Maybe Events)
+getUserEvents = fmap userEvents <$> with auth currentUser
+
+userEvents :: AuthUser -> Events
+userEvents au = [(n, t) | (n,f)<-fields, t <- maybeToList (f au)]
+  where fields =  [("activated", userActivatedAt),
+                   ("created", userCreatedAt),
+                   ("updated", userUpdatedAt),
+                   ("loggedIn", userCurrentLoginAt)]
+ 
 
 -- getProblemID :: AppHandler (Maybe ProblemID)
 -- getProblemID = fmap ProblemID <$> getParam "problem"

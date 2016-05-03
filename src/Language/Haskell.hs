@@ -61,9 +61,10 @@ haskellTester _ _  = pass
 -- NB: properties-only (not a module)
 getQuickcheckPath :: Page -> FilePath
 getQuickcheckPath Page{..} 
-  = root </> takeDirectory path </>
-    fromMaybe (replaceExtension path ".hs")
-    (lookupFromMeta "quickcheck" meta)
+  = root </> (maybe 
+              (replaceExtension path ".hs")
+              (takeDirectory path </>)
+              (lookupFromMeta "quickcheck" meta))
 
 
 

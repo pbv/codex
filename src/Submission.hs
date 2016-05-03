@@ -39,6 +39,7 @@ import           Database.SQLite.Simple.ToField
 
 import           Application
 import           Utils
+import           Interval
 import           Types
 import           Language
 import           Page
@@ -53,7 +54,8 @@ data Submission = Submission {
   path  :: FilePath,  -- problem path
   time :: UTCTime,    -- submit time  
   code :: Code,       -- program code
-  result :: Result    -- accepted/wrong answer/etc
+  result :: Result,   -- accepted/wrong answer/etc
+  timing :: Maybe Timing    -- valid, early or overdue?
   }
 
 
@@ -68,6 +70,16 @@ instance FromField Classify where
       parse ((s,""):_) = return s
       parse _  = returnError ConversionFailed f "invalid Classify field"
 
+instance ToField Timing where
+  toField s = toField (show s)
+
+instance FromField Timing where
+  fromField f = do s <- fromField f 
+                   parse (reads s)
+    where 
+      parse ((s,""):_) = return s
+      parse _  = returnError ConversionFailed f "invalid Timing field"
+  
 
 instance ToField Language where
   toField (Language l) = toField l
@@ -86,31 +98,38 @@ instance FromRow Submission where
     text <- field
     classf <- field
     msg <- field
+    timing <- field
     let code = Code lang text
     let result = Result classf msg
-    return (Submission id uid path time code result)
+    return (Submission id uid path time code result timing)
 
 
 
 -- | evaluate and store a new submission
 evaluate :: UserID -> Page ->  Code -> AppHandler Submission
 evaluate uid page@Page{..} code = do 
-    result <- codeTester page code
-    -- now <- liftIO getCurrentTime
-    -- let qualifier = if now `before` probLimit then OK else Overdue
-    insertDb uid path code result 
+  now <- liftIO getCurrentTime
+  env <- require getUserEvents
+  let timing = Interval.timingVal env interval now
+  -- run code tester  and insert record into Db
+  result <- codeTester page code
+  insertDb uid path now code result timing
 
--- insert into the DB
-insertDb :: UserID -> FilePath  -> Code -> Result -> AppHandler Submission
-insertDb uid path code@(Code lang text) result@(Result classf msg) = do
-  time <- liftIO getCurrentTime
+
+
+-- auxliary function; insert a record into the DB
+insertDb ::
+  UserID -> FilePath -> UTCTime -> Code -> Result -> Maybe Timing
+  -> AppHandler Submission
+insertDb uid path time code@(Code lang text) result@(Result classf msg) timing = do
   sid <- withSqlite $ \conn -> do
     S.execute conn 
       "INSERT INTO submissions \
-     \ (user_id, path, time, language, code, class, message) \
-     \ VALUES(?, ?, ?, ?, ?, ?, ?)" (uid, path, time, lang, text, classf, msg)
+       \ (user_id, path, time, language, code, class, message, timing) \
+       \ VALUES(?, ?, ?, ?, ?, ?, ?, ?)" (uid, path, time, lang, text, classf, msg, timing)
     fmap SubmitID (S.lastInsertRowId conn)
-  return (Submission sid uid path time code result)
+  return (Submission sid uid path time code result timing)
+
   
 
 

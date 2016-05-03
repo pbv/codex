@@ -8,16 +8,26 @@
 <pageDescription/>
 </div>
 
-<ifSubmissions>
-<h2>Submissões anteriores</h2>
-<ol class="submissions">
-<submissionList>
-  <li>
-  <a href="/submit/${submitID}"><span class="info"><submitClassify/><ifAccepted>&nbsp;<icon_accepted/></ifAccepted></span></a>
-  </li>
-</submissionList>
-</ol>
-</ifSubmissions>
+<p>Submissões iniciam em <validFrom/></p>
+<p>Submissões terminam em <validUntil/></p>
+
+
+<ifSubmitted>
+  <h2>Submissões anteriores</h2>
+  <ifEarly>
+    <p>Resultados de <submissionsCount/> submissões anteriores visíveis
+      depois de <validFrom/>.</p>
+    <else/>
+    <ol class="submissions">
+      <submissionList>
+	<li>
+	  <a href="/submit/${submitID}">
+	    <span class="info"><submitClassify/></span></a><ifAccepted><icon_accepted/></ifAccepted><ifOverdue>&nbsp;<icon_overdue/></ifOverdue>
+	</li>
+      </submissionList>
+    </ol>
+  </ifEarly>
+</ifSubmitted>
 
 <h2>Nova submissão</h2>
 <form id="editform" method="POST" action=""
