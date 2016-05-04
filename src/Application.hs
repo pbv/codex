@@ -45,5 +45,5 @@ instance HasSqlite (Handler App App) where
    getSqliteState = with db get
    
 ------------------------------------------------------------------------------
-type AppHandler = Handler App App
+type Codex = Handler App App
 ------------------------------------------------------------------------------

@@ -108,7 +108,7 @@ configLdapConf conf = do
 
 
 -- | increment an EKG counter
-incrCounter :: Text -> AppHandler ()
+incrCounter :: Text -> Codex ()
 incrCounter name 
   = gets ekg >>= 
     maybe (return ())  (\ekg -> liftIO $ getCounter name ekg >>= Counter.inc) 
@@ -121,25 +121,25 @@ incrCounter name
 
 -- | Get current logged in user ID (if any)
 --   from the authentication snaplet  
-getUserID :: AppHandler (Maybe UserID)
+getUserID :: Codex (Maybe UserID)
 getUserID = do 
   opt <- with auth currentUser
   return $ fmap (fromString . T.unpack . userLogin) opt
 
 
-getFullName :: AppHandler (Maybe Text)
+getFullName :: Codex (Maybe Text)
 getFullName = do
   opt <- with auth currentUser
   return (fmap userName opt)
 
 -- | Get user id and roles
-getUserRoles :: AppHandler (Maybe [Role])
+getUserRoles :: Codex (Maybe [Role])
 getUserRoles = do
   opt <- with auth currentUser
   return (fmap userRoles opt)
 
 
-getUserEvents :: AppHandler (Maybe Events)
+getUserEvents :: Codex (Maybe Events)
 getUserEvents = fmap userEvents <$> with auth currentUser
 
 userEvents :: AuthUser -> Events
@@ -153,7 +153,7 @@ userEvents au = [(n, t) | (n,f)<-fields, t <- maybeToList (f au)]
 -- getProblemID :: AppHandler (Maybe ProblemID)
 -- getProblemID = fmap ProblemID <$> getParam "problem"
 
-getSubmitID :: AppHandler (Maybe SubmitID)
+getSubmitID :: Codex (Maybe SubmitID)
 getSubmitID = do opt <- getParam "sid"
                  return $ do bs <- opt
                              case reads (B.toString bs) of
@@ -163,7 +163,7 @@ getSubmitID = do opt <- getParam "sid"
 
 
 -- | try a Maybe-handler and "pass" if it yields Nothing 
-require :: AppHandler (Maybe a) -> AppHandler a
+require :: Codex (Maybe a) -> Codex a
 require handler = do
   opt <- handler
   case opt of
@@ -181,13 +181,13 @@ getTextPost name =
 ---------------------------------------------------------------------
 -- | error handlers
 ---------------------------------------------------------------------    
-unauthorized, badRequest, notFound :: AppHandler a
+unauthorized, badRequest, notFound :: Codex a
 unauthorized = render "_unauthorized" >> finishError 401 "Unauthorized"
 badRequest   = render "_badrequest" >> finishError 400 "Bad request"
 notFound     = render "_notfound" >> finishError 404 "Not found"
 
 
-internalError :: SomeException -> AppHandler a
+internalError :: SomeException -> Codex a
 internalError e
   = do renderWithSplices  "_internalerror" 
              ("errorMsg" ## I.textSplice (T.pack $ show e))
@@ -213,7 +213,19 @@ ifElseISplice cond = getParamNode >>= (rewrite . X.childNodes)
 
 conditionalSplice :: Monad m => Bool -> I.Splice m
 conditionalSplice = ifElseISplice
-    
+
+
+tagCaseSplice :: Monad m => Text -> I.Splice m
+tagCaseSplice tag = getParamNode >>= (I.runNodeList . select . X.childNodes)
+   where
+     select nodes = case filter (\n -> X.tagName n==Just tag ||
+                                       X.tagName n==Just "default") nodes of
+       [] -> []
+       (n:_) -> X.childNodes n
+
+caseSplice :: (Monad m, Show a) => a -> I.Splice m
+caseSplice v = tagCaseSplice (T.pack $ show v)
+
 
 
 -- | make a checkbox input for a tag filter

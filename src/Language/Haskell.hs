@@ -42,7 +42,7 @@ data QuickCheckArgs =
 
 
 
-haskellTester :: Page -> Code -> AppHandler Result
+haskellTester :: Page -> Code -> Codex Result
 haskellTester page (Code (Language "haskell") code) = do
     hsConf <- gets haskellConf
     let path = getQuickcheckPath page

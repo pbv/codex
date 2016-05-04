@@ -5,7 +5,7 @@
 <p><em><application/></em> is a <em>web</em> system for
 setting programming problems with automatic assement
 for a class environment.</p>
-<p>Currently <application/> supports both the
+<p>Currently <application/> supports only the
  <a href="http://www.python.org">Python</a> and
  <a href="http://www.haskell.org">Haskell</a> programming languages.
 </p>

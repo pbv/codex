@@ -106,7 +106,7 @@ instance FromRow Submission where
 
 
 -- | evaluate and store a new submission
-evaluate :: UserID -> Page ->  Code -> AppHandler Submission
+evaluate :: UserID -> Page ->  Code -> Codex Submission
 evaluate uid page@Page{..} code = do 
   now <- liftIO getCurrentTime
   env <- require getUserEvents
@@ -118,9 +118,13 @@ evaluate uid page@Page{..} code = do
 
 
 -- auxliary function; insert a record into the DB
-insertDb ::
-  UserID -> FilePath -> UTCTime -> Code -> Result -> Maybe Timing
-  -> AppHandler Submission
+insertDb :: UserID 
+  -> FilePath
+  -> UTCTime
+  -> Code
+  -> Result
+  -> Maybe Timing
+  -> Codex Submission
 insertDb uid path time code@(Code lang text) result@(Result classf msg) timing = do
   sid <- withSqlite $ \conn -> do
     S.execute conn 
@@ -134,7 +138,7 @@ insertDb uid path time code@(Code lang text) result@(Result classf msg) timing =
 
 
 -- | get a single submission 
-getSingle :: UserID -> SubmitID -> AppHandler Submission
+getSingle :: UserID -> SubmitID -> Codex Submission
 getSingle uid sid = do
   r <- query "SELECT * FROM submissions WHERE \
              \ id = ? AND user_id = ?" (sid,uid)
@@ -144,7 +148,7 @@ getSingle uid sid = do
 
 
 -- | get all user submissions for a  path
-getAll :: UserID -> FilePath -> AppHandler [Submission]  
+getAll :: UserID -> FilePath -> Codex [Submission]  
 getAll uid path = 
   query "SELECT * FROM submissions \
        \ WHERE user_id = ? AND path = ? ORDER BY id" (uid, path)

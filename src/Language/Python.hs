@@ -29,7 +29,7 @@ import           System.FilePath
 import           System.Directory
 
 
-pythonTester :: Page -> Code -> AppHandler Result
+pythonTester :: Page -> Code -> Codex Result
 pythonTester page (Code (Language "python") code) = do
     pyConf <- gets pythonConf
     let tstfile = getDoctest page

@@ -21,7 +21,7 @@ import           Data.ByteString.UTF8 (ByteString)
 import qualified Data.ByteString.UTF8 as B
 import qualified Data.ByteString      as B
 import           Data.Monoid
-import           Data.Maybe(listToMaybe, maybeToList, isJust)
+import           Data.Maybe(listToMaybe, maybeToList, isJust, fromMaybe)
 -- import           Data.Map (Map)
 import qualified Data.Map as Map
 import           Data.Text (Text)
@@ -66,7 +66,7 @@ import           Interval
 import           Text.Pandoc.Builder hiding (Code)
 -- import qualified Interval as Interval
 -- import           Interval (Interval)
-import           Page  (Page(..), Contents(..))
+import           Page  (Page(..))
 import qualified Page
 import           Submission (Submission(..))
 import qualified Submission
@@ -80,13 +80,13 @@ import           Data.Version (showVersion)
 import           AceEditor
 
 -- interpreted splices for Pythondo handlers
-type ISplices = Splices (I.Splice AppHandler)
+type ISplices = Splices (I.Splice Codex)
 
 
 
 ------------------------------------------------------------------------------
 -- | Handle login requests 
-handleLogin :: AppHandler ()
+handleLogin :: Codex ()
 handleLogin 
   = method GET (with auth $ handleLoginForm Nothing) <|>
     method POST (do { user <- require (getParam "login") 
@@ -120,7 +120,7 @@ handleLoginSubmit ldapConf user passwd = do
 ------------------------------------------------------------------------------
 -- Logs out and redirects the user to the site index.
 -- in exam mode procedeed to printout 
-handleLogout :: AppHandler ()
+handleLogout :: Codex ()
 handleLogout = method GET $ do
   uid <- require getUserID <|> unauthorized
   with auth logout 
@@ -133,7 +133,7 @@ handleLogout = method GET $ do
 
 {-
 -- make a printout before ending session
-handlePrintout :: UID -> [Problem] -> AppHandler ()
+handlePrintout :: UID -> [Problem] -> Codex ()
 handlePrintout uid probs = do
   subs <- mapM (getBestSubmission uid) (map probID probs)
   report <- genReport (zip probs subs)
@@ -144,24 +144,24 @@ handlePrintout uid probs = do
 
 
 -- handle page requests
-handlePage :: AppHandler ()
+handlePage :: Codex ()
 handlePage = do
   uid <- require getUserID <|> unauthorized    -- ensure user is logged in
   path <- B.toString <$> getsRequest rqPathInfo
   page <- liftIO $ Page.readPage pageFileRoot path
-  case Page.contents page of
-    Exercise ->
-      method GET (do subs <- Submission.getAll uid path
-                     renderExercise page subs)
-      <|> method POST (handlePost uid page)
-
-    Index paths -> method GET $ do
-      linkedpages <- liftIO $ mapM (Page.readPage pageFileRoot) paths
-      renderWithSplices "indexsheet" (pageSplices page >>
-                                      indexSplices linkedpages)
+  if Page.isExercise page then
+    method GET (Submission.getAll uid path >>= renderExercise page)
+    <|>
+    method POST (handlePost uid page)
+    else
+       method GET $ do
+         linked <- liftIO $ mapM (Page.readPage pageFileRoot) (links page)
+         sublist <- mapM (Submission.getAll uid . Page.path) linked
+         renderWithSplices "indexsheet" (pageSplices page >>
+                                         indexSplices (zip linked sublist))
 
 --  render an exercise page
-renderExercise :: Page -> [Submission] -> AppHandler ()
+renderExercise :: Page -> [Submission] -> Codex ()
 renderExercise page subs = do
   tz <- liftIO getCurrentTimeZone
   now <- liftIO getCurrentTime
@@ -174,7 +174,7 @@ renderExercise page subs = do
 
 
 -- handle submission of an exercise
-handlePost :: UserID -> Page -> AppHandler ()
+handlePost :: UserID -> Page -> Codex ()
 handlePost uid page = do
   tz <- liftIO getCurrentTimeZone
   now <- liftIO getCurrentTime
@@ -211,10 +211,14 @@ pageSplices :: Page -> ISplices
 pageSplices page = do
   "pagePath" ##
     I.textSplice (T.pack $ B.toString pageContextPath </> Page.path page)
+  "pageParent" ##
+    I.textSplice (T.pack $ B.toString pageContextPath </> Page.parent (Page.path page))
   "pageTitle" ##
     I.textSplice (Page.getTitle page)
   "pageDescription" ##
     return (blocksToHtml $ Page.description page)
+  "ifExercise" ##
+    conditionalSplice (Page.isExercise page)
 
 exerciseSplices :: Page -> ISplices
 exerciseSplices page = do
@@ -224,15 +228,21 @@ exerciseSplices page = do
     maybe (return []) I.textSplice (Page.getCodeText page)
 
 
-indexSplices :: [Page] -> ISplices
-indexSplices pages = do
+indexSplices :: [(Page, [Submission])] -> ISplices
+indexSplices pageSubs = do
   "indexList" ##
-    I.mapSplices (I.runChildrenWith . pageSplices) pages
+    I.mapSplices (I.runChildrenWith . auxSplices) pageSubs
+  where
+    auxSplices (page, subs) = do
+                pageSplices page
+                exerciseSplices page
+                submissionListSplices subs
 
 
 -- | splices relating to a single submission
 submissionSplices :: Submission -> ISplices
 submissionSplices Submission{..} = do
+  let timing' = fromMaybe OnTime timing
   "submitID" ##
     I.textSplice (toText id)
   "submitPath" ##
@@ -245,13 +255,15 @@ submissionSplices Submission{..} = do
     I.textSplice (T.pack $ show $ resultClassify result)
   "submitMessage" ##
     I.textSplice (resultMessage result)
-  "ifOnTime" ##
-    conditionalSplice (timing == Just OnTime)
-  "ifEarly" ##
-    conditionalSplice (timing == Just Early)
-  "ifOverdue" ##
-    conditionalSplice (timing == Just Overdue)
-  "ifAccepted" ##
+  "submitTiming" ##
+    caseSplice timing'
+  "submitOnTime" ##
+    conditionalSplice (timing' == OnTime)
+  "submitEarly" ##
+    conditionalSplice (timing' == Early)
+  "submitOverdue" ##
+    conditionalSplice (timing' == Overdue)
+  "submitAccepted" ##
     conditionalSplice (resultClassify result == Accepted)
 
 
@@ -269,16 +281,10 @@ submissionListSplices list = do
   where count = length list
 
 
-
 timeSplices :: TimeZone -> UTCTime -> Events -> Page -> ISplices
 timeSplices tz now env Page{..} = do
-  let timing = Interval.timingVal env interval now
-  "ifOnTime" ##
-    conditionalSplice (timing == Just OnTime)
-  "ifEarly" ##
-    conditionalSplice (timing == Just Early)  
-  "ifOverdue" ##
-    conditionalSplice (timing == Just Overdue)
+  "exerciseTiming" ##
+    caseSplice (fromMaybe OnTime (Interval.timingVal env interval now))
   "validFrom" ##
     maybe (return [])
     (I.textSplice . T.pack)
@@ -289,96 +295,13 @@ timeSplices tz now env Page{..} = do
     (Interval.until interval >>= showTimeExpr tz env)
 
 
-{-
-  "ifOverdue" ## conditionalSplice (submitQualifier == Overdue)
-  "ifRejected" ## conditionalSplice (submitStatus /= Accepted &&
-                                     submitStatus /= Overdue)
--}
-
-{-  
-handleDocument :: FilePath -> AppHandler ()
-handleDocument root = do
-  uid <- require getUserID <|> unauthorized    -- ensure user is logged in
-  path <- B.toString <$> getsRequest rqPathInfo
-  when (null path) $ redirect indexPage
-  when (not $ isMarkdown path) pass
-  withSplices ("documentPath" ## I.textSplice (T.pack path)) $ do
-    ws <- getWorksheet (root </> path)
-    mpid <- getProblemID
-    case (mpid >>= lookupProblem ws) of
-      Nothing -> handleWorksheet ws uid
-      Just prob -> do
-        msid <- getSubmitID
-        case msid of
-          Just sid -> handleSubmission prob uid sid
-          Nothing -> handleProblem ws prob uid
-
-lookupProblem :: Worksheet Problem -> ProblemID -> Maybe Problem
-lookupProblem Worksheet{..}  pid
-  = listToMaybe [p | Right p <- worksheetItems, probID p == pid]
-
-
-handleWorksheet ws uid = method GET $ do
-  ws' <- getWorksheetSubmissions uid ws -- collect submissions for this worksheet
-  now <- liftIO getCurrentTime
-  renderWithSplices "worksheet" $ do
-    "worksheetItems" ## I.mapSplices (I.runChildrenWith . wsItemSplices now) (worksheetItems ws')
-  
-
-handleProblem ws@Worksheet{..} prob@Problem{..} uid
-  = method GET handleGet <|> method POST handlePost
-  where
-    handleGet = do 
-      now <- liftIO getCurrentTime
-      subs <- getSubmissions uid probID
-      renderWithSplices "problem"
-        (problemSplices prob >>
-         submissionListSplices prob subs >>
-         inputAceEditorSplices >>
-         timerSplices probID now probLimit)
-    handlePost = do
-      now <- liftIO getCurrentTime
-      code <- toCode <$> require (getTextPost "editform.editor")
-      sub <- newSubmission uid prob code
-      renderWithSplices "report"
-        (problemSplices prob >>
-         submissionSplices prob sub >>
-         inputAceEditorSplices >>
-         timerSplices probID now probLimit)
-      
-
-handleSubmission prob@Problem{..} uid sid = method GET $ do 
-  sub <- getSubmission uid probID sid
-  renderWithSplices "report" (problemSplices prob >>
-                              submissionSplices prob sub >>
-                              inputAceEditorSplices)
--}
-
-
-{-
------------------------------------------------------------------------------
--- | problem description request 
-handleProblem :: AppHandler ()
-handleProblem = method GET $ do
-    uid <- require getUserID  <|> unauthorized
-    pid <- require getProblemID
-    (prob,mesgs) <- getProblem pid
-    now <- liftIO getCurrentTime
-    subs <- getSubmissions uid pid
-    renderWithSplices "problem" $
-      do problemSplices prob
-         inputAceEditorSplices
-         submissionsSplice subs
-         timerSplices pid now (probDeadline prob)
-         warningsSplices mesgs
--}
 
 
 
 {-
    
 -- | problem set listing handler
-handleProblemList :: AppHandler ()
+handleProblemList :: Codex ()
 handleProblemList = method GET $ do
   uid <- require getUserID <|> unauthorized
   now <- liftIO getCurrentTime
@@ -410,7 +333,7 @@ handleProblemList = method GET $ do
 
 {-
 -- get tag list from query string
-getQueryTags :: AppHandler [Tag]
+getQueryTags :: Codex [Tag]
 getQueryTags = do
   params <- getParams
   return (map (T.pack . B.toString) $ Map.findWithDefault [] "tag" params)
@@ -463,7 +386,7 @@ timerSplices pid now limit = do
 -}
   
 -- | splice an UTC time as local time 
-timeSplice :: UTCTime -> I.Splice AppHandler
+timeSplice :: UTCTime -> I.Splice Codex
 timeSplice time = do tz <- liftIO getCurrentTimeZone
                      I.textSplice $ T.pack $
                        formatTime defaultTimeLocale "%c" $ utcToZonedTime tz time
@@ -500,7 +423,7 @@ submissionSplices Problem{..} Submission{..} = do
 
 
 {-
-handleGetSubmission, handlePostSubmission :: AppHandler ()
+handleGetSubmission, handlePostSubmission :: Codex ()
 handleGetSubmission 
     = method GET $ do 
         uid <- require getUserID <|> unauthorized
@@ -533,14 +456,14 @@ handlePostSubmission = method POST $ do
 {-
 -- in exam mode show final report before loggin out
 -- otherwise, logout immediately
-handleConfirmLogout :: AppHandler ()
+handleConfirmLogout :: Codex ()
 handleConfirmLogout = method GET $ do
   uid <- require getUserID <|> badRequest
   (probset,_) <- getProblemSet
   handleFinalReport uid probset
 
 
-handleFinalReport :: UID -> ProblemSet -> AppHandler ()
+handleFinalReport :: UID -> ProblemSet -> Codex ()
 handleFinalReport uid ProblemSet{..} | probsetExam = do
     let pids = map probID probsetProbs
     subs <- mapM (getBestSubmission uid) pids
@@ -557,7 +480,7 @@ handleFinalReport _ _ = handleLogout
 -- administrator interface
 -----------------------------------------------------------------------------
 {-
-handleAdminEdit :: AppHandler ()
+handleAdminEdit :: Codex ()
 handleAdminEdit = do
       uid <- require getUserID
       roles <- require getUserRoles
@@ -598,7 +521,7 @@ handleAdminSubmissions = method GET $ do
 ------------------------------------------------------------------------------
 -- | The application's routes.
   {-
-routes :: [(ByteString, AppHandler ())]
+routes :: [(ByteString, Codex ())]
 routes = [ ("/login",                 handleLogin `catch` internalError)
          , ("/logout",                handleLogout `catch` internalError)
          , ("/problems",              handleProblemList `catch` internalError )  
@@ -614,7 +537,7 @@ routes = [ ("/login",                 handleLogin `catch` internalError)
 -}
 
 
-routes :: [(ByteString, AppHandler ())]
+routes :: [(ByteString, Codex ())]
 routes = [ ("/login",    handleLogin `catch` internalError)
          , ("/logout",   handleLogout `catch` internalError)
          , ("/page",     handlePage  `catch` internalError)
@@ -633,7 +556,7 @@ pageContextPath :: ByteString
 pageContextPath = "/page"
 
 indexPage :: ByteString
-indexPage = "index.md"
+indexPage = "/page/index.md"
 
 
 -- | current logged in full user name  
@@ -649,13 +572,13 @@ authRoles authmgr cond = do
    maybe (return []) (\u -> conditionalSplice (cond $ userRoles u)) u
 
 -- | splice for current date & time
-nowSplice :: I.Splice AppHandler
+nowSplice :: I.Splice Codex
 nowSplice = do t <- liftIO (getCurrentTime >>= utcToLocalZonedTime)
                I.textSplice (T.pack $ formatTime defaultTimeLocale "%c" t)
 
 
 
-versionSplice :: I.Splice AppHandler
+versionSplice :: I.Splice Codex
 versionSplice = I.textSplice (T.pack (showVersion version))
 
 ------------------------------------------------------------------------------

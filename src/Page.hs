@@ -34,15 +34,18 @@ data Page
          , path :: FilePath        -- relative path
          , meta :: Meta
          , description :: [Block]
-         , contents :: Contents
-         , interval :: Interval
+         , links :: [FilePath]     -- linked documents (maybe empty)
+         , interval :: Interval    -- submission interval (for exercises)
          } deriving Show
 
-data Contents
-  = Exercise                        -- exercise page
-  | Index { paths :: [FilePath] }   -- worksheet of linked pages
-  deriving Show
 
+
+parent :: FilePath -> FilePath
+parent path = takeDirectory path </> "index.md"
+
+-- | an exercise page has empty list of links 
+isExercise :: Page -> Bool
+isExercise Page{..} = null links
                          
 
 -- | fetch page title
@@ -82,28 +85,19 @@ readPage :: FilePath -> FilePath -> IO Page
 readPage root path = do
   let filepath = root </> path
   Pandoc meta blocks <- readMarkdownFile filepath
+  -- valid submission interval
   t <- getZonedTime
-  let int = fromMaybe Always(lookupFromMeta "valid" meta >>= readInterval t)
-  -- worksheet or exercise?
-  case lookupFromMeta "index" meta of
-    Just paths -> do
-      -- interpret path relative to current page directory
-      let dir = takeDirectory path
-      let paths' = map (normalise.(dir</>)) paths
-      return Page { root = root
-                  , path = path
-                  , meta = meta
-                  , description = blocks
-                  , contents = Index paths'
-                  , interval = int
-                  }
-    Nothing -> do
-      return Page { root = root
-                  , path = path
-                  , meta = meta
-                  , description = blocks
-                  , contents = Exercise
-                  , interval = int
-                  }
+  let valid = fromMaybe Always (lookupFromMeta "valid" meta >>= readInterval t)
+  -- interpret linked documents relative to current page directory
+  let dir = takeDirectory path
+  let paths =  map (normalise.(dir</>)) $
+               fromMaybe [] $ lookupFromMeta "index" meta
+  return Page { root = root
+              , path = path
+              , meta = meta
+              , description = blocks
+              , links = paths
+              , interval = valid
+              }
 
 

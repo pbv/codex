@@ -17,7 +17,7 @@ import Language.Python
 import Language.Haskell
 
 
-codeTester :: Page -> Code -> AppHandler Result
+codeTester :: Page -> Code -> Codex Result
 codeTester page code
   = pythonTester page code <|>
     haskellTester  page code <|>

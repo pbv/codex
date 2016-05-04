@@ -2,7 +2,7 @@
     <head>
        <meta charset="UTF-8">
        <ifLoggedIn>
-       <meta http-equiv="refresh" content="1;url=/index.md"/>
+       <meta http-equiv="refresh" content="1;url=/page/index.md"/>
        </ifLoggedIn>
        <ifLoggedOut>
        <meta http-equiv="refresh" content="1;url=/login"/>
@@ -12,7 +12,7 @@
     <body>
         <p>Se não for redirecionado automaticamente, siga a ligação para a
       <ifLoggedIn>
-	<a href="/index.md">página inicial.</a>
+	<a href="/page/index.md">página inicial.</a>
       </ifLoggedIn>
       <ifLoggedOut>
 	<a href="/login">autenticação.</a>
