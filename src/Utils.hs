@@ -27,8 +27,6 @@ import qualified Heist.Interpreted as I
 import qualified Text.XmlHtml as X
 
 
-import qualified Data.Configurator as Configurator
-import           Data.Configurator.Types
 
 import           Control.Applicative 
 import           Control.Exception (SomeException)
@@ -42,7 +40,7 @@ import           System.IO
 import           Types
 import           Interval
 import           SafeExec
-import           Language
+-- import           Language
 import           Application
 import           LdapAuth
 
@@ -50,61 +48,6 @@ import           LdapAuth
 import           Data.Time.Clock
 
 
--- | read configuration parameters
-configPython :: Config  -> IO PythonConf
-configPython conf = do
-  sf <- configSafeExec "python" conf
-  exec <- Configurator.lookup conf "python.exec"
-  script <- Configurator.lookup conf "python.script"
-  return PythonConf {
-     pythonExec = maybe "python" id exec,
-     pythonScript = maybe "python/pytest.py" id script,
-     pythonSfConf = sf
-    }
-
-configHaskell :: Config -> IO HaskellConf
-configHaskell conf = do
-  sf <- configSafeExec "haskell" conf
-  exec <- Configurator.lookup conf "haskell.exec"
-  return HaskellConf { haskellExec = maybe "runhaskell" id exec
-                     , haskellSfConf = sf
-                     }
-
-configSafeExec' :: Name -> SafeExecConf -> Config -> IO SafeExecConf
-configSafeExec' prefix def conf = do
-  path <- Configurator.lookup conf (prefix <> "safeexec.path")
-  cpu  <- Configurator.lookup conf (prefix <> "safeexec.max_cpu")
-  clock<- Configurator.lookup conf (prefix <> "safeexec.max_clock")
-  mem  <- Configurator.lookup conf (prefix <> "safeexec.max_memory")
-  nproc<- Configurator.lookup conf (prefix <> "safeexec.num_proc")
-  return def {
-    safeExecPath = maybe (safeExecPath def) id path
-    , maxCpuTime = maybe (maxCpuTime def) id cpu 
-    , maxClockTime = maybe (maxClockTime def) id clock
-    , maxMemory = maybe (maxMemory def) id mem
-    , numProc = maybe (numProc def) id nproc
-    }
-
-
-configSafeExec prefix conf = do
-  sf <- configSafeExec' "" defaultSafeExecConf conf
-  configSafeExec' prefix sf conf
-
-
-configPrintConf :: Config -> IO PrintConf
-configPrintConf conf = do
-  enabled <- Configurator.lookupDefault False conf "printouts.enabled"
-  header <- Configurator.lookupDefault defaultHeader conf "printouts.header"
-  opts <- Configurator.lookupDefault [] conf "printouts.options"
-  return (PrintConf enabled header opts)
-  where defaultHeader = "Pythondo"
-
-configLdapConf :: Config -> IO LdapConf
-configLdapConf conf = do
-  uri <- Configurator.require conf "ldap.uri"
-  base <- Configurator.require conf "ldap.base"
-  admins <- Configurator.require conf "ldap.admins"
-  return (LdapConf uri base admins)
 
 
 -- | increment an EKG counter

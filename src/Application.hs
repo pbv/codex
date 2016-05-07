@@ -15,13 +15,12 @@ import Snap.Snaplet.Auth
 import Snap.Snaplet.Session
 import Snap.Snaplet.SqliteSimple
 
--- import Data.Configurator
--- import Data.Configurator.Types
+import Data.HashMap.Strict (HashMap)
 import System.Remote.Monitoring
 
 import Types
--- import Language
--- import SafeExec 
+import Language.Types
+import Data.Configurator.Types
 
 ------------------------------------------------------------------------------
 data App = App
@@ -29,10 +28,9 @@ data App = App
     , _sess  :: Snaplet SessionManager
     , _auth  :: Snaplet (AuthManager App)
     , _db    :: Snaplet Sqlite
-    , pythonConf :: PythonConf          -- python configuration
-    , haskellConf :: HaskellConf        -- haskell configuration
-    , ldapConf :: LdapConf              -- LDAP configuration
-    , printConf :: PrintConf            -- printout configuration
+    , config :: Config
+    -- , ldapConf :: LdapConf              -- LDAP configuration
+    -- , printConf :: PrintConf            -- printout configuration
     , ekg :: Maybe Server           -- optional EKG monitoring server
     }
 

@@ -8,6 +8,8 @@ module Language(
   codeTester
   ) where
 
+import Snap.Core
+
 import Page
 import Application
 import Control.Applicative

@@ -71,6 +71,8 @@ import qualified Page
 import           Submission (Submission(..))
 import qualified Submission
 import           LdapAuth
+import           Config
+
 -- import           Report
 -- import           Printout
 
@@ -91,7 +93,7 @@ handleLogin
   = method GET (with auth $ handleLoginForm Nothing) <|>
     method POST (do { user <- require (getParam "login") 
                     ; passwd <- require (getParam "password")
-                    ; ldapconf <- gets ldapConf
+                    ; ldapconf <- gets config >>= (liftIO . getLdapConf)
                     ; with auth $ handleLoginSubmit ldapconf user passwd
                     } <|> badRequest)
 
@@ -607,32 +609,32 @@ app =
     let c = sqliteConn $ d ^# snapletValue
     liftIO $ withMVar c $ \conn -> Db.createTables conn
     addRoutes routes
-
-    py <- liftIO $ configPython conf
-    hs <- liftIO $ configHaskell conf
+    {-
     prt <- liftIO $ configPrintConf conf
     ldap <- liftIO $ configLdapConf conf
-    return $ App { _heist = h
-                 , _sess = s
-                 , _auth = a
-                 , _db   = d
-                 , pythonConf= py
-                 , haskellConf = hs
-                 , ldapConf = ldap
-                 , printConf = prt
-                 , ekg = e
-                 }
+    py <- liftIO $ getPythonConf conf
+    hs <- liftIO $ getHaskellConf conf
+    -}
+    return App { _heist = h
+               , _sess = s
+               , _auth = a
+               , _db   = d
+               , config = conf
+               , ekg = e
+               }
 
 
 
 -- initialize EKG server (if configured)
 initEkg :: Config -> IO (Maybe Server)
-initEkg conf = do enabled <- Configurator.require conf "ekg.enabled"
-                  if enabled then 
-                    do host <- Configurator.require conf "ekg.host"
-                       port <- Configurator.require conf "ekg.port"
-                       Just <$> forkServer host port                   
-                    else return Nothing
+initEkg conf = do
+  enabled <- Configurator.require conf "ekg.enabled"
+  if enabled then do
+    host <- Configurator.require conf "ekg.host"
+    port <- Configurator.require conf "ekg.port"
+    Just <$> forkServer host port                   
+    else
+    return Nothing
   
 
 

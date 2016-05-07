@@ -31,27 +31,38 @@ import           Tester
 import           Application
 import           Page
 import           SafeExec
+import           Config
 
 
+import qualified Data.Configurator as Configurator
+import           Data.Configurator.Types
+
+
+
+
+
+-- running and evaluating Haskell submissions
 
 haskellTester :: Page -> Code -> Codex Result
 haskellTester page (Code (Language "haskell") code) = do
-    hsConf <- gets haskellConf
+    conf <- gets config
+    runghc <- liftIO $ Configurator.require conf "haskell.interpreter"
+    sf <- liftIO $ getSafeExecConf "haskell" conf
     let path = getQuickcheckPath page
     let args = getQuickcheckArgs page
     liftIO $ do
       c <- doesFileExist path
       if c then
-        T.readFile path >>= haskellTesterIO hsConf args code 
+        T.readFile path >>= haskellTesterIO sf runghc args code 
         else return (miscError $ T.pack $
                      "missing QuickCheck file: " ++ path)
 haskellTester _ _  = pass             
 
-
      
 
-haskellTesterIO :: HaskellConf -> QuickCheckArgs -> Text -> Text -> IO Result
-haskellTesterIO HaskellConf{..} args code props =
+haskellTesterIO ::
+  SafeExecConf -> FilePath -> QuickCheckArgs -> Text -> Text -> IO Result
+haskellTesterIO sf runghc args code props =
    withTempFile "Temp.hs" $ \(codefile, h) ->      
    let codemod = T.pack (takeBaseName codefile)
        dir = takeDirectory codefile
@@ -60,8 +71,7 @@ haskellTesterIO HaskellConf{..} args code props =
      T.hPutStrLn h code
      hClose h
      withTextTemp "Main.hs" (testScript args codemod props) $ \tstfile -> 
-       haskellResult <$>
-       safeExecWith haskellSfConf haskellExec ["-i"++dir, tstfile] "" 
+       haskellResult <$> safeExecWith sf runghc ["-i"++dir, tstfile] "" 
 
 
 

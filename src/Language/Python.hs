@@ -1,7 +1,7 @@
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE RecordWildCards #-}
 module Language.Python(
-   pythonTester
+  pythonTester
   ) where
 
 import           Control.Applicative
@@ -22,6 +22,7 @@ import           Markdown
 import           Application
 import           Page
 import           Tester
+import           Config
 import           SafeExec
 
 import           System.Exit
@@ -29,13 +30,20 @@ import           System.FilePath
 import           System.Directory
 
 
+import qualified Data.Configurator as Configurator
+import           Data.Configurator.Types
+
+
+-- running and evaluating python submissions
 pythonTester :: Page -> Code -> Codex Result
 pythonTester page (Code (Language "python") code) = do
-    pyConf <- gets pythonConf
+    conf <- gets config
+    python <- liftIO $ Configurator.require conf "python.interpreter" 
+    sf <- liftIO $ getSafeExecConf "python" conf
     let tstfile = getDoctest page
     liftIO $ do
       c <- doesFileExist tstfile
-      if c then pythonTesterIO pyConf code tstfile
+      if c then pythonTesterIO sf python code tstfile
         else return (miscError $ T.pack $ "missing doctest file: " ++ tstfile)
 pythonTester _ _ = pass             
 
@@ -50,11 +58,11 @@ getDoctest Page{..}
               (lookupFromMeta "doctest" meta))
 
 
-pythonTesterIO ::  PythonConf -> Text -> Doctest -> IO Result
-pythonTesterIO PythonConf{..} python tstfile  = 
-    withTextTemp "tmp.py" python $ \pyfile ->
+pythonTesterIO :: SafeExecConf -> FilePath -> Text -> Doctest -> IO Result
+pythonTesterIO sf python code tstfile  = 
+    withTextTemp "tmp.py" code $ \pyfile ->
     pythonResult <$>
-    safeExecWith pythonSfConf pythonExec [pythonScript, tstfile, pyfile] ""
+      (safeExecWith sf python ["python/pytest.py", tstfile, pyfile] "")
 
 
 pythonResult :: (ExitCode, Text, Text) -> Result

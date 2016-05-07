@@ -92,26 +92,14 @@ data LdapConf = LdapConf { ldapURI :: String
                          , ldapBase :: String
                          , ldapAdmins :: [Text]
                          } 
-                deriving (Eq,Show)
+                deriving Show
                          
 -- | Printout configuration
 data PrintConf = PrintConf { printEnabled :: Bool 
                            , printHeader :: Text
                            , printOptions :: [String]
                            } 
-                deriving (Eq,Show)
-
--- | Haskell configuration
-data HaskellConf = HaskellConf { haskellExec :: !FilePath
-                               , haskellSfConf :: !SafeExecConf
-                               } deriving (Eq, Show)
-
-
--- | Python configuration
-data PythonConf = PythonConf { pythonExec :: !FilePath
-                             , pythonScript :: !FilePath
-                             , pythonSfConf :: !SafeExecConf
-                             } deriving (Eq, Show)
+                deriving Show
 
 
 

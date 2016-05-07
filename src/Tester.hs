@@ -21,7 +21,7 @@ import           Types
 data Result = Result { resultClassify :: !Classify
                      , resultMessage :: !Text
                      }
-              deriving (Eq, Read, Show)
+              deriving (Eq, Read, Show, Typeable)
 
 -- classification
 data Classify = Accepted
@@ -32,6 +32,8 @@ data Classify = Accepted
               | MemoryLimitExceeded
               | MiscError
               deriving (Eq, Read, Show, Typeable)
+
+instance Exception Result -- default instance
 
 
 -- | auxiliary construtors
