@@ -3,7 +3,6 @@ module Config where
 
 import           Types
 import           SafeExec
-import           Data.Maybe (fromMaybe)
 
 import           Data.Monoid
 import qualified Data.Configurator as Configurator
@@ -13,19 +12,20 @@ import           Data.Configurator.Types
 
 getSafeExecConf :: Name -> Config -> IO SafeExecConf
 getSafeExecConf prefix conf = do
-  path <- Configurator.lookup conf (prefix <> "safeexec.path")
-  cpu  <- Configurator.lookup conf (prefix <> "safeexec.max_cpu")
-  clock<- Configurator.lookup conf (prefix <> "safeexec.max_clock")
-  mem  <- Configurator.lookup conf (prefix <> "safeexec.max_memory")
-  nproc<- Configurator.lookup conf (prefix <> "safeexec.num_proc")
-  let def = defaultSafeExecConf
+  path <- Configurator.lookup conf (prefix <> ".path")
+  cpu  <- Configurator.lookup conf (prefix <> ".max_cpu")
+  clock<- Configurator.lookup conf (prefix <> ".max_clock")
+  mem  <- Configurator.lookup conf (prefix <> ".max_memory")
+  stack <- Configurator.lookup conf (prefix <> ".max_stack")
+  nproc<- Configurator.lookup conf (prefix <> ".num_proc")
   return
-      def { safeExecPath = fromMaybe (safeExecPath def) path
-                , maxCpuTime   = fromMaybe (maxCpuTime def) cpu 
-                , maxClockTime = fromMaybe (maxClockTime def) clock
-                , maxMemory    = fromMaybe (maxMemory def)  mem
-                , numProc      = fromMaybe (numProc def) nproc
-                }
+      mempty { safeExecPath = path
+             , maxCpuTime   = cpu 
+             , maxClockTime = clock
+             , maxMemory    = mem
+             , maxStack     = stack
+             , numProc      = nproc
+             }
 
 
 getPrintConf :: Config -> IO PrintConf

@@ -20,6 +20,7 @@ import           System.Directory
 import           System.IO
 
 import           Snap.Core(pass)
+import           Snap.Snaplet(getSnapletUserConfig)
 
 import           Language.Types
 import           Language.QuickCheck
@@ -37,15 +38,19 @@ import qualified Data.Configurator as Configurator
 
 haskellTester :: Page -> Code -> Codex Result
 haskellTester page (Code (Language "haskell") code) = do
-    conf <- gets config
-    runghc <- liftIO $ Configurator.require conf "haskell.interpreter"
-    sf <- liftIO $ getSafeExecConf "haskell" conf
+    conf <- getSnapletUserConfig
+    ghc <- liftIO $ Configurator.require conf "haskell.compiler"
+    sf <- liftIO $ getSafeExecConf "haskell.safeexec" conf
+    sf' <- liftIO $ getSafeExecConf "safeexec" conf
+    liftIO $ putStr "haskell:" >> print sf
+    liftIO $ putStr "global: " >> print sf'
+    liftIO $ putStr "combined:" >> print (sf<>sf')
     let path = getQuickcheckPath page
     let args = getQuickcheckArgs page
     liftIO $ do
       c <- doesFileExist path
       if c then
-        T.readFile path >>= haskellTesterIO sf runghc args code 
+        T.readFile path >>= haskellTesterIO (sf<>sf') ghc args code 
         else return (miscError $ T.pack $
                      "missing QuickCheck file: " ++ path)
 haskellTester _ _  = pass             
@@ -54,7 +59,7 @@ haskellTester _ _  = pass
 
 haskellTesterIO ::
   SafeExecConf -> FilePath -> QuickCheckArgs -> Text -> Text -> IO Result
-haskellTesterIO sf runghc args code props =
+haskellTesterIO sf ghc args code props =
    withTempFile "Temp.hs" $ \(codefile, h) ->      
    let codemod = T.pack (takeBaseName codefile)
        dir = takeDirectory codefile
@@ -63,7 +68,7 @@ haskellTesterIO sf runghc args code props =
      T.hPutStrLn h code
      hClose h
      withTextTemp "Main.hs" (testScript args codemod props) $ \tstfile -> 
-       haskellResult <$> safeExecWith sf runghc ["-i"++dir, tstfile] "" 
+       haskellResult <$> safeExecWith sf ghc ["-i"++dir, tstfile, "-e", "Main.main"] "" 
 
 
 

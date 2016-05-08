@@ -22,6 +22,7 @@ import           System.Process.Text
 import           System.Exit
 
 import           Snap.Core(pass)
+import           Snap.Snaplet(getSnapletUserConfig)
 
 import           Language.Types
 import           Language.QuickCheck
@@ -38,14 +39,19 @@ import qualified Data.Configurator as Configurator
 
 clangTester :: Page -> Code -> Codex Result
 clangTester page (Code (Language "c_cpp") code) = do
-  conf <- gets config
+  -- conf <- gets config
+  conf <- getSnapletUserConfig
   ghc <- liftIO $ Configurator.require conf "haskell.compiler"
   gcc <- liftIO $ Configurator.require conf "c.compiler"
-  sf <- liftIO $ getSafeExecConf "c." conf
+  sf <- liftIO $ getSafeExecConf "c.safeexec" conf
+  sf' <- liftIO $ getSafeExecConf "haskell.safeexec" conf
+  sf''<- liftIO $ getSafeExecConf "safeexec" conf
   let path = getQuickcheckPath page
   let args = getQuickcheckArgs page
   props <- liftIO $ T.readFile path
-  liftIO (clangTesterIO sf gcc ghc args code props `catch` return)
+  liftIO (clangTesterIO (sf<>sf'<>sf'') gcc ghc args code props
+          `catch`
+          return)
 clangTester _ _ = pass
 
 

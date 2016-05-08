@@ -17,7 +17,6 @@ import Snap.Snaplet.SqliteSimple
 
 import System.Remote.Monitoring
 
-import Data.Configurator.Types
 
 ------------------------------------------------------------------------------
 data App = App
@@ -25,9 +24,6 @@ data App = App
     , _sess  :: Snaplet SessionManager
     , _auth  :: Snaplet (AuthManager App)
     , _db    :: Snaplet Sqlite
-    , config :: Config
-    -- , ldapConf :: LdapConf              -- LDAP configuration
-    -- , printConf :: PrintConf            -- printout configuration
     , ekg :: Maybe Server           -- optional EKG monitoring server
     }
 

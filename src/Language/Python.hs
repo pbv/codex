@@ -6,11 +6,12 @@ module Language.Python(
 
 import           Control.Applicative
 import           Control.Monad.IO.Class
-import           Control.Monad.State
+import           Data.Monoid
 import           Data.Text (Text)
 import qualified Data.Text as T
 
 import           Snap.Core(pass)
+import           Snap.Snaplet(getSnapletUserConfig)
 
 import           Language.Types
 import           Markdown
@@ -41,13 +42,14 @@ getDoctest Page{..}
 -- running and evaluating python submissions
 pythonTester :: Page -> Code -> Codex Result
 pythonTester page (Code (Language "python") code) = do
-    conf <- gets config
-    python <- liftIO $ Configurator.require conf "python.interpreter" 
-    sf <- liftIO $ getSafeExecConf "python" conf
+    conf <- getSnapletUserConfig
+    python <- liftIO $ Configurator.require conf "python.interpreter"
+    sf <- liftIO $ getSafeExecConf "python.safeexec" conf
+    sf' <- liftIO $ getSafeExecConf "safeexec" conf
     let tstfile = getDoctest page
     liftIO $ do
       c <- doesFileExist tstfile
-      if c then pythonTesterIO sf python code tstfile
+      if c then pythonTesterIO (sf<>sf') python code tstfile
         else return (miscError $ T.pack $ "missing doctest file: " ++ tstfile)
 pythonTester _ _ = pass             
 

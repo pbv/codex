@@ -5,44 +5,66 @@
 module SafeExec where
 
 import           Data.Text (Text)
+import           Data.Monoid
+import           Data.Maybe
 
-import System.Exit (ExitCode)
-import System.Process.Text (readProcessWithExitCode)
--- import System.Process(readProcessWithExitCode)
+import           System.Exit (ExitCode)
+import           System.Process.Text (readProcessWithExitCode)
+
+import           Control.Monad
+import           Control.Applicative
+-- import           Test.QuickCheck
+
 
 -- | safeexec configuration parameters
 data SafeExecConf =
-  SafeExecConf { safeExecPath :: !FilePath
-               , maxCpuTime :: !Int   -- seconds
-               , maxClockTime :: !Int -- seconds
-               , maxMemory :: !Int    -- KB
-               , maxStack :: !Int     -- KB
-               , maxFSize :: !Int     -- KB
-               , maxCore :: !Int      -- KB
-               , numProc :: !Int
+  SafeExecConf { safeExecPath :: Maybe FilePath
+               , maxCpuTime :: Maybe Int   -- seconds
+               , maxClockTime :: Maybe Int -- seconds
+               , maxMemory :: Maybe Int    -- KB
+               , maxStack :: Maybe Int     -- KB
+               , maxFSize :: Maybe Int     -- KB
+               , maxCore :: Maybe Int      -- KB
+               , numProc :: Maybe Int
                } deriving (Eq, Show, Read)
+
+instance Monoid SafeExecConf where
+  mempty = SafeExecConf {
+    safeExecPath = Nothing,
+    maxCpuTime   = Nothing,
+    maxClockTime = Nothing,
+    maxMemory    = Nothing,
+    maxStack     = Nothing,
+    maxFSize     = Nothing,
+    maxCore      = Nothing,
+    numProc      = Nothing
+    }
+
+  mappend c1 c2 = SafeExecConf {
+    safeExecPath = safeExecPath c1 `mplus` safeExecPath c2,
+    maxCpuTime   = maxCpuTime c1 `mplus` maxCpuTime c2,
+    maxClockTime = maxClockTime c1 `mplus` maxClockTime c2,    
+    maxMemory    = maxMemory c1 `mplus` maxMemory c2,
+    maxStack     = maxStack c1 `mplus` maxStack c2,
+    maxFSize     = maxFSize c1 `mplus` maxFSize c2,
+    maxCore      = maxCore c1 `mplus` maxCore c2,
+    numProc      = numProc c1 `mplus` numProc c2
+    }
 
 
 -- | default parameters
 defaultSafeExecConf :: SafeExecConf
 defaultSafeExecConf
-  = SafeExecConf { safeExecPath = "safeexec"
-                 , maxCpuTime = 2
-                 , maxClockTime = 15
-                 , maxMemory= 10*1024
-                 , maxStack = 8*1024
-                 , maxFSize = 8*1024
-                 , maxCore = 0
-                 , numProc = 8
+  = SafeExecConf { safeExecPath = Just "safeexec"
+                 , maxCpuTime   = Just 2
+                 , maxClockTime = Just 15
+                 , maxMemory    = Just (10*1024)
+                 , maxStack     = Just (8*1024)
+                 , maxFSize     = Just (8*1024)
+                 , maxCore      = Just 0
+                 , numProc      = Just 8
                  }
 
-{-
--- | external command config
-data CmdConf
-  = CmdConf { cmdPath :: FilePath
-            , cmdSafeExec :: Maybe SafeExecConf
-            } deriving Show
--}
 
 -- | run with optional safeexec
 safeExecWith :: SafeExecConf
@@ -52,20 +74,47 @@ safeExecWith :: SafeExecConf
              -> IO (ExitCode, Text, Text)  -- exitcode, stdout, stderr
 
 safeExecWith SafeExecConf{..} cmd args stdin
-  = let args0 = ["--cpu", show maxCpuTime,
-                 "--clock", show maxClockTime,
-                 "--mem", show maxMemory,
-                 "--stack", show maxStack,
-                 "--fsize", show maxFSize,
-                 "--core", show maxCore,
-                 "--nproc", show numProc,
-                 "--exec", cmd]
-    in
-     readProcessWithExitCode safeExecPath (args0 ++ args) stdin
+  = let arg opt = maybe [] (\c -> [opt, show c])
+        args0 = ["--exec", cmd]
+                ++
+                arg "--cpu" maxCpuTime
+                ++
+                arg "--clock" maxClockTime
+                ++
+                arg "--mem" maxMemory
+                ++
+                arg "--stack" maxStack
+                ++
+                arg "--fsize" maxFSize
+                ++
+                arg "--core" maxCore
+                ++
+                arg "--nproc" numProc
+    in do
+     readProcessWithExitCode
+       (fromMaybe "safeexec" safeExecPath) (args0 ++ args) stdin
+
+
+
 
 {-
-safeExec :: FilePath -> [String] -> Text -> IO (ExitCode,Text,Text)
-safeExec = safeExecWith defaultSafeExecConf
--}
+instance Arbitrary SafeExecConf where
+  arbitrary = SafeExecConf <$>
+              arbitrary <*>
+              arbitrary <*>
+              arbitrary <*>
+              arbitrary <*>
+              arbitrary <*>
+              arbitrary <*>
+              arbitrary <*>
+              arbitrary 
 
+prop_neutral x = mappend x mempty == x &&
+                 mappend mempty x == x
+  where types = x :: SafeExecConf
+
+prop_assoc x y z = mappend x (mappend y z) ==
+                    mappend (mappend x y) z
+  where types = x :: SafeExecConf
+-}                    
 

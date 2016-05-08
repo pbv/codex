@@ -9,7 +9,7 @@ module Site
   ) where
 
 ------------------------------------------------------------------------------
---import           Prelude hiding (catch)
+
 import           Control.Monad.CatchIO (catch)
 import           Control.Monad.State
 import           Control.Applicative
@@ -22,7 +22,7 @@ import qualified Data.ByteString.UTF8 as B
 import qualified Data.ByteString      as B
 import           Data.Monoid
 import           Data.Maybe(listToMaybe, maybeToList, isJust, fromMaybe)
--- import           Data.Map (Map)
+
 import qualified Data.Map as Map
 import           Data.Text (Text)
 import qualified Data.Text as T
@@ -93,7 +93,8 @@ handleLogin
   = method GET (with auth $ handleLoginForm Nothing) <|>
     method POST (do { user <- require (getParam "login") 
                     ; passwd <- require (getParam "password")
-                    ; ldapconf <- gets config >>= (liftIO . getLdapConf)
+                    ; conf <- getSnapletUserConfig
+                    ; ldapconf <- liftIO (getLdapConf conf)
                     ; with auth $ handleLoginSubmit ldapconf user passwd
                     } <|> badRequest)
 
@@ -589,7 +590,7 @@ app :: SnapletInit App App
 app = 
   makeSnaplet "codex" "Web server for programming exercises." Nothing $ do
     conf <- getSnapletUserConfig
-    e <- liftIO $ initEkg conf
+    e <- liftIO (initEkg conf)
     h <- nestSnaplet "" heist $ heistInit "templates"
     s <- nestSnaplet "sess" sess $
            initCookieSessionManager "site_key.txt" "sess" (Just 7200)
@@ -609,17 +610,10 @@ app =
     let c = sqliteConn $ d ^# snapletValue
     liftIO $ withMVar c $ \conn -> Db.createTables conn
     addRoutes routes
-    {-
-    prt <- liftIO $ configPrintConf conf
-    ldap <- liftIO $ configLdapConf conf
-    py <- liftIO $ getPythonConf conf
-    hs <- liftIO $ getHaskellConf conf
-    -}
     return App { _heist = h
                , _sess = s
                , _auth = a
                , _db   = d
-               , config = conf
                , ekg = e
                }
 
