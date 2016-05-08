@@ -30,7 +30,7 @@
 	<submissionList>
 	  <li>
 	    <a href="/submit/${submitID}">
-	      <span class="info"><submitClassify/></span></a><submit_icons/>
+	      <span class="info"><submitClassify/></span></a>
 	  </li>
 	</submissionList>
       </ol>

@@ -39,7 +39,6 @@ import qualified Data.Configurator as Configurator
 
 clangTester :: Page -> Code -> Codex Result
 clangTester page (Code (Language "c_cpp") code) = do
-  -- conf <- gets config
   conf <- getSnapletUserConfig
   ghc <- liftIO $ Configurator.require conf "haskell.compiler"
   gcc <- liftIO $ Configurator.require conf "c.compiler"
@@ -50,8 +49,7 @@ clangTester page (Code (Language "c_cpp") code) = do
   let args = getQuickcheckArgs page
   props <- liftIO $ T.readFile path
   liftIO (clangTesterIO (sf<>sf'<>sf'') gcc ghc args code props
-          `catch`
-          return)
+          `catch` return)
 clangTester _ _ = pass
 
 

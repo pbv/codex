@@ -1,7 +1,8 @@
 {-
   Run UNIX commands under a "sandbox" limiting memory, cpu time, etc.
 -}
-{-# LANGUAGE RecordWildCards, OverloadedStrings #-}
+{-# LANGUAGE RecordWildCards #-}
+{-# LANGUAGE OverloadedStrings #-}
 module SafeExec where
 
 import           Data.Text (Text)
@@ -52,18 +53,6 @@ instance Monoid SafeExecConf where
     }
 
 
--- | default parameters
-defaultSafeExecConf :: SafeExecConf
-defaultSafeExecConf
-  = SafeExecConf { safeExecPath = Just "safeexec"
-                 , maxCpuTime   = Just 2
-                 , maxClockTime = Just 15
-                 , maxMemory    = Just (10*1024)
-                 , maxStack     = Just (8*1024)
-                 , maxFSize     = Just (8*1024)
-                 , maxCore      = Just 0
-                 , numProc      = Just 8
-                 }
 
 
 -- | run with optional safeexec

@@ -30,6 +30,11 @@ import           Page
 import           SafeExec
 import           Config
 
+import           System.Directory
+import           System.Process.Text
+import           System.Exit
+import           Control.Exception
+
 
 import qualified Data.Configurator as Configurator
 
@@ -42,17 +47,11 @@ haskellTester page (Code (Language "haskell") code) = do
     ghc <- liftIO $ Configurator.require conf "haskell.compiler"
     sf <- liftIO $ getSafeExecConf "haskell.safeexec" conf
     sf' <- liftIO $ getSafeExecConf "safeexec" conf
-    liftIO $ putStr "haskell:" >> print sf
-    liftIO $ putStr "global: " >> print sf'
-    liftIO $ putStr "combined:" >> print (sf<>sf')
     let path = getQuickcheckPath page
     let args = getQuickcheckArgs page
-    liftIO $ do
-      c <- doesFileExist path
-      if c then
-        T.readFile path >>= haskellTesterIO (sf<>sf') ghc args code 
-        else return (miscError $ T.pack $
-                     "missing QuickCheck file: " ++ path)
+    props <- liftIO $ T.readFile path
+    liftIO (haskellTesterIO (sf<>sf') ghc args code props
+            `catch` return)
 haskellTester _ _  = pass             
 
      
@@ -60,15 +59,29 @@ haskellTester _ _  = pass
 haskellTesterIO ::
   SafeExecConf -> FilePath -> QuickCheckArgs -> Text -> Text -> IO Result
 haskellTesterIO sf ghc args code props =
-   withTempFile "Temp.hs" $ \(codefile, h) ->      
-   let codemod = T.pack (takeBaseName codefile)
-       dir = takeDirectory codefile
+   withTempFile "Temp.hs" $ \(hs_file, h) ->      
+   let codemod = T.pack $ takeBaseName hs_file
+       dir = takeDirectory hs_file
    in do
      T.hPutStrLn h (moduleHeader codemod)
      T.hPutStrLn h code
      hClose h
-     withTextTemp "Main.hs" (testScript args codemod props) $ \tstfile -> 
-       haskellResult <$> safeExecWith sf ghc ["-i"++dir, tstfile, "-e", "Main.main"] "" 
+     withTextTemp "Main.hs" (testScript args codemod props) $ \tstfile -> do
+       let out_file = dir </> takeBaseName tstfile
+       runCompiler ghc  ["-i"++dir, "-O0", "-dynamic", tstfile, "-o", out_file] 
+       r <- haskellResult <$> safeExecWith sf out_file [] ""
+       removeFile out_file
+       return r
+
+
+
+runCompiler cmd args = do
+  (exitCode, _, stderr) <- readProcessWithExitCode cmd args ""
+  case exitCode of
+    ExitFailure _ ->
+      throw (compileError stderr)
+    ExitSuccess ->
+      return ()
 
 
 
@@ -94,7 +107,8 @@ testScript args codemod props
 
 
 moduleHeader :: Text -> Text
-moduleHeader name = "module " <> name <> " where"
+moduleHeader name
+  = T.unlines ["{-# LANGUAGE Safe #-}", "module " <> name <> " where"]
 
 haskellResult (exitCode, stdout, stderr)  
   | match "Not in scope" stderr ||

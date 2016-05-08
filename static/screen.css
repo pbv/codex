@@ -55,7 +55,7 @@ img {
 
 .submissions li {
     display: inline;
-    list-style-type: square;
+    list-style-type: none;
     padding-right: 2em;
 }
 
