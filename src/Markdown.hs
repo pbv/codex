@@ -5,7 +5,7 @@
 module Markdown where
 
 import           Text.Pandoc hiding (Code)
-import           Text.Pandoc.Builder hiding (Code)
+-- import           Text.Pandoc.Builder hiding (Code)
 import qualified Text.Pandoc ( Inline(Code) )
 import           Text.Pandoc.Walk
 import           Text.XmlHtml 
@@ -15,10 +15,10 @@ import           Data.Text (Text)
 import qualified Data.Text as T
 import qualified Data.Map as Map
 import           Data.Monoid
-import           Data.Maybe
+-- import           Data.Maybe
 import           Data.List (intersperse)
 
-import           Types
+-- import           Types
 
 
 

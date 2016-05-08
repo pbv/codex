@@ -16,16 +16,12 @@ import           Data.Text (Text)
 import qualified Data.Text as T
 
 import           Data.Int(Int64)
-import           Data.Typeable
-import           Data.Time.Clock
 
 import           Database.SQLite.Simple.ToField
 import           Database.SQLite.Simple.FromField
 import           Database.SQLite.Simple.FromRow
 
-import           Text.Pandoc.Builder hiding (Code)
 
-import           SafeExec
 
 -- | identifiers
 newtype UserID

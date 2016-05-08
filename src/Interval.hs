@@ -4,10 +4,10 @@
 module Interval where
 
 import           Data.Char
-import           Data.Maybe
+-- import           Data.Maybe
 import           Data.Typeable
 import           Data.Time
-import           Data.Time.LocalTime
+-- import           Data.Time.LocalTime
 import           System.Locale
 import           Control.Applicative
 

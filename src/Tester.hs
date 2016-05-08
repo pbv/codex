@@ -8,14 +8,10 @@ import           Data.Text(Text)
 import qualified Data.Text as T
 import qualified Data.Text.IO as T
 
-import           System.FilePath
 import           System.IO 
 import           System.Directory
 import           Control.Exception
 
--- import           Problem (Problem)
-
-import           Types
 
 -- submission results
 data Result = Result { resultClassify :: !Classify

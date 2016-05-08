@@ -7,16 +7,11 @@ module Language.Python(
 import           Control.Applicative
 import           Control.Monad.IO.Class
 import           Control.Monad.State
-import           Data.String
-import           Data.Maybe
 import           Data.Text (Text)
 import qualified Data.Text as T
 
 import           Snap.Core(pass)
 
-import           Text.Pandoc hiding (Code)
-
-import           Types
 import           Language.Types
 import           Markdown
 import           Application
@@ -31,7 +26,16 @@ import           System.Directory
 
 
 import qualified Data.Configurator as Configurator
-import           Data.Configurator.Types
+
+type Doctest = FilePath   -- path to doctest script
+
+-- get the doctest path for a problem
+getDoctest :: Page -> Doctest
+getDoctest Page{..}
+  = root </> (maybe
+              (replaceExtension path ".tst")
+              (takeDirectory path </>)
+              (lookupFromMeta "doctest" meta))
 
 
 -- running and evaluating python submissions
@@ -46,16 +50,6 @@ pythonTester page (Code (Language "python") code) = do
       if c then pythonTesterIO sf python code tstfile
         else return (miscError $ T.pack $ "missing doctest file: " ++ tstfile)
 pythonTester _ _ = pass             
-
-type Doctest = FilePath   -- path to doctest script
-
--- get the doctest path for a problem
-getDoctest :: Page -> Doctest
-getDoctest Page{..}
-  = root </> (maybe
-              (replaceExtension path ".tst")
-              (takeDirectory path </>)
-              (lookupFromMeta "doctest" meta))
 
 
 pythonTesterIO :: SafeExecConf -> FilePath -> Text -> Doctest -> IO Result

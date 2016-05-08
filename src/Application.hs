@@ -15,11 +15,8 @@ import Snap.Snaplet.Auth
 import Snap.Snaplet.Session
 import Snap.Snaplet.SqliteSimple
 
-import Data.HashMap.Strict (HashMap)
 import System.Remote.Monitoring
 
-import Types
-import Language.Types
 import Data.Configurator.Types
 
 ------------------------------------------------------------------------------

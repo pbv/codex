@@ -10,8 +10,6 @@ module Language.Haskell (
 
 import           Control.Applicative
 import           Control.Monad.State
-import           Data.String
-import           Data.Maybe
 import           Data.Text (Text)
 import qualified Data.Text as T
 import qualified Data.Text.IO as T
@@ -23,10 +21,8 @@ import           System.IO
 
 import           Snap.Core(pass)
 
-import           Types
 import           Language.Types
 import           Language.QuickCheck
-import           Markdown
 import           Tester
 import           Application
 import           Page
@@ -35,10 +31,6 @@ import           Config
 
 
 import qualified Data.Configurator as Configurator
-import           Data.Configurator.Types
-
-
-
 
 
 -- running and evaluating Haskell submissions

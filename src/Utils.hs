@@ -11,9 +11,9 @@ import           Data.Text(Text)
 import qualified Data.Text as T
 import qualified Data.Text.Encoding as T
 import qualified Data.Text.Encoding.Error as T
-import qualified Data.Text.IO as T
+-- import qualified Data.Text.IO as T
 import           Data.String
-import           Data.Monoid
+-- import           Data.Monoid
 import           Data.Maybe (maybeToList)
 
 import           Snap.Core
@@ -34,12 +34,12 @@ import           Control.Exception (SomeException)
 import           System.Remote.Monitoring
 import           System.Remote.Counter as Counter
 
-import           System.Directory
-import           System.IO
+-- import           System.Directory
+-- import           System.IO
 
 import           Types
 import           Interval
-import           SafeExec
+-- import           SafeExec
 -- import           Language
 import           Application
 import           LdapAuth

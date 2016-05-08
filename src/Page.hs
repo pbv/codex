@@ -5,12 +5,9 @@
 -}
 module Page where
 
-import           Control.Monad
 import           Control.Applicative 
 
 import           Data.Maybe
-import           Data.Monoid
-import           Data.String
 import           Data.Text(Text)
 import qualified Data.Text             as T
 
@@ -18,14 +15,11 @@ import           Data.Time.LocalTime
 
 import           Language.Types
 import           Markdown
-import           Types
 import           Interval
 import           Text.Pandoc hiding (Code)
 import           Text.Pandoc.Walk
 
-
 import           System.FilePath
-import           System.Directory
 
 
 -- | a page: either a single problem or a worksheet

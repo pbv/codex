@@ -10,12 +10,9 @@ module Language.C (
 
 import           Control.Applicative
 import           Control.Monad.State
-import           Data.String
-import           Data.Maybe
 import           Data.Text (Text)
 import qualified Data.Text as T
 import qualified Data.Text.IO as T
-import qualified Data.HashMap.Strict as HashMap
 import           Data.Monoid
 
 import           System.FilePath
@@ -26,10 +23,9 @@ import           System.Exit
 
 import           Snap.Core(pass)
 
-import           Types
 import           Language.Types
 import           Language.QuickCheck
-import           Markdown
+
 import           Tester
 import           Application
 import           Page
@@ -54,10 +50,10 @@ clangTester _ _ = pass
 
 
 clangTesterIO sf gcc ghc args c_code props =
-  withTempFile "foreign.c" $ \(c_file, h1) ->
+  withTempFile "sub.c" $ \(c_file, h1) ->
   withTempFile "Main.hs" $ \(hs_file, h2) ->
   let dir = takeDirectory c_file
-      obj_file = dir </> takeBaseName c_file <.> "o"
+      c_obj_file = dir </> takeBaseName c_file <.> "o"
       out_file = dir </> takeBaseName hs_file
   in do
     -- create C code file
@@ -67,14 +63,14 @@ clangTesterIO sf gcc ghc args c_code props =
     T.hPutStrLn h2 (testScript args props)
     hClose h2
     -- compile C code; this should be safe to run without safeExec
-    runCompiler gcc ["-fPIC", "-std=c99", "-c", c_file, "-o", obj_file]
+    runCompiler gcc ["-fPIC", "-std=c99", "-c", c_file, "-o", c_obj_file]
     --- compile Haskell test script
-    runCompiler ghc ["-i"++dir, "-dynamic", "-O0",  obj_file, hs_file, "-o", out_file]
+    runCompiler ghc ["-i"++dir, "-dynamic", "-O0",
+                     c_obj_file, hs_file, "-o", out_file]
     -- run compiled script under safe exec
     r <- haskellResult <$> safeExecWith sf out_file [] ""
-    -- cleanup the temporary object file
-    removeFile obj_file
-    removeFile out_file
+    -- cleanup temporary files
+    mapM_ removeFile [c_obj_file, out_file, out_file <.> "o", out_file <.> "hi"]
     return r
 
 runCompiler cmd args = do
