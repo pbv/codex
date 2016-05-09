@@ -94,15 +94,14 @@ testScript args props
       "import System.Exit",
       "import Test.QuickCheck",
       "import Test.QuickCheck.Function",
+      "import Test.QuickCheck.Random",
       "",
       props,
       "",
       "return []",
-      "main = $forAllProperties (quickCheckWithResult " <>
-      "stdArgs { maxSuccess = " <> T.pack (show $ maxSuccess args) <>
-      ", maxSize = " <> T.pack (show $ maxSize args) <>
-      ", maxDiscardRatio = " <> T.pack (show $ maxDiscardRatio args) <>
-      "}) >>= \\c -> if c then exitSuccess else exitFailure"
+      "main = $forAllProperties (quickCheckWithResult " 
+      <> T.pack (setupArgs args) <>
+      ") >>= \\c -> if c then exitSuccess else exitFailure"
     ]
 
 

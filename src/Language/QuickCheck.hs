@@ -44,3 +44,12 @@ getQuickcheckArgs Page{..} =
                       optSeed = optSeed
                     }
 
+-- setup string for running using suplied arguments
+setupArgs :: QuickCheckArgs -> String
+setupArgs QuickCheckArgs{..} =
+  "stdArgs { maxSuccess = " ++ show maxSuccess ++
+  ", maxSize = " ++ show maxSize ++
+  ", maxDiscardRatio = " ++ show maxDiscardRatio ++
+  maybe "" (\seed -> ", replay = Just (mkQCGen " ++ show seed ++ ",0)")
+  optSeed ++
+  " }"
