@@ -42,13 +42,12 @@ clangTester page (Code (Language "c_cpp") code) = do
   conf <- getSnapletUserConfig
   ghc <- liftIO $ Configurator.require conf "haskell.compiler"
   gcc <- liftIO $ Configurator.require conf "c.compiler"
-  sf <- liftIO $ getSafeExecConf "c.safeexec" conf
-  sf' <- liftIO $ getSafeExecConf "haskell.safeexec" conf
-  sf''<- liftIO $ getSafeExecConf "safeexec" conf
+  sf <- liftIO $ getSafeExecConf "haskell.safeexec" conf
+  sf'<- liftIO $ getSafeExecConf "safeexec" conf
   let path = getQuickcheckPath page
   let args = getQuickcheckArgs page
   props <- liftIO $ T.readFile path
-  liftIO (clangTesterIO (sf<>sf'<>sf'') gcc ghc args code props
+  liftIO (clangTesterIO (sf<>sf') gcc ghc args code props
           `catch` return)
 clangTester _ _ = pass
 

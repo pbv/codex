@@ -64,9 +64,7 @@ safeExecWith :: SafeExecConf
 
 safeExecWith SafeExecConf{..} cmd args stdin
   = let arg opt = maybe [] (\c -> [opt, show c])
-        args0 = ["--exec", cmd]
-                ++
-                arg "--cpu" maxCpuTime
+        args0 = arg "--cpu" maxCpuTime
                 ++
                 arg "--clock" maxClockTime
                 ++
@@ -79,6 +77,8 @@ safeExecWith SafeExecConf{..} cmd args stdin
                 arg "--core" maxCore
                 ++
                 arg "--nproc" numProc
+                ++
+                ["--exec", cmd]
     in do
      readProcessWithExitCode
        (fromMaybe "safeexec" safeExecPath) (args0 ++ args) stdin
