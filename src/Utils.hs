@@ -13,8 +13,8 @@ import qualified Data.Text.Encoding as T
 import qualified Data.Text.Encoding.Error as T
 -- import qualified Data.Text.IO as T
 import           Data.String
--- import           Data.Monoid
 import           Data.Maybe (maybeToList)
+import qualified Data.Map as Map
 
 import           Snap.Core
 import           Snap.Snaplet
@@ -58,10 +58,6 @@ incrCounter name
 
 
 
--- | Get current logged in user; fail with unauthorized error if missing
--- getRequiredUserID :: Pythondo UID
--- getRequiredUserID = require getUserID <|> unauthorized
-
 -- | Get current logged in user ID (if any)
 --   from the authentication snaplet  
 getUserID :: Codex (Maybe UserID)
@@ -87,14 +83,12 @@ getUserEvents = fmap userEvents <$> with auth currentUser
 
 userEvents :: AuthUser -> Events
 userEvents au = [(n, t) | (n,f)<-fields, t <- maybeToList (f au)]
-  where fields =  [("activated", userActivatedAt),
-                   ("created", userCreatedAt),
-                   ("updated", userUpdatedAt),
-                   ("loggedIn", userCurrentLoginAt)]
+  where fields =  [("activation", userActivatedAt),
+                   ("creation", userCreatedAt),
+                   ("update", userUpdatedAt),
+                   ("login", userCurrentLoginAt)]
  
 
--- getProblemID :: AppHandler (Maybe ProblemID)
--- getProblemID = fmap ProblemID <$> getParam "problem"
 
 getSubmitID :: Codex (Maybe SubmitID)
 getSubmitID = do opt <- getParam "sid"
@@ -102,6 +96,14 @@ getSubmitID = do opt <- getParam "sid"
                              case reads (B.toString bs) of
                                [(i,"")] -> Just (SubmitID i)
                                _ -> Nothing
+
+
+
+-- get tag list from query string
+getQueryTags :: Codex [Text]
+getQueryTags = do
+  params <- getParams
+  return (map (T.pack . B.toString) $ Map.findWithDefault [] "tag" params)
 
 
 

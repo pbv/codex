@@ -23,6 +23,8 @@ import qualified Data.ByteString      as B
 import           Data.Monoid
 import           Data.Maybe(listToMaybe, maybeToList, isJust, fromMaybe)
 
+import           Data.List (nub, sort)
+
 import qualified Data.Map as Map
 import           Data.Text (Text)
 import qualified Data.Text as T
@@ -153,15 +155,38 @@ handlePage = do
   path <- B.toString <$> getsRequest rqPathInfo
   page <- liftIO $ Page.readPage pageFileRoot path
   if Page.isExercise page then
-    method GET (Submission.getAll uid path >>= renderExercise page)
-    <|>
-    method POST (handlePost uid page)
+    (method GET (Submission.getAll uid path >>= renderExercise page) <|>
+     method POST (handlePost uid page))
     else
-       method GET $ do
-         linked <- liftIO $ mapM (Page.readPage pageFileRoot) (links page)
-         sublist <- mapM (Submission.getAll uid . Page.path) linked
-         renderWithSplices "indexsheet" (pageSplices page >>
-                                         indexSplices (zip linked sublist))
+    method GET (renderIndex uid page)
+
+
+renderIndex uid page = do
+  querytags <- getQueryTags
+  pages <- liftIO $ mapM (Page.readPage pageFileRoot) (links page)
+  let alltags = nub $ sort $ concatMap Page.getTags pages
+  let pages' = filter (Page.isTagged querytags) pages
+  let abletags = nub $ sort $ concatMap Page.getTags pages'
+  subs <- mapM (Submission.getAll uid . Page.path) pages'
+  renderWithSplices "indexsheet" $ do
+    pageSplices page 
+    indexSplices (zip pages' subs)
+    "available" ## I.textSplice $ T.pack $ show $ length pages
+    "visible" ## I.textSplice $ T.pack $ show $ length pages'
+    "tagList" ##  I.mapSplices (I.runChildrenWith .
+                                tagSplices querytags abletags) alltags
+
+
+-- context-dependent splices for for a tag selection checkbox
+tagSplices :: [Text] -> [Text] -> Text -> ISplices
+tagSplices querytags enabled tag = 
+  let checked = tag `elem` querytags
+      disabled= tag `notElem` enabled
+       -- null (filter (isTagged tag) visible)
+  in do "tagText" ## I.textSplice tag
+        "tagCheckbox" ## return (checkboxInput tag checked disabled)
+
+
 
 --  render an exercise page
 renderExercise :: Page -> [Submission] -> Codex ()
@@ -335,11 +360,6 @@ handleProblemList = method GET $ do
 -}
 
 {-
--- get tag list from query string
-getQueryTags :: Codex [Tag]
-getQueryTags = do
-  params <- getParams
-  return (map (T.pack . B.toString) $ Map.findWithDefault [] "tag" params)
 -}
 
 {-

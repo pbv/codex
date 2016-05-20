@@ -60,6 +60,13 @@ getTags :: Page -> [Text]
 getTags Page{..}
   = fromMaybe [] (lookupFromMeta "tags" meta)
 
+
+-- | check if a page has all tags
+isTagged :: [Text] -> Page -> Bool
+isTagged tags page = tags `isSublistOf` getTags page
+    where isSublistOf xs ys = all (`elem`ys) xs
+
+
 getLanguage :: Page -> Language
 getLanguage Page{..}
   = fromMaybe (Language "text") (lookupFromMeta "language" meta)

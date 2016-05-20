@@ -8,6 +8,19 @@
   <div class="description">
     <pageDescription/>
   </div>
+  <div class="filters">
+    <form action="" method="get">
+      <dl>
+	<dt>Filtrar exercícios:</dt>	
+	<dt class="info">(vísiveis <visible/> de <available/>)</dt>
+	<tagList>
+	  <dt><tagCheckbox/></dt>
+	</tagList>
+      </dl>
+      <p><input type="submit" value="Aplicar"/></p>
+      <p><a class="button" href="${pagePath}">Limpar filtros</a></p>
+    </form>
+  </div>
   <div class="index">
     <dl>
       <indexList>

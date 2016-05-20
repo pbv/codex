@@ -141,7 +141,7 @@ pre {
 
 .disabled { color: #A0A0A0; }
 
-.filterlist {
+.filters {
     float: left;
     margin-left: 1em;
     width: 14em;

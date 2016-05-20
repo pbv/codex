@@ -101,10 +101,6 @@ data PrintConf = PrintConf { printEnabled :: Bool
 
 
 {-
--- | problem tags
-type Tag = Text
-
-
 -- | a type class for collecting tags from problems, etc.
 class Tagged a where
     taglist  :: a -> [Tag]

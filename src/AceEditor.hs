@@ -64,6 +64,12 @@ inputAceEditor = do
            printf "startAceEditor('%s','%s');\n"  (T.unpack id) (T.unpack mode)
            ]
 
+
+selectLanguage = element "select"
+                 [element "option" [X.TextNode lang] [("value",lang)] | lang<-languages] []
+
+languages = ["python", "java", "c_cpp", "haskell"]
+
 {-
 -- | Splice for a textarea/Ace editor form input
 -- NB: requires some js "glue" to setup and submit text
