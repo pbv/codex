@@ -21,6 +21,7 @@
 </exerciseTiming>
 
 <h2>Nova submissão</h2>
+
 <form id="editform" method="POST" action="${pagePath}"
       onsubmit="submitAceEditorText('editform.editor');">
 <p><inputAceEditor id="editform.editor" mode="ace/mode/${pageLanguage}"><submitCodeText/></inputAceEditor></p>

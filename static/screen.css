@@ -1,5 +1,4 @@
 
-
 body {
     margin: 0;
     padding: 0;
@@ -34,34 +33,28 @@ img {
    border: none;
 }
 
-.problemli {
-    padding-bottom: 2ex;
-}
 
-.problemlist {
+.index {
     float: left;
     width: 30em;
 }
 
-
-.submissions {
-/*
-    -webkit-column-count: 4; /* Chrome, Safari, Opera */
-    -moz-column-count: 4; /* Firefox */
-    column-count: 4;
-*/
-    font-size: 90%; 
+.index li {
 }
 
 .submissions li {
-    display: inline;
-    list-style-type: none;
-    padding-right: 2em;
+   display: block;
+   width: 25%;
+   float: left;
 }
 
+.submissions:after { 
+  content: '';
+  display: block;
+  clear: both;
+ }
 
 #content {
-    /* padding-left: 1em; */
    margin-left: auto;
    margin-right: auto;
    width: 50em;
@@ -124,12 +117,12 @@ img {
     padding-left: 1em;
 }
 
-pre { 
-    background-color: #fcfcfc; 
-    padding: 1em;
-    width: 60em;
-}
 
+pre { 
+    background-color: #ffffcc; 
+    padding: 1em;
+    width: 55em;
+}
 
 .ace_editor { 
     width:  45em;
@@ -153,46 +146,3 @@ pre {
 .sourceCode .co { color: darkgreen; } 
 .sourceCode .st { color: darkgreen; }
 
-/* --- expand div ---------- */
-
-.toggle-box {
-  display: none;
-}
-
-.toggle-box + label {
-  cursor: pointer;
-  display: block;
-  font-weight: bold;
-  line-height: 21px;
-  margin-bottom: 5px;
-}
-
-.toggle-box + label + div {
-  display: none;
-  margin-bottom: 10px;
-}
-
-.toggle-box:checked + label + div {
-  display: block;
-}
-
-.toggle-box + label:before {
-  background-color: #4F5150;
-  -webkit-border-radius: 10px;
-  -moz-border-radius: 10px;
-  border-radius: 10px;
-  color: #FFFFFF;
-  content: "+";
-  display: block;
-  float: left;
-  font-weight: bold;
-  height: 20px;
-  line-height: 20px;
-  margin-right: 5px;
-  text-align: center;
-  width: 20px;
-}
-
-.toggle-box:checked + label:before {
-  content: "\2212";
-}
