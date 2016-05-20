@@ -81,6 +81,7 @@ getUserRoles = do
 getUserEvents :: Codex (Maybe Events)
 getUserEvents = fmap userEvents <$> with auth currentUser
 
+-- | events associated with a user account
 userEvents :: AuthUser -> Events
 userEvents au = [(n, t) | (n,f)<-fields, t <- maybeToList (f au)]
   where fields =  [("activation", userActivatedAt),

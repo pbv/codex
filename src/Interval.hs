@@ -4,6 +4,8 @@
 module Interval where
 
 import           Data.Char
+import           Data.Text (Text)
+import qualified Data.Text as T
 -- import           Data.Maybe
 import           Data.Typeable
 import           Data.Time
@@ -25,7 +27,7 @@ data Interval = Always
 
 -- | a time expression
 data TimeExpr = Absolute !UTCTime
-              | Event !String
+              | Event !Text
               | Add !NominalDiffTime !TimeExpr
           deriving (Eq, Show)
 
@@ -86,7 +88,7 @@ parseTimeExpr tz now
   where
     base = Absolute <$> parseUTCTime tz now
            <|>
-           Event <$> (skipSpaces >> parseName)
+           Event <$> (skipSpaces >> parseEvent)
  
 
 -- parse time strings
@@ -103,11 +105,11 @@ parseLocalTime now  =
 parseUTCTime :: TimeZone  -> LocalTime -> ReadP UTCTime
 parseUTCTime tz  now  = localTimeToUTC tz <$> parseLocalTime now
 
-parseName :: ReadP String
-parseName = do
+parseEvent :: ReadP Text
+parseEvent = do
   x <- satisfy isAlpha
   xs<- munch isAlphaNum
-  return (x:xs)
+  return (T.pack (x:xs))
   
 
 parseDiff :: ReadP NominalDiffTime
@@ -144,7 +146,7 @@ token s = skipSpaces >> string s
 
 -- * semantics
 -- | a  environment for events
-type Events = [(String, UTCTime)]
+type Events = [(Text, UTCTime)]
 
 -- | time value of an expression
 timeVal :: Events -> TimeExpr -> Maybe UTCTime
