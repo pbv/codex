@@ -110,8 +110,8 @@ evaluate :: UserID -> Page ->  Code -> Codex Submission
 evaluate uid page@Page{..} code = do 
   now <- liftIO getCurrentTime
   env <- require getUserEvents
-  let timing = Interval.timingVal env interval now
-  -- run code tester  and insert record into Db
+  let timing = Interval.evalI env (Page.getValid page) now
+  -- run code tester and insert record into Db
   result <- codeTester page code
   insertDb uid path now code result timing
 

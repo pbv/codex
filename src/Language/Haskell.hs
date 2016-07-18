@@ -29,6 +29,7 @@ import           Application
 import           Page
 import           SafeExec
 import           Config
+import           Utils (require)
 
 import           System.Directory
 import           System.Process.Text
@@ -47,9 +48,9 @@ haskellTester page (Code (Language "haskell") code) = do
     ghc <- liftIO $ Configurator.require conf "haskell.compiler"
     sf <- liftIO $ getSafeExecConf "haskell.safeexec" conf
     sf' <- liftIO $ getSafeExecConf "safeexec" conf
-    let path = getQuickcheckPath page
-    let args = getQuickcheckArgs page
+    path <- require (return $ getQuickcheckPath page)
     props <- liftIO $ T.readFile path
+    let args = getQuickcheckArgs page
     liftIO (haskellTesterIO (sf<>sf') ghc args code props
             `catch` return)
 haskellTester _ _  = pass             
@@ -59,7 +60,7 @@ haskellTester _ _  = pass
 haskellTesterIO ::
   SafeExecConf -> FilePath -> QuickCheckArgs -> Text -> Text -> IO Result
 haskellTesterIO sf ghc args code props =
-   withTempFile "Temp.hs" $ \(hs_file, h) ->      
+   withTempFile "Submit.hs" $ \(hs_file, h) ->      
    let codemod = T.pack $ takeBaseName hs_file
        dir = takeDirectory hs_file
    in do
@@ -94,7 +95,7 @@ testScript args codemod props
       "import Test.QuickCheck",
       "import Test.QuickCheck.Function",
       "import Test.QuickCheck.Random",
-      "import " <> codemod,
+      "import qualified " <> codemod <> " as Submit",
       "",
       props,
       "",

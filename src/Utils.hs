@@ -201,6 +201,10 @@ javascript txt = X.Element "script" [("type","text/javascript")] [X.TextNode txt
 
 
 
-                               
+-- | set list element containtment
+contained :: Eq a => [a] -> [a] -> Bool
+contained xs ys = all (`elem`ys) xs
+
+
 
     

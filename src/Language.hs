@@ -25,4 +25,4 @@ codeTester page code
   = pythonTester page code <|>
     haskellTester  page code <|>
     clangTester page code <|>
-    return (miscError "no tester defined")
+    return (accepted "No tester defined")

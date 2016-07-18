@@ -1,52 +1,52 @@
-<bind tag="icon_accepted"><img src="/icons/16x16/accepted.png"/></bind>
-<bind tag="icon_rejected"><img src="/icons/16x16/rejected.png"/></bind>
-<bind tag="icon_overdue"><img src="/icons/16x16/overdue.png"/></bind>
-<bind tag="icon_editor"><img src="/icons/16x16/editor.png"/></bind>
-<bind tag="submit_icons"><submitOverdue>&nbsp;<icon_overdue/><else/><submitAccepted>&nbsp;<icon_accepted/></submitAccepted></submitOverdue></bind>
+<bind tag="icon-accepted"><img src="/icons/16x16/accepted.png"/></bind>
+<bind tag="icon-rejected"><img src="/icons/16x16/rejected.png"/></bind>
+<bind tag="icon-overdue"><img src="/icons/16x16/overdue.png"/></bind>
+<bind tag="icon-editor"><img src="/icons/16x16/editor.png"/></bind>
+<bind tag="submit-icons"><submit:overdue>&nbsp;<icon-overdue/><else/><submit:accepted>&nbsp;<icon-accepted/></submit:accepted></submit:overdue></bind>
 <apply template="base">
 <div class="description">
-<pageDescription/>
+<page:description/>
 </div>
 
-<exerciseTiming>
+<page:case-timing>
   <Early>
     <p>Submissões iniciam em: <validFrom/></p>
   </Early>
   <default>
     <p>Submissões terminam em: <validUntil/></p>
   </default>
-</exerciseTiming>
+</page:case-timing>
 
-<ifSubmitted>
+<if-submitted>
   <h2>Submissões anteriores</h2>
-  <exerciseTiming>
+  <page:case-timing>
     <Early>
-      <p><submissionsCount/> submissões antecipadas; os resultados serão
-	visíveis após <validFrom/>.</p>  
+      <p><submissions-count/> submissões antecipadas; os resultados serão
+	visíveis após <page:valid-from/>.</p>  
     </Early>
     <default>
       <ol class="submissions">
-	<submissionList>
+	<submissions-list>
 	  <li>
-	    <a href="/submit/${submitID}">
-	      <span class="info"><submitClassify/></span></a>
+	    <a href="/submit/${submit:id}">
+	      <span class="info"><submit:classify/></span></a>
 	  </li>
-	</submissionList>
+	</submissions-list>
       </ol>
     </default>
-  </exerciseTiming>
-</ifSubmitted>
+  </page:case-timing>
+</if-submitted>
 
 <h2>Nova submissão</h2>
 
-<form id="editform" method="POST" action="${pagePath}"
+<form id="editform" method="POST" action="${page:path}"
       onsubmit="submitAceEditorText('editform.editor');">
 <p>
-  <inputAceEditor id='editform.editor' mode='ace/mode/${pageLanguage}'><pageCodeText/></inputAceEditor>
+  <inputAceEditor id='editform.editor' mode='ace/mode/${page:language}'><page:code-text/></inputAceEditor>
 </p>
 <p>
   <input type="submit" value="Enviar"/>  &nbsp;
-  <a href="${pageParent}" class="button">Voltar à folha de problemas</a>
+  <a href="${page:parent}" class="button">Voltar à folha de problemas</a>
 </form>
 </apply>
 

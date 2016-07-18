@@ -6,6 +6,7 @@
 module Page where
 
 import           Control.Applicative 
+import           Control.Monad
 
 import           Data.Maybe
 import           Data.Text(Text)
@@ -22,25 +23,21 @@ import           Text.Pandoc.Walk
 import           System.FilePath
 
 
--- | a page: either a single problem or a worksheet
-data Page
+-- | a document page; either a single exercise or an index
+data Page  
   = Page { root :: FilePath        -- file root dir for this page
          , path :: FilePath        -- relative path
          , meta :: Meta
          , description :: [Block]
-         , links :: [FilePath]     -- linked documents (maybe empty)
-         , interval :: Interval    -- submission interval (for exercises)
+         , fetched :: ZonedTime     -- time fetched
          } deriving Show
+
 
 
 
 parent :: FilePath -> FilePath
 parent path = takeDirectory path </> "index.md"
 
--- | an exercise page has empty list of links 
-isExercise :: Page -> Bool
-isExercise Page{..} = null links
-                         
 
 -- | fetch page title
 getTitle :: Page -> Text
@@ -60,24 +57,24 @@ getTags :: Page -> [Text]
 getTags Page{..}
   = fromMaybe [] (lookupFromMeta "tags" meta)
 
-
+{-
 -- | check if a page has all tags
 isTagged :: [Text] -> Page -> Bool
 isTagged tags page = tags `isSublistOf` getTags page
     where isSublistOf xs ys = all (`elem`ys) xs
+-}
 
-
-getLanguage :: Page -> Language
+getLanguage :: Page -> Maybe Language
 getLanguage Page{..}
-  = fromMaybe (Language "text") (lookupFromMeta "language" meta)
+  = lookupFromMeta "language" meta
 
-getCodeText :: Page -> Maybe Text
+getCodeText :: Page  -> Maybe Text
 getCodeText Page{..}
   = lookupFromMeta "code" meta
 
 getCode :: Page -> Maybe Code
 getCode page
-  = Code (getLanguage page) <$> getCodeText page
+  = Code <$> getLanguage page <*> getCodeText page
 
 
 
@@ -86,19 +83,32 @@ readPage :: FilePath -> FilePath -> IO Page
 readPage root path = do
   let filepath = root </> path
   Pandoc meta blocks <- readMarkdownFile filepath
-  -- valid submission interval
   t <- getZonedTime
-  let valid = fromMaybe Always (lookupFromMeta "valid" meta >>= readInterval t)
-  -- interpret linked documents relative to current page directory
-  let dir = takeDirectory path
-  let paths =  map (normalise.(dir</>)) $
-               fromMaybe [] $ lookupFromMeta "index" meta
   return Page { root = root
               , path = path
               , meta = meta
               , description = blocks
-              , links = paths
-              , interval = valid
+              , fetched = t
               }
+
+
+
+getLinks :: Page -> Maybe [FilePath]
+getLinks Page{..} = do
+      let dir = takeDirectory path   -- directory of page path
+      paths <- lookupFromMeta "index" meta
+      return $ map (normalise.(dir</>)) paths 
+
+getValid :: Page -> Interval
+getValid = fromMaybe Always . getInterval
+
+getInterval :: Page -> Maybe Interval
+getInterval Page{..} = lookupFromMeta "valid" meta >>= readInterval fetched
+
+isExercise :: Page -> Bool
+isExercise Page{..} =
+  fromMaybe False (lookupFromMeta "exercise" meta)
+
+
 
 

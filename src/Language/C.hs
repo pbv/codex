@@ -31,6 +31,7 @@ import           Tester
 import           Application
 import           Page
 import           SafeExec
+import           Utils (require)
 import           Config
 import           Control.Exception
 
@@ -44,7 +45,7 @@ clangTester page (Code (Language "c_cpp") code) = do
   gcc <- liftIO $ Configurator.require conf "c.compiler"
   sf <- liftIO $ getSafeExecConf "haskell.safeexec" conf
   sf'<- liftIO $ getSafeExecConf "safeexec" conf
-  let path = getQuickcheckPath page
+  path <- require (return $ getQuickcheckPath page)
   let args = getQuickcheckArgs page
   props <- liftIO $ T.readFile path
   liftIO (clangTesterIO (sf<>sf') gcc ghc args code props

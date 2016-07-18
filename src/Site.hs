@@ -1,4 +1,7 @@
-{-# LANGUAGE OverloadedStrings, ScopedTypeVariables, RecordWildCards #-}
+{-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE ScopedTypeVariables #-}
+{-# LANGUAGE RecordWildCards #-}
+{-# LANGUAGE PatternGuards #-}
 
 ------------------------------------------------------------------------------
 -- | This module is where all the routes and handlers are defined for your
@@ -146,26 +149,30 @@ handlePrintout uid probs = do
 -}
 
 
-
-
 -- handle page requests
 handlePage :: Codex ()
 handlePage = do
   uid <- require getUserID <|> unauthorized    -- ensure user is logged in
   path <- B.toString <$> getsRequest rqPathInfo
   page <- liftIO $ Page.readPage pageFileRoot path
-  if Page.isExercise page then
-    (method GET (Submission.getAll uid path >>= renderExercise page) <|>
-     method POST (handlePost uid page))
-    else
-    method GET (renderIndex uid page)
+  method GET (handlePageGet uid page) <|>  method POST (handlePagePost uid page)
 
 
-renderIndex uid page = do
+-- handle page GET requests
+handlePageGet uid page 
+  | Page.isExercise page = 
+      renderExercise page =<< Submission.getAll uid (Page.path page) 
+  | Just links <- Page.getLinks page = 
+      renderIndex uid page links
+  | otherwise =
+      renderWithSplices "page" (pageSplices page)
+
+
+renderIndex uid page links = do
   querytags <- getQueryTags
-  pages <- liftIO $ mapM (Page.readPage pageFileRoot) (links page)
+  pages <- liftIO $ mapM (Page.readPage pageFileRoot) links
   let alltags = nub $ sort $ concatMap Page.getTags pages
-  let pages' = filter (Page.isTagged querytags) pages
+  let pages' = filter (\p -> querytags `contained` Page.getTags p) pages
   let abletags = nub $ sort $ concatMap Page.getTags pages'
   subs <- mapM (Submission.getAll uid . Page.path) pages'
   renderWithSplices "indexsheet" $ do
@@ -173,8 +180,8 @@ renderIndex uid page = do
     indexSplices (zip pages' subs)
     "available" ## I.textSplice $ T.pack $ show $ length pages
     "visible" ## I.textSplice $ T.pack $ show $ length pages'
-    "tagList" ##  I.mapSplices (I.runChildrenWith .
-                                tagSplices querytags abletags) alltags
+    "tag-list" ##  I.mapSplices (I.runChildrenWith .
+                                 tagSplices querytags abletags) alltags
 
 
 -- context-dependent splices for for a tag selection checkbox
@@ -183,8 +190,8 @@ tagSplices querytags enabled tag =
   let checked = tag `elem` querytags
       disabled= tag `notElem` enabled
        -- null (filter (isTagged tag) visible)
-  in do "tagText" ## I.textSplice tag
-        "tagCheckbox" ## return (checkboxInput tag checked disabled)
+  in do "tag-text" ## I.textSplice tag
+        "tag-checkbox" ## return (checkboxInput tag checked disabled)
 
 
 
@@ -194,27 +201,11 @@ renderExercise page subs = do
   tz <- liftIO getCurrentTimeZone
   now <- liftIO getCurrentTime
   env <- require getUserEvents
-  renderWithSplices "exercise" (pageSplices page >>
-                                exerciseSplices page >>
-                                timeSplices tz now env page >>
-                                submissionListSplices subs >>
-                                inputAceEditorSplices)
-
-
--- handle submission of an exercise
-handlePost :: UserID -> Page -> Codex ()
-handlePost uid page = do
-  tz <- liftIO getCurrentTimeZone
-  now <- liftIO getCurrentTime
-  env <- require getUserEvents
-  text <- require (getTextPost "editform.editor")
-  let lang = Page.getLanguage page
-  sub <- Submission.evaluate uid page (Code lang text)
-  renderWithSplices "report" (pageSplices page >>
-                              exerciseSplices page >>
-                              submissionSplices sub >>
-                              timeSplices tz now env page >>
-                              inputAceEditorSplices)
+  renderWithSplices "exercise" $ do
+    pageSplices page 
+    intervalSplices tz now env (Page.getValid page) 
+    submissionListSplices subs 
+    inputAceEditorSplices
 
 
 -- handle get request for a previous submission
@@ -226,73 +217,75 @@ handleSubmission = method GET $ do
   env <- require getUserEvents
   sub <- Submission.getSingle uid sid
   page <- liftIO $ Page.readPage pageFileRoot (Submission.path sub)
-  renderWithSplices "report" (pageSplices page >>
-                              exerciseSplices page >>
-                              submissionSplices sub >>
-                              timeSplices tz now env page >>
-                              inputAceEditorSplices)
+  renderWithSplices "report" $ do
+    pageSplices page 
+    intervalSplices tz now env (Page.getValid page) 
+    submitSplices sub 
+    inputAceEditorSplices
+
+
+-- handle POST requests for pages (i.e. exercise submissions)
+handlePagePost :: UserID -> Page -> Codex ()
+handlePagePost uid page  = do
+  guard (Page.isExercise page)
+  tz <- liftIO getCurrentTimeZone
+  now <- liftIO getCurrentTime
+  env <- require getUserEvents
+  text <- require (getTextPost "editform.editor")
+  lang <- require (return $ Page.getLanguage page)
+  sub <- Submission.evaluate uid page (Code lang text)
+  renderWithSplices "report" $ do 
+    pageSplices page 
+    submitSplices sub 
+    intervalSplices tz now env (Page.getValid page) 
+    inputAceEditorSplices
 
 
 
 -- | splices related to a page
 pageSplices :: Page -> ISplices
-pageSplices page = do
-  "pagePath" ##
+pageSplices page = namespaceSplices "page" $ do
+  "path" ##
     I.textSplice (T.pack $ B.toString pageContextPath </> Page.path page)
-  "pageParent" ##
+  "parent" ##
     I.textSplice (T.pack $ B.toString pageContextPath </> Page.parent (Page.path page))
-  "pageTitle" ##
+  "title" ##
     I.textSplice (Page.getTitle page)
-  "pageDescription" ##
+  "description" ##
     return (blocksToHtml $ Page.description page)
-  "ifExercise" ##
-    conditionalSplice (Page.isExercise page)
-
-exerciseSplices :: Page -> ISplices
-exerciseSplices page = do
-  "pageLanguage" ##
-    I.textSplice (fromLanguage (Page.getLanguage page))
-  "pageCodeText" ##
+  "if-exercise" ##
+    conditionalSplice (Page.isExercise page) 
+  "language" ##
+    maybe (return []) (I.textSplice . fromLanguage) (Page.getLanguage page)
+  "code-text" ##
     maybe (return []) I.textSplice (Page.getCodeText page)
 
 
 indexSplices :: [(Page, [Submission])] -> ISplices
 indexSplices pageSubs = do
-  "indexList" ##
+  "index-list" ##
     I.mapSplices (I.runChildrenWith . auxSplices) pageSubs
   where
     auxSplices (page, subs) = do
                 pageSplices page
-                exerciseSplices page
                 submissionListSplices subs
 
 
 -- | splices relating to a single submission
-submissionSplices :: Submission -> ISplices
-submissionSplices Submission{..} = do
+submitSplices :: Submission -> ISplices
+submitSplices Submission{..} = namespaceSplices "submit" $ do
   let timing' = fromMaybe OnTime timing
-  "submitID" ##
-    I.textSplice (toText id)
-  "submitPath" ##
-    I.textSplice (T.pack path)
-  "submitTime" ##
-    timeSplice time 
-  "submitCodeText" ##
-    I.textSplice (codeText code)
-  "submitClassify" ##
-    I.textSplice (T.pack $ show $ resultClassify result)
-  "submitMessage" ##
-    I.textSplice (resultMessage result)
-  "submitTiming" ##
-    caseSplice timing'
-  "submitOnTime" ##
-    conditionalSplice (timing' == OnTime)
-  "submitEarly" ##
-    conditionalSplice (timing' == Early)
-  "submitOverdue" ##
-    conditionalSplice (timing' == Overdue)
-  "submitAccepted" ##
-    conditionalSplice (resultClassify result == Accepted)
+  "id" ##  I.textSplice (toText id)
+  "path" ## I.textSplice (T.pack path)
+  "time" ## timeSplice time 
+  "code-text" ##  I.textSplice (codeText code)
+  "classify" ##  I.textSplice (T.pack $ show $ resultClassify result)
+  "message" ## I.textSplice (resultMessage result)
+  "case-timing" ## caseSplice timing'
+  "on-time" ## conditionalSplice (timing' == OnTime)
+  "early" ## conditionalSplice (timing' == Early)
+  "overdue" ## conditionalSplice (timing' == Overdue)
+  "accepted" ## conditionalSplice (resultClassify result == Accepted)
 
 
 
@@ -300,24 +293,39 @@ submissionSplices Submission{..} = do
 -- | splices relating to a list of submissions
 submissionListSplices :: [Submission] -> ISplices
 submissionListSplices list = do
-  "submissionsCount" ##
+  let count = length list
+  "submissions-count" ##
     I.textSplice (T.pack $ show count)
-  "ifSubmitted" ##
+  "if-submitted" ##
     conditionalSplice (count > 0) 
-  "submissionList" ##
-    I.mapSplices (I.runChildrenWith . submissionSplices) list
-  where count = length list
+  "submissions-list" ##
+    I.mapSplices (I.runChildrenWith . submitSplices) list
 
 
-timeSplices :: TimeZone -> UTCTime -> Events -> Page -> ISplices
-timeSplices tz now env Page{..} = do
-  "exerciseTiming" ##
-    caseSplice (fromMaybe OnTime (Interval.timingVal env interval now))
-  "validFrom" ##
+-- | splices relating to a time interval
+intervalSplices :: TimeZone -> UTCTime -> Events -> Interval -> ISplices
+intervalSplices tz now env interval = do
+  "case-timing" ##
+    caseSplice (fromMaybe OnTime $ Interval.evalI env interval now)
+  "valid-from" ##
     maybe (return [])
     (I.textSplice . T.pack)
     (Interval.from interval >>= showTimeExpr tz env)
-  "validUntil" ##
+  "valid-until" ##
+    maybe (return [])
+    (I.textSplice . T.pack)
+    (Interval.until interval >>= showTimeExpr tz env)
+
+-- | splices relating to a time interval for an exercise page
+timingSplices :: TimeZone -> Events -> Interval -> Timing -> ISplices
+timingSplices tz env interval timing = namespaceSplices "page" $ do
+  "case-timing" ##
+    caseSplice timing
+  "valid-from" ##
+    maybe (return [])
+    (I.textSplice . T.pack)
+    (Interval.from interval >>= showTimeExpr tz env)
+  "valid-until" ##
     maybe (return [])
     (I.textSplice . T.pack)
     (Interval.until interval >>= showTimeExpr tz env)
@@ -325,9 +333,7 @@ timeSplices tz now env Page{..} = do
 
 
 
-
 {-
-   
 -- | problem set listing handler
 handleProblemList :: Codex ()
 handleProblemList = method GET $ do
@@ -359,8 +365,6 @@ handleProblemList = method GET $ do
                
 -}
 
-{-
--}
 
 {-
 warningsSplices :: [Text] -> ISplices

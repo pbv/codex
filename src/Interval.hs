@@ -32,13 +32,9 @@ data TimeExpr = Absolute !UTCTime
           deriving (Eq, Show)
 
 
--- | timing qualifications
-data Timing = OnTime   -- ok
-            | Early    -- too early
-            | Overdue  -- too late
+-- | timing values
+data Timing = Early | OnTime | Overdue
             deriving (Eq, Read, Show, Typeable)
-
-
 
 from, until :: Interval -> Maybe TimeExpr
 from (After e)     = Just e
@@ -148,27 +144,31 @@ token s = skipSpaces >> string s
 -- | a  environment for events
 type Events = [(Text, UTCTime)]
 
--- | time value of an expression
-timeVal :: Events -> TimeExpr -> Maybe UTCTime
-timeVal env (Absolute t) = return t
-timeVal env (Event n)    = lookup n env
-timeVal env (Add d e)    = addUTCTime d <$> timeVal env e
+-- | semantics of a time expression
+evalT :: Events -> TimeExpr -> Maybe UTCTime
+evalT env (Absolute t) = return t
+evalT env (Event n)    = lookup n env
+evalT env (Add d e)    = addUTCTime d <$> evalT env e
 
+
+-- | semantics of a time interval
+evalI :: Events -> Interval -> UTCTime -> Maybe Timing
+evalI env Always t 
+  = return OnTime
+evalI env (Until e) t
+  = do t' <- evalT env e
+       return (if t <= t' then OnTime else Overdue)
+evalI env (After e) t
+  = do t' <- evalT env e
+       return (if t > t' then OnTime else Early)
+evalI env (Between e1 e2) t
+  = do t1 <- evalT env e1
+       t2 <- evalT env e2
+       return (if t <= t1 then Early
+               else if t <= t2 then OnTime
+                    else Overdue)
+    
 {-
--- | inside a time interval
-inside :: Events -> Interval -> UTCTime -> Bool
-inside env Always    t = True
-inside env (Until e) t
-  = maybe False (t <) (timeVal env e)
-inside env (After e) t
-  = maybe False (<= t)  (timeVal env e)
-inside env (Between e1 e2) t
-  = fromMaybe False $ do t1 <- timeVal env e1
-                         t2 <- timeVal env e2
-                         return (t1 <= t && t < t2)
--}
-
--- classify a time value against an interval
 timingVal :: Events -> Interval -> UTCTime -> Maybe Timing
 timingVal env Always    t
   = return OnTime
@@ -183,12 +183,13 @@ timingVal env (Between e1 e2) t
        t2 <- timeVal env e2
        return (if t <= t1 then Early
                else if t <= t2 then OnTime
-                    else Overdue)
+                   else Overdue)
+-}
 
 -- * pretty-printing
 
 showTimeExpr :: TimeZone -> Events -> TimeExpr -> Maybe String
-showTimeExpr tz env e = (showLocalTime . utcToLocalTime tz) <$> timeVal env e 
+showTimeExpr tz env e = (showLocalTime . utcToLocalTime tz) <$> evalT env e 
 
 -- showUTCTime :: UTCTime -> String
 -- showUTCTime = formatTime defaultTimeLocale "%c" 
