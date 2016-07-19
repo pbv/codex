@@ -247,6 +247,8 @@ pageSplices page = namespaceSplices "page" $ do
     return (blocksToHtml $ Page.description page)
   "if-exercise" ##
     conditionalSplice (Page.isExercise page)
+  "if-indexsheet" ##
+    conditionalSplice (isJust $ Page.getLinks page)
 
 
 -- | splices related to exercises
