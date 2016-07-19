@@ -1,12 +1,12 @@
-
 {-# LANGUAGE DeriveDataTypeable #-}
+{-# LANGUAGE OverloadedStrings #-}
 
 module Interval where
 
 import           Data.Char
 import           Data.Text (Text)
 import qualified Data.Text as T
--- import           Data.Maybe
+import           Data.Monoid
 import           Data.Typeable
 import           Data.Time
 -- import           Data.Time.LocalTime
@@ -33,7 +33,7 @@ data TimeExpr = Absolute !UTCTime
 
 
 -- | timing values
-data Timing = Early | OnTime | Overdue
+data Timing = Valid | Early | Overdue
             deriving (Eq, Read, Show, Typeable)
 
 from, until :: Interval -> Maybe TimeExpr
@@ -141,31 +141,38 @@ token s = skipSpaces >> string s
 
 
 -- * semantics
--- | a  environment for events
+-- | an environment for events
 type Events = [(Text, UTCTime)]
 
 -- | semantics of a time expression
-evalT :: Events -> TimeExpr -> Maybe UTCTime
-evalT env (Absolute t) = return t
-evalT env (Event n)    = lookup n env
-evalT env (Add d e)    = addUTCTime d <$> evalT env e
+evalT :: Events -> TimeExpr -> Either Text UTCTime
+evalT env (Absolute t)
+  = return t
+    
+evalT env (Event n)
+  = case lookup n env of
+  Just t -> return t
+  Nothing -> Left ("invalid event: " <> n)
+  
+evalT env (Add d e)
+  = addUTCTime d <$> evalT env e
 
 
 -- | semantics of a time interval
-evalI :: Events -> Interval -> UTCTime -> Maybe Timing
+evalI :: Events -> Interval -> UTCTime -> Either Text Timing
 evalI env Always t 
-  = return OnTime
+  = return Valid
 evalI env (Until e) t
   = do t' <- evalT env e
-       return (if t <= t' then OnTime else Overdue)
+       return (if t <= t' then Valid else Overdue)
 evalI env (After e) t
   = do t' <- evalT env e
-       return (if t > t' then OnTime else Early)
+       return (if t > t' then Valid else Early)
 evalI env (Between e1 e2) t
   = do t1 <- evalT env e1
        t2 <- evalT env e2
        return (if t <= t1 then Early
-               else if t <= t2 then OnTime
+               else if t <= t2 then Valid
                     else Overdue)
     
 {-
@@ -187,12 +194,19 @@ timingVal env (Between e1 e2) t
 -}
 
 -- * pretty-printing
-
+{-
 showTimeExpr :: TimeZone -> Events -> TimeExpr -> Maybe String
-showTimeExpr tz env e = (showLocalTime . utcToLocalTime tz) <$> evalT env e 
+showTimeExpr tz env e
+  = (showLocalTime . utcToLocalTime tz) <$> either (const Nothing) Just (evalT env e )
+    
 
--- showUTCTime :: UTCTime -> String
--- showUTCTime = formatTime defaultTimeLocale "%c" 
+evalTimeExpr :: TimeZone -> Events -> TimeExpr -> Either Text Text
+evalTimeExpr tz env e = showTime tz <$> evalT env e
+-}
+
+
+showTime :: TimeZone -> UTCTime -> Text
+showTime tz = T.pack . showLocalTime . utcToLocalTime tz
 
 showLocalTime :: LocalTime -> String
 showLocalTime = formatTime defaultTimeLocale "%c" 

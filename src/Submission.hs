@@ -55,7 +55,7 @@ data Submission = Submission {
   time :: UTCTime,    -- submit time  
   code :: Code,       -- program code
   result :: Result,   -- accepted/wrong answer/etc
-  timing :: Maybe Timing    -- valid, early or overdue?
+  timing :: Timing    -- valid, early or overdue?
   }
 
 
@@ -110,10 +110,14 @@ evaluate :: UserID -> Page ->  Code -> Codex Submission
 evaluate uid page@Page{..} code = do 
   now <- liftIO getCurrentTime
   env <- require getUserEvents
-  let timing = Interval.evalI env (Page.getValid page) now
-  -- run code tester and insert record into Db
-  result <- codeTester page code
-  insertDb uid path now code result timing
+  let r = Interval.evalI env (Page.validInterval page) now
+  case r of
+    Right timing -> do
+      -- run code tester and insert record into Db
+      result <- codeTester page code
+      insertDb uid path now code result timing
+    Left msg -> do
+      insertDb uid path now code (miscError msg) Valid
 
 
 
@@ -123,7 +127,7 @@ insertDb :: UserID
   -> UTCTime
   -> Code
   -> Result
-  -> Maybe Timing
+  -> Timing
   -> Codex Submission
 insertDb uid path time code@(Code lang text) result@(Result classf msg) timing = do
   sid <- withSqlite $ \conn -> do

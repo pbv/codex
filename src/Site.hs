@@ -155,7 +155,8 @@ handlePage = do
   uid <- require getUserID <|> unauthorized    -- ensure user is logged in
   path <- B.toString <$> getsRequest rqPathInfo
   page <- liftIO $ Page.readPage pageFileRoot path
-  method GET (handlePageGet uid page) <|>  method POST (handlePagePost uid page)
+  method GET (handlePageGet uid page) <|>
+    method POST (handlePagePost uid page)
 
 
 -- handle page GET requests
@@ -198,28 +199,22 @@ tagSplices querytags enabled tag =
 --  render an exercise page
 renderExercise :: Page -> [Submission] -> Codex ()
 renderExercise page subs = do
-  tz <- liftIO getCurrentTimeZone
-  now <- liftIO getCurrentTime
-  env <- require getUserEvents
   renderWithSplices "exercise" $ do
-    pageSplices page 
-    intervalSplices tz now env (Page.getValid page) 
+    pageSplices page
+    exerciseSplices page
     submissionListSplices subs 
     inputAceEditorSplices
 
 
--- handle get request for a previous submission
+-- handle GET request for a previous submission
 handleSubmission = method GET $ do
-  tz <- liftIO getCurrentTimeZone
-  now <- liftIO getCurrentTime
   uid <- require getUserID <|> unauthorized
   sid <- require getSubmitID
-  env <- require getUserEvents
   sub <- Submission.getSingle uid sid
   page <- liftIO $ Page.readPage pageFileRoot (Submission.path sub)
   renderWithSplices "report" $ do
-    pageSplices page 
-    intervalSplices tz now env (Page.getValid page) 
+    pageSplices page
+    exerciseSplices page
     submitSplices sub 
     inputAceEditorSplices
 
@@ -228,16 +223,13 @@ handleSubmission = method GET $ do
 handlePagePost :: UserID -> Page -> Codex ()
 handlePagePost uid page  = do
   guard (Page.isExercise page)
-  tz <- liftIO getCurrentTimeZone
-  now <- liftIO getCurrentTime
-  env <- require getUserEvents
   text <- require (getTextPost "editform.editor")
   lang <- require (return $ Page.getLanguage page)
   sub <- Submission.evaluate uid page (Code lang text)
   renderWithSplices "report" $ do 
-    pageSplices page 
+    pageSplices page
+    exerciseSplices page
     submitSplices sub 
-    intervalSplices tz now env (Page.getValid page) 
     inputAceEditorSplices
 
 
@@ -254,11 +246,26 @@ pageSplices page = namespaceSplices "page" $ do
   "description" ##
     return (blocksToHtml $ Page.description page)
   "if-exercise" ##
-    conditionalSplice (Page.isExercise page) 
+    conditionalSplice (Page.isExercise page)
+
+
+-- | splices related to exercises
+exerciseSplices :: Page -> ISplices
+exerciseSplices page = namespaceSplices "exercise" $ do
+  -- splices related to programming languages
   "language" ##
     maybe (return []) (I.textSplice . fromLanguage) (Page.getLanguage page)
   "code-text" ##
     maybe (return []) I.textSplice (Page.getCodeText page)
+  --- splices related to submission intervals 
+  let interval = Page.validInterval page
+  "valid-from" ##
+    maybe (I.textSplice "N/A") timeExprSplice  (Interval.from interval)
+  "valid-until" ##
+    maybe (I.textSplice "N/A") timeExprSplice (Interval.until interval)
+  "timing" ##
+    timingSplice interval
+
 
 
 indexSplices :: [(Page, [Submission])] -> ISplices
@@ -266,27 +273,23 @@ indexSplices pageSubs = do
   "index-list" ##
     I.mapSplices (I.runChildrenWith . auxSplices) pageSubs
   where
-    auxSplices (page, subs) = do
-                pageSplices page
-                submissionListSplices subs
+    auxSplices (page,subs) = pageSplices page >> submissionListSplices subs
 
 
 -- | splices relating to a single submission
 submitSplices :: Submission -> ISplices
 submitSplices Submission{..} = namespaceSplices "submit" $ do
-  let timing' = fromMaybe OnTime timing
   "id" ##  I.textSplice (toText id)
   "path" ## I.textSplice (T.pack path)
-  "time" ## timeSplice time 
+  "time" ## do {tz <- liftIO getCurrentTimeZone; utcTimeSplice tz time}
   "code-text" ##  I.textSplice (codeText code)
   "classify" ##  I.textSplice (T.pack $ show $ resultClassify result)
   "message" ## I.textSplice (resultMessage result)
-  "case-timing" ## caseSplice timing'
-  "on-time" ## conditionalSplice (timing' == OnTime)
-  "early" ## conditionalSplice (timing' == Early)
-  "overdue" ## conditionalSplice (timing' == Overdue)
+  "timing" ## caseSplice timing
+  "valid" ## conditionalSplice (timing == Valid)
+  "early" ## conditionalSplice (timing == Early)
+  "overdue" ## conditionalSplice (timing == Overdue)
   "accepted" ## conditionalSplice (resultClassify result == Accepted)
-
 
 
 
@@ -302,34 +305,23 @@ submissionListSplices list = do
     I.mapSplices (I.runChildrenWith . submitSplices) list
 
 
--- | splices relating to a time interval
-intervalSplices :: TimeZone -> UTCTime -> Events -> Interval -> ISplices
-intervalSplices tz now env interval = do
-  "case-timing" ##
-    caseSplice (fromMaybe OnTime $ Interval.evalI env interval now)
-  "valid-from" ##
-    maybe (return [])
-    (I.textSplice . T.pack)
-    (Interval.from interval >>= showTimeExpr tz env)
-  "valid-until" ##
-    maybe (return [])
-    (I.textSplice . T.pack)
-    (Interval.until interval >>= showTimeExpr tz env)
+-- | splice for time expressions and intervals
+timeExprSplice :: TimeExpr -> I.Splice Codex
+timeExprSplice e = do
+  tz <- liftIO getCurrentTimeZone
+  env <- lift (require getUserEvents)
+  case evalT env e of
+    Right t -> I.textSplice (showTime tz t)
+    Left err -> I.textSplice err  
 
--- | splices relating to a time interval for an exercise page
-timingSplices :: TimeZone -> Events -> Interval -> Timing -> ISplices
-timingSplices tz env interval timing = namespaceSplices "page" $ do
-  "case-timing" ##
-    caseSplice timing
-  "valid-from" ##
-    maybe (return [])
-    (I.textSplice . T.pack)
-    (Interval.from interval >>= showTimeExpr tz env)
-  "valid-until" ##
-    maybe (return [])
-    (I.textSplice . T.pack)
-    (Interval.until interval >>= showTimeExpr tz env)
 
+timingSplice :: Interval -> I.Splice Codex
+timingSplice interval = do
+  t <- liftIO getCurrentTime
+  env <- lift (require getUserEvents)
+  case Interval.evalI env interval t of
+    Right v -> caseSplice v
+    Left err -> I.textSplice err
 
 
 
@@ -412,11 +404,10 @@ timerSplices pid now limit = do
   where tid = B.toString (fromPID pid) ++ "-js-timer"
 -}
   
--- | splice an UTC time as local time 
-timeSplice :: UTCTime -> I.Splice Codex
-timeSplice time = do tz <- liftIO getCurrentTimeZone
-                     I.textSplice $ T.pack $
-                       formatTime defaultTimeLocale "%c" $ utcToZonedTime tz time
+-- | splice an UTC time as a local time string
+utcTimeSplice :: Monad m => TimeZone -> UTCTime -> I.Splice m
+utcTimeSplice tz t =
+  I.textSplice $ T.pack $ formatTime defaultTimeLocale "%c" $ utcToLocalTime tz t
     
 
 

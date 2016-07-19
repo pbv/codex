@@ -8,21 +8,24 @@
 <page:description/>
 </div>
 
-<page:case-timing>
+<exercise:timing>
   <Early>
-    <p>Submissões iniciam em: <validFrom/></p>
+    <p>Submissões iniciam em: <exercise:valid-from/></p>
   </Early>
-  <default>
-    <p>Submissões terminam em: <validUntil/></p>
-  </default>
-</page:case-timing>
+  <Valid>
+    <p>Submissões terminam em: <exercise:valid-until/></p>
+  </Valid>
+  <Overdue>
+    <p>Submissões terminaram em: <exercise:valid-until/></p>
+  </Overdue>
+</exercise:timing>
 
 <if-submitted>
   <h2>Submissões anteriores</h2>
-  <page:case-timing>
+  <exercise:timing>
     <Early>
       <p><submissions-count/> submissões antecipadas; os resultados serão
-	visíveis após <page:valid-from/>.</p>  
+	visíveis após <exercise:valid-from/>.</p>  
     </Early>
     <default>
       <ol class="submissions">
@@ -34,7 +37,7 @@
 	</submissions-list>
       </ol>
     </default>
-  </page:case-timing>
+  </exercise:timing>
 </if-submitted>
 
 <h2>Nova submissão</h2>
@@ -42,7 +45,7 @@
 <form id="editform" method="POST" action="${page:path}"
       onsubmit="submitAceEditorText('editform.editor');">
 <p>
-  <inputAceEditor id='editform.editor' mode='ace/mode/${page:language}'><page:code-text/></inputAceEditor>
+  <inputAceEditor id='editform.editor' mode='ace/mode/${exercise:language}'><exercise:code-text/></inputAceEditor>
 </p>
 <p>
   <input type="submit" value="Enviar"/>  &nbsp;

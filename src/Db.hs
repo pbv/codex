@@ -37,7 +37,7 @@ initCmds = ["CREATE TABLE submissions (\
             \code TEXT NOT NULL, \
             \class TEXT NOT NULL, \
             \message TEXT NOT NULL, \
-            \timing TEXT)",
+            \timing TEXT NOT NULL)",
             "CREATE INDEX user_index ON submissions(user_id)"
            ]
 

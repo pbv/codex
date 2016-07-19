@@ -99,11 +99,11 @@ getLinks Page{..} = do
       paths <- lookupFromMeta "index" meta
       return $ map (normalise.(dir</>)) paths 
 
-getValid :: Page -> Interval
-getValid = fromMaybe Always . getInterval
+validInterval :: Page -> Interval
+validInterval = fromMaybe Always . validInterval'
 
-getInterval :: Page -> Maybe Interval
-getInterval Page{..} = lookupFromMeta "valid" meta >>= readInterval fetched
+validInterval' :: Page -> Maybe Interval
+validInterval' Page{..} = lookupFromMeta "valid" meta >>= readInterval fetched
 
 isExercise :: Page -> Bool
 isExercise Page{..} =
