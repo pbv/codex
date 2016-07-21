@@ -43,7 +43,7 @@ img {
 }
 
 .submissions li {
-   display: block;
+   list-style-type: decimal;
    width: 25%;
    float: left;
 }

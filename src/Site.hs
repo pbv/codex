@@ -179,6 +179,7 @@ renderIndex uid page links = do
   renderWithSplices "indexsheet" $ do
     pageSplices page 
     indexSplices (zip pages' subs)
+    "if-tagged" ## conditionalSplice (not $ null alltags)
     "available" ## I.textSplice $ T.pack $ show $ length pages
     "visible" ## I.textSplice $ T.pack $ show $ length pages'
     "tag-list" ##  I.mapSplices (I.runChildrenWith .

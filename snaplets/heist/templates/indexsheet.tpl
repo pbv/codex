@@ -9,19 +9,21 @@
   <div class="description">
     <page:description/>
   </div>
-  <div class="filters">
-    <form action="" method="get">
-      <dl>
-	<dt>Filtrar exercícios:</dt>	
-	<dt class="info">(vísiveis <visible/> de <available/>)</dt>
-	<tag-list>
-	  <dt><tag-checkbox/></dt>
-	</tag-list>
-      </dl>
-      <p><input type="submit" value="Aplicar"/></p>
-      <p><a class="button" href="${page:path}">Limpar filtros</a></p>
-    </form>
-  </div>
+  <if-tagged>
+    <div class="filters">
+      <form action="" method="get">
+	<dl>
+	  <dt>Filtrar exercícios:</dt>	
+	  <dt class="info">(vísiveis <visible/> de <available/>)</dt>
+	  <tag-list>
+	    <dt><tag-checkbox/></dt>
+	  </tag-list>
+	</dl>
+	<p><input type="submit" value="Aplicar"/></p>
+	<p><a class="button" href="${page:path}">Limpar filtros</a></p>
+      </form>
+    </div>
+  </if-tagged>
   <div class="index">
     <dl>
       <index-list>

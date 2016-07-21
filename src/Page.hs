@@ -33,11 +33,8 @@ data Page
          } deriving Show
 
 
-
-
 parent :: FilePath -> FilePath
 parent path = takeDirectory path </> "index.md"
-
 
 -- | fetch page title
 getTitle :: Page -> Text

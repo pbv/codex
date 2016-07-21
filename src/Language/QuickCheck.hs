@@ -51,7 +51,7 @@ setupArgs :: QuickCheckArgs -> String
 setupArgs QuickCheckArgs{..} =
   "stdArgs" ++ 
   args [ fmap (("maxSize="++).show) maxSize, 
-         fmap (("maxSucess="++).show) maxSuccess, 
+         fmap (("maxSuccess="++).show) maxSuccess, 
          fmap (("maxDiscardRatio="++).show)  maxDiscardRatio,
          fmap (\s -> "replay=(mkQCGen " ++ show s ++ ",0)") randSeed
        ] 
