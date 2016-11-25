@@ -2,8 +2,8 @@
 <bind tag="icon-rejected"><img src="/icons/16x16/rejected.png"/></bind>
 <bind tag="icon-text-html"><img src="/icons/16x16/text-html.png"/></bind>
 <bind tag="icon-folder"><img src="/icons/16x16/folder.png"></bind>
-<bind tag="icon-cogs"><img src="/icons/16x16/cogs.png"/></bind>
-<bind tag="page-icon"><page:if-exercise><icon-cogs/><else/><page:if-indexsheet><icon-folder/><else/><icon-text-html/></page:if-indexsheet></page:if-exercise></bind>
+<bind tag="icon-editor"><img src="/icons/16x16/text-editor.png"/></bind>
+<bind tag="page-icon"><page:if-exercise><icon-editor/><else/><page:if-indexsheet><icon-folder/><else/><icon-text-html/></page:if-indexsheet></page:if-exercise></bind>
 
 <apply template="base">
   <div class="description">

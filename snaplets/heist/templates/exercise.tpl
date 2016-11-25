@@ -45,7 +45,7 @@
 <form id="editform" method="POST" action="${page:path}"
       onsubmit="submitAceEditorText('editform.editor');">
 <p>
-  <inputAceEditor id='editform.editor' mode='ace/mode/${exercise:language}'><exercise:code-text/></inputAceEditor>
+  <inputAceEditor id='editform.editor' mode='ace/mode/${exercise:language-mode}'><exercise:code-text/></inputAceEditor>
 </p>
 <p>
   <input type="submit" value="Enviar"/>  &nbsp;

@@ -3,7 +3,8 @@
 --------------------------------------------------------------------------------
 {-# LANGUAGE OverloadedStrings #-}
 module AceEditor
-       (inputAceEditorSplices
+       ( inputAceEditorSplices
+       , languageMode
        ) where
 import           Control.Applicative((<$>), (<*>))
 import           Data.Maybe            (fromMaybe)
@@ -18,6 +19,8 @@ import qualified Text.XmlHtml          as X
 
 import           Utils (javascript)
 import           Text.Printf(printf)
+
+import           Language.Types 
 
 -- make a single XHTML node
 element :: Text -> [X.Node] -> [(Text,Text)] -> X.Node
@@ -41,14 +44,15 @@ inputAceEditor = do
            printf "startAceEditor('%s','%s');\n"  (T.unpack id) (T.unpack mode)
            ]
 
-{-
-selectLanguage = element "select"
-                 [element "option" [X.TextNode lang] [("value",lang)] | lang<-languages] []
-
-languages = ["python", "java", "c_cpp", "haskell"]
--}
-
 
 inputAceEditorSplices :: (Functor m, Monad m) => Splices (Splice m)
 inputAceEditorSplices = "inputAceEditor" ## inputAceEditor
+
+languageMode :: Language -> Text
+languageMode (Language l) = case l of
+  "c"   -> "c_cpp"
+  "c++" -> "c_cpp"
+  "cpp" -> "c_cpp"
+  l -> l
+
 

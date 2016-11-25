@@ -4,10 +4,10 @@ module Config where
 import           Types
 import           SafeExec
 
+import           Control.Applicative
 import           Data.Monoid
 import qualified Data.Configurator as Configurator
 import           Data.Configurator.Types
-
 
 
 getSafeExecConf :: Name -> Config -> IO SafeExecConf
@@ -27,7 +27,7 @@ getSafeExecConf prefix conf = do
              , numProc      = nproc
              }
 
-
+{-
 getPrintConf :: Config -> IO PrintConf
 getPrintConf conf = do
   enabled <- Configurator.lookupDefault False conf "printouts.enabled"
@@ -35,10 +35,13 @@ getPrintConf conf = do
   opts <- Configurator.lookupDefault [] conf "printouts.options"
   return (PrintConf enabled header opts)
   where defaultHeader = "Codex"
+-}
 
-getLdapConf :: Config -> IO LdapConf
+
+getLdapConf ::  Config -> IO (Maybe LdapConf)
 getLdapConf conf = do
-  uri <- Configurator.require conf "ldap.uri"
-  base <- Configurator.require conf "ldap.base"
-  admins <- Configurator.require conf "ldap.admins"
-  return (LdapConf uri base admins)
+  enabled <- Configurator.lookupDefault False conf "Ldap.enabled"
+  if enabled then do uri <- Configurator.require conf "Ldap.uri"
+                     base <- Configurator.require conf "Ldap.base"
+                     return (Just (LdapConf uri base))
+    else return Nothing

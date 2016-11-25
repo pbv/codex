@@ -15,11 +15,14 @@ import qualified Data.Text.Encoding.Error as T
 import           Data.String
 import           Data.Maybe (maybeToList)
 import qualified Data.Map as Map
+import qualified Data.HashMap.Strict as HM
 
 import           Snap.Core
 import           Snap.Snaplet
 import           Snap.Snaplet.Heist
 import           Snap.Snaplet.Auth
+
+import           Data.Aeson.Types 
 
 import           Heist
 import qualified Heist.Interpreted as I
@@ -42,12 +45,19 @@ import           Interval
 -- import           SafeExec
 -- import           Language
 import           Application
-import           LdapAuth
+-- import           LdapAuth
 
 
 import           Data.Time.Clock
 
 
+
+-- fetch the user name of an authenticated user
+authUserName :: AuthUser -> Text
+authUserName au 
+  = case HM.lookup (T.pack "userName") (userMeta au) of
+    Just (String name) -> name
+    _                  -> userLogin au  -- fallback: give the user login
 
 
 -- | increment an EKG counter
@@ -66,10 +76,10 @@ getUserID = do
   return $ fmap (fromString . T.unpack . userLogin) opt
 
 
-getFullName :: Codex (Maybe Text)
-getFullName = do
+getUserName :: Codex (Maybe Text)
+getUserName = do
   opt <- with auth currentUser
-  return (fmap userName opt)
+  return (fmap authUserName opt)
 
 -- | Get user id and roles
 getUserRoles :: Codex (Maybe [Role])
@@ -109,7 +119,7 @@ getQueryTags = do
 
 
 -- | try a Maybe-handler and "pass" if it yields Nothing 
-require :: Codex (Maybe a) -> Codex a
+require :: Handler m m' (Maybe a) -> Handler m m' a
 require handler = do
   opt <- handler
   case opt of

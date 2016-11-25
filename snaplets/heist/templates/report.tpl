@@ -24,7 +24,7 @@
 
 <form id="editform" method="POST" action="${page:path}"
       onsubmit="submitAceEditorText('editform.editor');">
-<p><inputAceEditor id="editform.editor" mode="ace/mode/${exercise:language}"><submit:code-text/></inputAceEditor></p>
+<p><inputAceEditor id="editform.editor" mode="ace/mode/${exercise:language-mode}"><submit:code-text/></inputAceEditor></p>
 <p><input type="submit" value="Enviar"/> 
 &nbsp;<a class="button" href="${page:path}">Voltar ao problema</a>
 &nbsp;<a class="button" href="${page:parent}">Voltar à folha de problemas</a>

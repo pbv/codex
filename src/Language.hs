@@ -8,6 +8,7 @@ module Language(
   codeTester
   ) where
 
+import Data.Monoid
 
 import Page
 import Application
@@ -24,5 +25,6 @@ codeTester :: Page -> Code -> Codex Result
 codeTester page code
   = pythonTester page code <|>
     haskellTester  page code <|>
-    clangTester page code <|>
-    return (accepted "No tester defined")
+    c_langTester page code <|>
+    return (received ("No tester defined for language \"" <>
+                      fromLanguage (codeLang code) <> "\""))

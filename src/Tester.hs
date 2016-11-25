@@ -20,7 +20,8 @@ data Result = Result { resultClassify :: !Classify
               deriving (Eq, Read, Show, Typeable)
 
 -- classification
-data Classify = Accepted
+data Classify = Received
+              | Accepted
               | WrongAnswer
               | CompileError
               | RuntimeError
@@ -33,6 +34,7 @@ instance Exception Result -- default instance
 
 
 -- | auxiliary construtors
+received = Result Received . trim maxLen
 accepted = Result Accepted . trim maxLen
 wrongAnswer = Result WrongAnswer . trim maxLen
 compileError = Result CompileError . trim maxLen

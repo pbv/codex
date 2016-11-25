@@ -32,6 +32,7 @@ import qualified Data.Map as Map
 import           Data.Text (Text)
 import qualified Data.Text as T
 import qualified Data.Text.IO as T
+import           Data.Text.Encoding (decodeUtf8)
 
 import           Snap.Core
 import           Snap.Snaplet
@@ -95,34 +96,83 @@ type ISplices = Splices (I.Splice Codex)
 -- | Handle login requests 
 handleLogin :: Codex ()
 handleLogin 
-  = method GET (with auth $ handleLoginForm Nothing) <|>
-    method POST (do { user <- require (getParam "login") 
-                    ; passwd <- require (getParam "password")
-                    ; conf <- getSnapletUserConfig
-                    ; ldapconf <- liftIO (getLdapConf conf)
-                    ; with auth $ handleLoginSubmit ldapconf user passwd
-                    } <|> badRequest)
+  = method GET (with auth $ handleLoginForm "login" Nothing) <|>
+    method POST (with auth handleLoginSubmit)
 
 
--- | Render login form
-handleLoginForm :: Maybe Text -> Handler App (AuthManager App) ()
-handleLoginForm authError = heistLocal (I.bindSplices errs) $ render "login"
+-- | Render login and signup forms
+handleLoginForm ::
+  ByteString -> Maybe AuthFailure -> Handler App (AuthManager App) ()
+handleLoginForm file authFail = heistLocal (I.bindSplices errs) $ render file
   where
-    errs = "loginError" ## maybe (return []) I.textSplice authError
+    errs = "loginError" ## maybe (return []) (I.textSplice . T.pack .show) authFail
 
-------------------------------------------------------------------------------
 
--- | Handle login submit using LDAP authentication
-handleLoginSubmit :: 
+-- | handler for login attempts
+-- first try local user DB, then LDAP (if enabled)
+handleLoginSubmit :: Handler App (AuthManager App) ()
+handleLoginSubmit = do
+  login <- require (getParam "login")
+  passwd <- require (getParam "password") 
+  optLdap <- getSnapletUserConfig >>= (liftIO . getLdapConf)
+  r <- loginByUsername (decodeUtf8 login) (ClearText passwd) False
+  case r of
+    Right au -> redirect indexPage
+    Left err -> case optLdap of
+      Nothing -> handleLoginForm "login" (Just err)
+      Just ldapConf -> loginLdapUser ldapConf login passwd
+
+loginLdapUser ::
   LdapConf -> ByteString -> ByteString -> Handler App (AuthManager App) ()
-handleLoginSubmit ldapConf user passwd = do
-  -- optAuth <- withBackend (\r -> liftIO $ ldapAuth r ldapConf user passwd)
-  optAuth <- withBackend (\r -> liftIO $ dummyAuth r ldapConf user passwd)
+loginLdapUser ldapConf login passwd = do
+  optAuth <- withBackend (\r -> liftIO $ ldapAuth r ldapConf login passwd)
+  case optAuth of
+    Nothing -> let err = AuthError "LDAP authentication failed"
+               in handleLoginForm "login" (Just err)
+    Just au -> forceLogin au >> redirect indexPage
+  
+        
+{-
+handleLdapLogin :: LdapConf -> Handler App App ()
+handleLdapLogin ldapConf = do
+  login <- require (getParam "login")
+  passwd <- require (getParam "password")
+  optAuth <- withBackend (\r -> liftIO $ ldapAuth r ldapConf login passwd)
+  case optAuth of 
+    Nothing -> (handleLoginForm "login" err)
+    Just u ->  (forceLogin u) >> redirect indexPage
+  where 
+    err = Just (AuthError "LDAP authentication failed")
+-}
+                                     
+{-  
+handleLoginSubmit (Just ldapConf) login passwd = do
+  optAuth <- withBackend (\r -> liftIO $ ldapAuth r ldapConf login  passwd)
+  -- optAuth <- withBackend (\r -> liftIO $ dummyAuth r ldapConf login passwd)
   case optAuth of 
     Nothing -> handleLoginForm err
     Just u -> forceLogin u >> redirect indexPage
   where 
     err = Just "Utilizador ou password incorreto"
+-}
+
+------------------------------------------------------------------------------
+
+-- | Handle sign-in requests
+handleRegister :: Codex ()
+handleRegister = method GET (with auth $ handleForm Nothing) <|>
+                 method POST (with auth handleSubmit)
+  where
+    handleForm err = handleLoginForm "register" err
+    handleSubmit = do
+      fullname <- fmap decodeUtf8 (getParam "fullname")
+      email <- fmap decodeUtf8 (getParam "email")
+      r <- registerUser "login" "password"
+      case r of
+        Left err -> handleForm (Just err)
+        Right au -> redirect "/"
+
+
 
 
 ------------------------------------------------------------------------------
@@ -258,6 +308,8 @@ exerciseSplices page = namespaceSplices "exercise" $ do
   -- splices related to programming languages
   "language" ##
     maybe (return []) (I.textSplice . fromLanguage) (Page.getLanguage page)
+  "language-mode" ##
+    maybe (return []) (I.textSplice . languageMode) (Page.getLanguage page)
   "code-text" ##
     maybe (return []) I.textSplice (Page.getCodeText page)
   --- splices related to submission intervals 
@@ -561,8 +613,10 @@ routes = [ ("/login",                 handleLogin `catch` internalError)
 routes :: [(ByteString, Codex ())]
 routes = [ ("/login",    handleLogin `catch` internalError)
          , ("/logout",   handleLogout `catch` internalError)
+         , ("/register", handleRegister `catch` internalError)
          , ("/page",     handlePage  `catch` internalError)
          , ("/submit/:sid", handleSubmission `catch` internalError)
+         -- , ("/admin",  handleAdmin pageFileRoot `catch` internalError)
          , ("",   serveDirectory staticFilePath <|> notFound) 
          ]
 
@@ -584,7 +638,7 @@ indexPage = "/page/index.md"
 loggedInName :: SnapletLens b (AuthManager b) -> SnapletISplice b
 loggedInName authmgr = do
     u <- lift $ withTop authmgr currentUser
-    maybe (return []) (I.textSplice . userName) u 
+    maybe (return []) (I.textSplice . authUserName) u 
 
 authRoles :: SnapletLens b (AuthManager b) ->
              ([Role] -> Bool) -> SnapletISplice b
@@ -608,7 +662,7 @@ app :: SnapletInit App App
 app = 
   makeSnaplet "codex" "Web server for programming exercises." Nothing $ do
     conf <- getSnapletUserConfig
-    e <- liftIO (initEkg conf)
+    -- e <- liftIO (initEkg conf)
     h <- nestSnaplet "" heist $ heistInit "templates"
     s <- nestSnaplet "sess" sess $
            initCookieSessionManager "site_key.txt" "sess" (Just 7200)
@@ -620,7 +674,7 @@ app =
           "version" ## versionSplice
           "timeNow" ## nowSplice
           "loggedInName" ## loggedInName auth
-          "ifAdmin" ## authRoles auth (adminRole `elem`)
+          -- "ifAdmin" ## authRoles auth (adminRole `elem`)
           
     addConfig h (mempty & scInterpretedSplices .~ sc)
     -- Grab the DB connection pool from the sqlite snaplet and call
@@ -632,7 +686,7 @@ app =
                , _sess = s
                , _auth = a
                , _db   = d
-               , ekg = e
+               , ekg = Nothing
                }
 
 

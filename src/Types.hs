@@ -86,7 +86,6 @@ instance FromRow ProblemID where
 -- | LDAP configuration
 data LdapConf = LdapConf { ldapURI :: String
                          , ldapBase :: String
-                         , ldapAdmins :: [Text]
                          } 
                 deriving Show
                          

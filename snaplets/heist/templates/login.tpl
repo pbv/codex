@@ -1,21 +1,33 @@
 <apply template="base">
-<h1>Welcome!</h1>
+<h1>Bem-vindo!</h1>
 
-<p><em>Codex</em> is a <em>web</em> system for
-setting programming exercises
-with automatic assement 
-for teaching programming
-in a class environment.</p>
-<p>Currently <em>Codex</em> supports 
+<p><em>Codex</em> é um sistema <em>web</em> para 
+ensino que permite
+resolução de exercícios de programação 
+com correção automática.</p>
+<p>Atualmente o <em>Codex</em> suporta as linguagens
  <a href="http://www.python.org">Python</a>,
- <a href="http://www.haskell.org">Haskell</a> and
-the <a href="https://en.wikipedia.org/wiki/C_(programming_language)">C</a>
-programming languages.
+ <a href="http://www.haskell.org">Haskell</a> e 
+ <a href="https://en.wikipedia.org/wiki/C_(programming_language)">C</a>.
 </p>
-<p>Please log in to begin your session.</p>
 
-<bind tag="post_action">/login</bind>
-<bind tag="submit_label">Login</bind>
-<apply template="userform"/>
+<p>Por favor autentique-se para iniciar a sessão
+ ou  <a href="/register">registe</a>  uma nova conta de utilizador.</p>
+
+<form method="POST" action="/login">
+  <table>
+    <tr>
+      <td>Login:</td><td><input type="text" name="login" size="20" /></td>
+    </tr>
+    <tr>
+      <td>Password:</td><td><input type="password" name="password" size="20" /></td>
+    </tr>
+    <tr>
+      <td></td>
+      <td><input type="submit" value="Iniciar sessão" /></td>
+    </tr>
+  </table>
+</form>
+
 <div class="warnings"><p><loginError/></p></div>
 </apply>

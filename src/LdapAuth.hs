@@ -1,9 +1,10 @@
 {-# LANGUAGE RecordWildCards, OverloadedStrings #-}
 module LdapAuth 
-       (ldapAuth, 
-        dummyAuth,
-        userName,
-        adminRole
+       (ldapAuth
+       -- , 
+        -- dummyAuth,
+        -- userName,
+        -- adminRole
        ) where
 
 import           Data.ByteString.UTF8 (ByteString)
@@ -54,11 +55,9 @@ ldapBindSearch LdapConf{..} user passwd = catchLDAP search (\_ -> return Nothing
                                                     ]
 
 
-
 -- set of LDAP attibutes to keep
 keepAttrs :: Set String
 keepAttrs = Set.fromList ["gecos", "cn", "sn", "givenName"]
-
 
 
 ldapAuth :: IAuthBackend r => 
@@ -79,7 +78,8 @@ sanitize  = map toLower . filter (not . isSpace)
 
 
 -- | update or create a user with given attributes
-updateUser :: IAuthBackend r => r -> LdapConf -> Text -> Attrs -> IO (Maybe AuthUser)
+updateUser :: IAuthBackend r =>
+              r -> LdapConf -> Text -> Attrs -> IO (Maybe AuthUser)
 updateUser r LdapConf{..} login attrs = do
   now <- getCurrentTime
   optAu <- lookupByLogin r login
@@ -91,7 +91,7 @@ updateUser r LdapConf{..} login attrs = do
                    , userUpdatedAt = Just now
                    , userCurrentLoginAt = Just now                   
                    , userMeta = attrs
-                   , userRoles = if login `elem` ldapAdmins then [adminRole] else []
+                   -- , userRoles = if login `elem` ldapAdmins then [adminRole] else []
                    }
   result <- save r newuser
   return $ case result of 
@@ -103,25 +103,15 @@ updateUser r LdapConf{..} login attrs = do
 adminRole :: Role
 adminRole = Role "admin"
 
- 
-
--- fetch the user name of an authenticated user
-userName :: AuthUser -> Text
-userName au 
-  = case HM.lookup (T.pack "gecos") (userMeta au) of
-    Just (String name) -> name
-    _                  -> userLogin au  -- fallback: give the user login
 
 
 -----------------------------------------------------------
 -- dummy password-less login
 -- for development only!
-
+{-
 dummyAuth :: IAuthBackend r => 
              r -> LdapConf -> ByteString -> ByteString -> IO (Maybe AuthUser)
 dummyAuth r ldapConf username passwd
     = updateUser r ldapConf (T.pack $ sanitize $ B.toString username) HM.empty
-
-
-       
+-}
 
