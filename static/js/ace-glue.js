@@ -22,15 +22,15 @@ function submitAceEditorText(id) {
 }
 
 
-/* set the editing mode directly */
+/* set the editing mode directly; NB: this is not used anymore? */
 function setAceEditorMode(id, mode) {
- var div = document.getElementById(id+'.div');
+ var div = document.getElementById(id);
  ace.edit(div).getSession().setMode(mode);
 }
 
 /* set the editing mode from file extension */
 function setAceEditorModeExt(id, other) {
-    var editor = ace.edit(id + '.div');
+    var editor = ace.edit(id);
     var path = document.getElementById(other).value;
     var modelist = ace.require("ace/ext/modelist");
     var mode = modelist.getModeForPath(path).mode;

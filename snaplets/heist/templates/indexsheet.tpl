@@ -1,13 +1,13 @@
-<bind tag="icon-accepted"><img src="/icons/16x16/accepted.png"/></bind>
-<bind tag="icon-rejected"><img src="/icons/16x16/rejected.png"/></bind>
-<bind tag="icon-text-html"><img src="/icons/16x16/text-html.png"/></bind>
-<bind tag="icon-folder"><img src="/icons/16x16/folder.png"></bind>
-<bind tag="icon-editor"><img src="/icons/16x16/text-editor.png"/></bind>
-<bind tag="page-icon"><page:if-exercise><icon-editor/><else/><page:if-indexsheet><icon-folder/><else/><icon-text-html/></page:if-indexsheet></page:if-exercise></bind>
+<bind tag="icon-accepted"><img src="/static/icons/16x16/accepted.png"/></bind>
+<bind tag="icon-rejected"><img src="/static/icons/16x16/rejected.png"/></bind>
+<bind tag="icon-text-html"><img src="/static/icons/16x16/text-html.png"/></bind>
+<bind tag="icon-folder"><img src="/static/icons/16x16/folder.png"></bind>
+<bind tag="icon-editor"><img src="/static/icons/16x16/text-editor.png"/></bind>
+<bind tag="page-icon"><if-exercise><icon-editor/><else/><if-indexsheet><icon-folder/><else/><icon-text-html/></if-indexsheet></if-exercise></bind>
 
 <apply template="base">
   <div class="description">
-    <page:description/>
+    <page-description/>
   </div>
   <if-tagged>
     <div class="filters">
@@ -20,17 +20,17 @@
 	  </tag-list>
 	</dl>
 	<p><input type="submit" value="Aplicar"/></p>
-	<p><a class="button" href="${page:path}">Limpar filtros</a></p>
+	<p><a class="button" href="${page-path}">Limpar filtros</a></p>
       </form>
     </div>
   </if-tagged>
   <div class="index">
     <dl>
       <index-list>
-	<dt><page-icon/>&nbsp;<a href="${page:path}"><page:title/></a></dt>
-	<page:if-exercise>
+	<dt><page-icon/>&nbsp;<a href="${page-path}"><page-title/></a></dt>
+	<if-exercise>
 	  <dd class="info"><submissions-count/> submissões efectuadas.</dd>
-	</page:if-exercise>
+	</if-exercise>
       </index-list>
     </dl>
 </div>

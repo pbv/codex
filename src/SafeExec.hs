@@ -14,7 +14,6 @@ import           System.Process.Text (readProcessWithExitCode)
 
 import           Control.Monad
 import           Control.Applicative
--- import           Test.QuickCheck
 
 
 -- | safeexec configuration parameters
@@ -84,26 +83,4 @@ safeExecWith SafeExecConf{..} cmd args stdin
        (fromMaybe "safeexec" safeExecPath) (args0 ++ args) stdin
 
 
-
-
-{-
-instance Arbitrary SafeExecConf where
-  arbitrary = SafeExecConf <$>
-              arbitrary <*>
-              arbitrary <*>
-              arbitrary <*>
-              arbitrary <*>
-              arbitrary <*>
-              arbitrary <*>
-              arbitrary <*>
-              arbitrary 
-
-prop_neutral x = mappend x mempty == x &&
-                 mappend mempty x == x
-  where types = x :: SafeExecConf
-
-prop_assoc x y z = mappend x (mappend y z) ==
-                    mappend (mappend x y) z
-  where types = x :: SafeExecConf
--}                    
 

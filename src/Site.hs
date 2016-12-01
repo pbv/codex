@@ -13,25 +13,27 @@ module Site
 
 ------------------------------------------------------------------------------
 
-import           Control.Monad.CatchIO (catch)
+import           Control.Exception.Lifted (catch)
 import           Control.Monad.State
+import           Control.Monad.Trans.Except
 import           Control.Applicative
 import           Control.Concurrent.MVar
 import           Control.Lens
 
-import           Data.Char (toLower)
+-- import           Data.Char (toLower)
 import           Data.ByteString.UTF8 (ByteString)
 import qualified Data.ByteString.UTF8 as B
-import qualified Data.ByteString      as B
-import           Data.Monoid
-import           Data.Maybe(listToMaybe, maybeToList, isJust, fromMaybe)
+-- import qualified Data.ByteString      as B
+-- import           Data.Monoid
+import           Data.Maybe(isJust)
 
 import           Data.List (nub, sort)
+import           Data.Map.Syntax
+import qualified Data.HashMap.Strict as HM
 
-import qualified Data.Map as Map
 import           Data.Text (Text)
 import qualified Data.Text as T
-import qualified Data.Text.IO as T
+-- import qualified Data.Text.IO as T
 import           Data.Text.Encoding (decodeUtf8)
 
 import           Snap.Core
@@ -43,21 +45,23 @@ import           Snap.Snaplet.Heist
 import           Snap.Snaplet.Session.Backends.CookieSession
 import           Snap.Util.FileServe
 import           Heist
-import           Heist.Splices
+-- import           Heist.Splices
 import qualified Heist.Interpreted as I
 
 import           Data.Time.Clock
 import           Data.Time.LocalTime
 import           Data.Time.Format
 
-import qualified Data.Configurator as Configurator
-import           Data.Configurator.Types
+-- import qualified Data.Configurator as Configurator
+-- import           Data.Configurator.Types (Config)
 
-import           System.Locale
+import           Data.Aeson
+
+--import           System.Locale
 import           System.FilePath
-import           System.IO.Error
-import           System.Remote.Monitoring
-import qualified Text.XmlHtml as X
+-- import           System.IO.Error
+-- import           System.Remote.Monitoring
+-- import qualified Text.XmlHtml as X
 
 
 ------------------------------------------------------------------------------
@@ -69,7 +73,7 @@ import           Tester
 import           Language
 import           Markdown
 import           Interval
-import           Text.Pandoc.Builder hiding (Code)
+-- import           Text.Pandoc.Builder hiding (Code)
 -- import qualified Interval as Interval
 -- import           Interval (Interval)
 import           Page  (Page(..))
@@ -78,6 +82,8 @@ import           Submission (Submission(..))
 import qualified Submission
 import           LdapAuth
 import           Config
+
+import           Admin
 
 -- import           Report
 -- import           Printout
@@ -95,41 +101,42 @@ type ISplices = Splices (I.Splice Codex)
 ------------------------------------------------------------------------------
 -- | Handle login requests 
 handleLogin :: Codex ()
-handleLogin 
-  = method GET (with auth $ handleLoginForm "login" Nothing) <|>
-    method POST (with auth handleLoginSubmit)
+handleLogin =
+  method GET (handleLoginForm "login" Nothing) <|>
+  method POST handleLoginSubmit
 
 
 -- | Render login and signup forms
-handleLoginForm ::
-  ByteString -> Maybe AuthFailure -> Handler App (AuthManager App) ()
+handleLoginForm ::  ByteString -> Maybe AuthFailure -> Codex ()
 handleLoginForm file authFail = heistLocal (I.bindSplices errs) $ render file
   where
     errs = "loginError" ## maybe (return []) (I.textSplice . T.pack .show) authFail
 
+getLdap :: Codex (Maybe LdapConf)
+getLdap = getSnapletUserConfig >>= (liftIO . getLdapConf "users.ldap")
+
 
 -- | handler for login attempts
 -- first try local user DB, then LDAP (if enabled)
-handleLoginSubmit :: Handler App (AuthManager App) ()
+handleLoginSubmit :: Codex ()
 handleLoginSubmit = do
   login <- require (getParam "login")
   passwd <- require (getParam "password") 
-  optLdap <- getSnapletUserConfig >>= (liftIO . getLdapConf)
-  r <- loginByUsername (decodeUtf8 login) (ClearText passwd) False
+  ldap <- getLdap
+  r <- with auth $ loginByUsername (decodeUtf8 login) (ClearText passwd) False
   case r of
     Right au -> redirect indexPage
-    Left err -> case optLdap of
+    Left err -> case ldap of
       Nothing -> handleLoginForm "login" (Just err)
-      Just ldapConf -> loginLdapUser ldapConf login passwd
+      Just cfg -> loginLdapUser cfg login passwd
 
-loginLdapUser ::
-  LdapConf -> ByteString -> ByteString -> Handler App (AuthManager App) ()
+loginLdapUser :: LdapConf -> ByteString -> ByteString -> Codex ()
 loginLdapUser ldapConf login passwd = do
-  optAuth <- withBackend (\r -> liftIO $ ldapAuth r ldapConf login passwd)
-  case optAuth of
-    Nothing -> let err = AuthError "LDAP authentication failed"
-               in handleLoginForm "login" (Just err)
-    Just au -> forceLogin au >> redirect indexPage
+  reply <- with auth $
+           withBackend (\r -> liftIO $ ldapAuth r ldapConf login passwd)
+  case reply of
+    Left err -> handleLoginForm "login" (Just err)
+    Right au -> with auth (forceLogin au) >> redirect indexPage
   
         
 {-
@@ -160,18 +167,42 @@ handleLoginSubmit (Just ldapConf) login passwd = do
 
 -- | Handle sign-in requests
 handleRegister :: Codex ()
-handleRegister = method GET (with auth $ handleForm Nothing) <|>
-                 method POST (with auth handleSubmit)
+handleRegister =
+  method GET (handleLoginForm "register" Nothing) <|>
+  method POST handleSubmit
   where
-    handleForm err = handleLoginForm "register" err
     handleSubmit = do
-      fullname <- fmap decodeUtf8 (getParam "fullname")
-      email <- fmap decodeUtf8 (getParam "email")
-      r <- registerUser "login" "password"
+      r <- with auth newUser
       case r of
-        Left err -> handleForm (Just err)
+        Left err -> handleLoginForm "register" (Just err)
         Right au -> redirect "/"
 
+
+------------------------------------------------------------------------------
+-- | Register a new user 
+--
+newUser :: Handler b (AuthManager b) (Either AuthFailure AuthUser)
+newUser = do
+    l <- fmap decodeUtf8 <$> getParam "login"
+    p <- getParam "password"
+    p2<- getParam "password2"
+    n <- fmap decodeUtf8 <$> getParam "fullname"
+    e <- fmap decodeUtf8 <$> getParam "email"
+    runExceptT $ do
+      login  <- maybe (throwE UsernameMissing) return l
+      passwd <- maybe (throwE PasswordMissing) return p
+      passwd2<- maybe (throwE PasswordMissing) return p2
+      name <- maybe (throwE (AuthError "Missing full user name")) return n
+      email <- maybe (throwE (AuthError "Missing user email")) return e
+      when (passwd /= passwd2) $
+        throwE (AuthError "Passwords fields do not match")
+      au <- ExceptT (createUser login passwd)
+      let meta' = HM.fromList [("fullname", String name)]
+      let au' = au { userEmail = Just email, userMeta = meta'}
+      ExceptT (saveUser au') `catchE` (\err -> case err of
+                                          DuplicateLogin -> return au'
+                                          err -> throwE err)
+        
 
 
 
@@ -287,14 +318,14 @@ handlePagePost uid page  = do
 
 -- | splices related to a page
 pageSplices :: Page -> ISplices
-pageSplices page = namespaceSplices "page" $ do
-  "path" ##
+pageSplices page = do
+  "page-path" ##
     I.textSplice (T.pack $ B.toString pageContextPath </> Page.path page)
-  "parent" ##
+  "page-parent" ##
     I.textSplice (T.pack $ B.toString pageContextPath </> Page.parent (Page.path page))
-  "title" ##
+  "page-title" ##
     I.textSplice (Page.getTitle page)
-  "description" ##
+  "page-description" ##
     return (blocksToHtml $ Page.description page)
   "if-exercise" ##
     conditionalSplice (Page.isExercise page)
@@ -304,7 +335,7 @@ pageSplices page = namespaceSplices "page" $ do
 
 -- | splices related to exercises
 exerciseSplices :: Page -> ISplices
-exerciseSplices page = namespaceSplices "exercise" $ do
+exerciseSplices page = do
   -- splices related to programming languages
   "language" ##
     maybe (return []) (I.textSplice . fromLanguage) (Page.getLanguage page)
@@ -333,9 +364,9 @@ indexSplices pageSubs = do
 
 -- | splices relating to a single submission
 submitSplices :: Submission -> ISplices
-submitSplices Submission{..} = namespaceSplices "submit" $ do
-  "id" ##  I.textSplice (toText id)
-  "path" ## I.textSplice (T.pack path)
+submitSplices Submission{..} = do
+  "submit-id" ##  I.textSplice (toText id)
+  "submit-path" ## I.textSplice (T.pack path)
   "time" ## do {tz <- liftIO getCurrentTimeZone; utcTimeSplice tz time}
   "code-text" ##  I.textSplice (codeText code)
   "classify" ##  I.textSplice (T.pack $ show $ resultClassify result)
@@ -380,37 +411,6 @@ timingSplice interval = do
 
 
 
-{-
--- | problem set listing handler
-handleProblemList :: Codex ()
-handleProblemList = method GET $ do
-  uid <- require getUserID <|> unauthorized
-  now <- liftIO getCurrentTime
-  (probset, mesgs) <- getProblemSet
-  tags <- getQueryTags
-  -- summary of all available problems
-  available <- getProblemSummary uid probset 
-  -- filter by query tags
-  let visible = filter (hasTags tags) available
-      
-  -- context-dependent splices for tags 
-  let tagSplices tag = 
-        let checked = tag`elem`tags
-            disabled= null (filter (isTagged tag) visible)
-        in do "tagText" ## I.textSplice tag
-              "tagCheckbox" ## return (checkboxInput tag checked disabled)
-
-  -- render page
-  renderWithSplices "problemlist" $ do
-    warningsSplices mesgs
-    "problemsetDescription" ## return (renderPandoc $ probsetDescr probset)
-    "problemsetPath" ## I.textSplice (T.pack $ probsetPath probset)
-    "tagList" ## I.mapSplices (I.runChildrenWith . tagSplices) (taglist available)
-    "problemList" ##  I.mapSplices (I.runChildrenWith . summarySplices now) visible
-    "availableProblems" ## I.textSplice (T.pack $ show $ length available)
-    "visibleProblems" ## I.textSplice (T.pack $ show $ length visible)
-               
--}
 
 
 {-
@@ -420,26 +420,6 @@ warningsSplices mesgs = do
   where mesgSplice msg = "message" ## I.textSplice msg
 -}
 
-{-
--- | splices related to worksheet items
-wsItemSplices :: UTCTime -> Either Blocks (Problem,[Submission]) -> ISplices
-wsItemSplices now (Left blocks) = do
-  "ifProblem" ## conditionalSplice False
-  "itemBlocks" ## return (blocksToHtml blocks)
-  
-wsItemSplices now (Right (prob@Problem{..},list)) 
-  = let tot = length list 
-        acc = length [sub | sub@Submission{..}<-list,
-                      submitResult == Accepted && submitQualifier==OK ]
-    in do
-      "ifProblem" ## conditionalSplice True
-      "submissions" ## I.textSplice (T.pack $ show tot)
-      "accepted" ## I.textSplice (T.pack $ show acc)
-      "ifSubmissions" ## conditionalSplice (tot > 0)
-      "ifAccepted" ## conditionalSplice (acc > 0)
-      problemSplices prob
-      timerSplices probID now probLimit
--}
 
 {-
 -- | splices related to deadlines
@@ -459,72 +439,7 @@ timerSplices pid now limit = do
   where tid = B.toString (fromPID pid) ++ "-js-timer"
 -}
   
--- | splice an UTC time as a local time string
-utcTimeSplice :: Monad m => TimeZone -> UTCTime -> I.Splice m
-utcTimeSplice tz t =
-  I.textSplice $ T.pack $ formatTime defaultTimeLocale "%c" $ utcToLocalTime tz t
-    
 
-
-{-
--- | splices relating to a list of submissions
-submissionListSplices :: Problem -> [Submission] -> ISplices
-submissionListSplices prob list = do
-  "submissions" ## I.textSplice (T.pack $ show n)
-  "ifSubmissions" ## conditionalSplice (n > 0) 
-  "submissionList" ## I.mapSplices (I.runChildrenWith . submissionSplices prob) list
-  -- "ifAccepted" ##  I.textSplice "IFACCEPTED?"
-    -- conditionalSplice (any (\s->submitStatus s==Accepted) list)
-  where n = length list
-
-        
--- | splices relating to a single submission
-submissionSplices :: Problem -> Submission -> ISplices
-submissionSplices Problem{..} Submission{..} = do 
-  "submitID"   ## I.textSplice (T.pack $ show $ fromSID submitID)
-  "submitPID"  ## I.textSplice (T.pack $ B.toString $ fromPID submitPID)
-  "submitTime" ## timeSplice submitTime 
-  "submitCode" ## I.textSplice (fromCode submitCode)
-  "submitResult" ## I.textSplice (T.pack $ show submitResult)
-  "submitQualifier" ## I.textSplice (T.pack $ show submitQualifier)  
-  "submitMsg" ## I.textSplice submitMsg
-  "ifAccepted" ## conditionalSplice (submitResult == Accepted)
-  "ifOverdue" ## conditionalSplice (submitQualifier == Overdue)
-  "ifRejected" ## conditionalSplice (submitStatus /= Accepted &&
-                                     submitStatus /= Overdue)
--}
-
-
-{-
-handleGetSubmission, handlePostSubmission :: Codex ()
-handleGetSubmission 
-    = method GET $ do 
-        uid <- require getUserID <|> unauthorized
-        pid <- require getProblemID 
-        sid <- require getSubmissionID
-        (prob,mesgs) <- getProblem pid
-        sub <- getSubmission uid pid sid
-        renderWithSplices "report" $ do inputAceEditorSplices
-                                        problemSplices prob  
-                                        submissionSplices sub
-                                        warningsSplices mesgs
-
-
-handlePostSubmission = method POST $ do
-  uid <- require getUserID <|> unauthorized
-  pid <- require getProblemID
-  code <- require (getTextPost "editform.editor") 
-  (prob,mesgs) <- getProblem pid
-  now <- liftIO getCurrentTime
-  sub <- postSubmission uid prob code
-  incrCounter "submissions"
-  renderWithSplices "report" (inputAceEditorSplices >>
-                              problemSplices prob >>
-                              submissionSplices sub >>
-                              timerSplices pid now (probDeadline prob) >>
-                              warningsSplices mesgs)
-    
--}
 
 {-
 -- in exam mode show final report before loggin out
@@ -549,75 +464,21 @@ handleFinalReport uid ProblemSet{..} | probsetExam = do
 handleFinalReport _ _ = handleLogout
 -}
 
------------------------------------------------------------------------------
--- administrator interface
------------------------------------------------------------------------------
-{-
-handleAdminEdit :: Codex ()
-handleAdminEdit = do
-      uid <- require getUserID
-      roles <- require getUserRoles
-      guard (adminRole `elem` roles)
-      method GET handleGet <|> method POST handlePost 
-  where
-    handleGet = do
-      (_, mesgs) <- getProblemSet
-      path <- getsRequest rqPathInfo
-      opt_pid <- getParam "pid"
-      source <- liftIO (catchIOError
-                        (T.readFile $ B.toString path)
-                        (\_ -> return ""))
-      renderWithSplices "editfile" $ do
-        inputAceEditorSplices
-        warningsSplices mesgs
-        "editPath" ## I.textSplice (T.pack $ B.toString path)
-        "editText" ## I.textSplice source
-        "problemID" ## maybe (return []) (I.textSplice . T.pack . B.toString) opt_pid
-    handlePost  = do
-      path <- getsRequest rqPathInfo
-      opt_pid <- getParam "pid"
-      source <- require (getTextPost "editform.editor")
-      liftIO (T.writeFile (B.toString path) source)
-      redirect (B.append "/problems/" $ maybe "" id opt_pid)
 
-
-handleAdminSubmissions = method GET $ do
-  uid <- require getUserID
-  roles <- require getUserRoles
-  guard (adminRole `elem` roles)
-  serveFileAs "application/x-sqlite3" "submissions.db"
-        
--}
-
-      
+  
 
 ------------------------------------------------------------------------------
 -- | The application's routes.
-  {-
-routes :: [(ByteString, Codex ())]
-routes = [ ("/login",                 handleLogin `catch` internalError)
-         , ("/logout",                handleLogout `catch` internalError)
-         , ("/problems",              handleProblemList `catch` internalError )  
-         , ("/problems/:pid",         handleProblem `catch` internalError )
-         , ("/files",                 serveDirectory problemDirPath <|> notFound)
-         , ("/edit",                  handleAdminEdit `catch` internalError)
-         , ("/submissions/:pid",      handlePostSubmission `catch` internalError)
-         , ("/submissions/:pid/:sid", handleGetSubmission  `catch` internalError)
-         , ("/admin/submissions",     handleAdminSubmissions `catch` internalError)
-         , ("/asklogout",             handleConfirmLogout `catch` internalError)        
-         , ("",                       serveDirectory "static" <|> notFound)
-         ]
--}
-
 
 routes :: [(ByteString, Codex ())]
 routes = [ ("/login",    handleLogin `catch` internalError)
          , ("/logout",   handleLogout `catch` internalError)
          , ("/register", handleRegister `catch` internalError)
-         , ("/page",     handlePage  `catch` internalError)
+         , ("/page",     handlePage `catch` internalError)
          , ("/submit/:sid", handleSubmission `catch` internalError)
-         -- , ("/admin",  handleAdmin pageFileRoot `catch` internalError)
-         , ("",   serveDirectory staticFilePath <|> notFound) 
+         , ("/browse",    handleListing pageFileRoot `catch` internalError)
+         , ("/edit",     handleEdit pageFileRoot `catch` internalError)
+         , ("/static",   serveDirectory staticFilePath <|> notFound) 
          ]
 
 
@@ -638,7 +499,7 @@ indexPage = "/page/index.md"
 loggedInName :: SnapletLens b (AuthManager b) -> SnapletISplice b
 loggedInName authmgr = do
     u <- lift $ withTop authmgr currentUser
-    maybe (return []) (I.textSplice . authUserName) u 
+    maybe (return []) I.textSplice (u >>= authFullname)
 
 authRoles :: SnapletLens b (AuthManager b) ->
              ([Role] -> Bool) -> SnapletISplice b
@@ -648,9 +509,14 @@ authRoles authmgr cond = do
 
 -- | splice for current date & time
 nowSplice :: I.Splice Codex
+nowSplice = do tz <- liftIO getCurrentTimeZone
+               t <- liftIO getCurrentTime
+               utcTimeSplice tz t
+
+{-               
 nowSplice = do t <- liftIO (getCurrentTime >>= utcToLocalZonedTime)
                I.textSplice (T.pack $ formatTime defaultTimeLocale "%c" t)
-
+-}
 
 
 versionSplice :: I.Splice Codex
@@ -661,11 +527,10 @@ versionSplice = I.textSplice (T.pack (showVersion version))
 app :: SnapletInit App App
 app = 
   makeSnaplet "codex" "Web server for programming exercises." Nothing $ do
-    conf <- getSnapletUserConfig
     -- e <- liftIO (initEkg conf)
     h <- nestSnaplet "" heist $ heistInit "templates"
     s <- nestSnaplet "sess" sess $
-           initCookieSessionManager "site_key.txt" "sess" (Just 7200)
+           initCookieSessionManager "site_key.txt" "sess" Nothing (Just 3600)
 
     d <- nestSnaplet "db" db sqliteInit
     a <- nestSnaplet "auth" auth $ initSqliteAuth sess d
@@ -674,7 +539,7 @@ app =
           "version" ## versionSplice
           "timeNow" ## nowSplice
           "loggedInName" ## loggedInName auth
-          -- "ifAdmin" ## authRoles auth (adminRole `elem`)
+          "ifAdmin" ## return []
           
     addConfig h (mempty & scInterpretedSplices .~ sc)
     -- Grab the DB connection pool from the sqlite snaplet and call
@@ -686,11 +551,11 @@ app =
                , _sess = s
                , _auth = a
                , _db   = d
-               , ekg = Nothing
+               -- , ekg = Nothing
                }
 
 
-
+{-
 -- initialize EKG server (if configured)
 initEkg :: Config -> IO (Maybe Server)
 initEkg conf = do
@@ -701,8 +566,7 @@ initEkg conf = do
     Just <$> forkServer host port                   
     else
     return Nothing
-  
-
+  -}
 
 
 

@@ -15,6 +15,9 @@
     <tr>
       <td>Password:</td><td><input type="password" name="password" size="20" /></td>
     </tr>
+    <tr>
+      <td>Confirmar password:</td><td><input type="password" name="password2" size="20" /></td>
+    </tr>
  
     <tr>
       <td/>

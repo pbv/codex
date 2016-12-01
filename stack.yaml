@@ -1,0 +1,27 @@
+flags:
+  generic-deriving:
+    base-4-9: false
+  snap-server:
+    openssl: true
+
+extra-deps:
+- codex-0.8
+- LDAP-0.6.10
+- aeson-1.0.2.1
+- bytestring-builder-0.10.8.1.0
+- doctemplates-0.1.0.2
+- generic-deriving-1.11.1
+- heist-1.0.1.0
+- io-streams-haproxy-1.0.0.1
+- mmorph-1.0.9
+- pandoc-1.18
+- pandoc-types-1.17.0.4
+- snap-1.0.0.1
+- snap-core-1.0.1.0
+- snap-loader-static-1.0.0.0
+- snap-loader-dynamic-1.0.0.0
+- snap-server-1.0.1.1
+- snaplet-sqlite-simple-1.0.0.2
+- zip-archive-0.3.0.5
+
+resolver: lts-6.26

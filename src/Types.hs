@@ -7,6 +7,8 @@
 
 module Types where
 
+import           Snap.Snaplet.Auth
+
 import           Control.Applicative
 import           Data.ByteString.UTF8(ByteString)
 import qualified Data.ByteString.UTF8 as B
@@ -15,11 +17,14 @@ import           Data.String (IsString(..))
 import           Data.Text (Text)
 import qualified Data.Text as T
 
+import           Data.HashMap.Strict(HashMap)
+
 import           Data.Int(Int64)
 
 import           Database.SQLite.Simple.ToField
 import           Database.SQLite.Simple.FromField
 import           Database.SQLite.Simple.FromRow
+
 
 
 
@@ -86,6 +91,7 @@ instance FromRow ProblemID where
 -- | LDAP configuration
 data LdapConf = LdapConf { ldapURI :: String
                          , ldapBase :: String
+                         , ldapMap :: HashMap Text Text  -- ^ attribute mapping
                          } 
                 deriving Show
                          
@@ -95,7 +101,6 @@ data PrintConf = PrintConf { printEnabled :: Bool
                            , printOptions :: [String]
                            } 
                 deriving Show
-
 
 
 

@@ -25,6 +25,8 @@ codeTester :: Page -> Code -> Codex Result
 codeTester page code
   = pythonTester page code <|>
     haskellTester  page code <|>
-    c_langTester page code <|>
-    return (received ("No tester defined for language \"" <>
-                      fromLanguage (codeLang code) <> "\""))
+    clangTester page code <|>
+    return (received errMsg)
+  where
+    errMsg = "No tester defined for language \"" <>
+             fromLanguage (codeLang code) <> "\""

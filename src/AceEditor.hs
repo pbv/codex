@@ -13,6 +13,7 @@ import qualified Data.Text             as T
 --import           Data.Function         (on)
 --import           Data.List             (unionBy)
 
+import           Data.Map.Syntax
 import           Heist
 import           Heist.Interpreted
 import qualified Text.XmlHtml          as X
@@ -48,10 +49,10 @@ inputAceEditor = do
 inputAceEditorSplices :: (Functor m, Monad m) => Splices (Splice m)
 inputAceEditorSplices = "inputAceEditor" ## inputAceEditor
 
+
 languageMode :: Language -> Text
 languageMode (Language l) = case l of
   "c"   -> "c_cpp"
-  "c++" -> "c_cpp"
   "cpp" -> "c_cpp"
   l -> l
 

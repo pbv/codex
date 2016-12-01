@@ -45,21 +45,21 @@ import qualified Data.Configurator as Configurator
 haskellTester :: Page -> Code -> Codex Result
 haskellTester page (Code (Language "haskell") code) = do
     conf <- getSnapletUserConfig
-    ghc <- liftIO $ Configurator.require conf "haskell.compiler"
-    sf <- liftIO $ getSafeExecConf "haskell.safeexec" conf
-    sf' <- liftIO $ getSafeExecConf "safeexec" conf
+    ghc <- liftIO $ Configurator.require conf "language.haskell.compiler"
+    sf <- liftIO $ liftM2 (<>)
+          (getSafeExecConf "language.haskell.safeexec" conf)
+          (getSafeExecConf "safeexec" conf)
     path <- require (return $ getQuickcheckPath page)
     props <- liftIO $ T.readFile path
     let args = getQuickcheckArgs page
-    liftIO (haskellTesterIO (sf<>sf') ghc args code props
-            `catch` return)
+    liftIO (haskellTesterIO sf ghc args code props `catch` return)
 haskellTester _ _  = pass             
 
      
 
 haskellTesterIO ::
-  SafeExecConf -> FilePath -> QuickCheckArgs -> Text -> Text -> IO Result
-haskellTesterIO sf ghc args code props =
+  SafeExecConf -> String -> QuickCheckArgs -> Text -> Text -> IO Result
+haskellTesterIO sf ghc qargs code props =
    withTempFile "Submit.hs" $ \(hs_file, h) ->      
    let codemod = T.pack $ takeBaseName hs_file
        dir = takeDirectory hs_file
@@ -67,11 +67,15 @@ haskellTesterIO sf ghc args code props =
      T.hPutStrLn h (moduleHeader codemod)
      T.hPutStrLn h code
      hClose h
-     withTextTemp "Main.hs" (testScript args codemod props) $ \tstfile -> do
+     withTextTemp "Main.hs" (testScript qargs codemod props) $ \tstfile -> do
        let out_file = dir </> takeBaseName tstfile
-       runCompiler ghc  ["-i"++dir, "-O0", "-dynamic", tstfile, "-o", out_file] 
+       let submit_file = dir </> takeBaseName hs_file
+       let cmd:args = words ghc
+       runCompiler cmd  (args ++ ["-i"++dir, "-O0", "-dynamic", tstfile, "-o", out_file])
        r <- haskellResult <$> safeExecWith sf out_file [] ""
-       removeFile out_file
+       let temps = [out_file, out_file <.> "o", out_file <.> "hi",
+                    submit_file <.> "o", submit_file <.> "hi"]
+       forM_ temps removeFile 
        return r
 
 

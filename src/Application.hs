@@ -15,7 +15,7 @@ import Snap.Snaplet.Auth
 import Snap.Snaplet.Session
 import Snap.Snaplet.SqliteSimple
 
-import System.Remote.Monitoring
+-- import System.Remote.Monitoring
 
 
 ------------------------------------------------------------------------------
@@ -24,7 +24,7 @@ data App = App
     , _sess  :: Snaplet SessionManager
     , _auth  :: Snaplet (AuthManager App)
     , _db    :: Snaplet Sqlite
-    , ekg :: Maybe Server           -- optional EKG monitoring server
+--    , ekg :: Maybe Server           -- optional EKG monitoring server
     }
 
 makeLenses ''App

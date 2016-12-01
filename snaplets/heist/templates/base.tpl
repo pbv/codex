@@ -3,13 +3,13 @@
  <head>
     <meta charset="UTF-8">
     <title><application/> server</title>
-    <link rel="stylesheet" type="text/css" href="/screen.css"/>
+    <link rel="stylesheet" type="text/css" href="/static/screen.css"/>
     <script type="text/javascript"
-	    src="/mathjax/MathJax.js?config=TeX-AMS-MML_HTMLorMML"/>
-    <script src="/ace-builds/src-min-noconflict/ace.js" type="text/javascript" charset="utf-8"></script>
-    <script src="/ace-builds/src-min-noconflict/ext-modelist.js" type="text/javascript" charset="utf-8"></script>
-    <script type="text/javascript" src="/js/ace-glue.js"/>   
-    <script type="text/javascript" src="/js/timer.js"/>
+	    src="/static/mathjax/MathJax.js?config=TeX-AMS-MML_HTMLorMML"/>
+    <script src="/static/ace-builds/src-min-noconflict/ace.js" type="text/javascript" charset="utf-8"></script>
+    <script src="/static/ace-builds/src-min-noconflict/ext-modelist.js" type="text/javascript" charset="utf-8"></script>
+    <script type="text/javascript" src="/static/js/ace-glue.js"/>   
+    <script type="text/javascript" src="/static/js/timer.js"/>
   </head>
   <body>
      <div id="topbar">

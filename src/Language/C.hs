@@ -5,7 +5,7 @@
 {-# LANGUAGE RecordWildCards #-}
 
 module Language.C (
-  c_langTester
+  clangTester
   ) where
 
 import           Control.Applicative
@@ -38,19 +38,19 @@ import           Control.Exception
 import qualified Data.Configurator as Configurator
 
 
-c_langTester :: Page -> Code -> Codex Result
-c_langTester page (Code (Language "c") code) = do
+clangTester :: Page -> Code -> Codex Result
+clangTester page (Code (Language "c") code) = do
   conf <- getSnapletUserConfig
-  ghc <- liftIO $ Configurator.require conf "haskell.compiler"
-  gcc <- liftIO $ Configurator.require conf "c_lang.compiler"
-  sf <- liftIO $ getSafeExecConf "haskell.safeexec" conf
-  sf'<- liftIO $ getSafeExecConf "safeexec" conf
+  ghc <- liftIO $ Configurator.require conf "language.haskell.compiler"
+  gcc <- liftIO $ Configurator.require conf "language.c.compiler"
+  sf <- liftIO $ liftM2 (<>)
+        (getSafeExecConf "language.haskell.safeexec" conf)
+        (getSafeExecConf "safeexec" conf)
   path <- require (return $ getQuickcheckPath page)
   let args = getQuickcheckArgs page
   props <- liftIO $ T.readFile path
-  liftIO (clangTesterIO (sf<>sf') gcc ghc args code props
-          `catch` return)
-c_langTester _ _ = pass
+  liftIO (clangTesterIO sf gcc ghc args code props `catch` return)
+clangTester _ _ = pass
 
 
 clangTesterIO sf gcc ghc args c_code props =

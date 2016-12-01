@@ -5,6 +5,7 @@ module Language.Python(
   ) where
 
 import           Control.Applicative
+import           Control.Monad (liftM2)
 import           Control.Monad.IO.Class
 import           Data.Monoid
 import           Data.Text (Text)
@@ -43,13 +44,14 @@ getDoctest Page{..}
 pythonTester :: Page -> Code -> Codex Result
 pythonTester page (Code (Language "python") code) = do
     conf <- getSnapletUserConfig
-    python <- liftIO $ Configurator.require conf "python.interpreter"
-    sf <- liftIO $ getSafeExecConf "python.safeexec" conf
-    sf' <- liftIO $ getSafeExecConf "safeexec" conf
+    python <- liftIO $ Configurator.require conf "language.python.interpreter"
+    sf <- liftIO $ liftM2 (<>)
+          (getSafeExecConf "language.python.safeexec" conf)
+          (getSafeExecConf "safeexec" conf)
     let tstfile = getDoctest page
     liftIO $ do
       c <- doesFileExist tstfile
-      if c then pythonTesterIO (sf<>sf') python code tstfile
+      if c then pythonTesterIO sf python code tstfile
         else return (miscError $ T.pack $ "missing doctest file: " ++ tstfile)
 pythonTester _ _ = pass             
 

@@ -1,18 +1,17 @@
 <apply template="base">
 <apply template="_warnings"/>
-<h2><editPath/></h2>
+<h1><edit-path/></h1>
 <form id="editform" method="POST"
-      action="/edit/${editPath}?pid=${problemID}"
+      action="/edit/${edit-path}"
       onsubmit="submitAceEditorText('editform.editor');">
-<p><inputAceEditor id="editform.editor"><editText/></inputAceEditor></p>
+<p><inputAceEditor id="editform.editor" mode="ace/mode/text"><edit-text/></inputAceEditor></p>
 <p><input type="submit" value="Gravar"/>
 &nbsp; <input type="button" value="Cancelar" onclick="window.history.back();"/>
-<input type="hidden" id="editform.path" value="${editPath}"/>
+<input type="hidden" id="editform.path" value="${edit-path}"/>
 </p>
 </form>
 
 <script type="text/javascript">
-startAceEditor('editform.editor');
 setAceEditorModeExt('editform.editor', 'editform.path');
 </script>
 </apply>

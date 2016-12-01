@@ -57,15 +57,16 @@ match = T.isInfixOf
 
 
 -- | aquire and release temporary files
-withTextTemp :: String -> Text -> (FilePath -> IO a) -> IO a
-withTextTemp name txt cont = withTempFile name cont'
-   where cont' (f,h) = T.hPutStr h txt >> hClose h >> cont f
+withTextTemp :: FilePath -> Text -> (FilePath -> IO a) -> IO a
+withTextTemp name contents cont
+  = withTempFile name (\(f,h) -> T.hPutStr h contents >> hClose h >> cont f)
 
-withTempFile :: String -> ((FilePath,Handle) -> IO a) -> IO a
-withTempFile name k = bracket createTemp (\(f,_)->removeFile f) k
-  where createTemp = do
-          tempDir <- getTemporaryDirectory
-          openTempFileWithDefaultPermissions tempDir name
+withTempFile :: FilePath -> ((FilePath, Handle) -> IO a) -> IO a
+withTempFile name k = bracket create (\(f,_) -> removeFile f) k
+  where create = do
+          tmpDir <- getTemporaryDirectory
+          openTempFileWithDefaultPermissions tmpDir name
+
 
 
   

@@ -55,7 +55,8 @@ setupArgs QuickCheckArgs{..} =
          fmap (("maxDiscardRatio="++).show)  maxDiscardRatio,
          fmap (\s -> "replay=(mkQCGen " ++ show s ++ ",0)") randSeed
        ] 
-  where update [] = ""
+  where update :: String -> String
+        update [] = ""
         update fields = "{" ++ fields ++ "}"
         args = update . concat . intersperse ", " . catMaybes
 

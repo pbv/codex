@@ -16,6 +16,7 @@ import           Data.String
 import           Data.Maybe (maybeToList)
 import qualified Data.Map as Map
 import qualified Data.HashMap.Strict as HM
+import           Data.Map.Syntax
 
 import           Snap.Core
 import           Snap.Snaplet
@@ -25,6 +26,7 @@ import           Snap.Snaplet.Auth
 import           Data.Aeson.Types 
 
 import           Heist
+import           Heist.Splices
 import qualified Heist.Interpreted as I
 
 import qualified Text.XmlHtml as X
@@ -34,8 +36,8 @@ import qualified Text.XmlHtml as X
 import           Control.Applicative 
 import           Control.Exception (SomeException)
 
-import           System.Remote.Monitoring
-import           System.Remote.Counter as Counter
+-- import           System.Remote.Monitoring
+-- import           System.Remote.Counter as Counter
 
 -- import           System.Directory
 -- import           System.IO
@@ -49,37 +51,38 @@ import           Application
 
 
 import           Data.Time.Clock
+import           Data.Time.LocalTime
+import           Data.Time.Format
 
 
 
--- fetch the user name of an authenticated user
-authUserName :: AuthUser -> Text
-authUserName au 
-  = case HM.lookup (T.pack "userName") (userMeta au) of
-    Just (String name) -> name
-    _                  -> userLogin au  -- fallback: give the user login
+-- fetch the full name of an authenticated user
+authFullname :: AuthUser -> Maybe Text
+authFullname au 
+  = case HM.lookup "fullname" (userMeta au) of
+    Just (String name) -> Just name
+    _                  -> Nothing
 
-
+{-
 -- | increment an EKG counter
 incrCounter :: Text -> Codex ()
 incrCounter name 
   = gets ekg >>= 
     maybe (return ())  (\ekg -> liftIO $ getCounter name ekg >>= Counter.inc) 
-
-
+-}
 
 -- | Get current logged in user ID (if any)
 --   from the authentication snaplet  
 getUserID :: Codex (Maybe UserID)
 getUserID = do 
   opt <- with auth currentUser
-  return $ fmap (fromString . T.unpack . userLogin) opt
+  return $ fmap (UserID . T.encodeUtf8 . userLogin) opt
 
 
-getUserName :: Codex (Maybe Text)
-getUserName = do
-  opt <- with auth currentUser
-  return (fmap authUserName opt)
+getFullname :: Codex (Maybe Text)
+getFullname = do
+  u <- with auth currentUser
+  return (u >>=  authFullname)
 
 -- | Get user id and roles
 getUserRoles :: Codex (Maybe [Role])
@@ -114,7 +117,7 @@ getSubmitID = do opt <- getParam "sid"
 getQueryTags :: Codex [Text]
 getQueryTags = do
   params <- getParams
-  return (map (T.pack . B.toString) $ Map.findWithDefault [] "tag" params)
+  return (map T.decodeUtf8 $ Map.findWithDefault [] "tag" params)
 
 
 
@@ -159,13 +162,21 @@ finishError code msg = do
   
 
 
+-- | splice an UTC time as a local time string
+utcTimeSplice :: Monad m => TimeZone -> UTCTime -> I.Splice m
+utcTimeSplice tz t =
+  I.textSplice $ T.pack $ formatTime defaultTimeLocale "%c" $ utcToLocalTime tz t
+
+
 -- if/then/else conditional splice
 -- split children around the <else/> element; removes the <else/> element
+{-
 ifElseISplice :: Monad m => Bool -> I.Splice m
 ifElseISplice cond = getParamNode >>= (rewrite . X.childNodes)
   where rewrite nodes = 
           let (ns, ns') = break (\n -> X.tagName n==Just "else") nodes
           in I.runNodeList $ if cond then ns else (drop 1 ns') 
+-}
 
 conditionalSplice :: Monad m => Bool -> I.Splice m
 conditionalSplice = ifElseISplice
@@ -214,6 +225,8 @@ javascript txt = X.Element "script" [("type","text/javascript")] [X.TextNode txt
 -- | set list element containtment
 contained :: Eq a => [a] -> [a] -> Bool
 contained xs ys = all (`elem`ys) xs
+
+
 
 
 

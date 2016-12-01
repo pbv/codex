@@ -9,6 +9,7 @@ import           Data.Monoid
 import qualified Data.Configurator as Configurator
 import           Data.Configurator.Types
 
+import qualified Data.HashMap.Strict as HashMap
 
 getSafeExecConf :: Name -> Config -> IO SafeExecConf
 getSafeExecConf prefix conf = do
@@ -38,10 +39,12 @@ getPrintConf conf = do
 -}
 
 
-getLdapConf ::  Config -> IO (Maybe LdapConf)
-getLdapConf conf = do
-  enabled <- Configurator.lookupDefault False conf "Ldap.enabled"
-  if enabled then do uri <- Configurator.require conf "Ldap.uri"
-                     base <- Configurator.require conf "Ldap.base"
-                     return (Just (LdapConf uri base))
+getLdapConf ::  Name -> Config -> IO (Maybe LdapConf)
+getLdapConf prefix conf = do
+  enabled <- Configurator.lookupDefault False conf (prefix <> ".enabled")
+  if enabled then do uri <- Configurator.require conf (prefix <> ".uri")
+                     base <- Configurator.require conf (prefix <> ".base")
+                     assocs <- Configurator.require conf (prefix <> ".attrs")
+                     let attrs = HashMap.fromList assocs
+                     return (Just (LdapConf uri base attrs))
     else return Nothing

@@ -140,6 +140,26 @@ pre {
     width: 14em;
 }
 
+
+
+td.filename { 
+   padding-left: 1em;
+   padding-right: 4em;
+ }
+td.filetype { 
+   padding-left: 2em;
+   padding-right: 2em;
+ }
+td.filemodified { 
+   padding-left: 2em;
+   padding-right: 2em;
+ }
+
+
+table.filelist td { 
+    font-family: monospace;
+}
+
 /* --- code highlighting --- */
 
 .sourceCode .kw { font-weight: bold; color: blue;  }

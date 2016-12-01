@@ -1,11 +1,10 @@
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE TypeSynonymInstances #-}
 {-# LANGUAGE FlexibleInstances #-}
-{-# LANGUAGE OverlappingInstances #-}
 module Markdown where
 
 import           Text.Pandoc hiding (Code)
--- import           Text.Pandoc.Builder hiding (Code)
+
 import qualified Text.Pandoc ( Inline(Code) )
 import           Text.Pandoc.Walk
 import           Text.XmlHtml 
@@ -14,10 +13,10 @@ import           Text.Blaze.Renderer.XmlHtml
 import           Data.Text (Text)
 import qualified Data.Text as T
 import qualified Data.Map as Map
-import           Data.Monoid
--- import           Data.Maybe
-import           Data.List (intersperse)
+-- import           Data.Monoid
 
+import           Data.List (intersperse)
+-- import           System.IO.Error (ioError, userError)
 -- import           Types
 
 
@@ -28,9 +27,6 @@ class FromMetaValue a where
   
 instance FromMetaValue Text where
   fromMeta = Just . metaText
-
-instance FromMetaValue String where
-  fromMeta = Just . T.unpack . metaText 
 
 instance FromMetaValue Bool where
   fromMeta (MetaBool b) = Just b
@@ -43,10 +39,14 @@ instance FromMetaValue Int where
       _ -> Nothing
   fromMeta _ = Nothing
 
-
-instance FromMetaValue a => FromMetaValue [a] where
+instance {-# OVERLAPPABLE #-} FromMetaValue a => FromMetaValue [a] where
   fromMeta (MetaList l) = mapM fromMeta l
   fromMeta _            = Nothing
+ 
+instance {-# OVERLAPPING #-} FromMetaValue String where
+  fromMeta = Just . T.unpack . metaText 
+
+
 
 
 -- | lookup from metadata value
@@ -111,6 +111,7 @@ pandocToHtml = renderHtmlNodes . writeHtml myWriterOptions
 blocksToHtml :: [Block] -> [Node]
 blocksToHtml = pandocToHtml . makeDoc
 
+makeDoc :: [Block] -> Pandoc
 makeDoc = Pandoc mempty 
 
 -- inlinesToHtml :: Inlines -> [Node]
@@ -118,10 +119,13 @@ makeDoc = Pandoc mempty
 
 -- | read a file and parse markdown to a Pandoc document
 readMarkdownFile :: FilePath -> IO Pandoc
-readMarkdownFile  = fmap (readMarkdown myReaderOptions) . readFile
+readMarkdownFile fp = do
+  r <- fmap (readMarkdown opts) (readFile fp)
+  case r of
+    Left err -> ioError (userError $ show err)
+    Right doc -> return doc
   where
-    myReaderOptions :: ReaderOptions
-    myReaderOptions = def { readerExtensions = pandocExtensions
-                          , readerSmart = True 
-                          }
+    opts = def { readerExtensions = pandocExtensions
+               , readerSmart = True 
+               }
 
