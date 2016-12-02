@@ -46,37 +46,46 @@ clangTester page (Code (Language "c") code) = do
   sf <- liftIO $ liftM2 (<>)
         (getSafeExecConf "language.haskell.safeexec" conf)
         (getSafeExecConf "safeexec" conf)
-  path <- require (return $ getQuickcheckPath page)
-  let args = getQuickcheckArgs page
-  props <- liftIO $ T.readFile path
-  liftIO (clangTesterIO sf gcc ghc args code props `catch` return)
+  liftIO $ case getQuickcheckPath page of
+    Nothing ->   throw (miscError "no QuickCheck file specified")
+    Just qcpath -> do
+      let args = getQuickcheckArgs page
+      props <- T.readFile (pageFilePath </> qcpath)
+      clangTesterIO sf gcc ghc args code props `catch` return
 clangTester _ _ = pass
 
 
-clangTesterIO sf gcc ghc args c_code props =
-  withTempFile "sub.c" $ \(c_file, h1) ->
-  withTempFile "Main.hs" $ \(hs_file, h2) ->
+clangTesterIO sf gcc_cmd ghc_cmd args c_code props =
+  withTextTemp "sub.c" c_code $ \c_file ->
+  withTextTemp "Main.hs" (testScript args props)  $ \hs_file ->
   let dir = takeDirectory c_file
       c_obj_file = dir </> takeBaseName c_file <.> "o"
       out_file = dir </> takeBaseName hs_file
-  in do
-    -- create C code file
-    T.hPutStrLn h1 c_code
-    hClose h1
-    -- create test script
-    T.hPutStrLn h2 (testScript args props)
-    hClose h2
-    -- compile C code; this should be safe to run without safeExec
-    runCompiler gcc ["-fPIC", "-std=c99", "-c", c_file, "-o", c_obj_file]
-    --- compile Haskell test script
-    runCompiler ghc ["-i"++dir, "-dynamic", "-O0",
-                     c_obj_file, hs_file, "-o", out_file]
-    -- run compiled script under safe exec
-    r <- haskellResult <$> safeExecWith sf out_file [] ""
-    -- cleanup temporary files
-    mapM_ removeFile [c_obj_file, out_file, out_file <.> "o", out_file <.> "hi"]
-    return r
+      temps = [c_obj_file, out_file, out_file <.> "o", out_file <.> "hi"]
+      gcc:cc_args' = words gcc_cmd
+      ghc:hc_args' = words ghc_cmd
+      cc_args = cc_args' ++ ["-fPIC", "-std=c99", "-c", c_file, "-o", c_obj_file]
+      hc_args = hc_args' ++ ["-i"++dir, "-dynamic", "-O0",
+                             c_obj_file, hs_file, "-o", out_file]
+  in
+   finally
+   (do -- compile C code; this should be safe to run without safeExec
+       runCompiler gcc cc_args
+       --- compile Haskell test script
+       runCompiler ghc hc_args
+       -- run compiled script under safe exec
+       haskellResult <$> safeExecWith sf out_file [] "") (cleanupFiles temps)
 
+
+
+    -- create C code file
+    -- T.hPutStrLn h1 c_code
+    -- hClose h1
+    -- create test script
+    --T.hPutStrLn h2 (testScript args props)
+    -- hClose h2
+
+    
 runCompiler cmd args = do
   (exitCode, _, stderr) <- readProcessWithExitCode cmd args ""
   case exitCode of

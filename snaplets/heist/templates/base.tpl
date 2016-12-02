@@ -15,13 +15,16 @@
      <div id="topbar">
        <p><em><timeNow/></em><br/>
        <ifLoggedIn> 
-       <strong>Login:</strong> <code><loggedInUser/></code> 
-       (<em><loggedInName/></em
-       ><ifAdmin>&nbsp;<strong>Administrator</strong></ifAdmin>).
-     <div id="actions">
-       <a class="button" href="/logout">Logout session</a>
-     </div>
-     </ifLoggedIn>
+	 <strong>Login:</strong> <code><loggedInUser/></code> 
+	 (<em><loggedInName/></em>)
+	 <div id="actions">
+	   <ifAdmin>
+	     <a class="button" href="/browse">Administrator</a>
+	     <a class="button" href="${page-url}">User</a>
+	   </ifAdmin>
+	   <a class="button" href="/logout">Logout session</a>
+	 </div>
+       </ifLoggedIn>
      </p>
      </div>
      <div id="content">

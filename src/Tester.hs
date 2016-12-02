@@ -11,6 +11,7 @@ import qualified Data.Text.IO as T
 import           System.IO 
 import           System.Directory
 import           Control.Exception
+import           Control.Monad(when)
 
 
 -- submission results
@@ -68,5 +69,9 @@ withTempFile name k = bracket create (\(f,_) -> removeFile f) k
           openTempFileWithDefaultPermissions tmpDir name
 
 
+-- | remove files if they exist, silently ignore otherwise
+removeFileIfExists :: FilePath -> IO ()
+removeFileIfExists f = do b<-doesFileExist f; when b (removeFile f)
 
-  
+cleanupFiles :: [FilePath] -> IO ()
+cleanupFiles = mapM_ removeFileIfExists

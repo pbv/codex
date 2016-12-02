@@ -1,5 +1,4 @@
 <apply template="base">
-<apply template="_warnings"/>
 <h1><edit-path/></h1>
 <form id="editform" method="POST"
       action="/edit/${edit-path}"

@@ -29,15 +29,15 @@ import           System.Directory
 
 import qualified Data.Configurator as Configurator
 
-type Doctest = FilePath   -- path to doctest script
+-- type Doctest = FilePath   -- path to doctest script
 
--- get the doctest path for a problem
-getDoctest :: Page -> Doctest
+-- get the relative doctest path for a problem
+getDoctest :: Page -> FilePath
 getDoctest Page{..}
-  = root </> (maybe
-              (replaceExtension path ".tst")
-              (takeDirectory path </>)
-              (lookupFromMeta "doctest" meta))
+  = maybe
+    (replaceExtension path ".tst")
+    (takeDirectory path </>)
+    (lookupFromMeta "doctest" meta)
 
 
 -- running and evaluating python submissions
@@ -48,7 +48,7 @@ pythonTester page (Code (Language "python") code) = do
     sf <- liftIO $ liftM2 (<>)
           (getSafeExecConf "language.python.safeexec" conf)
           (getSafeExecConf "safeexec" conf)
-    let tstfile = getDoctest page
+    let tstfile = pageFilePath </> getDoctest page
     liftIO $ do
       c <- doesFileExist tstfile
       if c then pythonTesterIO sf python code tstfile
@@ -56,7 +56,7 @@ pythonTester page (Code (Language "python") code) = do
 pythonTester _ _ = pass             
 
 
-pythonTesterIO :: SafeExecConf -> FilePath -> Text -> Doctest -> IO Result
+pythonTesterIO :: SafeExecConf -> FilePath -> Text -> FilePath -> IO Result
 pythonTesterIO sf python code tstfile  = 
     withTextTemp "tmp.py" code $ \pyfile ->
     pythonResult <$>

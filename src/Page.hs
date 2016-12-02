@@ -6,7 +6,7 @@
 module Page where
 
 import           Control.Applicative 
-import           Control.Monad
+-- import           Control.Monad
 
 import           Data.Maybe
 import           Data.Text(Text)
@@ -25,16 +25,12 @@ import           System.FilePath
 
 -- | a document page; either a single exercise or an index
 data Page  
-  = Page { root :: FilePath        -- file root dir for this page
-         , path :: FilePath        -- relative path
+  = Page { path :: FilePath        -- relative request path
          , meta :: Meta
          , description :: [Block]
          , fetched :: ZonedTime     -- time fetched
          } deriving Show
 
-
-parent :: FilePath -> FilePath
-parent path = takeDirectory path </> "index.md"
 
 -- | fetch page title
 getTitle :: Page -> Text
@@ -81,8 +77,7 @@ readPage root path = do
   let filepath = root </> path
   Pandoc meta blocks <- readMarkdownFile filepath
   t <- getZonedTime
-  return Page { root = root
-              , path = path
+  return Page { path = path
               , meta = meta
               , description = blocks
               , fetched = t

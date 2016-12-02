@@ -48,36 +48,13 @@ import           Utils
 
 
 
-{-
--- | generate a directory listing
---
-handleListing :: FilePath -> Codex ()
-handleListing root = do
-  require (with auth currentUser)
-  serveDirectoryWith cfg root
-  where
-    cfg = fancyDirectoryConfig {
-      indexFiles = [],
-      mimeTypes = extraMimeTypes,
-      indexGenerator = defaultIndexGenerator extraMimeTypes snapIndexStyles,
-      dynamicHandlers = listingHandlers root
-      }
--}
-
-mimeTypes :: MimeMap
-mimeTypes = HM.union defaultMimeTypes $
-            HM.fromList [(".tst", "text/plain"),
-                         (".py",  "text/plain"),
-                         (".md",  "text/markdown")]
-
-
 -- | generate a directory listing
 --
 handleListing :: FilePath -> Codex ()
 handleListing base
-  = method GET (handleDir <|> handleFile <|> notFound)
+  = requireAdmin >> method GET (directory <|> file <|> notFound)
   where
-    handleDir = do
+    directory = do
       rqpath <- getSafePath
       let dirpath = base </> rqpath
       b <- liftIO $ doesDirectoryExist dirpath
@@ -87,8 +64,8 @@ handleListing base
       renderWithSplices "file-list" $ do
         "request-path" ## I.textSplice (T.pack rqpath)
         listingSplices tz rqpath entries
-    
-    handleFile = do
+    --
+    file = do
       rqpath <- getSafePath
       let filepath = base </> rqpath
       b <- liftIO $ doesFileExist filepath
@@ -103,7 +80,8 @@ listingSplices tz path list =
           "file-name" ## I.textSplice (T.pack name)
           "file-type" ## I.textSplice (T.decodeUtf8 mime)
           "file-modified" ## utcTimeSplice tz time
-          "if-edit" ## ifElseISplice (B.isPrefixOf "text/" mime)
+          "if-text" ## ifElseISplice (B.isPrefixOf "text/" mime)
+          "if-dir" ## ifElseISplice (mime == "DIR")
           "request-path" ## I.textSplice (T.pack (path </> name))
 
 
@@ -129,20 +107,35 @@ hidden f = head f == '#' || last f == '~'
 
 
 handleEdit :: FilePath -> Codex ()
-handleEdit base = method GET $ do
-  rqpath <- getSafePath
-  let path = base </> rqpath
-  b <- liftIO $ doesFileExist path
-  when (not b) pass
-  contents <- liftIO $ catchIOError (T.readFile path) (\_ -> return "")
-  renderWithSplices "editfile" $ do
-    inputAceEditorSplices
-    "edit-path" ## I.textSplice (T.pack rqpath)
-    "edit-text" ## I.textSplice contents
+handleEdit base
+  = requireAdmin >> (method GET get <|> method POST post <|> badRequest)
+ where get = do
+         rqpath <- getSafePath
+         let path = base </> rqpath
+         b <- liftIO $ doesFileExist path
+         when (not b) pass
+         contents <- liftIO (T.readFile path)
+         renderWithSplices "editfile" $ do
+           inputAceEditorSplices
+           "edit-path" ## I.textSplice (T.pack rqpath)
+           "edit-text" ## I.textSplice contents
+       post = do
+         rqpath <- getSafePath
+         contents <- require (getTextPost "editform.editor")
+         liftIO $ T.writeFile (base</>rqpath) contents
+         redirect (B.fromString ("/browse" </> takeDirectory rqpath))
+
+-- | ensure that an user with admin priviliges is logged in
+requireAdmin :: Codex ()
+requireAdmin =  do
+  AuthUser{..} <- require (with auth currentUser) <|> unauthorized
+  guard (Role "admin" `elem` userRoles) <|> unauthorized
 
 
-{-
-listingHandlers root = HM.fromList (zip extensions (repeat (handleEdit root)))
-  where extensions = HM.keys $ HM.filter (=="text/plain") extraMimeTypes
 
--}
+mimeTypes :: MimeMap
+mimeTypes = HM.union defaultMimeTypes $
+            HM.fromList [(".tst", "text/plain"),
+                         (".py",  "text/plain"),
+                         (".md",  "text/markdown")]
+

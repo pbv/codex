@@ -45,7 +45,7 @@ import           Snap.Snaplet.Heist
 import           Snap.Snaplet.Session.Backends.CookieSession
 import           Snap.Util.FileServe
 import           Heist
--- import           Heist.Splices
+import           Heist.Splices     as I
 import qualified Heist.Interpreted as I
 
 import           Data.Time.Clock
@@ -59,6 +59,7 @@ import           Data.Aeson
 
 --import           System.Locale
 import           System.FilePath
+import           System.Directory (doesDirectoryExist)
 -- import           System.IO.Error
 -- import           System.Remote.Monitoring
 -- import qualified Text.XmlHtml as X
@@ -125,7 +126,7 @@ handleLoginSubmit = do
   ldap <- getLdap
   r <- with auth $ loginByUsername (decodeUtf8 login) (ClearText passwd) False
   case r of
-    Right au -> redirect indexPage
+    Right au -> redirect "/"
     Left err -> case ldap of
       Nothing -> handleLoginForm "login" (Just err)
       Just cfg -> loginLdapUser cfg login passwd
@@ -136,7 +137,7 @@ loginLdapUser ldapConf login passwd = do
            withBackend (\r -> liftIO $ ldapAuth r ldapConf login passwd)
   case reply of
     Left err -> handleLoginForm "login" (Just err)
-    Right au -> with auth (forceLogin au) >> redirect indexPage
+    Right au -> with auth (forceLogin au) >> redirect "/"
   
         
 {-
@@ -232,27 +233,46 @@ handlePrintout uid probs = do
 
 -- handle page requests
 handlePage :: Codex ()
-handlePage = do
-  uid <- require getUserID <|> unauthorized    -- ensure user is logged in
-  path <- B.toString <$> getsRequest rqPathInfo
-  page <- liftIO $ Page.readPage pageFileRoot path
-  method GET (handlePageGet uid page) <|>
-    method POST (handlePagePost uid page)
-
-
--- handle page GET requests
-handlePageGet uid page 
-  | Page.isExercise page = 
-      renderExercise page =<< Submission.getAll uid (Page.path page) 
-  | Just links <- Page.getLinks page = 
-      renderIndex uid page links
-  | otherwise =
-      renderWithSplices "page" (pageSplices page)
+handlePage
+  = method GET handleGet <|> method POST handlePost <|> badRequest
+  where
+    handleGet =  do 
+      uid <- require getUserID <|> unauthorized
+      path <- getSafePath
+      b <- liftIO $ doesDirectoryExist (pageFilePath </> path)
+      if b then
+        redirect (B.fromString ("/page" </> path </> "index.md"))
+       else
+        renderGet uid =<< liftIO (Page.readPage pageFilePath path)
+    --
+    handlePost = do
+      uid <- require getUserID <|> unauthorized
+      path <- getSafePath
+      renderPost uid =<< liftIO (Page.readPage pageFilePath path)
+    -- 
+    renderGet uid page 
+      | Page.isExercise page = 
+        renderExercise page =<< Submission.getAll uid (Page.path page) 
+      | Just links <- Page.getLinks page = 
+          renderIndex uid page links
+      | otherwise =
+        renderWithSplices "page" (pageSplices page)
+    -- handle page POST requests
+    renderPost uid page  = do
+      guard (Page.isExercise page)
+      text <- require (getTextPost "editform.editor")
+      lang <- require (return $ Page.getLanguage page)
+      sub <- Submission.evaluate uid page (Code lang text)
+      renderWithSplices "report" $ do 
+        pageSplices page
+        exerciseSplices page
+        submitSplices sub 
+        inputAceEditorSplices
 
 
 renderIndex uid page links = do
   querytags <- getQueryTags
-  pages <- liftIO $ mapM (Page.readPage pageFileRoot) links
+  pages <- liftIO $ mapM (Page.readPage pageFilePath) links
   let alltags = nub $ sort $ concatMap Page.getTags pages
   let pages' = filter (\p -> querytags `contained` Page.getTags p) pages
   let abletags = nub $ sort $ concatMap Page.getTags pages'
@@ -277,7 +297,6 @@ tagSplices querytags enabled tag =
         "tag-checkbox" ## return (checkboxInput tag checked disabled)
 
 
-
 --  render an exercise page
 renderExercise :: Page -> [Submission] -> Codex ()
 renderExercise page subs = do
@@ -288,27 +307,13 @@ renderExercise page subs = do
     inputAceEditorSplices
 
 
--- handle GET request for a previous submission
+-- handle GET requests for previous submissions
 handleSubmission = method GET $ do
   uid <- require getUserID <|> unauthorized
   sid <- require getSubmitID
   sub <- Submission.getSingle uid sid
-  page <- liftIO $ Page.readPage pageFileRoot (Submission.path sub)
+  page <- liftIO $ Page.readPage pageFilePath (Submission.path sub)
   renderWithSplices "report" $ do
-    pageSplices page
-    exerciseSplices page
-    submitSplices sub 
-    inputAceEditorSplices
-
-
--- handle POST requests for pages (i.e. exercise submissions)
-handlePagePost :: UserID -> Page -> Codex ()
-handlePagePost uid page  = do
-  guard (Page.isExercise page)
-  text <- require (getTextPost "editform.editor")
-  lang <- require (return $ Page.getLanguage page)
-  sub <- Submission.evaluate uid page (Code lang text)
-  renderWithSplices "report" $ do 
     pageSplices page
     exerciseSplices page
     submitSplices sub 
@@ -319,10 +324,14 @@ handlePagePost uid page  = do
 -- | splices related to a page
 pageSplices :: Page -> ISplices
 pageSplices page = do
-  "page-path" ##
+  "page-path" ## I.textSplice (T.pack $ Page.path page)
+  "page-dir"  ## I.textSplice (T.pack $ takeDirectory $ Page.path page)
+  {-
+  "page-url" ##
     I.textSplice (T.pack $ B.toString pageContextPath </> Page.path page)
-  "page-parent" ##
+  "page-parent-url" ##
     I.textSplice (T.pack $ B.toString pageContextPath </> Page.parent (Page.path page))
+  -}
   "page-title" ##
     I.textSplice (Page.getTitle page)
   "page-description" ##
@@ -476,23 +485,11 @@ routes = [ ("/login",    handleLogin `catch` internalError)
          , ("/register", handleRegister `catch` internalError)
          , ("/page",     handlePage `catch` internalError)
          , ("/submit/:sid", handleSubmission `catch` internalError)
-         , ("/browse",    handleListing pageFileRoot `catch` internalError)
-         , ("/edit",     handleEdit pageFileRoot `catch` internalError)
+         , ("/browse",    handleListing pageFilePath  `catch` internalError)
+         , ("/edit",     handleEdit  pageFilePath `catch` internalError)
          , ("/static",   serveDirectory staticFilePath <|> notFound) 
          ]
 
-
-pageFileRoot :: FilePath
-pageFileRoot = "public"
-
-staticFilePath :: FilePath
-staticFilePath = "static"
-
-pageContextPath :: ByteString
-pageContextPath = "/page"
-
-indexPage :: ByteString
-indexPage = "/page/index.md"
 
 
 -- | current logged in full user name  
@@ -539,7 +536,9 @@ app =
           "version" ## versionSplice
           "timeNow" ## nowSplice
           "loggedInName" ## loggedInName auth
-          "ifAdmin" ## return []
+          "ifAdmin" ## do
+            mbAu <- lift (withTop auth currentUser)
+            I.ifElseISplice (maybe False (\au -> Role "admin" `elem` userRoles au) mbAu)
           
     addConfig h (mempty & scInterpretedSplices .~ sc)
     -- Grab the DB connection pool from the sqlite snaplet and call

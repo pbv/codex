@@ -48,3 +48,12 @@ getLdapConf prefix conf = do
                      let attrs = HashMap.fromList assocs
                      return (Just (LdapConf uri base attrs))
     else return Nothing
+
+
+
+-- constant paths
+pageFilePath :: FilePath
+pageFilePath = "public"
+
+staticFilePath :: FilePath
+staticFilePath = "static"

@@ -49,10 +49,12 @@ haskellTester page (Code (Language "haskell") code) = do
     sf <- liftIO $ liftM2 (<>)
           (getSafeExecConf "language.haskell.safeexec" conf)
           (getSafeExecConf "safeexec" conf)
-    path <- require (return $ getQuickcheckPath page)
-    props <- liftIO $ T.readFile path
-    let args = getQuickcheckArgs page
-    liftIO (haskellTesterIO sf ghc args code props `catch` return)
+    liftIO $ case getQuickcheckPath page of
+      Nothing -> throw (miscError "no QuickCheck file specified")
+      Just qcpath -> do
+        let args = getQuickcheckArgs page
+        props <- T.readFile (pageFilePath </> qcpath)
+        haskellTesterIO sf ghc args code props `catch` return
 haskellTester _ _  = pass             
 
      
@@ -71,12 +73,14 @@ haskellTesterIO sf ghc qargs code props =
        let out_file = dir </> takeBaseName tstfile
        let submit_file = dir </> takeBaseName hs_file
        let cmd:args = words ghc
-       runCompiler cmd  (args ++ ["-i"++dir, "-O0", "-dynamic", tstfile, "-o", out_file])
-       r <- haskellResult <$> safeExecWith sf out_file [] ""
+       let args' = args ++ ["-i"++dir, "-O0", "-dynamic", tstfile, "-o", out_file]
        let temps = [out_file, out_file <.> "o", out_file <.> "hi",
                     submit_file <.> "o", submit_file <.> "hi"]
-       forM_ temps removeFile 
-       return r
+       finally
+         (do runCompiler cmd args'
+             haskellResult <$> safeExecWith sf out_file [] "")
+         (cleanupFiles temps)
+
 
 
 

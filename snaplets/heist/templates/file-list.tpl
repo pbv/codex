@@ -1,4 +1,3 @@
-<bind tag="icon-text-html"><img src="/static/icons/16x16/text-html.png"/></bind>
 <bind tag="icon-folder"><img src="/static/icons/16x16/folder.png"></bind>
 <bind tag="icon-editor"><img src="/static/icons/16x16/text-editor.png"/></bind>
 
@@ -13,13 +12,16 @@
   </tr> 
   <file-list>
     <tr>
-      <td><if-edit><icon-editor/></if-edit></td>
+      <td>
+	<if-text><icon-editor/></if-text>
+	<if-dir><icon-folder/></if-dir>
+      </td>
       <td class="filename">
-	<if-edit>
+	<if-text>
 	  <a href="/edit/${request-path}"><file-name/></a>
 	  <else/>
 	  <a href="/browse/${request-path}"><file-name/></a>
-	</if-edit>
+	</if-text>
       </td> 
       <td class="filetype"><file-type/></td> 
       <td class="filemodified"><file-modified/></td>

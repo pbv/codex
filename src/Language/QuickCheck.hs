@@ -24,17 +24,10 @@ data QuickCheckArgs =
                  } deriving Show
 
 
--- get the filepath to Quickcheck properties
--- NB: properties-only (not a module)
+-- relative filepath to Quickcheck properties
 getQuickcheckPath :: Page -> Maybe FilePath
 getQuickcheckPath Page{..}
-  = ((root </> takeDirectory path) </>) <$> lookupFromMeta "quickcheck" meta
-
-{-  = root </> (maybe 
-              (replaceExtension path ".hs")
-              (takeDirectory path </>)
-              (lookupFromMeta "quickcheck" meta))
--}
+  = (takeDirectory path </>) <$> lookupFromMeta "quickcheck" meta
 
 
 
