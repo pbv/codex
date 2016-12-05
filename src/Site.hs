@@ -43,7 +43,7 @@ import           Snap.Snaplet.Auth.Backends.SqliteSimple
 import           Snap.Snaplet.SqliteSimple
 import           Snap.Snaplet.Heist
 import           Snap.Snaplet.Session.Backends.CookieSession
-import           Snap.Util.FileServe
+import           Snap.Util.FileServe (getSafePath, fileType, serveFileAs, serveDirectory)
 import           Heist
 import           Heist.Splices     as I
 import qualified Heist.Interpreted as I
@@ -59,7 +59,7 @@ import           Data.Aeson
 
 --import           System.Locale
 import           System.FilePath
-import           System.Directory (doesDirectoryExist)
+import           System.Directory (doesFileExist, doesDirectoryExist)
 -- import           System.IO.Error
 -- import           System.Remote.Monitoring
 -- import qualified Text.XmlHtml as X
@@ -126,7 +126,7 @@ handleLoginSubmit = do
   ldap <- getLdap
   r <- with auth $ loginByUsername (decodeUtf8 login) (ClearText passwd) False
   case r of
-    Right au -> redirect "/"
+    Right au -> redirect "/page/index.md"
     Left err -> case ldap of
       Nothing -> handleLoginForm "login" (Just err)
       Just cfg -> loginLdapUser cfg login passwd
@@ -137,32 +137,9 @@ loginLdapUser ldapConf login passwd = do
            withBackend (\r -> liftIO $ ldapAuth r ldapConf login passwd)
   case reply of
     Left err -> handleLoginForm "login" (Just err)
-    Right au -> with auth (forceLogin au) >> redirect "/"
+    Right au -> with auth (forceLogin au) >> redirect "/page/index.md"
   
         
-{-
-handleLdapLogin :: LdapConf -> Handler App App ()
-handleLdapLogin ldapConf = do
-  login <- require (getParam "login")
-  passwd <- require (getParam "password")
-  optAuth <- withBackend (\r -> liftIO $ ldapAuth r ldapConf login passwd)
-  case optAuth of 
-    Nothing -> (handleLoginForm "login" err)
-    Just u ->  (forceLogin u) >> redirect indexPage
-  where 
-    err = Just (AuthError "LDAP authentication failed")
--}
-                                     
-{-  
-handleLoginSubmit (Just ldapConf) login passwd = do
-  optAuth <- withBackend (\r -> liftIO $ ldapAuth r ldapConf login  passwd)
-  -- optAuth <- withBackend (\r -> liftIO $ dummyAuth r ldapConf login passwd)
-  case optAuth of 
-    Nothing -> handleLoginForm err
-    Just u -> forceLogin u >> redirect indexPage
-  where 
-    err = Just "Utilizador ou password incorreto"
--}
 
 ------------------------------------------------------------------------------
 
@@ -176,7 +153,7 @@ handleRegister =
       r <- with auth newUser
       case r of
         Left err -> handleLoginForm "register" (Just err)
-        Right au -> redirect "/"
+        Right au -> with auth (forceLogin au) >> redirect "/page/index.md"
 
 
 ------------------------------------------------------------------------------
@@ -233,32 +210,32 @@ handlePrintout uid probs = do
 
 -- handle page requests
 handlePage :: Codex ()
-handlePage
-  = method GET handleGet <|> method POST handlePost <|> badRequest
+handlePage = do
+  uid <- require getUserID <|> unauthorized
+  rqpath <- getSafePath
+  (method GET (handleGet uid rqpath) <|>
+   method POST (handlePost uid rqpath <|> badRequest))
   where
-    handleGet =  do 
-      uid <- require getUserID <|> unauthorized
-      path <- getSafePath
-      b <- liftIO $ doesDirectoryExist (pageFilePath </> path)
-      if b then
-        redirect (B.fromString ("/page" </> path </> "index.md"))
-       else
-        renderGet uid =<< liftIO (Page.readPage pageFilePath path)
-    --
-    handlePost = do
-      uid <- require getUserID <|> unauthorized
-      path <- getSafePath
-      renderPost uid =<< liftIO (Page.readPage pageFilePath path)
-    -- 
-    renderGet uid page 
-      | Page.isExercise page = 
-        renderExercise page =<< Submission.getAll uid (Page.path page) 
-      | Just links <- Page.getLinks page = 
-          renderIndex uid page links
-      | otherwise =
-        renderWithSplices "page" (pageSplices page)
-    -- handle page POST requests
-    renderPost uid page  = do
+    handleGet uid rqpath =  do
+      let filepath = pageFilePath </> rqpath
+      isdir <- liftIO (doesDirectoryExist filepath)
+      when isdir $
+        redirect (B.fromString ("/page" </> rqpath </> "index.md"))
+      isfile <- liftIO (doesFileExist filepath)
+      when (not isfile) $ notFound
+      -- serve according to mime type
+      let mime = fileType mimeTypes rqpath
+      if mime == "text/markdown" then
+        renderPage uid =<< liftIO (Page.readPage pageFilePath rqpath)
+        else
+        serveFileAs mime filepath
+    -- handle page POST requests;
+    -- only for exercise pages
+    handlePost uid rqpath = do
+      let filepath = pageFilePath </> rqpath
+      isfile <- liftIO (doesFileExist filepath)
+      guard (isfile && fileType mimeTypes rqpath == "text/markdown")
+      page <- liftIO (Page.readPage pageFilePath rqpath)
       guard (Page.isExercise page)
       text <- require (getTextPost "editform.editor")
       lang <- require (return $ Page.getLanguage page)
@@ -268,6 +245,14 @@ handlePage
         exerciseSplices page
         submitSplices sub 
         inputAceEditorSplices
+    -- 
+    renderPage uid page 
+      | Page.isExercise page = 
+        renderExercise page =<< Submission.getAll uid (Page.path page) 
+      | Just links <- Page.getLinks page = 
+          renderIndex uid page links
+      | otherwise =
+        renderWithSplices "page" (pageSplices page)
 
 
 renderIndex uid page links = do
@@ -280,7 +265,7 @@ renderIndex uid page links = do
   renderWithSplices "indexsheet" $ do
     pageSplices page 
     indexSplices (zip pages' subs)
-    "if-tagged" ## conditionalSplice (not $ null alltags)
+    "if-tagged" ## I.ifElseISplice (not $ null alltags)
     "available" ## I.textSplice $ T.pack $ show $ length pages
     "visible" ## I.textSplice $ T.pack $ show $ length pages'
     "tag-list" ##  I.mapSplices (I.runChildrenWith .
@@ -324,22 +309,16 @@ handleSubmission = method GET $ do
 -- | splices related to a page
 pageSplices :: Page -> ISplices
 pageSplices page = do
-  "page-path" ## I.textSplice (T.pack $ Page.path page)
-  "page-dir"  ## I.textSplice (T.pack $ takeDirectory $ Page.path page)
-  {-
-  "page-url" ##
-    I.textSplice (T.pack $ B.toString pageContextPath </> Page.path page)
-  "page-parent-url" ##
-    I.textSplice (T.pack $ B.toString pageContextPath </> Page.parent (Page.path page))
-  -}
+  "file-path" ## I.textSplice (T.pack $ Page.path page)
+  "file-dir"  ## I.textSplice (T.pack $ takeDirectory $ Page.path page)
   "page-title" ##
     I.textSplice (Page.getTitle page)
   "page-description" ##
     return (blocksToHtml $ Page.description page)
   "if-exercise" ##
-    conditionalSplice (Page.isExercise page)
+    I.ifElseISplice (Page.isExercise page)
   "if-indexsheet" ##
-    conditionalSplice (isJust $ Page.getLinks page)
+    I.ifElseISplice (isJust $ Page.getLinks page)
 
 
 -- | splices related to exercises
@@ -381,10 +360,10 @@ submitSplices Submission{..} = do
   "classify" ##  I.textSplice (T.pack $ show $ resultClassify result)
   "message" ## I.textSplice (resultMessage result)
   "timing" ## caseSplice timing
-  "valid" ## conditionalSplice (timing == Valid)
-  "early" ## conditionalSplice (timing == Early)
-  "overdue" ## conditionalSplice (timing == Overdue)
-  "accepted" ## conditionalSplice (resultClassify result == Accepted)
+  "valid" ## I.ifElseISplice (timing == Valid)
+  "early" ## I.ifElseISplice (timing == Early)
+  "overdue" ## I.ifElseISplice (timing == Overdue)
+  "accepted" ## I.ifElseISplice (resultClassify result == Accepted)
 
 
 
@@ -395,7 +374,7 @@ submissionListSplices list = do
   "submissions-count" ##
     I.textSplice (T.pack $ show count)
   "if-submitted" ##
-    conditionalSplice (count > 0) 
+    I.ifElseISplice (count > 0) 
   "submissions-list" ##
     I.mapSplices (I.runChildrenWith . submitSplices) list
 
@@ -498,11 +477,13 @@ loggedInName authmgr = do
     u <- lift $ withTop authmgr currentUser
     maybe (return []) I.textSplice (u >>= authFullname)
 
+{-
 authRoles :: SnapletLens b (AuthManager b) ->
              ([Role] -> Bool) -> SnapletISplice b
 authRoles authmgr cond = do
    u <- lift $ withTop authmgr currentUser
-   maybe (return []) (\u -> conditionalSplice (cond $ userRoles u)) u
+   maybe (return []) (\u -> I.ifElseISplice (cond $ userRoles u)) u
+-}
 
 -- | splice for current date & time
 nowSplice :: I.Splice Codex
@@ -510,10 +491,6 @@ nowSplice = do tz <- liftIO getCurrentTimeZone
                t <- liftIO getCurrentTime
                utcTimeSplice tz t
 
-{-               
-nowSplice = do t <- liftIO (getCurrentTime >>= utcToLocalZonedTime)
-               I.textSplice (T.pack $ formatTime defaultTimeLocale "%c" t)
--}
 
 
 versionSplice :: I.Splice Codex
@@ -524,7 +501,6 @@ versionSplice = I.textSplice (T.pack (showVersion version))
 app :: SnapletInit App App
 app = 
   makeSnaplet "codex" "Web server for programming exercises." Nothing $ do
-    -- e <- liftIO (initEkg conf)
     h <- nestSnaplet "" heist $ heistInit "templates"
     s <- nestSnaplet "sess" sess $
            initCookieSessionManager "site_key.txt" "sess" Nothing (Just 3600)

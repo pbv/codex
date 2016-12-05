@@ -63,25 +63,38 @@ img {
 #topbar {
     background-color: cyan;
     width: auto;
-    padding-bottom: 0.5ex;  
-    padding-top: 0.5ex;  
-    padding-left: 1em;
+    height: 6ex;
+    padding-bottom: 0;  
+    padding-top: 0;  
+    padding-left: 0em;
     margin-left: 0;
     margin-right: 0;
 }
 
 
-#actions { 
+#session { 
+    background-color: cyan;
     position: absolute;
     text-align: right;
-    width: 20em;
-    height: 4ex;
+    width: 100%;
+    height: auto;
     left: auto;
-    right: 1em;
-    top: 1em;
-    padding-right: 1em;
+    right: 0em;
+    top: 0em;
+    padding-right: 2em;
+    padding-top: 1ex;
+    padding-bottom: 1ex;
 }
 
+#actions {   
+    background-color: cyan;
+     position: absolute;
+     text-align: left;
+     width: 40%;
+     height: 4ex;
+     left: 1em;
+     top: 1em; 
+}
 
 
 .info {

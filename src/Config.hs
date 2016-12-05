@@ -3,13 +3,13 @@ module Config where
 
 import           Types
 import           SafeExec
-
 import           Control.Applicative
 import           Data.Monoid
 import qualified Data.Configurator as Configurator
 import           Data.Configurator.Types
-
 import qualified Data.HashMap.Strict as HashMap
+import           Snap.Util.FileServe(MimeMap, defaultMimeTypes)
+
 
 getSafeExecConf :: Name -> Config -> IO SafeExecConf
 getSafeExecConf prefix conf = do
@@ -51,9 +51,20 @@ getLdapConf prefix conf = do
 
 
 
--- constant paths
+-- | constant paths
 pageFilePath :: FilePath
 pageFilePath = "public"
 
 staticFilePath :: FilePath
 staticFilePath = "static"
+
+-- | custom mime type mapping
+mimeTypes :: MimeMap
+mimeTypes 
+  = HashMap.union defaultMimeTypes $
+    HashMap.fromList [(".tst", "text/plain"),
+                      (".py",  "text/plain"),
+                      (".mdown", "text/markdown"),
+                      (".md",  "text/markdown")]
+
+

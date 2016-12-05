@@ -20,15 +20,15 @@
 	    <dt><tag-checkbox/></dt>
 	  </tag-list>
 	</dl>
-	<p><input type="submit" value="Aplicar"/></p>
-	<p><a class="button" href="/page/${page-path}">Limpar filtros</a></p>
+	<p><input type="submit" value="Aplicar"/> &nbsp;
+	  <a class="button" href="/page/${file-path}">Limpar</a></p>
       </form>
     </div>
   </if-tagged>
   <div class="index">
     <dl>
       <index-list>
-	<dt><page-icon/>&nbsp;<a href="/page/${page-path}"><page-title/></a></dt>
+	<dt><page-icon/>&nbsp;<a href="/page/${file-path}"><page-title/></a></dt>
 	<if-exercise>
 	  <dd class="info"><submissions-count/> submissões efectuadas.</dd>
 	</if-exercise>

@@ -36,19 +36,9 @@ import qualified Text.XmlHtml as X
 import           Control.Applicative 
 import           Control.Exception (SomeException)
 
--- import           System.Remote.Monitoring
--- import           System.Remote.Counter as Counter
-
--- import           System.Directory
--- import           System.IO
-
 import           Types
 import           Interval
--- import           SafeExec
--- import           Language
 import           Application
--- import           LdapAuth
-
 
 import           Data.Time.Clock
 import           Data.Time.LocalTime
@@ -63,13 +53,6 @@ authFullname au
     Just (String name) -> Just name
     _                  -> Nothing
 
-{-
--- | increment an EKG counter
-incrCounter :: Text -> Codex ()
-incrCounter name 
-  = gets ekg >>= 
-    maybe (return ())  (\ekg -> liftIO $ getCounter name ekg >>= Counter.inc) 
--}
 
 -- | Get current logged in user ID (if any)
 --   from the authentication snaplet  
@@ -178,8 +161,8 @@ ifElseISplice cond = getParamNode >>= (rewrite . X.childNodes)
           in I.runNodeList $ if cond then ns else (drop 1 ns') 
 -}
 
-conditionalSplice :: Monad m => Bool -> I.Splice m
-conditionalSplice = ifElseISplice
+-- conditionalSplice :: Monad m => Bool -> I.Splice m
+-- conditionalSplice = ifElseISplice
 
 
 tagCaseSplice :: Monad m => Text -> I.Splice m

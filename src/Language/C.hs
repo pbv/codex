@@ -26,6 +26,7 @@ import           Snap.Snaplet(getSnapletUserConfig)
 
 import           Language.Types
 import           Language.QuickCheck
+import           Test.QuickCheck (Args)
 
 import           Tester
 import           Application
@@ -47,7 +48,7 @@ clangTester page (Code (Language "c") code) = do
         (getSafeExecConf "language.haskell.safeexec" conf)
         (getSafeExecConf "safeexec" conf)
   liftIO $ case getQuickcheckPath page of
-    Nothing ->   throw (miscError "no QuickCheck file specified")
+    Nothing ->   return (miscError "no QuickCheck file specified")
     Just qcpath -> do
       let args = getQuickcheckArgs page
       props <- T.readFile (pageFilePath </> qcpath)
@@ -55,9 +56,9 @@ clangTester page (Code (Language "c") code) = do
 clangTester _ _ = pass
 
 
-clangTesterIO sf gcc_cmd ghc_cmd args c_code props =
+clangTesterIO sf gcc_cmd ghc_cmd qcArgs c_code props =
   withTextTemp "sub.c" c_code $ \c_file ->
-  withTextTemp "Main.hs" (testScript args props)  $ \hs_file ->
+  withTextTemp "Main.hs" (testScript props) $ \hs_file ->
   let dir = takeDirectory c_file
       c_obj_file = dir </> takeBaseName c_file <.> "o"
       out_file = dir </> takeBaseName hs_file
@@ -74,7 +75,8 @@ clangTesterIO sf gcc_cmd ghc_cmd args c_code props =
        --- compile Haskell test script
        runCompiler ghc hc_args
        -- run compiled script under safe exec
-       haskellResult <$> safeExecWith sf out_file [] "") (cleanupFiles temps)
+       haskellResult <$> safeExecWith sf out_file [show qcArgs] "")
+   (cleanupFiles temps)
 
 
 
@@ -95,12 +97,13 @@ runCompiler cmd args = do
       return ()
 
 
-testScript :: QuickCheckArgs -> Text -> Text
-testScript args props
+testScript :: Text -> Text
+testScript props
   = T.unlines
     [ "{-# LANGUAGE TemplateHaskell #-}",
       "module Main where",
       "import System.Exit",
+      "import System.Environment(getArgs)",
       "import Test.QuickCheck",
       "import Test.QuickCheck.Function",
       "import Test.QuickCheck.Random",
@@ -108,9 +111,7 @@ testScript args props
       props,
       "",
       "return []",
-      "main = $forAllProperties (quickCheckWithResult " 
-      <> T.pack (setupArgs args) <>
-      ") >>= \\c -> if c then exitSuccess else exitFailure"
+      "main = do qcArgs<-fmap (read.head) getArgs; $forAllProperties (quickCheckWithResult qcArgs) >>= \\c -> if c then exitSuccess else exitFailure"
     ]
 
 

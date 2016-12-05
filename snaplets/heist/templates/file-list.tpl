@@ -2,9 +2,7 @@
 <bind tag="icon-editor"><img src="/static/icons/16x16/text-editor.png"/></bind>
 
 <apply template="base">
-
-
-<h1>/<request-path/></h1>
+<h1>/<file-path/></h1>
 
 <table class="filelist">
   <tr>
@@ -18,9 +16,9 @@
       </td>
       <td class="filename">
 	<if-text>
-	  <a href="/edit/${request-path}"><file-name/></a>
+	  <a href="/edit/${file-path}"><file-name/></a>
 	  <else/>
-	  <a href="/browse/${request-path}"><file-name/></a>
+	  <a href="/browse/${file-path}"><file-name/></a>
 	</if-text>
       </td> 
       <td class="filetype"><file-type/></td> 

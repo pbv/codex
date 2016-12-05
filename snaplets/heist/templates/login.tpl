@@ -5,11 +5,6 @@
 ensino que permite
 resolução de exercícios de programação 
 com correção automática.</p>
-<p>Atualmente o <em>Codex</em> suporta as linguagens
- <a href="http://www.python.org">Python</a>,
- <a href="http://www.haskell.org">Haskell</a> e 
- <a href="https://en.wikipedia.org/wiki/C_(programming_language)">C</a>.
-</p>
 
 <p>Por favor autentique-se para iniciar a sessão
  ou  <a href="/register">registe</a>  uma nova conta de utilizador.</p>

@@ -11,17 +11,11 @@ import           Control.Applicative
 import           Page
 import           Markdown
 
+import           Test.QuickCheck
+import           Test.QuickCheck.Random
 import           System.FilePath
-import           Data.List (intersperse)
 import           Data.Maybe
 
--- QuickCheck arguments
-data QuickCheckArgs =
-  QuickCheckArgs { maxSuccess :: Maybe Int
-                 , maxDiscardRatio :: Maybe Int
-                 , maxSize :: Maybe Int
-                 , randSeed :: Maybe Int
-                 } deriving Show
 
 
 -- relative filepath to Quickcheck properties
@@ -30,37 +24,16 @@ getQuickcheckPath Page{..}
   = (takeDirectory path </>) <$> lookupFromMeta "quickcheck" meta
 
 
-
-getQuickcheckArgs :: Page -> QuickCheckArgs
-getQuickcheckArgs Page{..} =
-  QuickCheckArgs { maxSuccess = lookupFromMeta "maxSuccess" meta,
-                   maxSize = lookupFromMeta "maxSize" meta,
-                   maxDiscardRatio = lookupFromMeta "maxDiscardRatio" meta,
-                   randSeed = lookupFromMeta "randomSeed" meta
-                 }
-
--- setup string for running using suplied arguments
-setupArgs :: QuickCheckArgs -> String
-setupArgs QuickCheckArgs{..} =
-  "stdArgs" ++ 
-  args [ fmap (("maxSize="++).show) maxSize, 
-         fmap (("maxSuccess="++).show) maxSuccess, 
-         fmap (("maxDiscardRatio="++).show)  maxDiscardRatio,
-         fmap (\s -> "replay=(mkQCGen " ++ show s ++ ",0)") randSeed
-       ] 
-  where update :: String -> String
-        update [] = ""
-        update fields = "{" ++ fields ++ "}"
-        args = update . concat . intersperse ", " . catMaybes
+getQuickcheckArgs :: Page -> Args
+getQuickcheckArgs Page{..} = arg1 $ arg2 $ arg3 $ arg4 stdArgs
+    where
+      arg1 = maybe id (\s r->r{maxSuccess=s}) (lookupFromMeta "maxSuccess" meta)
+      arg2 = maybe id (\s r->r{maxSize=s}) (lookupFromMeta "maxSize" meta)
+      arg3 = maybe id (\s r->r{maxDiscardRatio=s}) (lookupFromMeta "maxDiscardRatio" meta)
+      arg4 r = r {replay = fmap (\s -> (mkQCGen s,0)) (lookupFromMeta "randSeed" meta)}
 
 
 
 
-{-  
-  "stdArgs { maxSuccess = " ++ show maxSuccess ++
-  ", maxSize = " ++ show maxSize ++
-  ", maxDiscardRatio = " ++ show maxDiscardRatio ++
-  maybe "" (\seed -> ", replay = Just (mkQCGen " ++ show seed ++ ",0)")
-  optSeed ++
-  " }"
--}
+
+

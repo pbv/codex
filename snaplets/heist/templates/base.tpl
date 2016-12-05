@@ -12,21 +12,25 @@
     <script type="text/javascript" src="/static/js/timer.js"/>
   </head>
   <body>
-     <div id="topbar">
-       <p><em><timeNow/></em><br/>
+    <div id="topbar">
+     <div id="session">
+       <em><timeNow/></em> &nbsp;
        <ifLoggedIn> 
-	 <strong>Login:</strong> <code><loggedInUser/></code> 
-	 (<em><loggedInName/></em>)
-	 <div id="actions">
-	   <ifAdmin>
-	     <a class="button" href="/browse">Administrator</a>
-	     <a class="button" href="${page-url}">User</a>
-	   </ifAdmin>
-	   <a class="button" href="/logout">Logout session</a>
-	 </div>
+	 <em><loggedInName/></em> (<code><loggedInUser/></code>)<br/>
+	 <a href="/logout">Logout</a>
        </ifLoggedIn>
-     </p>
      </div>
+     <div id="actions">
+       <ifLoggedIn>
+	 <a class="button" href="/page/${file-dir}">Up</a> &nbsp;
+	 <a class="button" href="/page/index.md">Top</a> &nbsp;
+	 <ifAdmin>
+	   <a class="button" href="/browse/${file-dir}">Admin view</a> &nbsp;
+	   <a class="button" href="/page/${file-path}">User view</a>
+	 </ifAdmin>
+       </ifLoggedIn>
+    </div>
+    </div>
      <div id="content">
        <apply-content/>
      </div>

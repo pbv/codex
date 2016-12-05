@@ -6,16 +6,17 @@
 ------------------------------------------------------------------------------
 -- | Administration facilities
 
-module Admin where
+module Admin(
+  handleListing, handleEdit
+  ) where
 
 import           Snap.Core
 import           Snap.Snaplet
 import           Snap.Snaplet.Auth
 import           Snap.Snaplet.Heist
-import           Snap.Util.FileServe (MimeMap, defaultMimeTypes,
-                                      fileType, getSafePath, serveFileAs)
+import           Snap.Util.FileServe (fileType, getSafePath, serveFileAs)
 import           Heist
-import           Heist.Splices
+import           Heist.Splices     as I
 import qualified Heist.Interpreted as I
 
 -- import           System.Locale
@@ -45,7 +46,7 @@ import           Data.Map.Syntax
 import           Application
 import           AceEditor
 import           Utils
-
+import           Config(mimeTypes)
 
 
 -- | generate a directory listing
@@ -62,7 +63,8 @@ handleListing base
       entries <- liftIO $ listDir dirpath
       tz <- liftIO getCurrentTimeZone  
       renderWithSplices "file-list" $ do
-        "request-path" ## I.textSplice (T.pack rqpath)
+        "file-path" ## I.textSplice (T.pack rqpath)
+        "file-dir" ## I.textSplice (T.pack $ takeDirectory rqpath)
         listingSplices tz rqpath entries
     --
     file = do
@@ -82,7 +84,7 @@ listingSplices tz path list =
           "file-modified" ## utcTimeSplice tz time
           "if-text" ## ifElseISplice (B.isPrefixOf "text/" mime)
           "if-dir" ## ifElseISplice (mime == "DIR")
-          "request-path" ## I.textSplice (T.pack (path </> name))
+          "file-path" ## I.textSplice (T.pack (path </> name))
 
 
 listDir :: FilePath -> IO [(FilePath, ByteString, UTCTime)]
@@ -111,19 +113,22 @@ handleEdit base
   = requireAdmin >> (method GET get <|> method POST post <|> badRequest)
  where get = do
          rqpath <- getSafePath
+         let rqdir = takeDirectory rqpath
          let path = base </> rqpath
          b <- liftIO $ doesFileExist path
          when (not b) pass
          contents <- liftIO (T.readFile path)
          renderWithSplices "editfile" $ do
            inputAceEditorSplices
-           "edit-path" ## I.textSplice (T.pack rqpath)
-           "edit-text" ## I.textSplice contents
-       post = do
+           "file-path" ## I.textSplice (T.pack rqpath)
+           "file-dir"  ## I.textSplice (T.pack rqdir)
+           "file-contents" ## I.textSplice contents
+       post = do         
          rqpath <- getSafePath
+         let rqdir = takeDirectory rqpath         
          contents <- require (getTextPost "editform.editor")
          liftIO $ T.writeFile (base</>rqpath) contents
-         redirect (B.fromString ("/browse" </> takeDirectory rqpath))
+         redirect (B.fromString ("/browse" </> rqdir))
 
 -- | ensure that an user with admin priviliges is logged in
 requireAdmin :: Codex ()
@@ -131,11 +136,4 @@ requireAdmin =  do
   AuthUser{..} <- require (with auth currentUser) <|> unauthorized
   guard (Role "admin" `elem` userRoles) <|> unauthorized
 
-
-
-mimeTypes :: MimeMap
-mimeTypes = HM.union defaultMimeTypes $
-            HM.fromList [(".tst", "text/plain"),
-                         (".py",  "text/plain"),
-                         (".md",  "text/markdown")]
 

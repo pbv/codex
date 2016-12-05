@@ -58,8 +58,8 @@ Executable codex
     heist                     >= 1.0,
     map-syntax                >= 0.2,
     HsOpenSSL                 >= 0.11,
-    --  MonadCatchIO-transformers >= 0.2.1,
     lifted-base               >= 0.2,
+    monad-control             >= 1.0,
     mtl                       >= 2,
     snap                      >= 1.0,
     snap-core                 >= 1.0,
@@ -80,7 +80,8 @@ Executable codex
     configurator              >= 0.2,
     base                      >= 4.4,
     lens                      >= 3.7.6,
-    process-extras            >= 0.3.3
+    process-extras            >= 0.3.3,
+    QuickCheck                >= 2.8
 
   if flag(development)
     build-depends:

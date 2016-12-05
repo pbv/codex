@@ -34,7 +34,9 @@ data Classify = Received
 instance Exception Result -- default instance
 
 
--- | auxiliary construtors
+-- | "smart" result construtors
+received, accepted, wrongAnswer, compileError, runtimeError,
+   timeLimitExceeded, memoryLimitExceeded, miscError :: Text -> Result
 received = Result Received . trim maxLen
 accepted = Result Accepted . trim maxLen
 wrongAnswer = Result WrongAnswer . trim maxLen
@@ -44,13 +46,15 @@ timeLimitExceeded = Result TimeLimitExceeded . trim maxLen
 memoryLimitExceeded = Result MemoryLimitExceeded . trim maxLen
 miscError = Result MiscError . trim maxLen
 
+maxLen :: Int
 maxLen = 2000
 
 -- | trim a text to a maximum length
 trim :: Int -> Text -> Text
 trim maxlen txt
-  | T.length txt <= maxlen = txt
-  | otherwise = T.append (T.take maxlen txt) "\n**Output too long (truncated)***\n"
+  | T.length txt' <= maxlen = txt'
+  | otherwise = T.append (T.take maxlen txt') "\n**Output too long (truncated)***\n"
+  where txt' = T.strip txt
 
 -- | match a piece of text  
 match :: Text -> Text -> Bool

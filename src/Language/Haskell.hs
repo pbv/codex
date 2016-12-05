@@ -24,6 +24,7 @@ import           Snap.Snaplet(getSnapletUserConfig)
 
 import           Language.Types
 import           Language.QuickCheck
+import           Test.QuickCheck (Args)
 import           Tester
 import           Application
 import           Page
@@ -50,7 +51,7 @@ haskellTester page (Code (Language "haskell") code) = do
           (getSafeExecConf "language.haskell.safeexec" conf)
           (getSafeExecConf "safeexec" conf)
     liftIO $ case getQuickcheckPath page of
-      Nothing -> throw (miscError "no QuickCheck file specified")
+      Nothing -> return (miscError "no QuickCheck file specified")
       Just qcpath -> do
         let args = getQuickcheckArgs page
         props <- T.readFile (pageFilePath </> qcpath)
@@ -59,9 +60,8 @@ haskellTester _ _  = pass
 
      
 
-haskellTesterIO ::
-  SafeExecConf -> String -> QuickCheckArgs -> Text -> Text -> IO Result
-haskellTesterIO sf ghc qargs code props =
+haskellTesterIO :: SafeExecConf -> String -> Args -> Text -> Text -> IO Result
+haskellTesterIO sf ghc qcArgs code props =
    withTempFile "Submit.hs" $ \(hs_file, h) ->      
    let codemod = T.pack $ takeBaseName hs_file
        dir = takeDirectory hs_file
@@ -69,7 +69,7 @@ haskellTesterIO sf ghc qargs code props =
      T.hPutStrLn h (moduleHeader codemod)
      T.hPutStrLn h code
      hClose h
-     withTextTemp "Main.hs" (testScript qargs codemod props) $ \tstfile -> do
+     withTextTemp "Main.hs" (testScript codemod props) $ \tstfile -> do
        let out_file = dir </> takeBaseName tstfile
        let submit_file = dir </> takeBaseName hs_file
        let cmd:args = words ghc
@@ -78,7 +78,7 @@ haskellTesterIO sf ghc qargs code props =
                     submit_file <.> "o", submit_file <.> "hi"]
        finally
          (do runCompiler cmd args'
-             haskellResult <$> safeExecWith sf out_file [] "")
+             haskellResult <$> safeExecWith sf out_file [show qcArgs] "")
          (cleanupFiles temps)
 
 
@@ -94,12 +94,13 @@ runCompiler cmd args = do
 
 
 
-testScript :: QuickCheckArgs -> Text -> Text -> Text
-testScript args codemod props
+testScript :: Text -> Text -> Text
+testScript codemod props
   = T.unlines
     [ "{-# LANGUAGE TemplateHaskell #-}",
       "module Main where",
       "import System.Exit",
+      "import System.Environment (getArgs)",
       "import Test.QuickCheck",
       "import Test.QuickCheck.Function",
       "import Test.QuickCheck.Random",
@@ -108,9 +109,7 @@ testScript args codemod props
       props,
       "",
       "return []",
-      "main = $forAllProperties (quickCheckWithResult "
-      <> T.pack (setupArgs args) <>
-      ") >>= \\c -> if c then exitSuccess else exitFailure"
+      "main = do qcArgs<-fmap (read.head) getArgs; $forAllProperties (quickCheckWithResult qcArgs) >>= \\c -> if c then exitSuccess else exitFailure"
     ]
 
 
