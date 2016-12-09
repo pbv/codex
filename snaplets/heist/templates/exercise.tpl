@@ -42,13 +42,13 @@
 
 <h2>Nova submissão</h2>
 
-<form id="editform" method="POST" action="/page/${file-path}"
+<form id="editform" method="POST" action="/pub/${file-path-url}"
       onsubmit="submitAceEditorText('editform.editor');">
   <p><inputAceEditor id='editform.editor' mode='ace/mode/${language-mode}'><code-text/></inputAceEditor>
 </p>
 <p>
   <input type="submit" value="Enviar"/>  &nbsp;
-  <a href="/page/${file-dir}" class="button">Voltar à folha de problemas</a>
+  <a href="/pub/${file-dir}" class="button">Voltar à folha de problemas</a>
 </form>
 </apply>
 

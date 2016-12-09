@@ -1,6 +1,6 @@
 <bind tag="icon-folder"><img src="/static/icons/16x16/folder.png"></bind>
 <bind tag="icon-editor"><img src="/static/icons/16x16/text-editor.png"/></bind>
-
+<bind tag="icon-warning"><img src="/static/icons/16x16/warning.png"/></bind>
 <apply template="base">
 <h1>/<file-path/></h1>
 
@@ -15,16 +15,23 @@
 	<if-dir><icon-folder/></if-dir>
       </td>
       <td class="filename">
-	<if-text>
-	  <a href="/edit/${file-path}"><file-name/></a>
-	  <else/>
-	  <a href="/browse/${file-path}"><file-name/></a>
-	</if-text>
+	  <a href="/files/${file-path-url}"><file-name/></a>
       </td> 
       <td class="filetype"><file-type/></td> 
       <td class="filemodified"><file-modified/></td>
     </tr>
   </file-list>
 </table>
-
+<hr/>
+<form action="/files/${file-path}" enctype="multipart/form-data" method="POST">
+<input type="file" name="datafile" required="required"/>  &nbsp;
+<input type="submit" value="Upload"/>
+</form>
+<div class="warnings">
+<dl>
+  <message-list>
+    <dd><icon-warning/>&nbsp;<message/></dd>
+  </message-list>
+</dl>
+</div>
 </apply>

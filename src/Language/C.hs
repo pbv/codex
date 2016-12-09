@@ -51,7 +51,7 @@ clangTester page (Code (Language "c") code) = do
     Nothing ->   return (miscError "no QuickCheck file specified")
     Just qcpath -> do
       let args = getQuickcheckArgs page
-      props <- T.readFile (pageFilePath </> qcpath)
+      props <- T.readFile (publicPath </> qcpath)
       clangTesterIO sf gcc ghc args code props `catch` return
 clangTester _ _ = pass
 

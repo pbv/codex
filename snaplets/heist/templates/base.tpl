@@ -22,11 +22,11 @@
      </div>
      <div id="actions">
        <ifLoggedIn>
-	 <a class="button" href="/page/${file-dir}">Up</a> &nbsp;
-	 <a class="button" href="/page/index.md">Top</a> &nbsp;
+	 <a class="button" href="/pub/${file-dir}">Up</a> &nbsp;
+	 <a class="button" href="/">Top</a> &nbsp;
 	 <ifAdmin>
-	   <a class="button" href="/browse/${file-dir}">Admin view</a> &nbsp;
-	   <a class="button" href="/page/${file-path}">User view</a>
+	   <a class="button" href="/files/${file-path-url}">Admin view</a> &nbsp;
+	   <a class="button" href="/pub/${file-path-url}">User view</a>
 	 </ifAdmin>
        </ifLoggedIn>
     </div>

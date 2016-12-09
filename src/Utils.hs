@@ -7,13 +7,15 @@ module Utils where
 import           Control.Monad.State
 import           Data.ByteString.UTF8 (ByteString)
 import qualified Data.ByteString.UTF8 as B
+import qualified Data.ByteString      as B
+import           Data.Char(toUpper)
 import           Data.Text(Text)
 import qualified Data.Text as T
 import qualified Data.Text.Encoding as T
 import qualified Data.Text.Encoding.Error as T
 -- import qualified Data.Text.IO as T
-import           Data.String
-import           Data.Maybe (maybeToList)
+import           Data.List (intersperse)
+import           Data.Maybe (fromMaybe, listToMaybe, maybeToList)
 import qualified Data.Map as Map
 import qualified Data.HashMap.Strict as HM
 import           Data.Map.Syntax
@@ -44,6 +46,7 @@ import           Data.Time.Clock
 import           Data.Time.LocalTime
 import           Data.Time.Format
 
+import           System.FilePath
 
 
 -- fetch the full name of an authenticated user
@@ -151,6 +154,14 @@ utcTimeSplice tz t =
   I.textSplice $ T.pack $ formatTime defaultTimeLocale "%c" $ utcToLocalTime tz t
 
 
+-- list of messages
+messageSplices :: Monad m => [Text] -> Splices (I.Splice m)
+messageSplices mesgs = do
+  "message-list" ## I.mapSplices (I.runChildrenWith . splice) mesgs
+  where splice msg = "message" ## I.textSplice msg
+
+
+
 -- if/then/else conditional splice
 -- split children around the <else/> element; removes the <else/> element
 {-
@@ -212,5 +223,45 @@ contained xs ys = all (`elem`ys) xs
 
 
 
+-------------------------------------------------------------------------------
 
-    
+-- | Wrap a handler with method override support. This means that if
+-- (and only if) the request is a POST, _method param is passed, and
+-- it is a parsable method name, it will change the request method to
+-- the supplied one. This works around some browser limitations.
+-- Adapted from Snap.Extras.MethodOverride 
+handleMethodOverride :: MonadSnap m =>
+                        m a
+                      -- ^ Internal handler to call
+                      -> m a
+handleMethodOverride = (modifyRequest (methodOverride "_method") >>)
+
+
+-------------------------------------------------------------------------------
+methodOverride :: ByteString -> Request -> Request
+methodOverride param r
+  | rqMethod r == POST = r { rqMethod = overridden }
+  | otherwise          = r
+  where
+    overridden = fromMaybe POST $ do
+      meth <- listToMaybe =<< rqParam param r
+      case map toUpper (B.toString meth) of
+       "HEAD"    -> Just HEAD
+       "POST"    -> Just POST
+       "PUT"     -> Just PUT
+       "DELETE"  -> Just DELETE
+       "TRACE"   -> Just TRACE
+       "OPTIONS" -> Just OPTIONS
+       "CONNECT" -> Just CONNECT
+       "PATCH"   -> Just PATCH
+       ""        -> Nothing
+       _         -> Just (Method meth)
+       
+
+
+-- | encode a file path as a URL
+encodePath :: FilePath -> ByteString
+encodePath path = B.concat (intersperse "/" dirs')
+  where dirs = map (urlEncode . B.fromString) (splitDirectories path)
+        dirs'= if isAbsolute path then "":tail dirs else dirs
+        

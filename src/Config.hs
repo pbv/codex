@@ -52,11 +52,11 @@ getLdapConf prefix conf = do
 
 
 -- | constant paths
-pageFilePath :: FilePath
-pageFilePath = "public"
+publicPath :: FilePath
+publicPath = "public"
 
-staticFilePath :: FilePath
-staticFilePath = "static"
+staticPath :: FilePath
+staticPath = "static"
 
 -- | custom mime type mapping
 mimeTypes :: MimeMap
@@ -65,6 +65,7 @@ mimeTypes
     HashMap.fromList [(".tst", "text/plain"),
                       (".py",  "text/plain"),
                       (".mdown", "text/markdown"),
-                      (".md",  "text/markdown")]
+                      (".md",  "text/markdown"),
+                      (".db", "application/x-sqlite3")]
 
 

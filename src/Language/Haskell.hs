@@ -54,7 +54,7 @@ haskellTester page (Code (Language "haskell") code) = do
       Nothing -> return (miscError "no QuickCheck file specified")
       Just qcpath -> do
         let args = getQuickcheckArgs page
-        props <- T.readFile (pageFilePath </> qcpath)
+        props <- T.readFile (publicPath </> qcpath)
         haskellTesterIO sf ghc args code props `catch` return
 haskellTester _ _  = pass             
 

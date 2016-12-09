@@ -7,14 +7,15 @@
 -- | Administration facilities
 
 module Admin(
-  handleListing, handleEdit
+  handleBrowse
   ) where
 
 import           Snap.Core
 import           Snap.Snaplet
 import           Snap.Snaplet.Auth
 import           Snap.Snaplet.Heist
-import           Snap.Util.FileServe (fileType, getSafePath, serveFileAs)
+import           Snap.Util.FileServe hiding (mimeTypes)
+import           Snap.Util.FileUploads
 import           Heist
 import           Heist.Splices     as I
 import qualified Heist.Interpreted as I
@@ -27,6 +28,7 @@ import           System.Directory
 import           System.IO.Error
 import           Control.Monad
 import           Control.Monad.Trans (liftIO)
+import           Control.Exception.Lifted 
 import           Control.Applicative
 
 import           Data.Text (Text)
@@ -40,51 +42,83 @@ import qualified Data.ByteString  as B
 
 import qualified Data.HashMap.Strict as HM
 
+import           Data.Maybe (catMaybes)
 import           Data.List (union, sort, sortBy)
 import           Data.Monoid
 import           Data.Map.Syntax
 import           Application
 import           AceEditor
 import           Utils
-import           Config(mimeTypes)
+import           Config
 
 
--- | generate a directory listing
 --
-handleListing :: FilePath -> Codex ()
-handleListing base
-  = requireAdmin >> method GET (directory <|> file <|> notFound)
+-- | handle file browser requests
+--
+handleBrowse :: FilePath -> Codex ()
+handleBrowse base
+  = requireAdmin >>
+    handleMethodOverride 
+    (method GET (handleGet base) <|>
+     method POST (handleUpload base) <|>
+     method PUT (handleEdit base) <|>
+     method DELETE (handleDelete base))
+
+
+handleGet :: FilePath -> Codex ()
+handleGet base = file <|> directory <|> notFound
   where
     directory = do
       rqpath <- getSafePath
-      let dirpath = base </> rqpath
-      b <- liftIO $ doesDirectoryExist dirpath
-      when (not b) pass
-      entries <- liftIO $ listDir dirpath
-      tz <- liftIO getCurrentTimeZone  
+      let path = base </> rqpath
+      c <- liftIO $ doesDirectoryExist path  
+      when (not c) pass
+      entries <- liftIO $ listDir path
+      tz <- liftIO getCurrentTimeZone
       renderWithSplices "file-list" $ do
-        "file-path" ## I.textSplice (T.pack rqpath)
-        "file-dir" ## I.textSplice (T.pack $ takeDirectory rqpath)
+        pathSplices rqpath
         listingSplices tz rqpath entries
-    --
+        messageSplices []
     file = do
       rqpath <- getSafePath
-      let filepath = base </> rqpath
-      b <- liftIO $ doesFileExist filepath
-      when (not b) pass
-      serveFileAs (fileType mimeTypes rqpath) filepath
+      let path = base </> rqpath
+      c <- liftIO $ doesFileExist path
+      when (not c) pass
+      let mime = fileType mimeTypes rqpath
+      contents <- if B.isPrefixOf "text" mime then
+                    liftIO $ T.readFile path
+                    else return ""
+      let fileSplices = do
+          "file-mime" ## I.textSplice (T.decodeUtf8 mime)
+          "file-contents" ## I.textSplice contents
+          "if-image-file" ## I.ifElseISplice (B.isPrefixOf "image" mime)
+          "if-text-file" ## I.ifElseISplice (B.isPrefixOf "text" mime)
+      renderWithSplices "file-edit" (pathSplices rqpath >>
+                                     fileSplices >>
+                                     inputAceEditorSplices)
 
   
 
 listingSplices tz path list =
   "file-list" ## I.mapSplices (I.runChildrenWith . splices) list
   where splices (name, mime, time) = do
+          pathSplices (path </> name)
           "file-name" ## I.textSplice (T.pack name)
           "file-type" ## I.textSplice (T.decodeUtf8 mime)
           "file-modified" ## utcTimeSplice tz time
-          "if-text" ## ifElseISplice (B.isPrefixOf "text/" mime)
+          "if-text" ## ifElseISplice (B.isPrefixOf "text" mime)
           "if-dir" ## ifElseISplice (mime == "DIR")
-          "file-path" ## I.textSplice (T.pack (path </> name))
+
+
+
+
+pathSplices :: Monad m => FilePath -> Splices (I.Splice m)
+pathSplices rqpath = do
+  let rqdir = takeDirectory rqpath
+  "file-path" ## I.textSplice (T.pack rqpath)
+  "file-dir" ## I.textSplice (T.pack rqdir)            
+  "file-path-url" ## I.textSplice (T.decodeUtf8 $ encodePath rqpath)
+  "file-dir-url" ## I.textSplice (T.decodeUtf8 $ encodePath rqdir)
 
 
 listDir :: FilePath -> IO [(FilePath, ByteString, UTCTime)]
@@ -92,45 +126,68 @@ listDir base = do
   entries <-  getDirectoryContents base
   dirs  <- filterM (doesDirectoryExist . (base</>)) entries
   files <- filterM (doesFileExist . (base</>)) entries
-  --
   lst <- forM (sort (filter (/=".") dirs)) $ \path -> do
     time <- getModificationTime (base</>path)
     return (path, "DIR", time)
-  --
-  lst' <- forM (sort (filter (not.hidden) files)) $ \path -> do
+  lst' <- forM (sort files) $ \path -> do
     time <- getModificationTime (base</>path)
     return (path, fileType mimeTypes path, time)
-  --  
   return (lst ++ lst')
   
 
-hidden :: FilePath -> Bool
-hidden f = head f == '#' || last f == '~'
-
 
 handleEdit :: FilePath -> Codex ()
-handleEdit base
-  = requireAdmin >> (method GET get <|> method POST post <|> badRequest)
- where get = do
-         rqpath <- getSafePath
-         let rqdir = takeDirectory rqpath
-         let path = base </> rqpath
-         b <- liftIO $ doesFileExist path
-         when (not b) pass
-         contents <- liftIO (T.readFile path)
-         renderWithSplices "editfile" $ do
-           inputAceEditorSplices
-           "file-path" ## I.textSplice (T.pack rqpath)
-           "file-dir"  ## I.textSplice (T.pack rqdir)
-           "file-contents" ## I.textSplice contents
-       post = do         
-         rqpath <- getSafePath
-         let rqdir = takeDirectory rqpath         
-         contents <- require (getTextPost "editform.editor")
-         liftIO $ T.writeFile (base</>rqpath) contents
-         redirect (B.fromString ("/browse" </> rqdir))
+handleEdit base = do
+  rqpath <- getSafePath
+  let rqdir = takeDirectory rqpath         
+  contents <- require (getTextPost "editform.editor")
+  liftIO $ T.writeFile (base</>rqpath) contents
+  redirect (encodePath ("/files" </> rqdir))
 
--- | ensure that an user with admin priviliges is logged in
+
+handleUpload :: FilePath -> Codex ()
+handleUpload dest = do
+  rqpath <- getSafePath
+  b <- liftIO $ doesDirectoryExist (dest</>rqpath)
+  when (not b) pass
+  tmpdir <- liftIO getTemporaryDirectory
+  msgs <- handleFileUploads tmpdir defaultUploadPolicy
+    (const $ allowWithMaximumSize (getMaximumFormInputSize defaultUploadPolicy))
+    (makeUpload (dest </> rqpath))
+  entries <- liftIO $ listDir (dest</>rqpath)
+  tz <- liftIO getCurrentTimeZone
+  let rqdir = takeDirectory rqpath
+  let fileSplices = do
+        "file-path" ## I.textSplice (T.decodeUtf8 $ encodePath rqpath)
+        "file-dir" ## I.textSplice (T.decodeUtf8 $ encodePath rqdir)
+  renderWithSplices "file-list" (fileSplices >>
+                                 listingSplices tz rqpath entries >>
+                                 messageSplices (catMaybes msgs))
+
+
+handleDelete :: FilePath -> Codex ()
+handleDelete base = do
+  rqpath <- getSafePath
+  liftIO $ removeFile (base </> rqpath)
+  let rqdir = takeDirectory rqpath
+  redirect (encodePath ("/files" </> rqdir))
+
+
+
+makeUpload :: FilePath -> PartInfo ->
+              Either PolicyViolationException FilePath -> IO (Maybe Text)
+makeUpload dest partinfo (Left e) =
+  return (Just $ T.pack $ show e)
+makeUpload dest partinfo (Right src) = do
+  let srcName = takeFileName src
+  let destName = maybe srcName B.toString (partFileName partinfo)
+  (copyFile src (dest</>destName) >> return Nothing) `catch`
+    (\(e::SomeException) -> return (Just $ T.pack $ show e))
+
+
+
+
+-- | ensure that an user with admin privileges is logged in
 requireAdmin :: Codex ()
 requireAdmin =  do
   AuthUser{..} <- require (with auth currentUser) <|> unauthorized

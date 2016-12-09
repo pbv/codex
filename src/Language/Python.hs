@@ -48,7 +48,7 @@ pythonTester page (Code (Language "python") code) = do
     sf <- liftIO $ liftM2 (<>)
           (getSafeExecConf "language.python.safeexec" conf)
           (getSafeExecConf "safeexec" conf)
-    let tstfile = pageFilePath </> getDoctest page
+    let tstfile = publicPath </> getDoctest page
     liftIO $ do
       c <- doesFileExist tstfile
       if c then pythonTesterIO sf python code tstfile

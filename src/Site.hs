@@ -23,7 +23,7 @@ import           Control.Lens
 -- import           Data.Char (toLower)
 import           Data.ByteString.UTF8 (ByteString)
 import qualified Data.ByteString.UTF8 as B
--- import qualified Data.ByteString      as B
+import qualified Data.ByteString      as B
 -- import           Data.Monoid
 import           Data.Maybe(isJust)
 
@@ -33,7 +33,7 @@ import qualified Data.HashMap.Strict as HM
 
 import           Data.Text (Text)
 import qualified Data.Text as T
--- import qualified Data.Text.IO as T
+-- import qualified Data.Text.Encoding as T
 import           Data.Text.Encoding (decodeUtf8)
 
 import           Snap.Core
@@ -126,7 +126,7 @@ handleLoginSubmit = do
   ldap <- getLdap
   r <- with auth $ loginByUsername (decodeUtf8 login) (ClearText passwd) False
   case r of
-    Right au -> redirect "/page/index.md"
+    Right au -> redirect "/"
     Left err -> case ldap of
       Nothing -> handleLoginForm "login" (Just err)
       Just cfg -> loginLdapUser cfg login passwd
@@ -137,7 +137,7 @@ loginLdapUser ldapConf login passwd = do
            withBackend (\r -> liftIO $ ldapAuth r ldapConf login passwd)
   case reply of
     Left err -> handleLoginForm "login" (Just err)
-    Right au -> with auth (forceLogin au) >> redirect "/page/index.md"
+    Right au -> with auth (forceLogin au) >> redirect "/"
   
         
 
@@ -213,29 +213,33 @@ handlePage :: Codex ()
 handlePage = do
   uid <- require getUserID <|> unauthorized
   rqpath <- getSafePath
-  (method GET (handleGet uid rqpath) <|>
-   method POST (handlePost uid rqpath <|> badRequest))
+  (method GET (handleGet uid rqpath  <|> handleRedir rqpath)
+   <|> method POST (handlePost uid rqpath))
   where
     handleGet uid rqpath =  do
-      let filepath = pageFilePath </> rqpath
-      isdir <- liftIO (doesDirectoryExist filepath)
-      when isdir $
-        redirect (B.fromString ("/page" </> rqpath </> "index.md"))
-      isfile <- liftIO (doesFileExist filepath)
-      when (not isfile) $ notFound
+      let filepath = publicPath </> rqpath
+      c <- liftIO $ doesFileExist filepath
+      when (not c) pass
       -- serve according to mime type
       let mime = fileType mimeTypes rqpath
       if mime == "text/markdown" then
-        renderPage uid =<< liftIO (Page.readPage pageFilePath rqpath)
+        renderPage uid =<< liftIO (Page.readPage publicPath rqpath)
         else
         serveFileAs mime filepath
-    -- handle page POST requests;
-    -- only for exercise pages
+    --  render page markdown
+    renderPage uid page 
+      | Page.isExercise page = 
+        renderExercise page =<< Submission.getAll uid (Page.path page) 
+      | Just links <- Page.getLinks page = 
+          renderIndex uid page links
+      | otherwise =
+        renderWithSplices "page" (pageSplices page)
+    -- handle POST requests; only for exercise pages
     handlePost uid rqpath = do
-      let filepath = pageFilePath </> rqpath
-      isfile <- liftIO (doesFileExist filepath)
-      guard (isfile && fileType mimeTypes rqpath == "text/markdown")
-      page <- liftIO (Page.readPage pageFilePath rqpath)
+      let filepath = publicPath </> rqpath
+      c <- liftIO $ doesFileExist filepath
+      guard (c && fileType mimeTypes rqpath == "text/markdown")
+      page <- liftIO (Page.readPage publicPath rqpath)
       guard (Page.isExercise page)
       text <- require (getTextPost "editform.editor")
       lang <- require (return $ Page.getLanguage page)
@@ -245,19 +249,22 @@ handlePage = do
         exerciseSplices page
         submitSplices sub 
         inputAceEditorSplices
-    -- 
-    renderPage uid page 
-      | Page.isExercise page = 
-        renderExercise page =<< Submission.getAll uid (Page.path page) 
-      | Just links <- Page.getLinks page = 
-          renderIndex uid page links
-      | otherwise =
-        renderWithSplices "page" (pageSplices page)
+    -- handle redirects
+    handleRedir rqpath = do
+        let filepath = publicPath </> rqpath
+        c <- liftIO $ doesDirectoryExist filepath
+        c'<- liftIO $ doesFileExist (filepath </> "index.md")
+        if c && c' then 
+          redirect (encodePath ("/pub" </> rqpath </> "index.md"))
+          else
+          notFound
+        
+        
 
 
 renderIndex uid page links = do
   querytags <- getQueryTags
-  pages <- liftIO $ mapM (Page.readPage pageFilePath) links
+  pages <- liftIO $ mapM (Page.readPage publicPath) links
   let alltags = nub $ sort $ concatMap Page.getTags pages
   let pages' = filter (\p -> querytags `contained` Page.getTags p) pages
   let abletags = nub $ sort $ concatMap Page.getTags pages'
@@ -297,7 +304,7 @@ handleSubmission = method GET $ do
   uid <- require getUserID <|> unauthorized
   sid <- require getSubmitID
   sub <- Submission.getSingle uid sid
-  page <- liftIO $ Page.readPage pageFilePath (Submission.path sub)
+  page <- liftIO $ Page.readPage publicPath (Submission.path sub)
   renderWithSplices "report" $ do
     pageSplices page
     exerciseSplices page
@@ -309,8 +316,11 @@ handleSubmission = method GET $ do
 -- | splices related to a page
 pageSplices :: Page -> ISplices
 pageSplices page = do
-  "file-path" ## I.textSplice (T.pack $ Page.path page)
-  "file-dir"  ## I.textSplice (T.pack $ takeDirectory $ Page.path page)
+  let dir = takeDirectory $ Page.path page
+  "file-path" ## I.textSplice (T.pack $ Page.path page)      
+  "file-dir"  ## I.textSplice (T.pack dir)
+  "file-path-url" ## I.textSplice (decodeUtf8 $ encodePath $ Page.path page)
+  "file-dir-url"  ## I.textSplice (decodeUtf8 $ encodePath dir)
   "page-title" ##
     I.textSplice (Page.getTitle page)
   "page-description" ##
@@ -354,7 +364,7 @@ indexSplices pageSubs = do
 submitSplices :: Submission -> ISplices
 submitSplices Submission{..} = do
   "submit-id" ##  I.textSplice (toText id)
-  "submit-path" ## I.textSplice (T.pack path)
+  "submit-path" ## I.textSplice (decodeUtf8 $ encodePath path)
   "time" ## do {tz <- liftIO getCurrentTimeZone; utcTimeSplice tz time}
   "code-text" ##  I.textSplice (codeText code)
   "classify" ##  I.textSplice (T.pack $ show $ resultClassify result)
@@ -399,14 +409,6 @@ timingSplice interval = do
 
 
 
-
-
-{-
-warningsSplices :: [Text] -> ISplices
-warningsSplices mesgs = do
-  "warnings" ## I.mapSplices (I.runChildrenWith . mesgSplice) mesgs
-  where mesgSplice msg = "message" ## I.textSplice msg
--}
 
 
 {-
@@ -462,11 +464,11 @@ routes :: [(ByteString, Codex ())]
 routes = [ ("/login",    handleLogin `catch` internalError)
          , ("/logout",   handleLogout `catch` internalError)
          , ("/register", handleRegister `catch` internalError)
-         , ("/page",     handlePage `catch` internalError)
+         , ("/pub",      handlePage `catch` internalError)
          , ("/submit/:sid", handleSubmission `catch` internalError)
-         , ("/browse",    handleListing pageFilePath  `catch` internalError)
-         , ("/edit",     handleEdit  pageFilePath `catch` internalError)
-         , ("/static",   serveDirectory staticFilePath <|> notFound) 
+         , ("/files",  handleBrowse publicPath `catch`  internalError)
+         -- , ("/edit",     handleEdit  publicPath `catch` internalError)
+         , ("/static",   serveDirectory staticPath <|> notFound) 
          ]
 
 
