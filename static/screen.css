@@ -57,7 +57,7 @@ img {
 #content {
    margin-left: auto;
    margin-right: auto;
-   width: 50em;
+   width: 60em;
 }
 
 #topbar {
@@ -171,6 +171,8 @@ td.filemodified {
 table.filelist td { 
     font-family: monospace;
 }
+
+
 
 /* --- code highlighting --- */
 

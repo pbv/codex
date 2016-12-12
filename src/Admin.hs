@@ -42,7 +42,7 @@ import qualified Data.ByteString  as B
 
 import qualified Data.HashMap.Strict as HM
 
-import           Data.Maybe (catMaybes)
+import           Data.Maybe (catMaybes, maybeToList)
 import           Data.List (union, sort, sortBy)
 import           Data.Monoid
 import           Data.Map.Syntax
@@ -57,12 +57,13 @@ import           Config
 --
 handleBrowse :: FilePath -> Codex ()
 handleBrowse base
-  = requireAdmin >>
+  = ensureAdminRole >>
     handleMethodOverride 
     (method GET (handleGet base) <|>
      method POST (handleUpload base) <|>
      method PUT (handleEdit base) <|>
-     method DELETE (handleDelete base))
+     method DELETE (handleDelete base) <|>
+     method PATCH (handleRename base))
 
 
 handleGet :: FilePath -> Codex ()
@@ -110,7 +111,7 @@ listingSplices tz path list =
           "if-dir" ## ifElseISplice (mime == "DIR")
 
 
-
+ 
 
 pathSplices :: Monad m => FilePath -> Splices (I.Splice m)
 pathSplices rqpath = do
@@ -153,16 +154,24 @@ handleUpload dest = do
   tmpdir <- liftIO getTemporaryDirectory
   msgs <- handleFileUploads tmpdir defaultUploadPolicy
     (const $ allowWithMaximumSize (getMaximumFormInputSize defaultUploadPolicy))
-    (makeUpload (dest </> rqpath))
+    (doUpload (dest </> rqpath))
   entries <- liftIO $ listDir (dest</>rqpath)
   tz <- liftIO getCurrentTimeZone
-  let rqdir = takeDirectory rqpath
-  let fileSplices = do
-        "file-path" ## I.textSplice (T.decodeUtf8 $ encodePath rqpath)
-        "file-dir" ## I.textSplice (T.decodeUtf8 $ encodePath rqdir)
-  renderWithSplices "file-list" (fileSplices >>
+  renderWithSplices "file-list" (pathSplices rqpath >>
                                  listingSplices tz rqpath entries >>
                                  messageSplices (catMaybes msgs))
+
+
+doUpload :: FilePath -> PartInfo ->
+              Either PolicyViolationException FilePath -> IO (Maybe Text)
+doUpload dest partinfo (Left e) =
+  return (Just $ T.pack $ show e)
+doUpload dest partinfo (Right src) = do
+  let srcName = takeFileName src
+  let destName = maybe srcName B.toString (partFileName partinfo)
+  (copyFile src (dest</>destName) >> return Nothing) `catch`
+    (\(e::SomeException) -> return (Just $ T.pack $ show e))
+
 
 
 handleDelete :: FilePath -> Codex ()
@@ -173,24 +182,25 @@ handleDelete base = do
   redirect (encodePath ("/files" </> rqdir))
 
 
-
-makeUpload :: FilePath -> PartInfo ->
-              Either PolicyViolationException FilePath -> IO (Maybe Text)
-makeUpload dest partinfo (Left e) =
-  return (Just $ T.pack $ show e)
-makeUpload dest partinfo (Right src) = do
-  let srcName = takeFileName src
-  let destName = maybe srcName B.toString (partFileName partinfo)
-  (copyFile src (dest</>destName) >> return Nothing) `catch`
-    (\(e::SomeException) -> return (Just $ T.pack $ show e))
-
+handleRename :: FilePath -> Codex ()
+handleRename base = do
+  rqpath <- getSafePath
+  let rqdir = takeDirectory rqpath
+  dest <- B.toString <$> require (getParam "destname")
+  let srcfile = base </> rqpath
+  let destfile = base </> rqdir </> dest
+  liftIO $ renameFile srcfile destfile 
+  redirect (encodePath ("/files" </> rqdir))
 
 
-
+       
+  
+-----------------------------------------------------------------------------
 -- | ensure that an user with admin privileges is logged in
-requireAdmin :: Codex ()
-requireAdmin =  do
-  AuthUser{..} <- require (with auth currentUser) <|> unauthorized
-  guard (Role "admin" `elem` userRoles) <|> unauthorized
+ensureAdminRole :: Codex ()
+ensureAdminRole =  do
+  roles <- require getUserRoles
+  unless (Role "admin" `elem` roles) unauthorized
+
 
 

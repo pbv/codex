@@ -8,7 +8,6 @@ module Language.C (
   clangTester
   ) where
 
-import           Control.Applicative
 import           Control.Monad.State
 import           Data.Text (Text)
 import qualified Data.Text as T
@@ -16,8 +15,6 @@ import qualified Data.Text.IO as T
 import           Data.Monoid
 
 import           System.FilePath
-import           System.Directory
-import           System.IO
 import           System.Process.Text
 import           System.Exit
 
@@ -26,13 +23,11 @@ import           Snap.Snaplet(getSnapletUserConfig)
 
 import           Language.Types
 import           Language.QuickCheck
-import           Test.QuickCheck (Args)
 
 import           Tester
 import           Application
 import           Page
 import           SafeExec
-import           Utils (require)
 import           Config
 import           Control.Exception
 
@@ -79,15 +74,7 @@ clangTesterIO sf gcc_cmd ghc_cmd qcArgs c_code props =
    (cleanupFiles temps)
 
 
-
-    -- create C code file
-    -- T.hPutStrLn h1 c_code
-    -- hClose h1
-    -- create test script
-    --T.hPutStrLn h2 (testScript args props)
-    -- hClose h2
-
-    
+   
 runCompiler cmd args = do
   (exitCode, _, stderr) <- readProcessWithExitCode cmd args ""
   case exitCode of

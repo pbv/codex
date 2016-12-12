@@ -49,7 +49,10 @@ import           Data.Time.Format
 import           System.FilePath
 
 
--- fetch the full name of an authenticated user
+
+authUserID :: AuthUser -> UserID
+authUserID = UserID . T.encodeUtf8 . userLogin
+
 authFullname :: AuthUser -> Maybe Text
 authFullname au 
   = case HM.lookup "fullname" (userMeta au) of
@@ -61,20 +64,20 @@ authFullname au
 --   from the authentication snaplet  
 getUserID :: Codex (Maybe UserID)
 getUserID = do 
-  opt <- with auth currentUser
-  return $ fmap (UserID . T.encodeUtf8 . userLogin) opt
+  mAu <- with auth currentUser
+  return (fmap authUserID mAu)
 
 
 getFullname :: Codex (Maybe Text)
 getFullname = do
-  u <- with auth currentUser
-  return (u >>=  authFullname)
+  mAu <- with auth currentUser
+  return (mAu >>=  authFullname)
 
 -- | Get user id and roles
 getUserRoles :: Codex (Maybe [Role])
 getUserRoles = do
-  opt <- with auth currentUser
-  return (fmap userRoles opt)
+  mAu <- with auth currentUser
+  return (fmap userRoles mAu)
 
 
 getUserEvents :: Codex (Maybe Events)

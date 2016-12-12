@@ -8,30 +8,30 @@
 module Submission (
   Submission(..),
   evaluate,
-  getSingle,
+  getSubmission,
+  getSubmissions,
+  countSubmissions,
   getAll  
   ) where
 
-import           System.FilePath
-import           System.Directory
-import           System.IO
+-- import           System.FilePath
+-- import           System.Directory
+-- import           System.IO
 
 import           Data.Time.Clock
 
 import           Data.Maybe
 import           Data.Typeable
-import           Data.String
+-- import           Data.String
 
 import qualified Data.ByteString.UTF8 as B
 import           Data.Text(Text) 
 import qualified Data.Text    as T
-import qualified Data.Text.IO as T
+-- import qualified Data.Text.IO as T
 
 import           Control.Monad.Trans (liftIO)
-import           Control.Monad.State (gets)
-import           Control.Applicative
 
-import           Snap.Core
+-- import           Snap.Core
 import           Snap.Snaplet.SqliteSimple
 import qualified Database.SQLite.Simple as S
 import           Database.SQLite.Simple.FromField 
@@ -59,6 +59,7 @@ data Submission = Submission {
   }
 
 
+
 -- | convertions to/from SQL 
 instance ToField Classify where
   toField s = toField (show s)
@@ -69,6 +70,9 @@ instance FromField Classify where
     where 
       parse ((s,""):_) = return s
       parse _  = returnError ConversionFailed f "invalid Classify field"
+
+
+
 
 instance ToField Timing where
   toField s = toField (show s)
@@ -106,6 +110,7 @@ instance FromRow Submission where
 
 
 -- | evaluate and store a new submission
+-- run code tester and insert record into Db
 evaluate :: UserID -> Page ->  Code -> Codex Submission
 evaluate uid page@Page{..} code = do 
   now <- liftIO getCurrentTime
@@ -113,7 +118,6 @@ evaluate uid page@Page{..} code = do
   let r = Interval.evalI env (Page.validInterval page) now
   case r of
     Right timing -> do
-      -- run code tester and insert record into Db
       result <- codeTester page code
       insertDb uid path now code result timing
     Left msg -> do
@@ -138,25 +142,56 @@ insertDb uid path time code@(Code lang text) result@(Result classf msg) timing =
     fmap SubmitID (S.lastInsertRowId conn)
   return (Submission sid uid path time code result timing)
 
-  
-
+ 
 
 -- | get a single submission 
-getSingle :: UserID -> SubmitID -> Codex Submission
-getSingle uid sid = do
-  r <- query "SELECT * FROM submissions WHERE \
-             \ id = ? AND user_id = ?" (sid,uid)
+getSubmission :: SubmitID -> Codex Submission
+getSubmission sid = do
+  r <- query "SELECT * FROM submissions WHERE id = ?" (Only sid)
   case r of
     [s] -> return s
     _   -> notFound
 
 
--- | get all user submissions for a  path
+-- | get all user submissions for a user and path
 getAll :: UserID -> FilePath -> Codex [Submission]  
 getAll uid path = 
   query "SELECT * FROM submissions \
        \ WHERE user_id = ? AND path = ? ORDER BY id" (uid, path)
 
+
+-------------------------------------------------------------------------
+type Pattern = Text
+
+countSubmissions :: [Pattern] -> Codex Int
+countSubmissions patts = do
+  let [id,uid,path,time,lang,classf,timing] = map checkEmpty patts
+  r <- query "SELECT COUNT(*) FROM submissions WHERE \
+        \ id LIKE ? AND user_id LIKE ? AND path LIKE ? AND time LIKE ? \
+        \ AND language LIKE ? AND class LIKE ? AND timing LIKE ?" 
+        (id,uid,path,time,lang,classf,timing)
+  case r of 
+     [Only c] -> return c
+     _ -> error "countSubmissions failed; this should NOT have happened!"
+
+
+getSubmissions :: [Pattern] -> Int -> Int -> Codex [Submission]
+getSubmissions patts limit offset = do
+  let [id,uid,path,time,lang,classf,timing] = map checkEmpty patts
+  query "SELECT * FROM submissions WHERE \
+        \ id LIKE ? AND user_id LIKE ? AND path LIKE ? AND time LIKE ? \
+        \ AND language LIKE ? AND class LIKE ? AND timing LIKE ? \
+        \ ORDER BY id ASC LIMIT ? OFFSET ?" 
+        (id,uid,path,time,lang,classf,timing,limit,offset)
+  
+
+checkEmpty :: Pattern -> Pattern
+checkEmpty p = let q = T.strip p
+               in if T.null q then "%" else q
+  
+
+
+                                      
 {-
 -- | count all submissions
 countSubmissions :: UserID -> FilePath -> AppHandler Int

@@ -6,15 +6,12 @@
 
 module Language.QuickCheck where
 
-import           Control.Applicative
-
 import           Page
 import           Markdown
 
 import           Test.QuickCheck
 import           Test.QuickCheck.Random
 import           System.FilePath
-import           Data.Maybe
 
 
 

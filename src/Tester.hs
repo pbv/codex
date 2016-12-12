@@ -13,7 +13,6 @@ import           System.Directory
 import           Control.Exception
 import           Control.Monad(when)
 
-
 -- submission results
 data Result = Result { resultClassify :: !Classify
                      , resultMessage :: !Text
@@ -30,6 +29,7 @@ data Classify = Received
               | MemoryLimitExceeded
               | MiscError
               deriving (Eq, Read, Show, Typeable)
+
 
 instance Exception Result -- default instance
 

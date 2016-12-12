@@ -8,7 +8,7 @@
 <page-description/>
 </div>
 
-<timing>
+<case-timing>
   <Early>
     <p>Submissões iniciam em: <valid-from/></p>
   </Early>
@@ -18,11 +18,11 @@
   <Overdue>
     <p>Submissões terminaram em: <valid-until/></p>
   </Overdue>
-</timing>
+</case-timing>
 
 <if-submitted>
   <h2>Submissões anteriores</h2>
-  <timing>
+  <case-timing>
     <Early>
       <p><submissions-count/> submissões antecipadas; os resultados serão
 	visíveis após <valid-from/>.</p>  
@@ -37,7 +37,7 @@
 	</submissions-list>
       </ol>
     </default>
-  </timing>
+  </case-timing>
 </if-submitted>
 
 <h2>Nova submissão</h2>

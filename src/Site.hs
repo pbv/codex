@@ -25,7 +25,7 @@ import           Data.ByteString.UTF8 (ByteString)
 import qualified Data.ByteString.UTF8 as B
 import qualified Data.ByteString      as B
 -- import           Data.Monoid
-import           Data.Maybe(isJust)
+import           Data.Maybe(isJust, fromMaybe)
 
 import           Data.List (nub, sort)
 import           Data.Map.Syntax
@@ -33,7 +33,7 @@ import qualified Data.HashMap.Strict as HM
 
 import           Data.Text (Text)
 import qualified Data.Text as T
--- import qualified Data.Text.Encoding as T
+import qualified Data.Text.Encoding as T
 import           Data.Text.Encoding (decodeUtf8)
 
 import           Snap.Core
@@ -213,7 +213,8 @@ handlePage :: Codex ()
 handlePage = do
   uid <- require getUserID <|> unauthorized
   rqpath <- getSafePath
-  (method GET (handleGet uid rqpath  <|> handleRedir rqpath)
+  (method GET (handleGet uid rqpath  <|>
+               handleRedir rqpath)
    <|> method POST (handlePost uid rqpath))
   where
     handleGet uid rqpath =  do
@@ -244,10 +245,11 @@ handlePage = do
       text <- require (getTextPost "editform.editor")
       lang <- require (return $ Page.getLanguage page)
       sub <- Submission.evaluate uid page (Code lang text)
+      tz <- liftIO getCurrentTimeZone
       renderWithSplices "report" $ do 
         pageSplices page
         exerciseSplices page
-        submitSplices sub 
+        submitSplices tz sub 
         inputAceEditorSplices
     -- handle redirects
     handleRedir rqpath = do
@@ -269,9 +271,10 @@ renderIndex uid page links = do
   let pages' = filter (\p -> querytags `contained` Page.getTags p) pages
   let abletags = nub $ sort $ concatMap Page.getTags pages'
   subs <- mapM (Submission.getAll uid . Page.path) pages'
+  tz <- liftIO getCurrentTimeZone
   renderWithSplices "indexsheet" $ do
     pageSplices page 
-    indexSplices (zip pages' subs)
+    indexSplices tz (zip pages' subs)
     "if-tagged" ## I.ifElseISplice (not $ null alltags)
     "available" ## I.textSplice $ T.pack $ show $ length pages
     "visible" ## I.textSplice $ T.pack $ show $ length pages'
@@ -292,25 +295,66 @@ tagSplices querytags enabled tag =
 --  render an exercise page
 renderExercise :: Page -> [Submission] -> Codex ()
 renderExercise page subs = do
+  tz <- liftIO getCurrentTimeZone
   renderWithSplices "exercise" $ do
     pageSplices page
     exerciseSplices page
-    submissionListSplices subs 
+    submissionListSplices tz subs 
     inputAceEditorSplices
 
 
--- handle GET requests for previous submissions
+-- handle request for submission lists
+handleSubmissions :: Codex ()    
+handleSubmissions = do
+  au <- require (with auth currentUser) <|> unauthorized
+  let roles = userRoles au
+  when (Role "admin" `notElem` roles) unauthorized
+  method GET handleGet <|> method POST handlePost
+  where
+    handleGet = do
+      renderWithSplices "submission-list" $ do
+        "if-submissions" ## I.ifElseISplice False
+        "submissions" ## return []
+    handlePost = do
+      --limit <- fromMaybe 50 <$> getParam "limit" 
+      --offset <- fromMaybe 0 <$> getParam "offset"
+      let limit = 50
+      let offset = 0
+      id_pat <- require (getParam "id_pat")
+      uid_pat <- require (getParam "uid_pat")
+      path_pat<- require (getParam "path_pat")
+      time_pat<- require (getParam "time_pat")
+      lang_pat<- require (getParam "lang_pat")
+      class_pat<- require (getParam "class_pat")
+      timing_pat<- require (getParam "timing_pat")
+      let patts = map T.decodeUtf8 [id_pat, uid_pat, path_pat, time_pat,
+                                    lang_pat, class_pat, timing_pat]
+      count <- Submission.countSubmissions patts
+      subs <- Submission.getSubmissions patts limit offset
+      tz <- liftIO getCurrentTimeZone
+      renderWithSplices "submission-list" $ do
+        "if-submissions" ## I.ifElseISplice (count>0)
+        "submissions-count" ## I.textSplice (T.pack $ show count)
+        "submissions" ## I.mapSplices (I.runChildrenWith . submitSplices tz) subs
+
+
+-- handle GET requests for a single submission
+handleSubmission :: Codex ()
 handleSubmission = method GET $ do
-  uid <- require getUserID <|> unauthorized
+  au <- require (with auth currentUser) <|> unauthorized
+  let uid = authUserID au
+  let roles = userRoles au
   sid <- require getSubmitID
-  sub <- Submission.getSingle uid sid
+  sub <- Submission.getSubmission sid
+  when (Role "admin" `notElem` roles && Submission.userID sub /= uid)
+    unauthorized
   page <- liftIO $ Page.readPage publicPath (Submission.path sub)
+  tz <- liftIO getCurrentTimeZone
   renderWithSplices "report" $ do
     pageSplices page
     exerciseSplices page
-    submitSplices sub 
+    submitSplices tz sub 
     inputAceEditorSplices
-
 
 
 -- | splices related to a page
@@ -347,29 +391,32 @@ exerciseSplices page = do
     maybe (I.textSplice "N/A") timeExprSplice  (Interval.from interval)
   "valid-until" ##
     maybe (I.textSplice "N/A") timeExprSplice (Interval.until interval)
-  "timing" ##
+  "case-timing" ##
     timingSplice interval
 
 
 
-indexSplices :: [(Page, [Submission])] -> ISplices
-indexSplices pageSubs = do
+indexSplices :: TimeZone -> [(Page, [Submission])] -> ISplices
+indexSplices tz pageSubs = do
   "index-list" ##
     I.mapSplices (I.runChildrenWith . auxSplices) pageSubs
   where
-    auxSplices (page,subs) = pageSplices page >> submissionListSplices subs
+    auxSplices (page,subs) = pageSplices page >> submissionListSplices tz subs
 
 
 -- | splices relating to a single submission
-submitSplices :: Submission -> ISplices
-submitSplices Submission{..} = do
+submitSplices :: TimeZone -> Submission -> ISplices
+submitSplices tz Submission{..} = do
   "submit-id" ##  I.textSplice (toText id)
+  "submit-user-id" ## I.textSplice (toText userID)
   "submit-path" ## I.textSplice (decodeUtf8 $ encodePath path)
-  "time" ## do {tz <- liftIO getCurrentTimeZone; utcTimeSplice tz time}
+  "time" ## utcTimeSplice tz time
+  "code-lang" ## I.textSplice (fromLanguage $ codeLang code)
   "code-text" ##  I.textSplice (codeText code)
   "classify" ##  I.textSplice (T.pack $ show $ resultClassify result)
   "message" ## I.textSplice (resultMessage result)
-  "timing" ## caseSplice timing
+  "case-timing" ## caseSplice timing
+  "timing" ## I.textSplice (T.pack $ show timing)
   "valid" ## I.ifElseISplice (timing == Valid)
   "early" ## I.ifElseISplice (timing == Early)
   "overdue" ## I.ifElseISplice (timing == Overdue)
@@ -378,15 +425,15 @@ submitSplices Submission{..} = do
 
 
 -- | splices relating to a list of submissions
-submissionListSplices :: [Submission] -> ISplices
-submissionListSplices list = do
+submissionListSplices :: TimeZone -> [Submission] -> ISplices
+submissionListSplices tz list = do
   let count = length list
   "submissions-count" ##
     I.textSplice (T.pack $ show count)
   "if-submitted" ##
     I.ifElseISplice (count > 0) 
   "submissions-list" ##
-    I.mapSplices (I.runChildrenWith . submitSplices) list
+    I.mapSplices (I.runChildrenWith . submitSplices tz) list
 
 
 -- | splice for time expressions and intervals
@@ -466,6 +513,7 @@ routes = [ ("/login",    handleLogin `catch` internalError)
          , ("/register", handleRegister `catch` internalError)
          , ("/pub",      handlePage `catch` internalError)
          , ("/submit/:sid", handleSubmission `catch` internalError)
+         , ("/submit",  handleSubmissions `catch` internalError)
          , ("/files",  handleBrowse publicPath `catch`  internalError)
          -- , ("/edit",     handleEdit  publicPath `catch` internalError)
          , ("/static",   serveDirectory staticPath <|> notFound) 

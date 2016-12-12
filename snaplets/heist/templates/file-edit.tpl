@@ -1,5 +1,5 @@
 <apply template="base">
-  <h1><file-path/></h1>
+  <h1>/<file-path/></h1>
   <p>Mime-type: <file-mime/></p>
   <if-image-file>
     <img src="/pub/${file-path-url}"/>
@@ -10,9 +10,7 @@
       <input type="hidden" name="_method" value="PUT"/>
       <input type="hidden" id="editform.path" value="${file-path-url}"/>
       <inputAceEditor id="editform.editor" mode="ace/mode/text"><file-contents/></inputAceEditor>
-      <p><input type="submit" value="Save"/>  &nbsp; 
-	<a class="button" href="/files/${file-dir-url}">Cancel</a>
-      </p>
+      <p><input type="submit" value="Save"/></p>
     </form>
     <script type="text/javascript">
       setAceEditorModeExt('editform.editor', 'editform.path');
@@ -22,10 +20,12 @@
   <p/>
 
   <div>
-    <form id="deleteform" method="POST" action="/files/${file-path-url}">
+    <a class="button" href="/files/${file-dir-url}">Cancel</a> &nbsp;
+    <form id="deleteform" method="POST" action="/files/${file-path-url}"
+       style="display:inline-block;">
       <input type="hidden" name="_method" value="DELETE"/>
       <input type="button" value="Delete file" onClick="confirmDelete()"/>
-    </form> 
+    </form> &nbsp;
     <script type="text/javascript">
       function confirmDelete() {
       var r = confirm("Are you sure you want to delete this file?\nWARNING: this action cannot be undone.");
@@ -35,10 +35,11 @@
       }
       }
     </script>
-    <form method="POST" action="/files/${file-path-url}">
+    <form method="POST" action="/files/${file-path-url}" 
+	  style="display:inline-block;">
       <input type="hidden" name="_method" value="PATCH"/>
       <input type="submit" value="Rename file:"/> 
-      <input type="text" name="filename" required="required"/>
+      <input type="text" name="destname" required="required"/>
     </form>
   </div>
 </apply>
