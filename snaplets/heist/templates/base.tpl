@@ -22,11 +22,12 @@
      </div>
      <div id="actions">
        <ifLoggedIn>
-	 <a class="button" href="/pub/${file-dir}">Up</a> &nbsp;
-	 <a class="button" href="/">Top</a> &nbsp;
+	 <a class="button" href="/pub">Top</a> &nbsp;
 	 <ifAdmin>
-	   <a class="button" href="/files/${file-path-url}">Admin view</a> &nbsp;
-	   <a class="button" href="/pub/${file-path-url}">User view</a>
+	   <a class="button" href="/files">Browse files</a> &nbsp;
+	   <a class="button" href="/submited">Browse submissions</a> &nbsp; 	   
+	   <a class="button" href="/files/${file-path-url}">Edit</a> &nbsp; 
+	   <a class="button" href="/pub/${file-path-url}">View</a>
 	 </ifAdmin>
        </ifLoggedIn>
     </div>
@@ -35,13 +36,13 @@
        <apply-content/>
      </div>
      <div id="footer">
-       <p class="info"><application/> <version/> &copy; 2014, 2015 Pedro Vasconcelos.<br>
+       <p class="info"><application/> <version/> &copy; 2014-2016 Pedro Vasconcelos.<br>
        Departamento de Ciência de Computadores, Faculdade de Ciências,
        Universidade do Porto.<br>
        Built using
        <a href="http://snapframework.com/">Snap</a>,
        <a href="http://johnmacfarlane.net/pandoc/">Pandoc</a>,
-       <a href="http://ace.ajax.org">ACE</a>  e
+       <a href="http://ace.ajax.org">ACE</a> and
        <a href="http://www.mathjax.org">MathJax</a>.</p>
      </div>
    </body>

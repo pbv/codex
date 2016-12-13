@@ -75,7 +75,7 @@ parseInterval tz now =
   
      
 -- parse time expressions
-parseTimeExpr :: TimeZone  -> LocalTime -> ReadP TimeExpr
+parseTimeExpr :: TimeZone -> LocalTime -> ReadP TimeExpr
 parseTimeExpr tz now
   = do expr <- base
        (do {diff <- parseDiff; return (Add diff expr)}
@@ -97,8 +97,8 @@ parseLocalTime now  =
      return t { localDay = localDay now })
   
 
-parseUTCTime :: TimeZone  -> LocalTime -> ReadP UTCTime
-parseUTCTime tz  now  = localTimeToUTC tz <$> parseLocalTime now
+parseUTCTime :: TimeZone -> LocalTime -> ReadP UTCTime
+parseUTCTime tz now  = localTimeToUTC tz <$> parseLocalTime now
 
 parseEvent :: ReadP Text
 parseEvent = do

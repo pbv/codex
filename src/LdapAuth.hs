@@ -2,12 +2,9 @@
 {-# LANGUAGE OverloadedStrings #-}
 module LdapAuth 
        (ldapAuth
-       -- , 
-        -- dummyAuth,
-        -- userName,
-        -- adminRole
        ) where
 
+import           Control.Monad
 import           Data.ByteString.UTF8 (ByteString)
 import qualified Data.ByteString.UTF8 as B
 
@@ -18,19 +15,11 @@ import           Data.HashMap.Strict(HashMap)
 import qualified Data.HashMap.Strict as HM
 
 import           Data.Char (isSpace,toLower)
-
--- import           Control.Monad.Trans.Maybe
--- import           Control.Monad.Trans
-import           Control.Monad
-
 import           Data.Aeson.Types 
 
-import           LDAP
-
 import           Data.Time.Clock
-
 import           Snap.Snaplet.Auth
-
+import           LDAP
 import           Types
 
 
@@ -137,21 +126,5 @@ updateUser r LdapConf{..} login attrs = do
   return $ case result of 
     Left err -> Nothing
     Right au -> Just au
--}
-
-{-
--- | Administrator role
-adminRole :: Role
-adminRole = Role "admin"
--}
-
------------------------------------------------------------
--- dummy password-less login
--- for development only!
-{-
-dummyAuth :: IAuthBackend r => 
-             r -> LdapConf -> ByteString -> ByteString -> IO (Maybe AuthUser)
-dummyAuth r ldapConf username passwd
-    = updateUser r ldapConf (T.pack $ sanitize $ B.toString username) HM.empty
 -}
 

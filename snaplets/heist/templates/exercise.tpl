@@ -31,7 +31,7 @@
       <ol class="submissions">
 	<submissions-list>
 	  <li>
-	    <a href="/submit/${submit-id}">
+	    <a href="/submited/${submit-id}">
 	      <span class="info"><classify/></span></a>
 	  </li>
 	</submissions-list>

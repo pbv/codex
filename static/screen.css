@@ -133,7 +133,8 @@ img {
 pre { 
     background-color: #ffffcc; 
     padding: 1em;
-    width: 55em;
+      margin-left: 2em;
+    width: 60em;
 }
 
 .ace_editor { 
@@ -168,9 +169,27 @@ td.filemodified {
  }
 
 
-table.filelist td { 
+
+table.filelist tr:nth-child(even) td { 
     font-family: monospace;
+  background: #eeeeee;
+ }
+
+table.filelist tr:nth-child(odd) td { 
+    font-family: monospace;
+  background: white;
+ }
+
+table.submissions tr:nth-child(even) td {  
+ font-family: monospace;
+  background: #eeeeee;
 }
+
+table.submissions tr:nth-child(odd) td {  
+ font-family: monospace;
+  background: white;
+}
+
 
 
 

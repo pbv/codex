@@ -161,15 +161,17 @@ getAll uid path =
 
 
 -------------------------------------------------------------------------
+-- patterns for filtering submissions                                      
 type Pattern = Text
+
 
 countSubmissions :: [Pattern] -> Codex Int
 countSubmissions patts = do
-  let [id,uid,path,time,lang,classf,timing] = map checkEmpty patts
+  let [id,uid,path,lang,classf,timing] = map checkEmpty patts
   r <- query "SELECT COUNT(*) FROM submissions WHERE \
-        \ id LIKE ? AND user_id LIKE ? AND path LIKE ? AND time LIKE ? \
+        \ id LIKE ? AND user_id LIKE ? AND path LIKE ? \
         \ AND language LIKE ? AND class LIKE ? AND timing LIKE ?" 
-        (id,uid,path,time,lang,classf,timing)
+        (id,uid,path,lang,classf,timing)
   case r of 
      [Only c] -> return c
      _ -> error "countSubmissions failed; this should NOT have happened!"
@@ -177,12 +179,12 @@ countSubmissions patts = do
 
 getSubmissions :: [Pattern] -> Int -> Int -> Codex [Submission]
 getSubmissions patts limit offset = do
-  let [id,uid,path,time,lang,classf,timing] = map checkEmpty patts
+  let [id,uid,path,lang,classf,timing] = map checkEmpty patts
   query "SELECT * FROM submissions WHERE \
-        \ id LIKE ? AND user_id LIKE ? AND path LIKE ? AND time LIKE ? \
+        \ id LIKE ? AND user_id LIKE ? AND path LIKE ? \
         \ AND language LIKE ? AND class LIKE ? AND timing LIKE ? \
         \ ORDER BY id ASC LIMIT ? OFFSET ?" 
-        (id,uid,path,time,lang,classf,timing,limit,offset)
+        (id,uid,path,lang,classf,timing,limit,offset)
   
 
 checkEmpty :: Pattern -> Pattern

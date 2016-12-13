@@ -60,6 +60,10 @@ authFullname au
     _                  -> Nothing
 
 
+isAdmin :: AuthUser -> Bool
+isAdmin au = Role "admin" `elem` userRoles au
+
+
 -- | Get current logged in user ID (if any)
 --   from the authentication snaplet  
 getUserID :: Codex (Maybe UserID)

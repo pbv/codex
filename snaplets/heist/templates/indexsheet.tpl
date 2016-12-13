@@ -7,9 +7,7 @@
 <bind tag="page-icon"><if-exercise><icon-text/><else/><if-indexsheet><icon-folder/><else/><icon-text-html/></if-indexsheet></if-exercise></bind>
 
 <apply template="base">
-  <div class="description">
-    <page-description/>
-  </div>
+  <div class="description"><page-description/></div>
   <if-tagged>
     <div class="filters">
       <form action="" method="get">

@@ -35,7 +35,6 @@ import           Data.Text (Text)
 import qualified Data.Text as T
 import qualified Data.Text.Encoding as T
 import           Data.Text.Encoding (decodeUtf8)
-
 import           Snap.Core
 import           Snap.Snaplet
 import           Snap.Snaplet.Auth
@@ -307,35 +306,45 @@ renderExercise page subs = do
 handleSubmissions :: Codex ()    
 handleSubmissions = do
   au <- require (with auth currentUser) <|> unauthorized
-  let roles = userRoles au
-  when (Role "admin" `notElem` roles) unauthorized
+  when (not $ isAdmin au) unauthorized
   method GET handleGet <|> method POST handlePost
   where
-    handleGet = do
-      renderWithSplices "submission-list" $ do
-        "if-submissions" ## I.ifElseISplice False
-        "submissions" ## return []
+    handleGet =  listSubmissions (replicate 6 "") Nothing
     handlePost = do
-      --limit <- fromMaybe 50 <$> getParam "limit" 
-      --offset <- fromMaybe 0 <$> getParam "offset"
-      let limit = 50
-      let offset = 0
-      id_pat <- require (getParam "id_pat")
-      uid_pat <- require (getParam "uid_pat")
-      path_pat<- require (getParam "path_pat")
-      time_pat<- require (getParam "time_pat")
-      lang_pat<- require (getParam "lang_pat")
-      class_pat<- require (getParam "class_pat")
-      timing_pat<- require (getParam "timing_pat")
-      let patts = map T.decodeUtf8 [id_pat, uid_pat, path_pat, time_pat,
-                                    lang_pat, class_pat, timing_pat]
-      count <- Submission.countSubmissions patts
-      subs <- Submission.getSubmissions patts limit offset
-      tz <- liftIO getCurrentTimeZone
-      renderWithSplices "submission-list" $ do
-        "if-submissions" ## I.ifElseISplice (count>0)
-        "submissions-count" ## I.textSplice (T.pack $ show count)
-        "submissions" ## I.mapSplices (I.runChildrenWith . submitSplices tz) subs
+      id_pat <- T.decodeUtf8 <$> require (getParam "id_pat")
+      uid_pat <- T.decodeUtf8 <$> require (getParam "uid_pat")
+      path_pat<- T.decodeUtf8 <$> require (getParam "path_pat")
+      lang_pat<- T.decodeUtf8 <$> require (getParam "lang_pat")
+      class_pat<- T.decodeUtf8 <$> require (getParam "class_pat")
+      timing_pat<- T.decodeUtf8 <$> require (getParam "timing_pat")
+      optPage <- fmap (read . B.toString) <$> getParam "page"
+      let patts =[id_pat, uid_pat, path_pat, lang_pat, class_pat, timing_pat]
+      listSubmissions patts optPage
+
+
+listSubmissions :: [Text] -> Maybe Int -> Codex ()
+listSubmissions patts optPage = do
+  let [id_pat, uid_pat, path_pat, lang_pat, class_pat, timing_pat] = patts
+  count <- Submission.countSubmissions patts
+  let entries = 50   -- # entries per page 
+  let npages
+        | count>0   = ceiling (fromIntegral count / fromIntegral entries)
+        | otherwise = 1
+  let page = 1 `max` fromMaybe 1 optPage `min` npages
+  let offset = (page - 1) * entries
+  subs <- Submission.getSubmissions patts entries offset
+  tz <- liftIO getCurrentTimeZone
+  renderWithSplices "submission-list" $ do
+    "id_pat" ## I.textSplice id_pat
+    "uid_pat" ## I.textSplice uid_pat
+    "path_pat" ## I.textSplice path_pat
+    "lang_pat" ## I.textSplice lang_pat
+    "class_pat" ## I.textSplice class_pat
+    "timing_pat" ## I.textSplice timing_pat
+    "page" ## I.textSplice (T.pack $ show page)
+    "submissions-count" ## I.textSplice (T.pack $ show count)
+    "page-count" ## I.textSplice (T.pack $ show npages)
+    "submissions" ## I.mapSplices (I.runChildrenWith . submitSplices tz) subs
 
 
 -- handle GET requests for a single submission
@@ -343,11 +352,10 @@ handleSubmission :: Codex ()
 handleSubmission = method GET $ do
   au <- require (with auth currentUser) <|> unauthorized
   let uid = authUserID au
-  let roles = userRoles au
   sid <- require getSubmitID
   sub <- Submission.getSubmission sid
-  when (Role "admin" `notElem` roles && Submission.userID sub /= uid)
-    unauthorized
+  when (not (isAdmin au) && Submission.userID sub /= uid) unauthorized
+  --
   page <- liftIO $ Page.readPage publicPath (Submission.path sub)
   tz <- liftIO getCurrentTimeZone
   renderWithSplices "report" $ do
@@ -512,8 +520,8 @@ routes = [ ("/login",    handleLogin `catch` internalError)
          , ("/logout",   handleLogout `catch` internalError)
          , ("/register", handleRegister `catch` internalError)
          , ("/pub",      handlePage `catch` internalError)
-         , ("/submit/:sid", handleSubmission `catch` internalError)
-         , ("/submit",  handleSubmissions `catch` internalError)
+         , ("/submited/:sid", handleSubmission `catch` internalError)
+         , ("/submited",  handleSubmissions `catch` internalError)
          , ("/files",  handleBrowse publicPath `catch`  internalError)
          -- , ("/edit",     handleEdit  publicPath `catch` internalError)
          , ("/static",   serveDirectory staticPath <|> notFound) 
@@ -564,7 +572,7 @@ app =
           "loggedInName" ## loggedInName auth
           "ifAdmin" ## do
             mbAu <- lift (withTop auth currentUser)
-            I.ifElseISplice (maybe False (\au -> Role "admin" `elem` userRoles au) mbAu)
+            I.ifElseISplice (maybe False isAdmin mbAu)
           
     addConfig h (mempty & scInterpretedSplices .~ sc)
     -- Grab the DB connection pool from the sqlite snaplet and call

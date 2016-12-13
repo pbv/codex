@@ -54,16 +54,17 @@ import           Config
 
 --
 -- | handle file browser requests
+-- ensure that an user with admin privileges is logged in
 --
 handleBrowse :: FilePath -> Codex ()
-handleBrowse base
-  = ensureAdminRole >>
-    handleMethodOverride 
-    (method GET (handleGet base) <|>
-     method POST (handleUpload base) <|>
-     method PUT (handleEdit base) <|>
-     method DELETE (handleDelete base) <|>
-     method PATCH (handleRename base))
+handleBrowse base = do
+  au <- require (with auth currentUser) <|> unauthorized
+  when (not $ isAdmin au) unauthorized
+  handleMethodOverride (method GET (handleGet base) <|>
+                        method POST (handleUpload base) <|>
+                        method PUT (handleEdit base) <|>
+                        method DELETE (handleDelete base) <|>
+                        method PATCH (handleRename base))
 
 
 handleGet :: FilePath -> Codex ()
@@ -194,13 +195,13 @@ handleRename base = do
 
 
        
-  
+  {-
 -----------------------------------------------------------------------------
--- | ensure that an user with admin privileges is logged in
-ensureAdminRole :: Codex ()
-ensureAdminRole =  do
-  roles <- require getUserRoles
-  unless (Role "admin" `elem` roles) unauthorized
+ensureAdmin :: Codex ()
+ensureAdmin =  do
+  au <- require (with auth currentUser) <|> unauthorized
+  when (not $ isAdmin au) unathorized
+-}
 
 
 
