@@ -42,7 +42,8 @@ import           Snap.Snaplet.Auth.Backends.SqliteSimple
 import           Snap.Snaplet.SqliteSimple
 import           Snap.Snaplet.Heist
 import           Snap.Snaplet.Session.Backends.CookieSession
-import           Snap.Util.FileServe (getSafePath, fileType, serveFileAs, serveDirectory)
+import           Snap.Util.FileServe (getSafePath, fileType,
+                                      serveFile, serveFileAs, serveDirectory)
 import           Heist
 import           Heist.Splices     as I
 import qualified Heist.Interpreted as I
@@ -58,7 +59,7 @@ import           Data.Aeson
 
 --import           System.Locale
 import           System.FilePath
-import           System.Directory (doesFileExist, doesDirectoryExist)
+import           System.Directory (doesFileExist, doesDirectoryExist, removeFile)
 -- import           System.IO.Error
 -- import           System.Remote.Monitoring
 -- import qualified Text.XmlHtml as X
@@ -303,8 +304,8 @@ renderExercise page subs = do
 
 
 -- handle request for submission lists
-handleSubmissions :: Codex ()    
-handleSubmissions = do
+handleSubmissionList :: Codex ()    
+handleSubmissionList = do
   au <- require (with auth currentUser) <|> unauthorized
   when (not $ isAdmin au) unauthorized
   method GET handleGet <|> method POST handlePost
@@ -317,8 +318,8 @@ handleSubmissions = do
       lang_pat<- T.decodeUtf8 <$> require (getParam "lang_pat")
       class_pat<- T.decodeUtf8 <$> require (getParam "class_pat")
       timing_pat<- T.decodeUtf8 <$> require (getParam "timing_pat")
-      optPage <- fmap (read . B.toString) <$> getParam "page"
-      let patts =[id_pat, uid_pat, path_pat, lang_pat, class_pat, timing_pat]
+      optPage <- readParam "page"
+      let patts = [id_pat, uid_pat, path_pat, lang_pat, class_pat, timing_pat]
       listSubmissions patts optPage
 
 
@@ -343,26 +344,47 @@ listSubmissions patts optPage = do
     "timing_pat" ## I.textSplice timing_pat
     "page" ## I.textSplice (T.pack $ show page)
     "submissions-count" ## I.textSplice (T.pack $ show count)
+    "if-submissions" ## I.ifElseISplice (count > 0)
     "page-count" ## I.textSplice (T.pack $ show npages)
     "submissions" ## I.mapSplices (I.runChildrenWith . submitSplices tz) subs
 
 
--- handle GET requests for a single submission
+-- | handle requests for a single submission
 handleSubmission :: Codex ()
-handleSubmission = method GET $ do
+handleSubmission
+  = handleMethodOverride (method GET handleGet <|>
+                          method DELETE handleDelete)
+  where handleGet = do
+          au <- require (with auth currentUser) <|> unauthorized
+          let uid = authUserID au
+          sid <- require getSubmitID
+          sub <- Submission.get sid
+          when (not (isAdmin au) && Submission.userID sub /= uid)
+            unauthorized
+          page <- liftIO $ Page.readPage publicPath (Submission.path sub)
+          tz <- liftIO getCurrentTimeZone
+          renderWithSplices "report" $ do
+            pageSplices page
+            exerciseSplices page
+            submitSplices tz sub 
+            inputAceEditorSplices
+        handleDelete = do
+          au <- require (with auth currentUser) <|> unauthorized
+          let uid = authUserID au
+          sid <- require getSubmitID
+          sub <- Submission.get sid
+          when (not (isAdmin au) && Submission.userID sub /= uid)
+            unauthorized
+          Submission.delete sid
+          redirect (encodePath ("/pub" </> Submission.path sub))
+
+handleExport :: Codex ()
+handleExport = method POST $ do
   au <- require (with auth currentUser) <|> unauthorized
-  let uid = authUserID au
-  sid <- require getSubmitID
-  sub <- Submission.getSubmission sid
-  when (not (isAdmin au) && Submission.userID sub /= uid) unauthorized
-  --
-  page <- liftIO $ Page.readPage publicPath (Submission.path sub)
-  tz <- liftIO getCurrentTimeZone
-  renderWithSplices "report" $ do
-    pageSplices page
-    exerciseSplices page
-    submitSplices tz sub 
-    inputAceEditorSplices
+  when (not (isAdmin au)) unauthorized
+  sep <- B.toString <$> require (getParam "sep")
+  serveFile =<< Submission.exportCSV sep
+  
 
 
 -- | splices related to a page
@@ -521,9 +543,9 @@ routes = [ ("/login",    handleLogin `catch` internalError)
          , ("/register", handleRegister `catch` internalError)
          , ("/pub",      handlePage `catch` internalError)
          , ("/submited/:sid", handleSubmission `catch` internalError)
-         , ("/submited",  handleSubmissions `catch` internalError)
+         , ("/submited",  handleSubmissionList `catch` internalError)
          , ("/files",  handleBrowse publicPath `catch`  internalError)
-         -- , ("/edit",     handleEdit  publicPath `catch` internalError)
+         , ("/export", handleExport `catch` internalError)
          , ("/static",   serveDirectory staticPath <|> notFound) 
          ]
 

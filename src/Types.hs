@@ -30,10 +30,10 @@ import           Database.SQLite.Simple.FromRow
 
 -- | identifiers
 newtype UserID
-  = UserID ByteString deriving (Eq, Ord, Read, Show) 
+  = UserID {fromUID :: ByteString} deriving (Eq, Ord, Read, Show) 
 
 newtype SubmitID
-  = SubmitID Int64 deriving (Eq, Ord, Read, Show) 
+  = SubmitID {fromSID :: Int64} deriving (Eq, Ord, Read, Show) 
 
 
 -- | conversion to text

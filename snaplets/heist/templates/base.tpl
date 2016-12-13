@@ -36,9 +36,8 @@
        <apply-content/>
      </div>
      <div id="footer">
-       <p class="info"><application/> <version/> &copy; 2014-2016 Pedro Vasconcelos.<br>
-       Departamento de Ciência de Computadores, Faculdade de Ciências,
-       Universidade do Porto.<br>
+       <p class="info"><application/> <version/> &copy; 2016 Pedro Vasconcelos,
+       Dep.&nbsp;Ciência de Computadores, Faculdade de Ciências, Universidade do Porto.<br>
        Built using
        <a href="http://snapframework.com/">Snap</a>,
        <a href="http://johnmacfarlane.net/pandoc/">Pandoc</a>,

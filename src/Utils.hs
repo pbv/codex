@@ -98,12 +98,15 @@ userEvents au = [(n, t) | (n,f)<-fields, t <- maybeToList (f au)]
 
 
 getSubmitID :: Codex (Maybe SubmitID)
-getSubmitID = do opt <- getParam "sid"
-                 return $ do bs <- opt
-                             case reads (B.toString bs) of
-                               [(i,"")] -> Just (SubmitID i)
-                               _ -> Nothing
+getSubmitID = fmap SubmitID <$> readParam "sid"
 
+readParam :: Read a => ByteString -> Codex (Maybe a)
+readParam name = do
+  opt <- getParam name
+  return $ do bs <- opt
+              case reads (B.toString bs) of
+                [(x, "")] -> Just x
+                _   -> Nothing
 
 
 -- get tag list from query string

@@ -66,6 +66,8 @@ withTextTemp :: FilePath -> Text -> (FilePath -> IO a) -> IO a
 withTextTemp name contents cont
   = withTempFile name (\(f,h) -> T.hPutStr h contents >> hClose h >> cont f)
 
+
+
 withTempFile :: FilePath -> ((FilePath, Handle) -> IO a) -> IO a
 withTempFile name k = bracket create (\(f,_) -> removeFile f) k
   where create = do
@@ -79,3 +81,4 @@ removeFileIfExists f = do b<-doesFileExist f; when b (removeFile f)
 
 cleanupFiles :: [FilePath] -> IO ()
 cleanupFiles = mapM_ removeFileIfExists
+

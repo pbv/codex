@@ -29,4 +29,10 @@
 &nbsp;<a class="button" href="/pub/${file-path-url}">Voltar ao problema</a>
 &nbsp;<a class="button" href="/pub/${file-dir-url}">Voltar à folha de problemas</a>
 </form>
+
+<form method="POST" action="/submited/${submit-id}">
+  <input type="hidden" name="_method" value="DELETE"/>
+  <input type="submit" value="Delete submission"/>
+</form>
+
 </apply>

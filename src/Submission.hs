@@ -1,6 +1,7 @@
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE DeriveDataTypeable #-}
+{-# LANGUAGE BangPatterns #-}
 {-
    Evaluating, storing and fetching and submissions in database
 -}
@@ -8,18 +9,21 @@
 module Submission (
   Submission(..),
   evaluate,
-  getSubmission,
+  get,
+  delete, 
   getSubmissions,
   countSubmissions,
-  getAll  
+  getAll,
+  exportCSV
   ) where
 
 -- import           System.FilePath
--- import           System.Directory
--- import           System.IO
+import           System.Directory
+import           System.IO
 
 import           Data.Time.Clock
 
+import           Data.List(intersperse)
 import           Data.Maybe
 import           Data.Typeable
 -- import           Data.String
@@ -145,8 +149,8 @@ insertDb uid path time code@(Code lang text) result@(Result classf msg) timing =
  
 
 -- | get a single submission 
-getSubmission :: SubmitID -> Codex Submission
-getSubmission sid = do
+get :: SubmitID -> Codex Submission
+get sid = do
   r <- query "SELECT * FROM submissions WHERE id = ?" (Only sid)
   case r of
     [s] -> return s
@@ -159,6 +163,10 @@ getAll uid path =
   query "SELECT * FROM submissions \
        \ WHERE user_id = ? AND path = ? ORDER BY id" (uid, path)
 
+
+delete :: SubmitID -> Codex ()
+delete sid =
+  execute "DELETE FROM submissions where id = ?" (Only sid)
 
 -------------------------------------------------------------------------
 -- patterns for filtering submissions                                      
@@ -183,7 +191,7 @@ getSubmissions patts limit offset = do
   query "SELECT * FROM submissions WHERE \
         \ id LIKE ? AND user_id LIKE ? AND path LIKE ? \
         \ AND language LIKE ? AND class LIKE ? AND timing LIKE ? \
-        \ ORDER BY id ASC LIMIT ? OFFSET ?" 
+        \ ORDER BY time DESC LIMIT ? OFFSET ?" 
         (id,uid,path,lang,classf,timing,limit,offset)
   
 
@@ -191,7 +199,52 @@ checkEmpty :: Pattern -> Pattern
 checkEmpty p = let q = T.strip p
                in if T.null q then "%" else q
   
+-- process submissions with filter
+withSubmissions' :: [Pattern] -> a -> (a -> Submission -> IO a) -> Codex a
+withSubmissions' patts a f = do
+  let q = "SELECT * FROM submissions WHERE \
+        \ id LIKE ? AND user_id LIKE ? AND path LIKE ? \
+        \ AND language LIKE ? AND class LIKE ? AND timing LIKE ? \
+        \ ORDER BY time ASC"
+  withSqlite (\conn -> S.fold conn q patts a f)
 
+-- process all submissions
+withSubmissions :: a -> (a -> Submission -> IO a) -> Codex a
+withSubmissions a f = do
+  let q = "SELECT * FROM submissions ORDER BY id ASC"
+  withSqlite (\conn -> S.fold_ conn q a f)
+
+-- | export all submissions to a CSV file
+exportCSV :: String -> Codex FilePath
+exportCSV sep  = do
+  tmpDir <- liftIO getTemporaryDirectory
+  (path, handle) <-
+    liftIO $ openTempFileWithDefaultPermissions tmpDir "export.txt"
+  liftIO (hPutStrLn handle header)
+  count <- withSubmissions 0 (output handle)
+  liftIO (hClose handle)
+  return path
+  where
+    header = concat $ intersperse sep ["id",
+                                       "user_id",
+                                       "path",
+                                       "language",
+                                       "classify",
+                                       "timing",
+                                       "submited"
+                                      ]
+    output :: Handle -> Int -> Submission -> IO Int
+    output h !count Submission{..} = do
+      let row = concat $ intersperse sep [show (fromSID id),
+                                          show (fromUID userID),
+                                          show path,
+                                          show (fromLanguage $ codeLang code),
+                                          show (resultClassify result),
+                                          show timing,
+                                          show (show time)
+                                         ]
+      hPutStrLn h row
+      return (1+count)
 
                                       
 {-
