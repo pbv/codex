@@ -55,8 +55,8 @@ import           Tester
 data Submission = Submission {
   id :: SubmitID,     -- submission id
   userID  :: UserID,    -- user id
-  path  :: FilePath,  -- problem path
-  time :: UTCTime,    -- submit time  
+  path  :: FilePath,  -- exercise path
+  received :: UTCTime,    -- submit time  
   code :: Code,       -- program code
   result :: Result,   -- accepted/wrong answer/etc
   timing :: Timing    -- valid, early or overdue?
@@ -101,7 +101,7 @@ instance FromRow Submission where
     id <- field
     uid <- field
     path <- field
-    time <- field
+    received <- field
     lang <- field
     text <- field
     classf <- field
@@ -109,7 +109,7 @@ instance FromRow Submission where
     timing <- field
     let code = Code lang text
     let result = Result classf msg
-    return (Submission id uid path time code result timing)
+    return (Submission id uid path received code result timing)
 
 
 
@@ -137,14 +137,14 @@ insertDb :: UserID
   -> Result
   -> Timing
   -> Codex Submission
-insertDb uid path time code@(Code lang text) result@(Result classf msg) timing = do
+insertDb uid path received code@(Code lang text) result@(Result classf msg) timing = do
   sid <- withSqlite $ \conn -> do
     S.execute conn 
       "INSERT INTO submissions \
-       \ (user_id, path, time, language, code, class, message, timing) \
-       \ VALUES(?, ?, ?, ?, ?, ?, ?, ?)" (uid, path, time, lang, text, classf, msg, timing)
+       \ (user_id, path, received, language, code, class, message, timing) \
+       \ VALUES(?, ?, ?, ?, ?, ?, ?, ?)" (uid, path, received, lang, text, classf, msg, timing)
     fmap SubmitID (S.lastInsertRowId conn)
-  return (Submission sid uid path time code result timing)
+  return (Submission sid uid path received code result timing)
 
  
 
@@ -191,7 +191,7 @@ getSubmissions patts limit offset = do
   query "SELECT * FROM submissions WHERE \
         \ id LIKE ? AND user_id LIKE ? AND path LIKE ? \
         \ AND language LIKE ? AND class LIKE ? AND timing LIKE ? \
-        \ ORDER BY time DESC LIMIT ? OFFSET ?" 
+        \ ORDER BY received DESC LIMIT ? OFFSET ?" 
         (id,uid,path,lang,classf,timing,limit,offset)
   
 
@@ -205,7 +205,7 @@ withSubmissions' patts a f = do
   let q = "SELECT * FROM submissions WHERE \
         \ id LIKE ? AND user_id LIKE ? AND path LIKE ? \
         \ AND language LIKE ? AND class LIKE ? AND timing LIKE ? \
-        \ ORDER BY time ASC"
+        \ ORDER BY received ASC"
   withSqlite (\conn -> S.fold conn q patts a f)
 
 -- process all submissions
@@ -225,14 +225,8 @@ exportCSV sep  = do
   liftIO (hClose handle)
   return path
   where
-    header = concat $ intersperse sep ["id",
-                                       "user_id",
-                                       "path",
-                                       "language",
-                                       "classify",
-                                       "timing",
-                                       "submited"
-                                      ]
+    header = concat $ intersperse sep ["id", "user_id", "path", "language",
+                                       "classify", "timing", "received"]
     output :: Handle -> Int -> Submission -> IO Int
     output h !count Submission{..} = do
       let row = concat $ intersperse sep [show (fromSID id),
@@ -241,7 +235,7 @@ exportCSV sep  = do
                                           show (fromLanguage $ codeLang code),
                                           show (resultClassify result),
                                           show timing,
-                                          show (show time)
+                                          show (show received)
                                          ]
       hPutStrLn h row
       return (1+count)

@@ -132,9 +132,9 @@ img {
 
 pre { 
     background-color: #ffffcc; 
+    margin-left: 1em;
     padding: 1em;
-      margin-left: 2em;
-    width: 60em;
+    width: 55em;
 }
 
 .ace_editor { 

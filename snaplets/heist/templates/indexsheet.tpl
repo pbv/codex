@@ -10,7 +10,7 @@
   <div class="description"><page-description/></div>
   <if-tagged>
     <div class="filters">
-      <form action="" method="get">
+      <form action="" method="GET">
 	<dl>
 	  <dt>Filtrar exercícios:</dt>	
 	  <dt class="info">(vísiveis <visible/> de <available/>)</dt>

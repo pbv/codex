@@ -13,7 +13,7 @@
   </Early>
   <default>
     <h3>Resultado: <em><classify/></em><overdue>&nbsp;(enviada fora do tempo)</overdue></h3>
-    <p>Enviada em: <time/>.</p>
+    <p>Enviada em: <received/>.</p>
     <pre>
       <message/>
     </pre>
@@ -32,7 +32,7 @@
 
 <form method="POST" action="/submited/${submit-id}">
   <input type="hidden" name="_method" value="DELETE"/>
-  <input type="submit" value="Delete submission"/>
+  <input type="submit" value="Apagar"/>
 </form>
 
 </apply>

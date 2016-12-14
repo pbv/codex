@@ -21,7 +21,7 @@
       <th>language</th>
       <th>classify</th>
       <th>timing</th>
-      <th>submited</th>
+      <th>received</th>
     </tr>
     <tr>
       <th><input type="submit" value="Filter"/></th>
@@ -42,7 +42,7 @@
 	  <td><code-lang/></td>
 	  <td><classify/></td>
 	  <td><timing/></td>
-	  <td><time/></td>
+	  <td><received/></td>
 	</tr>
       </submissions>
       <else/>

@@ -32,7 +32,7 @@ initCmds = ["CREATE TABLE submissions (\
             \id INTEGER PRIMARY KEY, \
             \user_id TEXT NOT NULL, \
             \path TEXT NOT NULL, \
-            \time TIMESTAMP NOT NULL, \
+            \received TIMESTAMP NOT NULL, \
             \language TEXT NOT NULL, \
             \code TEXT NOT NULL, \
             \class TEXT NOT NULL, \

@@ -153,7 +153,7 @@ handleRegister =
       r <- with auth newUser
       case r of
         Left err -> handleLoginForm "register" (Just err)
-        Right au -> with auth (forceLogin au) >> redirect "/page/index.md"
+        Right au -> with auth (forceLogin au) >> redirect "/pub/index.md"
 
 
 ------------------------------------------------------------------------------
@@ -440,7 +440,7 @@ submitSplices tz Submission{..} = do
   "submit-id" ##  I.textSplice (toText id)
   "submit-user-id" ## I.textSplice (toText userID)
   "submit-path" ## I.textSplice (decodeUtf8 $ encodePath path)
-  "time" ## utcTimeSplice tz time
+  "received" ## utcTimeSplice tz received
   "code-lang" ## I.textSplice (fromLanguage $ codeLang code)
   "code-text" ##  I.textSplice (codeText code)
   "classify" ##  I.textSplice (T.pack $ show $ resultClassify result)
