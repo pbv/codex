@@ -159,10 +159,12 @@ td.filename {
    padding-left: 0.5em;
    padding-right: 4em;
  }
+
 td.filetype { 
    padding-left: 2em;
    padding-right: 2em;
  }
+
 td.filemodified { 
    padding-left: 2em;
    padding-right: 2em;
@@ -170,25 +172,36 @@ td.filemodified {
 
 
 
-table.filelist tr:nth-child(even) td { 
-    font-family: monospace;
+table.filelist tr:nth-child(even) { 
+  font-family: monospace;
   background: #eeeeee;
  }
 
-table.filelist tr:nth-child(odd) td { 
-    font-family: monospace;
+table.filelist tr:nth-child(odd)  { 
+  font-family: monospace;
   background: white;
  }
 
-table.submissions tr:nth-child(even) td {  
- font-family: monospace;
+
+table.submissions tr:nth-child(odd) {  
+  background: white;
+}
+
+table.submissions tr:nth-child(even) {  
   background: #eeeeee;
 }
 
-table.submissions tr:nth-child(odd) td {  
+table.submissions td { 
  font-family: monospace;
-  background: white;
 }
+
+table.submissions td.received { 
+ font-style: oblique;
+ }
+
+table.submissions td.classify { 
+ font-style: oblique;
+ }
 
 
 

@@ -79,7 +79,7 @@ import           Interval
 -- import           Interval (Interval)
 import           Page  (Page(..))
 import qualified Page
-import           Submission (Submission(..))
+import           Submission (Submission(..), Patterns(..), Sorting(..))
 import qualified Submission
 import           LdapAuth
 import           Config
@@ -230,7 +230,7 @@ handlePage = do
     --  render page markdown
     renderPage uid page 
       | Page.isExercise page = 
-        renderExercise page =<< Submission.getAll uid (Page.path page) 
+        renderExercise page =<< Submission.getReport uid (Page.path page) 
       | Just links <- Page.getLinks page = 
           renderIndex uid page links
       | otherwise =
@@ -270,7 +270,7 @@ renderIndex uid page links = do
   let alltags = nub $ sort $ concatMap Page.getTags pages
   let pages' = filter (\p -> querytags `contained` Page.getTags p) pages
   let abletags = nub $ sort $ concatMap Page.getTags pages'
-  subs <- mapM (Submission.getAll uid . Page.path) pages'
+  subs <- mapM (Submission.getReport uid . Page.path) pages'
   tz <- liftIO getCurrentTimeZone
   renderWithSplices "indexsheet" $ do
     pageSplices page 
@@ -310,22 +310,23 @@ handleSubmissionList = do
   when (not $ isAdmin au) unauthorized
   method GET handleGet <|> method POST handlePost
   where
-    handleGet =  listSubmissions (replicate 6 "") Nothing
+    handleGet =  listSubmissions Submission.emptyPat Asc Nothing
     handlePost = do
+      optPage <- readParam "page"
       id_pat <- T.decodeUtf8 <$> require (getParam "id_pat")
       uid_pat <- T.decodeUtf8 <$> require (getParam "uid_pat")
       path_pat<- T.decodeUtf8 <$> require (getParam "path_pat")
       lang_pat<- T.decodeUtf8 <$> require (getParam "lang_pat")
       class_pat<- T.decodeUtf8 <$> require (getParam "class_pat")
       timing_pat<- T.decodeUtf8 <$> require (getParam "timing_pat")
-      optPage <- readParam "page"
-      let patts = [id_pat, uid_pat, path_pat, lang_pat, class_pat, timing_pat]
-      listSubmissions patts optPage
+      let patts = Patterns { idPat = id_pat, userPat = uid_pat,
+                             pathPat = path_pat, langPat = lang_pat,
+                             classPat = class_pat, timingPat = timing_pat }
+      listSubmissions patts Asc optPage
 
 
-listSubmissions :: [Text] -> Maybe Int -> Codex ()
-listSubmissions patts optPage = do
-  let [id_pat, uid_pat, path_pat, lang_pat, class_pat, timing_pat] = patts
+listSubmissions :: Patterns -> Sorting -> Maybe Int -> Codex ()
+listSubmissions patts@Patterns{..} sort optPage = do
   count <- Submission.countSubmissions patts
   let entries = 50   -- # entries per page 
   let npages
@@ -333,15 +334,15 @@ listSubmissions patts optPage = do
         | otherwise = 1
   let page = 1 `max` fromMaybe 1 optPage `min` npages
   let offset = (page - 1) * entries
-  subs <- Submission.getSubmissions patts entries offset
+  subs <- Submission.filterSubmissions patts sort entries offset
   tz <- liftIO getCurrentTimeZone
   renderWithSplices "submission-list" $ do
-    "id_pat" ## I.textSplice id_pat
-    "uid_pat" ## I.textSplice uid_pat
-    "path_pat" ## I.textSplice path_pat
-    "lang_pat" ## I.textSplice lang_pat
-    "class_pat" ## I.textSplice class_pat
-    "timing_pat" ## I.textSplice timing_pat
+    "id_pat" ## I.textSplice idPat
+    "uid_pat" ## I.textSplice userPat
+    "path_pat" ## I.textSplice pathPat
+    "lang_pat" ## I.textSplice langPat
+    "class_pat" ## I.textSplice classPat
+    "timing_pat" ## I.textSplice timingPat
     "page" ## I.textSplice (T.pack $ show page)
     "submissions-count" ## I.textSplice (T.pack $ show count)
     "if-submissions" ## I.ifElseISplice (count > 0)
@@ -383,7 +384,7 @@ handleExport = method POST $ do
   au <- require (with auth currentUser) <|> unauthorized
   when (not (isAdmin au)) unauthorized
   sep <- B.toString <$> require (getParam "sep")
-  serveFile =<< Submission.exportCSV sep
+  serveFile =<< Submission.exportCSV "export.txt" sep
   
 
 

@@ -1,19 +1,21 @@
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE DeriveDataTypeable #-}
-{-# LANGUAGE BangPatterns #-}
 {-
    Evaluating, storing and fetching and submissions in database
 -}
 
 module Submission (
   Submission(..),
+  Patterns(..),
+  Sorting(..),
   evaluate,
   get,
-  delete, 
-  getSubmissions,
+  delete,
+  emptyPat,
+  filterSubmissions,
   countSubmissions,
-  getAll,
+  getReport,
   exportCSV
   ) where
 
@@ -115,7 +117,7 @@ instance FromRow Submission where
 
 -- | evaluate and store a new submission
 -- run code tester and insert record into Db
-evaluate :: UserID -> Page ->  Code -> Codex Submission
+evaluate :: UserID -> Page -> Code -> Codex Submission
 evaluate uid page@Page{..} code = do 
   now <- liftIO getCurrentTime
   env <- require getUserEvents
@@ -128,8 +130,7 @@ evaluate uid page@Page{..} code = do
       insertDb uid path now code (miscError msg) Valid
 
 
-
--- auxliary function; insert a record into the DB
+-- auxliary function; insert a new submission into the DB
 insertDb :: UserID 
   -> FilePath
   -> UTCTime
@@ -158,12 +159,12 @@ get sid = do
 
 
 -- | get all user submissions for a user and path
-getAll :: UserID -> FilePath -> Codex [Submission]  
-getAll uid path = 
+getReport :: UserID -> FilePath -> Codex [Submission]  
+getReport uid path = 
   query "SELECT * FROM submissions \
        \ WHERE user_id = ? AND path = ? ORDER BY id" (uid, path)
 
-
+-- | delete a single submission
 delete :: SubmitID -> Codex ()
 delete sid =
   execute "DELETE FROM submissions where id = ?" (Only sid)
@@ -172,63 +173,99 @@ delete sid =
 -- patterns for filtering submissions                                      
 type Pattern = Text
 
+data Patterns = Patterns {
+  idPat :: Pattern,
+  userPat :: Pattern,
+  pathPat :: Pattern,
+  langPat :: Pattern,
+  classPat :: Pattern,
+  timingPat :: Pattern
+  } deriving (Eq, Show)
 
-countSubmissions :: [Pattern] -> Codex Int
+emptyPat :: Patterns
+emptyPat = Patterns {idPat = "", userPat = "", pathPat = "",
+                     langPat = "", classPat = "", timingPat = ""}
+
+data Sorting = Asc | Desc deriving (Eq, Show, Read)
+
+
+checkEmpty :: Pattern -> Pattern
+checkEmpty p = let q=T.strip p in if T.null q then "%" else q
+
+checkEmptyPat :: Patterns -> Patterns
+checkEmptyPat Patterns{..}
+  = Patterns { idPat = checkEmpty idPat,
+               userPat = checkEmpty userPat,
+               pathPat =checkEmpty pathPat,
+               langPat = checkEmpty langPat,
+               classPat = checkEmpty classPat,
+               timingPat = checkEmpty timingPat
+             }
+    
+
+countSubmissions :: Patterns -> Codex Int
 countSubmissions patts = do
-  let [id,uid,path,lang,classf,timing] = map checkEmpty patts
+  let Patterns{..} = checkEmptyPat patts
   r <- query "SELECT COUNT(*) FROM submissions WHERE \
         \ id LIKE ? AND user_id LIKE ? AND path LIKE ? \
         \ AND language LIKE ? AND class LIKE ? AND timing LIKE ?" 
-        (id,uid,path,lang,classf,timing)
+        (idPat, userPat, pathPat, langPat, classPat, timingPat)
   case r of 
      [Only c] -> return c
      _ -> error "countSubmissions failed; this should NOT have happened!"
 
 
-getSubmissions :: [Pattern] -> Int -> Int -> Codex [Submission]
-getSubmissions patts limit offset = do
-  let [id,uid,path,lang,classf,timing] = map checkEmpty patts
-  query "SELECT * FROM submissions WHERE \
+filterSubmissions :: Patterns -> Sorting -> Int -> Int -> Codex [Submission]
+filterSubmissions patts sort limit offset = do
+  let Patterns{..} = checkEmptyPat patts
+  let sql = case sort of
+        Asc -> "SELECT * FROM submissions WHERE \
+        \ id LIKE ? AND user_id LIKE ? AND path LIKE ? \
+        \ AND language LIKE ? AND class LIKE ? AND timing LIKE ? \
+        \ ORDER BY received ASC LIMIT ? OFFSET ?" 
+        Desc -> "SELECT * FROM submissions WHERE \
         \ id LIKE ? AND user_id LIKE ? AND path LIKE ? \
         \ AND language LIKE ? AND class LIKE ? AND timing LIKE ? \
         \ ORDER BY received DESC LIMIT ? OFFSET ?" 
-        (id,uid,path,lang,classf,timing,limit,offset)
-  
+  query sql (idPat, userPat, pathPat, langPat, classPat, timingPat, limit, offset)
 
-checkEmpty :: Pattern -> Pattern
-checkEmpty p = let q = T.strip p
-               in if T.null q then "%" else q
+
+
+
   
--- process submissions with filter
-withSubmissions' :: [Pattern] -> a -> (a -> Submission -> IO a) -> Codex a
-withSubmissions' patts a f = do
+-- | process submissions with a filter
+withFilterSubmissions :: Patterns -> a -> (a -> Submission -> IO a) -> Codex a
+withFilterSubmissions patts a f = do
+  let Patterns{..} = checkEmptyPat patts
+  let patts' = (idPat, userPat, pathPat, langPat, classPat, timingPat)
   let q = "SELECT * FROM submissions WHERE \
         \ id LIKE ? AND user_id LIKE ? AND path LIKE ? \
         \ AND language LIKE ? AND class LIKE ? AND timing LIKE ? \
         \ ORDER BY received ASC"
-  withSqlite (\conn -> S.fold conn q patts a f)
+  withSqlite (\conn -> S.fold conn q patts' a f)
 
--- process all submissions
+-- | process all submissions
 withSubmissions :: a -> (a -> Submission -> IO a) -> Codex a
 withSubmissions a f = do
   let q = "SELECT * FROM submissions ORDER BY id ASC"
   withSqlite (\conn -> S.fold_ conn q a f)
 
--- | export all submissions to a CSV file
-exportCSV :: String -> Codex FilePath
-exportCSV sep  = do
+-- | export all submissions to a CSV text file
+-- NB: the caller should remove the temporary file 
+exportCSV :: FilePath -> String -> Codex FilePath
+exportCSV filetpl sep  = do
   tmpDir <- liftIO getTemporaryDirectory
   (path, handle) <-
-    liftIO $ openTempFileWithDefaultPermissions tmpDir "export.txt"
+    liftIO $ openTempFileWithDefaultPermissions tmpDir filetpl
   liftIO (hPutStrLn handle header)
-  count <- withSubmissions 0 (output handle)
+  count <- withSubmissions () (output handle)
   liftIO (hClose handle)
   return path
   where
     header = concat $ intersperse sep ["id", "user_id", "path", "language",
                                        "classify", "timing", "received"]
-    output :: Handle -> Int -> Submission -> IO Int
-    output h !count Submission{..} = do
+    output :: Handle -> () -> Submission -> IO ()
+    output h _ Submission{..} = do
       let row = concat $ intersperse sep [show (fromSID id),
                                           show (fromUID userID),
                                           show path,
@@ -238,7 +275,6 @@ exportCSV sep  = do
                                           show (show received)
                                          ]
       hPutStrLn h row
-      return (1+count)
 
                                       
 {-

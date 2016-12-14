@@ -4,17 +4,18 @@
 </p>
 
 <form id="listform" action="/submited" method="POST">
-  <p>
+  <div>
+    <span class="info">
+      <submissions-count/> total (page <page/> of <page-count/>)
+    </span>
+    &nbsp;&nbsp;
+    <input type="submit" value="Filter"/>
+    &nbsp;&nbsp;
     <input type="button" onClick="move(-1)" value="Previous page"/> &nbsp;
     <input type="button" onClick="move(1)" value="Next page"/> 
-    &nbsp;&nbsp;
-    <span class="info">
-      <submissions-count/> submissions (page <page/> of <page-count/>)
-    </span>
-  </p>
+  </div>
   <table class="submissions">
     <tr>
-      <th/>
       <th>id</th>
       <th>user_id</th>
       <th>path</th>
@@ -24,25 +25,24 @@
       <th>received</th>
     </tr>
     <tr>
-      <th><input type="submit" value="Filter"/></th>
       <th><input type="text" name="id_pat" size="4" value="${id_pat}"/></th>
       <th><input type="text" name="uid_pat" size="8" value="${uid_pat}"/></th>
       <th><input type="text" name="path_pat" size="20" value="${path_pat}"/></th>
       <th><input type="text" name="lang_pat" size="8" value="${lang_pat}"/></th>
       <th><input type="text" name="class_pat" size="20" value="${class_pat}"/></th>
       <th><input type="text" name="timing_pat" size="6" value="${timing_pat}"/></th>
+      <th/>
     </tr> 
     <if-submissions>
       <submissions>
 	<tr>
-	  <td/>
-	  <td><a href="/submited/${submit-id}"><submit-id/></a></td>
-	  <td><submit-user-id/></td>
-	  <td><submit-path/></td>
-	  <td><code-lang/></td>
-	  <td><classify/></td>
-	  <td><timing/></td>
-	  <td><received/></td>
+	  <td class="submitid"><a href="/submited/${submit-id}"><submit-id/></a></td>
+	  <td class="userid"><submit-user-id/></td>
+	  <td class="path"><submit-path/></td>
+	  <td class="lang"><code-lang/></td>
+	  <td class="classify"><classify/></td>
+	  <td class="timing"><timing/></td>
+	  <td class="received"><received/></td>
 	</tr>
       </submissions>
       <else/>
