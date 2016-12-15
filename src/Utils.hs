@@ -4,7 +4,7 @@
 -}
 module Utils where
 
-import           Control.Monad.State
+-- import           Control.Monad.State
 import           Data.ByteString.UTF8 (ByteString)
 import qualified Data.ByteString.UTF8 as B
 import qualified Data.ByteString      as B
@@ -24,18 +24,19 @@ import           Snap.Core
 import           Snap.Snaplet
 import           Snap.Snaplet.Heist
 import           Snap.Snaplet.Auth
+import           Snap.Snaplet.Session
 
 import           Data.Aeson.Types 
 
 import           Heist
-import           Heist.Splices
+-- import           Heist.Splices
 import qualified Heist.Interpreted as I
 
 import qualified Text.XmlHtml as X
 
 
 
-import           Control.Applicative 
+-- import           Control.Applicative 
 import           Control.Exception (SomeException)
 
 import           Types
@@ -100,7 +101,7 @@ userEvents au = [(n, t) | (n,f)<-fields, t <- maybeToList (f au)]
 getSubmitID :: Codex (Maybe SubmitID)
 getSubmitID = fmap SubmitID <$> readParam "sid"
 
-readParam :: Read a => ByteString -> Codex (Maybe a)
+readParam :: (Read a, MonadSnap m) => ByteString -> m (Maybe a)
 readParam name = do
   opt <- getParam name
   return $ do bs <- opt
@@ -274,4 +275,5 @@ encodePath :: FilePath -> ByteString
 encodePath path = B.concat (intersperse "/" dirs')
   where dirs = map (urlEncode . B.fromString) (splitDirectories path)
         dirs'= if isAbsolute path then "":tail dirs else dirs
-        
+
+    

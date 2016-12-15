@@ -9,10 +9,18 @@
       <submissions-count/> total (page <page/> of <page-count/>)
     </span>
     &nbsp;&nbsp;
-    <input type="submit" value="Filter"/>
+    <select name="sorting" onChange="this.form.submit()">
+      <if-ascending>
+	<option value="Asc" selected>ascending</option>
+	<option value="Desc">descending</option>
+	<else/>
+	<option value="Asc">ascending</option>
+	<option value="Desc" selected>descending</option>
+      </if-ascending>
+    </select> &nbsp;
     &nbsp;&nbsp;
-    <input type="button" onClick="move(-1)" value="Previous page"/> &nbsp;
-    <input type="button" onClick="move(1)" value="Next page"/> 
+    <input type="submit" onClick="move(-1)" value="Previous page"/> &nbsp;
+    <input type="submit" onClick="move(1)" value="Next page"/>  
   </div>
   <table class="submissions">
     <tr>

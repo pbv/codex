@@ -1,8 +1,7 @@
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE RecordWildCards #-}
-{-# LANGUAGE DeriveDataTypeable #-}
 {-
-   Evaluating, storing and fetching and submissions in database
+   Evaluating, storing and fetching submissions to/from database
 -}
 
 module Submission (
@@ -13,31 +12,27 @@ module Submission (
   get,
   delete,
   emptyPat,
+  withSubmissions,
+  withFilterSubmissions,
   filterSubmissions,
   countSubmissions,
   getReport,
   exportCSV
   ) where
 
--- import           System.FilePath
+
 import           System.Directory
 import           System.IO
 
 import           Data.Time.Clock
 
 import           Data.List(intersperse)
-import           Data.Maybe
-import           Data.Typeable
--- import           Data.String
 
-import qualified Data.ByteString.UTF8 as B
 import           Data.Text(Text) 
 import qualified Data.Text    as T
--- import qualified Data.Text.IO as T
 
 import           Control.Monad.Trans (liftIO)
 
--- import           Snap.Core
 import           Snap.Snaplet.SqliteSimple
 import qualified Database.SQLite.Simple as S
 import           Database.SQLite.Simple.FromField 
@@ -130,15 +125,12 @@ evaluate uid page@Page{..} code = do
       insertDb uid path now code (miscError msg) Valid
 
 
--- auxliary function; insert a new submission into the DB
-insertDb :: UserID 
-  -> FilePath
-  -> UTCTime
-  -> Code
-  -> Result
-  -> Timing
-  -> Codex Submission
-insertDb uid path received code@(Code lang text) result@(Result classf msg) timing = do
+-- worker function to insert a new submission into the DB
+insertDb :: UserID -> FilePath -> UTCTime -> Code -> Result -> Timing 
+            -> Codex Submission
+insertDb uid path received code result timing = do
+  let (Code lang text) = code
+  let (Result classf msg) = result
   sid <- withSqlite $ \conn -> do
     S.execute conn 
       "INSERT INTO submissions \
@@ -249,6 +241,7 @@ withSubmissions :: a -> (a -> Submission -> IO a) -> Codex a
 withSubmissions a f = do
   let q = "SELECT * FROM submissions ORDER BY id ASC"
   withSqlite (\conn -> S.fold_ conn q a f)
+
 
 -- | export all submissions to a CSV text file
 -- NB: the caller should remove the temporary file 

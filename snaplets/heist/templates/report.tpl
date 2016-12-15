@@ -27,7 +27,7 @@
 <p><inputAceEditor id="editform.editor" mode="ace/mode/${language-mode}"><code-text/></inputAceEditor></p>
 <p><input type="submit" value="Re-enviar"/> 
 &nbsp;<a class="button" href="/pub/${file-path-url}">Voltar ao problema</a>
-&nbsp;<a class="button" href="/pub/${file-dir-url}">Voltar à folha de problemas</a>
+&nbsp;<a class="button" href="/pub/${file-path-url}/..">Voltar à folha de problemas</a>
 </form>
 
 <form method="POST" action="/submited/${submit-id}">

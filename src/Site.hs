@@ -20,11 +20,9 @@ import           Control.Applicative
 import           Control.Concurrent.MVar
 import           Control.Lens
 
--- import           Data.Char (toLower)
 import           Data.ByteString.UTF8 (ByteString)
 import qualified Data.ByteString.UTF8 as B
 import qualified Data.ByteString      as B
--- import           Data.Monoid
 import           Data.Maybe(isJust, fromMaybe)
 
 import           Data.List (nub, sort)
@@ -34,7 +32,7 @@ import qualified Data.HashMap.Strict as HM
 import           Data.Text (Text)
 import qualified Data.Text as T
 import qualified Data.Text.Encoding as T
-import           Data.Text.Encoding (decodeUtf8)
+
 import           Snap.Core
 import           Snap.Snaplet
 import           Snap.Snaplet.Auth
@@ -50,19 +48,10 @@ import qualified Heist.Interpreted as I
 
 import           Data.Time.Clock
 import           Data.Time.LocalTime
-import           Data.Time.Format
-
--- import qualified Data.Configurator as Configurator
--- import           Data.Configurator.Types (Config)
-
 import           Data.Aeson
 
---import           System.Locale
 import           System.FilePath
-import           System.Directory (doesFileExist, doesDirectoryExist, removeFile)
--- import           System.IO.Error
--- import           System.Remote.Monitoring
--- import qualified Text.XmlHtml as X
+import           System.Directory (doesFileExist, doesDirectoryExist)
 
 
 ------------------------------------------------------------------------------
@@ -74,9 +63,6 @@ import           Tester
 import           Language
 import           Markdown
 import           Interval
--- import           Text.Pandoc.Builder hiding (Code)
--- import qualified Interval as Interval
--- import           Interval (Interval)
 import           Page  (Page(..))
 import qualified Page
 import           Submission (Submission(..), Patterns(..), Sorting(..))
@@ -86,18 +72,13 @@ import           Config
 
 import           Admin
 
--- import           Report
--- import           Printout
-
 import           Paths_codex(version)
 import           Data.Version (showVersion)  
 
 import           AceEditor
 
--- interpreted splices for Pythondo handlers
+-- interpreted splices for handlers
 type ISplices = Splices (I.Splice Codex)
-
-
 
 ------------------------------------------------------------------------------
 -- | Handle login requests 
@@ -113,6 +94,7 @@ handleLoginForm file authFail = heistLocal (I.bindSplices errs) $ render file
   where
     errs = "loginError" ## maybe (return []) (I.textSplice . T.pack .show) authFail
 
+
 getLdap :: Codex (Maybe LdapConf)
 getLdap = getSnapletUserConfig >>= (liftIO . getLdapConf "users.ldap")
 
@@ -121,21 +103,21 @@ getLdap = getSnapletUserConfig >>= (liftIO . getLdapConf "users.ldap")
 -- first try local user DB, then LDAP (if enabled)
 handleLoginSubmit :: Codex ()
 handleLoginSubmit = do
-  login <- require (getParam "login")
+  login <-  require (getParam "login")
   passwd <- require (getParam "password") 
   ldap <- getLdap
-  r <- with auth $ loginByUsername (decodeUtf8 login) (ClearText passwd) False
+  r <- with auth $ loginByUsername (T.decodeUtf8 login) (ClearText passwd) False
   case r of
     Right au -> redirect "/"
     Left err -> case ldap of
       Nothing -> handleLoginForm "login" (Just err)
       Just cfg -> loginLdapUser cfg login passwd
 
+
 loginLdapUser :: LdapConf -> ByteString -> ByteString -> Codex ()
 loginLdapUser ldapConf login passwd = do
-  reply <- with auth $
-           withBackend (\r -> liftIO $ ldapAuth r ldapConf login passwd)
-  case reply of
+  r <- with auth $ withBackend (\r -> liftIO $ ldapAuth r ldapConf login passwd)
+  case r of
     Left err -> handleLoginForm "login" (Just err)
     Right au -> with auth (forceLogin au) >> redirect "/"
   
@@ -161,11 +143,11 @@ handleRegister =
 --
 newUser :: Handler b (AuthManager b) (Either AuthFailure AuthUser)
 newUser = do
-    l <- fmap decodeUtf8 <$> getParam "login"
+    l <- fmap T.decodeUtf8 <$> getParam "login"
     p <- getParam "password"
     p2<- getParam "password2"
-    n <- fmap decodeUtf8 <$> getParam "fullname"
-    e <- fmap decodeUtf8 <$> getParam "email"
+    n <- fmap T.decodeUtf8 <$> getParam "fullname"
+    e <- fmap T.decodeUtf8 <$> getParam "email"
     runExceptT $ do
       login  <- maybe (throwE UsernameMissing) return l
       passwd <- maybe (throwE PasswordMissing) return p
@@ -185,37 +167,23 @@ newUser = do
 
 
 ------------------------------------------------------------------------------
--- Logs out and redirects the user to the site index.
+-- | Logs out and redirects the user to the site index.
 -- in exam mode procedeed to printout 
 handleLogout :: Codex ()
 handleLogout = method GET $ do
   uid <- require getUserID <|> unauthorized
   with auth logout 
   redirect "/" 
-  {-
-   -- handle printout if needed
-   ProblemSet{..} <- fst <$> getProblemSet
-   when probsetPrintout $ handlePrintout uid probsetProbs
-   -}
-
-{-
--- make a printout before ending session
-handlePrintout :: UID -> [Problem] -> Codex ()
-handlePrintout uid probs = do
-  subs <- mapM (getBestSubmission uid) (map probID probs)
-  report <- genReport (zip probs subs)
-  liftIO $ makePrintout (show uid) report
--}
 
 
--- handle page requests
+-- | handle page requests
 handlePage :: Codex ()
 handlePage = do
   uid <- require getUserID <|> unauthorized
   rqpath <- getSafePath
-  (method GET (handleGet uid rqpath  <|>
-               handleRedir rqpath)
-   <|> method POST (handlePost uid rqpath))
+  (method GET (handleGet uid rqpath <|> handleRedir rqpath)
+   <|>
+   method POST (handlePost uid rqpath))
   where
     handleGet uid rqpath =  do
       let filepath = publicPath </> rqpath
@@ -253,17 +221,14 @@ handlePage = do
         inputAceEditorSplices
     -- handle redirects
     handleRedir rqpath = do
-        let filepath = publicPath </> rqpath
-        c <- liftIO $ doesDirectoryExist filepath
-        c'<- liftIO $ doesFileExist (filepath </> "index.md")
-        if c && c' then 
+        let filepath = publicPath </> rqpath </> "index.md"
+        c <- liftIO (doesFileExist filepath)
+        if c then 
           redirect (encodePath ("/pub" </> rqpath </> "index.md"))
           else
           notFound
         
         
-
-
 renderIndex uid page links = do
   querytags <- getQueryTags
   pages <- liftIO $ mapM (Page.readPage publicPath) links
@@ -313,6 +278,7 @@ handleSubmissionList = do
     handleGet =  listSubmissions Submission.emptyPat Asc Nothing
     handlePost = do
       optPage <- readParam "page"
+      sorting <- require (readParam "sorting")
       id_pat <- T.decodeUtf8 <$> require (getParam "id_pat")
       uid_pat <- T.decodeUtf8 <$> require (getParam "uid_pat")
       path_pat<- T.decodeUtf8 <$> require (getParam "path_pat")
@@ -322,7 +288,7 @@ handleSubmissionList = do
       let patts = Patterns { idPat = id_pat, userPat = uid_pat,
                              pathPat = path_pat, langPat = lang_pat,
                              classPat = class_pat, timingPat = timing_pat }
-      listSubmissions patts Asc optPage
+      listSubmissions patts sorting optPage
 
 
 listSubmissions :: Patterns -> Sorting -> Maybe Int -> Codex ()
@@ -330,7 +296,7 @@ listSubmissions patts@Patterns{..} sort optPage = do
   count <- Submission.countSubmissions patts
   let entries = 50   -- # entries per page 
   let npages
-        | count>0   = ceiling (fromIntegral count / fromIntegral entries)
+        | count>0   = ceiling (fromIntegral count / fromIntegral entries :: Double)
         | otherwise = 1
   let page = 1 `max` fromMaybe 1 optPage `min` npages
   let offset = (page - 1) * entries
@@ -345,6 +311,7 @@ listSubmissions patts@Patterns{..} sort optPage = do
     "timing_pat" ## I.textSplice timingPat
     "page" ## I.textSplice (T.pack $ show page)
     "submissions-count" ## I.textSplice (T.pack $ show count)
+    "if-ascending" ## I.ifElseISplice (sort == Asc)
     "if-submissions" ## I.ifElseISplice (count > 0)
     "page-count" ## I.textSplice (T.pack $ show npages)
     "submissions" ## I.mapSplices (I.runChildrenWith . submitSplices tz) subs
@@ -393,9 +360,7 @@ pageSplices :: Page -> ISplices
 pageSplices page = do
   let dir = takeDirectory $ Page.path page
   "file-path" ## I.textSplice (T.pack $ Page.path page)      
-  "file-dir"  ## I.textSplice (T.pack dir)
-  "file-path-url" ## I.textSplice (decodeUtf8 $ encodePath $ Page.path page)
-  "file-dir-url"  ## I.textSplice (decodeUtf8 $ encodePath dir)
+  "file-path-url" ## I.textSplice (T.decodeUtf8 $ encodePath $ Page.path page)
   "page-title" ##
     I.textSplice (Page.getTitle page)
   "page-description" ##
@@ -440,7 +405,7 @@ submitSplices :: TimeZone -> Submission -> ISplices
 submitSplices tz Submission{..} = do
   "submit-id" ##  I.textSplice (toText id)
   "submit-user-id" ## I.textSplice (toText userID)
-  "submit-path" ## I.textSplice (decodeUtf8 $ encodePath path)
+  "submit-path" ## I.textSplice (T.decodeUtf8 $ encodePath path)
   "received" ## utcTimeSplice tz received
   "code-lang" ## I.textSplice (fromLanguage $ codeLang code)
   "code-text" ##  I.textSplice (codeText code)
@@ -485,55 +450,8 @@ timingSplice interval = do
     Right v -> caseSplice v
     Left err -> I.textSplice err
 
-
-
-
-
-{-
--- | splices related to deadlines
-timerSplices ::  ProblemID -> UTCTime -> Maybe UTCTime -> ISplices
-timerSplices pid now limit = do
-  "ifOpen" ## conditionalSplice (maybe True (now<=) limit)
-  "ifClosed"  ## conditionalSplice (maybe False (now>) limit)
-  "ifTimed"  ## conditionalSplice (isJust limit)
-  "endTime" ## maybe (return []) timeSplice limit
-  "remainingTime" ## case limit of 
-                   Nothing -> return []
-                   Just t -> I.textSplice $ T.pack $
-                             formatNominalDiffTime $ diffUTCTime t now
-  "remainingJsTimer" ## case limit of 
-                            Nothing -> return []
-                            Just t -> return $ jsTimer tid $ diffUTCTime t now
-  where tid = B.toString (fromPID pid) ++ "-js-timer"
--}
   
 
-
-{-
--- in exam mode show final report before loggin out
--- otherwise, logout immediately
-handleConfirmLogout :: Codex ()
-handleConfirmLogout = method GET $ do
-  uid <- require getUserID <|> badRequest
-  (probset,_) <- getProblemSet
-  handleFinalReport uid probset
-
-
-handleFinalReport :: UID -> ProblemSet -> Codex ()
-handleFinalReport uid ProblemSet{..} | probsetExam = do
-    let pids = map probID probsetProbs
-    subs <- mapM (getBestSubmission uid) pids
-    let psubs = [(p,s) | (p, Just s)<-zip probsetProbs subs]
-    renderWithSplices "finalrep" $
-      "problemList" ## I.mapSplices (I.runChildrenWith . splices) psubs
-  where splices (prob,sub) = problemSplices prob >> submissionSplices sub
-
--- not in exam mode: proceed to logout immediately
-handleFinalReport _ _ = handleLogout
--}
-
-
-  
 
 ------------------------------------------------------------------------------
 -- | The application's routes.
@@ -558,13 +476,6 @@ loggedInName authmgr = do
     u <- lift $ withTop authmgr currentUser
     maybe (return []) I.textSplice (u >>= authFullname)
 
-{-
-authRoles :: SnapletLens b (AuthManager b) ->
-             ([Role] -> Bool) -> SnapletISplice b
-authRoles authmgr cond = do
-   u <- lift $ withTop authmgr currentUser
-   maybe (return []) (\u -> I.ifElseISplice (cond $ userRoles u)) u
--}
 
 -- | splice for current date & time
 nowSplice :: I.Splice Codex

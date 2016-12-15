@@ -20,7 +20,8 @@
   <p/>
 
   <div>
-    <a class="button" href="/files/${file-dir-url}">Cancel</a> &nbsp;
+    <a class="button" href="/files/${file-path-url}/..">Up</a> &nbsp;
+    <a class="button" href="/pub/${file-path-url}">View</a> &nbsp;
     <form id="deleteform" method="POST" action="/files/${file-path-url}"
        style="display:inline-block;">
       <input type="hidden" name="_method" value="DELETE"/>

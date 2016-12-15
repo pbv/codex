@@ -4,7 +4,7 @@
 {-# LANGUAGE PatternGuards #-}
 
 ------------------------------------------------------------------------------
--- | Administration facilities
+-- | Administration facilities; file browsing
 
 module Admin(
   handleBrowse
@@ -20,12 +20,11 @@ import           Heist
 import           Heist.Splices     as I
 import qualified Heist.Interpreted as I
 
--- import           System.Locale
+
 import           Data.Time.Clock
 import           Data.Time.LocalTime
 import           System.FilePath
 import           System.Directory
-import           System.IO.Error
 import           Control.Monad
 import           Control.Monad.Trans (liftIO)
 import           Control.Exception.Lifted 
@@ -40,11 +39,8 @@ import           Data.ByteString.UTF8 (ByteString)
 import qualified Data.ByteString.UTF8 as B
 import qualified Data.ByteString  as B
 
-import qualified Data.HashMap.Strict as HM
-
-import           Data.Maybe (catMaybes, maybeToList)
-import           Data.List (union, sort, sortBy)
-import           Data.Monoid
+import           Data.Maybe (catMaybes)
+import           Data.List (sort)
 import           Data.Map.Syntax
 import           Application
 import           AceEditor
@@ -116,11 +112,8 @@ listingSplices tz path list =
 
 pathSplices :: Monad m => FilePath -> Splices (I.Splice m)
 pathSplices rqpath = do
-  let rqdir = takeDirectory rqpath
   "file-path" ## I.textSplice (T.pack rqpath)
-  "file-dir" ## I.textSplice (T.pack rqdir)            
   "file-path-url" ## I.textSplice (T.decodeUtf8 $ encodePath rqpath)
-  "file-dir-url" ## I.textSplice (T.decodeUtf8 $ encodePath rqdir)
 
 
 listDir :: FilePath -> IO [(FilePath, ByteString, UTCTime)]
@@ -165,7 +158,7 @@ handleUpload dest = do
 
 doUpload :: FilePath -> PartInfo ->
               Either PolicyViolationException FilePath -> IO (Maybe Text)
-doUpload dest partinfo (Left e) =
+doUpload _ _ (Left e) =
   return (Just $ T.pack $ show e)
 doUpload dest partinfo (Right src) = do
   let srcName = takeFileName src
@@ -192,16 +185,5 @@ handleRename base = do
   let destfile = base </> rqdir </> dest
   liftIO $ renameFile srcfile destfile 
   redirect (encodePath ("/files" </> rqdir))
-
-
-       
-  {-
------------------------------------------------------------------------------
-ensureAdmin :: Codex ()
-ensureAdmin =  do
-  au <- require (with auth currentUser) <|> unauthorized
-  when (not $ isAdmin au) unathorized
--}
-
 
 

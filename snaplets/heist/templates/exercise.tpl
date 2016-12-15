@@ -48,7 +48,10 @@
 </p>
 <p>
   <input type="submit" value="Enviar"/>  &nbsp;
-  <a href="/pub/${file-dir}" class="button">Voltar à folha de problemas</a>
+  <a href="/pub/${file-path-url}/.." class="button">Voltar à folha de problemas</a>
+  <ifAdmin>
+    <p><a href="/files/${file-path-url}" class="button">Edit</a></p>
+  </ifAdmin>
 </form>
 </apply>
 

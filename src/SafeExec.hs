@@ -6,15 +6,13 @@
 module SafeExec where
 
 import           Data.Text (Text)
-import           Data.Monoid
 import           Data.Maybe
 
 import           System.Exit (ExitCode)
 import           System.Process.Text (readProcessWithExitCode)
 
 import           Control.Monad
-import           Control.Applicative
-
+   
 
 -- | safeexec configuration parameters
 data SafeExecConf =
