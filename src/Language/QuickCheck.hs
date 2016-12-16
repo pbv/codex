@@ -17,13 +17,14 @@ import           System.FilePath
 
 -- relative filepath to Quickcheck properties
 getQuickcheckPath :: Page -> Maybe FilePath
-getQuickcheckPath Page{..}
-  = (takeDirectory path </>) <$> lookupFromMeta "quickcheck" meta
+getQuickcheckPath p
+  = (takeDirectory (pagePath p) </>) <$> lookupFromMeta "quickcheck" (pageMeta p)
 
 
 getQuickcheckArgs :: Page -> Args
-getQuickcheckArgs Page{..} = arg1 $ arg2 $ arg3 $ arg4 stdArgs
+getQuickcheckArgs p = arg1 $ arg2 $ arg3 $ arg4 stdArgs
     where
+      meta = pageMeta p
       arg1 = maybe id (\s r->r{maxSuccess=s}) (lookupFromMeta "maxSuccess" meta)
       arg2 = maybe id (\s r->r{maxSize=s}) (lookupFromMeta "maxSize" meta)
       arg3 = maybe id (\s r->r{maxDiscardRatio=s}) (lookupFromMeta "maxDiscardRatio" meta)

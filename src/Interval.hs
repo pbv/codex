@@ -25,16 +25,19 @@ data Interval = Always
               deriving (Eq, Show)
 
 -- | a time expression
-data TimeExpr = Absolute !UTCTime
-              | Event !Text
+data TimeExpr = Event !Text
+              | Absolute !UTCTime
               | Add !NominalDiffTime !TimeExpr
           deriving (Eq, Show)
 
 
 -- | timing values
-data Timing = Valid | Early | Overdue
+data Timing = Valid
+            | Early
+            | Overdue
             deriving (Eq, Read, Show, Typeable)
 
+-- | get endpoints of an interval
 from, until :: Interval -> Maybe TimeExpr
 from (After e)     = Just e
 from (Between e _) = Just e
@@ -44,7 +47,7 @@ until (Until e)      = Just e
 until (Between _ e)  = Just e
 until _              = Nothing
 
--- parse intervals
+-- | parse intervals
 
 readInterval :: ZonedTime -> String -> Maybe Interval
 readInterval t txt
@@ -89,11 +92,11 @@ parseTimeExpr tz now
 -- parse time strings
 parseLocalTime :: LocalTime -> ReadP LocalTime
 parseLocalTime now  = 
-  readS_to_P (readsTime defaultTimeLocale "%H:%M %d/%m/%0Y")
+  readS_to_P (readSTime True defaultTimeLocale "%H:%M %d/%m/%0Y")
    <++
-   readS_to_P (readsTime defaultTimeLocale "%d/%m/%0Y")
+   readS_to_P (readSTime True defaultTimeLocale "%d/%m/%0Y")
    <++
-   (readS_to_P (readsTime defaultTimeLocale "%H:%M") >>= \t ->
+   (readS_to_P (readSTime True defaultTimeLocale "%H:%M") >>= \t ->
      return t { localDay = localDay now })
   
 

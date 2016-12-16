@@ -8,7 +8,8 @@ module Submission (
   Submission(..),
   Patterns(..),
   Sorting(..),
-  evaluate,
+  -- evaluate,
+  insert,
   get,
   delete,
   emptyPat,
@@ -25,6 +26,7 @@ import           System.Directory
 import           System.IO
 
 import           Data.Time.Clock
+import           Data.Time.LocalTime
 
 import           Data.List(intersperse)
 
@@ -43,9 +45,7 @@ import           Utils
 import           Interval
 import           Types
 import           Language
-import           Page
 import           Tester
-
 
 
 -- | a row in the submssion table
@@ -110,25 +110,11 @@ instance FromRow Submission where
 
 
 
--- | evaluate and store a new submission
--- run code tester and insert record into Db
-evaluate :: UserID -> Page -> Code -> Codex Submission
-evaluate uid page@Page{..} code = do 
-  now <- liftIO getCurrentTime
-  env <- require getUserEvents
-  let r = Interval.evalI env (Page.validInterval page) now
-  case r of
-    Right timing -> do
-      result <- codeTester page code
-      insertDb uid path now code result timing
-    Left msg -> do
-      insertDb uid path now code (miscError msg) Valid
-
 
 -- worker function to insert a new submission into the DB
-insertDb :: UserID -> FilePath -> UTCTime -> Code -> Result -> Timing 
+insert :: UserID -> FilePath -> UTCTime -> Code -> Result -> Timing 
             -> Codex Submission
-insertDb uid path received code result timing = do
+insert uid path received code result timing = do
   let (Code lang text) = code
   let (Result classf msg) = result
   sid <- withSqlite $ \conn -> do

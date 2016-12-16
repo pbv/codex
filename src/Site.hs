@@ -13,6 +13,7 @@ module Site
 
 ------------------------------------------------------------------------------
 
+import           Control.Exception (SomeException)
 import           Control.Exception.Lifted (catch)
 import           Control.Monad.State
 import           Control.Monad.Trans.Except
@@ -37,7 +38,7 @@ import           Snap.Core
 import           Snap.Snaplet
 import           Snap.Snaplet.Auth
 import           Snap.Snaplet.Auth.Backends.SqliteSimple
-import           Snap.Snaplet.SqliteSimple
+import qualified Snap.Snaplet.SqliteSimple as S
 import           Snap.Snaplet.Heist
 import           Snap.Snaplet.Session.Backends.CookieSession
 import           Snap.Util.FileServe (getSafePath, fileType,
@@ -63,19 +64,21 @@ import           Tester
 import           Language
 import           Markdown
 import           Interval
-import           Page  (Page(..))
-import qualified Page
+import           Page  
+-- import qualified Page
 import           Submission (Submission(..), Patterns(..), Sorting(..))
 import qualified Submission
 import           LdapAuth
 import           Config
-
 import           Admin
 
 import           Paths_codex(version)
 import           Data.Version (showVersion)  
 
 import           AceEditor
+
+import           Text.Pandoc hiding (Code)
+import           Text.Pandoc.Walk as Pandoc
 
 -- interpreted splices for handlers
 type ISplices = Splices (I.Splice Codex)
@@ -187,38 +190,14 @@ handlePage = do
   where
     handleGet uid rqpath =  do
       let filepath = publicPath </> rqpath
-      c <- liftIO $ doesFileExist filepath
+      c <- liftIO (doesFileExist filepath)
       when (not c) pass
       -- serve according to mime type
       let mime = fileType mimeTypes rqpath
       if mime == "text/markdown" then
-        renderPage uid =<< liftIO (Page.readPage publicPath rqpath)
+        servePage uid rqpath
         else
         serveFileAs mime filepath
-    --  render page markdown
-    renderPage uid page 
-      | Page.isExercise page = 
-        renderExercise page =<< Submission.getReport uid (Page.path page) 
-      | Just links <- Page.getLinks page = 
-          renderIndex uid page links
-      | otherwise =
-        renderWithSplices "page" (pageSplices page)
-    -- handle POST requests; only for exercise pages
-    handlePost uid rqpath = do
-      let filepath = publicPath </> rqpath
-      c <- liftIO $ doesFileExist filepath
-      guard (c && fileType mimeTypes rqpath == "text/markdown")
-      page <- liftIO (Page.readPage publicPath rqpath)
-      guard (Page.isExercise page)
-      text <- require (getTextPost "editform.editor")
-      lang <- require (return $ Page.getLanguage page)
-      sub <- Submission.evaluate uid page (Code lang text)
-      tz <- liftIO getCurrentTimeZone
-      renderWithSplices "report" $ do 
-        pageSplices page
-        exerciseSplices page
-        submitSplices tz sub 
-        inputAceEditorSplices
     -- handle redirects
     handleRedir rqpath = do
         let filepath = publicPath </> rqpath </> "index.md"
@@ -227,8 +206,98 @@ handlePage = do
           redirect (encodePath ("/pub" </> rqpath </> "index.md"))
           else
           notFound
+    -- handle POST requests; only for exercise pages
+    handlePost uid rqpath = do
+      let filepath = publicPath </> rqpath
+      c <- liftIO $ doesFileExist filepath
+      guard (c && fileType mimeTypes rqpath == "text/markdown")
+      page <- liftIO (readPage publicPath rqpath)
+      guard (pageIsExercise page)
+      text <- require (getTextPost "editform.editor")
+      lang <- require (return $ pageLanguage page)
+      sub <- evaluate uid page (Code lang text)
+      -- tz <- liftIO getCurrentTimeZone
+      t <- liftIO getZonedTime
+      let tz = zonedTimeZone t
+      renderWithSplices "report" $ do 
+        pageSplices page
+        exerciseSplices t page 
+        submitSplices tz sub 
+        inputAceEditorSplices
+
         
-        
+-- | serve a markdown document 
+servePage :: UserID -> FilePath -> Codex ()
+servePage uid rqpath = do
+  page <- readPageLinks uid rqpath
+  if pageIsExercise page then do
+    renderExercise page =<< Submission.getReport uid rqpath
+    else
+    renderWithSplices "page" (pageSplices page)
+  
+
+--  render an exercise page
+renderExercise :: Page -> [Submission] -> Codex ()
+renderExercise page subs = do
+  -- tz <- liftIO getCurrentTimeZone
+  t <- liftIO getZonedTime
+  let tz = zonedTimeZone t
+  renderWithSplices "exercise" $ do
+    pageSplices page
+    exerciseSplices t page
+    submissionListSplices tz subs 
+    inputAceEditorSplices
+
+
+
+-- | read a page, collect exercise links
+--  and patch with titles of linked pages
+readPageLinks :: UserID -> FilePath -> Codex Page
+readPageLinks uid rqpath = do
+  page <- liftIO $ readPage publicPath rqpath
+  let links = queryExerciseLinks page
+  let dir = takeDirectory rqpath
+  -- fetch linked titles 
+  optTitles <- liftIO $
+               forM links $ \url ->
+               (pageTitle <$> readPage publicPath (dir</>url))
+               `catch` (\(_ :: SomeException) -> return Nothing)
+               
+  let titles = HM.fromList [(url,title) | (url, Just title)<-zip links optTitles]
+  --    
+  -- fetch submisssion count
+  submissions <- HM.fromList <$>
+                 (forM links $ \url -> do
+                     count <- length <$> Submission.getReport uid (dir</>url)
+                     return (url, count))
+  --
+  -- patch relevant links
+  let patch elm@(Link attr@(_, classes, _) inlines target@(url, _))
+        = fromMaybe elm $ do guard (null inlines && "ex" `elem` classes)
+                             title <- HM.lookup url titles
+                             let count =  HM.lookupDefault 0 url submissions
+                             let target'= (url, show count ++ " submissions")
+                             return (Link attr title target')
+                                       
+      patch elm = elm
+  --
+  return page { pageDescription = walk patch (pageDescription page) }
+
+  
+
+
+-- | collect all exercise links from a page
+queryExerciseLinks :: Page -> [String]
+queryExerciseLinks page = query extractURL (pageDescription page)
+  where
+    extractURL (Link attr@(_,classes,_) inlines target@(url,_))  
+      = [url | "ex" `elem` classes]
+    extractURL _  = []
+
+
+
+
+{-        
 renderIndex uid page links = do
   querytags <- getQueryTags
   pages <- liftIO $ mapM (Page.readPage publicPath) links
@@ -246,7 +315,6 @@ renderIndex uid page links = do
     "tag-list" ##  I.mapSplices (I.runChildrenWith .
                                  tagSplices querytags abletags) alltags
 
-
 -- context-dependent splices for for a tag selection checkbox
 tagSplices :: [Text] -> [Text] -> Text -> ISplices
 tagSplices querytags enabled tag = 
@@ -255,17 +323,10 @@ tagSplices querytags enabled tag =
        -- null (filter (isTagged tag) visible)
   in do "tag-text" ## I.textSplice tag
         "tag-checkbox" ## return (checkboxInput tag checked disabled)
+-}
 
 
---  render an exercise page
-renderExercise :: Page -> [Submission] -> Codex ()
-renderExercise page subs = do
-  tz <- liftIO getCurrentTimeZone
-  renderWithSplices "exercise" $ do
-    pageSplices page
-    exerciseSplices page
-    submissionListSplices tz subs 
-    inputAceEditorSplices
+
 
 
 -- handle request for submission lists
@@ -296,7 +357,7 @@ listSubmissions patts@Patterns{..} sort optPage = do
   count <- Submission.countSubmissions patts
   let entries = 50   -- # entries per page 
   let npages
-        | count>0   = ceiling (fromIntegral count / fromIntegral entries :: Double)
+        | count>0 = ceiling (fromIntegral count / fromIntegral entries :: Double)
         | otherwise = 1
   let page = 1 `max` fromMaybe 1 optPage `min` npages
   let offset = (page - 1) * entries
@@ -329,11 +390,12 @@ handleSubmission
           sub <- Submission.get sid
           when (not (isAdmin au) && Submission.userID sub /= uid)
             unauthorized
-          page <- liftIO $ Page.readPage publicPath (Submission.path sub)
-          tz <- liftIO getCurrentTimeZone
+          page <- liftIO $ readPage publicPath (Submission.path sub)
+          t <- liftIO getZonedTime
+          let tz = zonedTimeZone t
           renderWithSplices "report" $ do
             pageSplices page
-            exerciseSplices page
+            exerciseSplices t page
             submitSplices tz sub 
             inputAceEditorSplices
         handleDelete = do
@@ -358,31 +420,25 @@ handleExport = method POST $ do
 -- | splices related to a page
 pageSplices :: Page -> ISplices
 pageSplices page = do
-  let dir = takeDirectory $ Page.path page
-  "file-path" ## I.textSplice (T.pack $ Page.path page)      
-  "file-path-url" ## I.textSplice (T.decodeUtf8 $ encodePath $ Page.path page)
-  "page-title" ##
-    I.textSplice (Page.getTitle page)
-  "page-description" ##
-    return (blocksToHtml $ Page.description page)
-  "if-exercise" ##
-    I.ifElseISplice (Page.isExercise page)
-  "if-indexsheet" ##
-    I.ifElseISplice (isJust $ Page.getLinks page)
+  let dir = takeDirectory $ pagePath page
+  "file-path" ## I.textSplice (T.pack $ pagePath page)      
+  "file-path-url" ## I.textSplice (T.decodeUtf8 $ encodePath $ pagePath page)
+  "page-description" ## return (blocksToHtml $ pageDescription page)
+  "if-exercise" ## I.ifElseISplice (pageIsExercise page)
 
 
 -- | splices related to exercises
-exerciseSplices :: Page -> ISplices
-exerciseSplices page = do
+exerciseSplices :: ZonedTime -> Page -> ISplices
+exerciseSplices t page = do
   -- splices related to programming languages
   "language" ##
-    maybe (return []) (I.textSplice . fromLanguage) (Page.getLanguage page)
+    maybe (return []) (I.textSplice . fromLanguage) (pageLanguage page)
   "language-mode" ##
-    maybe (return []) (I.textSplice . languageMode) (Page.getLanguage page)
+    maybe (return []) (I.textSplice . languageMode) (pageLanguage page)
   "code-text" ##
-    maybe (return []) I.textSplice (Page.getCodeText page)
+    maybe (return []) I.textSplice (pageCodeText page)
   --- splices related to submission intervals 
-  let interval = Page.validInterval page
+  let interval = fromMaybe Always $ pageValid t page 
   "valid-from" ##
     maybe (I.textSplice "N/A") timeExprSplice  (Interval.from interval)
   "valid-until" ##
@@ -391,14 +447,14 @@ exerciseSplices page = do
     timingSplice interval
 
 
-
+{-
 indexSplices :: TimeZone -> [(Page, [Submission])] -> ISplices
 indexSplices tz pageSubs = do
   "index-list" ##
     I.mapSplices (I.runChildrenWith . auxSplices) pageSubs
   where
     auxSplices (page,subs) = pageSplices page >> submissionListSplices tz subs
-
+-}
 
 -- | splices relating to a single submission
 submitSplices :: TimeZone -> Submission -> ISplices
@@ -488,6 +544,27 @@ nowSplice = do tz <- liftIO getCurrentTimeZone
 versionSplice :: I.Splice Codex
 versionSplice = I.textSplice (T.pack (showVersion version))
 
+
+-- | evaluate a submission
+-- run code tester and record submission into Db
+evaluate :: UserID -> Page -> Code -> Codex Submission
+evaluate uid page code = do 
+  now <- liftIO getZonedTime
+  let utc = zonedTimeToUTC now
+  env <- require getUserEvents
+  let interval = fromMaybe Always $ pageValid now page
+  let r = Interval.evalI env interval utc
+  case r of
+    Right timing -> do
+      result <- codeTester page code
+      Submission.insert uid (pagePath page) utc code result timing
+    Left msg -> do
+      Submission.insert uid (pagePath page) utc code (miscError msg) Valid
+
+
+
+
+
 ------------------------------------------------------------------------------
 -- | The application initializer.
 app :: SnapletInit App App
@@ -497,7 +574,7 @@ app =
     s <- nestSnaplet "sess" sess $
            initCookieSessionManager "site_key.txt" "sess" Nothing (Just 3600)
 
-    d <- nestSnaplet "db" db sqliteInit
+    d <- nestSnaplet "db" db S.sqliteInit
     a <- nestSnaplet "auth" auth $ initSqliteAuth sess d
     addAuthSplices h auth
     let sc = do 
@@ -511,7 +588,7 @@ app =
     addConfig h (mempty & scInterpretedSplices .~ sc)
     -- Grab the DB connection pool from the sqlite snaplet and call
     -- into the Model to create all the DB tables if necessary.
-    let c = sqliteConn $ d ^# snapletValue
+    let c = S.sqliteConn $ d ^# snapletValue
     liftIO $ withMVar c $ \conn -> Db.createTables conn
     addRoutes routes
     return App { _heist = h

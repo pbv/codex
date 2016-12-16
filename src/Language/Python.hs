@@ -33,11 +33,13 @@ import qualified Data.Configurator as Configurator
 
 -- get the relative doctest path for a problem
 getDoctest :: Page -> FilePath
-getDoctest Page{..}
-  = maybe
-    (replaceExtension path ".tst")
-    (takeDirectory path </>)
-    (lookupFromMeta "doctest" meta)
+getDoctest p 
+  = let path = pagePath p
+        meta = pageMeta p
+    in maybe
+       (replaceExtension path ".tst")
+       (takeDirectory path </>)
+       (lookupFromMeta "doctest" meta)
 
 
 -- running and evaluating python submissions

@@ -47,8 +47,6 @@ instance {-# OVERLAPPING #-} FromMetaValue String where
   fromMeta = Just . T.unpack . metaText 
 
 
-
-
 -- | lookup from metadata value
 lookupFromMeta :: FromMetaValue a => String -> Meta -> Maybe a
 lookupFromMeta tag meta = lookupMeta tag meta >>= fromMeta
