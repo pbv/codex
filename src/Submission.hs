@@ -17,30 +17,28 @@ module Submission (
   filterSubmissions,
   countSubmissions,
   getPageSubmissions,
-  exportSubmissions
+  submitSplices   
   ) where
 
 
-import           System.Directory
-import           System.IO
-
+import           Data.Map.Syntax
 import           Data.Time.Clock
 import           Data.Time.LocalTime
 
-import           Data.List(intersperse)
-
 import           Data.Text(Text) 
-import qualified Data.Text    as T
+import qualified Data.Text          as T
+import qualified Data.Text.Encoding as T
 
 import           Data.Maybe(listToMaybe)
-
-import           Control.Monad.Trans (liftIO)
 
 import           Snap.Snaplet.SqliteSimple
 import qualified Database.SQLite.Simple as S
 import           Database.SQLite.Simple.FromField 
 import           Database.SQLite.Simple.ToField 
+import           Heist.Splices     as I
+import qualified Heist.Interpreted as I
 
+ 
 
 import           Application
 import           Utils
@@ -106,6 +104,9 @@ instance FromRow Submission where
     let code = Code lang text
     let result = Result classf msg
     return (Submission id uid path received code result timing)
+
+
+
 
 
 
@@ -224,33 +225,6 @@ withSubmissions a f = do
   withSqlite (\conn -> S.fold_ conn q a f)
 
 
--- | export all submissions to a CSV text file
--- NB: the caller should remove the temporary file 
-exportSubmissions :: FilePath -> String -> Codex FilePath
-exportSubmissions filetpl sep  = do
-  tmpDir <- liftIO getTemporaryDirectory
-  (path, handle) <-
-    liftIO $ openTempFileWithDefaultPermissions tmpDir filetpl
-  liftIO (hPutStrLn handle header)
-  count <- withSubmissions () (output handle)
-  liftIO (hClose handle)
-  return path
-  where
-    header = concat $ intersperse sep ["id", "user_id", "path", "language",
-                                       "classify", "timing", "received"]
-    output :: Handle -> () -> Submission -> IO ()
-    output h _ Submission{..} = do
-      let row = concat $ intersperse sep [show (fromSID submitID),
-                                          show (fromUID submitUser),
-                                          show submitPath,
-                                          show (fromLanguage $
-                                                codeLang submitCode),
-                                          show (resultClassify submitResult),
-                                          show submitTiming,
-                                          show (show submitTime)
-                                         ]
-      hPutStrLn h row
-
                                       
 {-
 -- | count all submissions
@@ -286,3 +260,21 @@ getBestSubmission uid pid =
 -}
 
 
+
+-- | splices relating to a single submission
+submitSplices :: TimeZone -> Submission -> ISplices
+submitSplices tz Submission{..} = do
+  "submit-id" ##  I.textSplice (toText submitID)
+  "submit-user-id" ## I.textSplice (toText submitUser)
+  "submit-path" ## I.textSplice (T.decodeUtf8 $ encodePath submitPath)
+  "received" ## utcTimeSplice tz submitTime
+  "code-lang" ## I.textSplice (fromLanguage $ codeLang submitCode)
+  "code-text" ##  I.textSplice (codeText submitCode)
+  "classify" ##  I.textSplice (T.pack $ show $ resultClassify submitResult)
+  "message" ## I.textSplice (resultMessage submitResult)
+  "case-timing" ## caseSplice submitTiming
+  "timing" ## I.textSplice (T.pack $ show submitTiming)
+  "valid" ## I.ifElseISplice (submitTiming == Valid)
+  "early" ## I.ifElseISplice (submitTiming == Early)
+  "overdue" ## I.ifElseISplice (submitTiming == Overdue)
+  "accepted" ## I.ifElseISplice (resultClassify submitResult == Accepted)

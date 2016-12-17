@@ -16,23 +16,17 @@ module Site
 import           Control.Exception (SomeException)
 import           Control.Exception.Lifted (catch)
 import           Control.Monad.State
-import           Control.Monad.Trans.Except
 import           Control.Applicative
 import           Control.Concurrent.MVar
 import           Control.Lens
 
 import           Data.ByteString.UTF8 (ByteString)
-import qualified Data.ByteString.UTF8 as B
-import qualified Data.ByteString      as B
-import           Data.Maybe(isJust, fromMaybe)
+import           Data.Maybe(fromMaybe)
 
-import           Data.List (nub, sort)
 import           Data.Map.Syntax
 import qualified Data.HashMap.Strict as HM
 
-import           Data.Text (Text)
 import qualified Data.Text as T
-import qualified Data.Text.Encoding as T
 
 import           Snap.Core
 import           Snap.Snaplet
@@ -42,142 +36,40 @@ import qualified Snap.Snaplet.SqliteSimple as S
 import           Snap.Snaplet.Heist
 import           Snap.Snaplet.Session.Backends.CookieSession
 import           Snap.Util.FileServe (getSafePath, fileType,
-                                      serveFile, serveFileAs, serveDirectory)
+                                      serveFileAs, serveDirectory)
 import           Heist
 import           Heist.Splices     as I
 import qualified Heist.Interpreted as I
 
 import           Data.Time.Clock
 import           Data.Time.LocalTime
-import           Data.Aeson
 
 import           System.FilePath
-import           System.Directory (doesFileExist, doesDirectoryExist)
+import           System.Directory (doesFileExist)
 
 
 ------------------------------------------------------------------------------
 import           Application
 import           Db
 import           Utils
+import           Config
 import           Types
-import           Tester
 import           Language
-import           Markdown
+import           AceEditor
 import           Interval
 import           Page  
--- import qualified Page
--- import           Submission (Submission(..), Patterns(..), Sorting(..))
--- import qualified Submission
 import           Submission
-import           LdapAuth
-import           Config
-import           Admin
+import           AuthHandlers
+import           AdminHandlers
 
 import           Paths_codex(version)
 import           Data.Version (showVersion)  
 
-import           AceEditor
+
 
 import           Text.Pandoc hiding (Code)
 import           Text.Pandoc.Walk as Pandoc
 
--- interpreted splices for handlers
-type ISplices = Splices (I.Splice Codex)
-
-------------------------------------------------------------------------------
--- | Handle login requests 
-handleLogin :: Codex ()
-handleLogin =
-  method GET (handleLoginForm "login" Nothing) <|>
-  method POST handleLoginSubmit
-
-
--- | Render login and signup forms
-handleLoginForm ::  ByteString -> Maybe AuthFailure -> Codex ()
-handleLoginForm file authFail = heistLocal (I.bindSplices errs) $ render file
-  where
-    errs = "loginError" ## maybe (return []) (I.textSplice . T.pack .show) authFail
-
-
-getLdap :: Codex (Maybe LdapConf)
-getLdap = getSnapletUserConfig >>= (liftIO . getLdapConf "users.ldap")
-
-
--- | handler for login attempts
--- first try local user DB, then LDAP (if enabled)
-handleLoginSubmit :: Codex ()
-handleLoginSubmit = do
-  login <-  require (getParam "login")
-  passwd <- require (getParam "password") 
-  ldap <- getLdap
-  r <- with auth $ loginByUsername (T.decodeUtf8 login) (ClearText passwd) False
-  case r of
-    Right au -> redirect "/"
-    Left err -> case ldap of
-      Nothing -> handleLoginForm "login" (Just err)
-      Just cfg -> loginLdapUser cfg login passwd
-
-
-loginLdapUser :: LdapConf -> ByteString -> ByteString -> Codex ()
-loginLdapUser ldapConf login passwd = do
-  r <- with auth $ withBackend (\r -> liftIO $ ldapAuth r ldapConf login passwd)
-  case r of
-    Left err -> handleLoginForm "login" (Just err)
-    Right au -> with auth (forceLogin au) >> redirect "/"
-  
-        
-
-------------------------------------------------------------------------------
-
--- | Handle sign-in requests
-handleRegister :: Codex ()
-handleRegister =
-  method GET (handleLoginForm "register" Nothing) <|>
-  method POST handleSubmit
-  where
-    handleSubmit = do
-      r <- with auth newUser
-      case r of
-        Left err -> handleLoginForm "register" (Just err)
-        Right au -> with auth (forceLogin au) >> redirect "/pub/index.md"
-
-
-------------------------------------------------------------------------------
--- | Register a new user 
---
-newUser :: Handler b (AuthManager b) (Either AuthFailure AuthUser)
-newUser = do
-    l <- fmap T.decodeUtf8 <$> getParam "login"
-    p <- getParam "password"
-    p2<- getParam "password2"
-    n <- fmap T.decodeUtf8 <$> getParam "fullname"
-    e <- fmap T.decodeUtf8 <$> getParam "email"
-    runExceptT $ do
-      login  <- maybe (throwE UsernameMissing) return l
-      passwd <- maybe (throwE PasswordMissing) return p
-      passwd2<- maybe (throwE PasswordMissing) return p2
-      name <- maybe (throwE (AuthError "Missing full user name")) return n
-      email <- maybe (throwE (AuthError "Missing user email")) return e
-      when (passwd /= passwd2) $
-        throwE (AuthError "Passwords fields do not match")
-      au <- ExceptT (createUser login passwd)
-      let meta' = HM.fromList [("fullname", String name)]
-      let au' = au { userEmail = Just email, userMeta = meta'}
-      ExceptT (saveUser au') `catchE` (\err -> case err of
-                                          DuplicateLogin -> return au'
-                                          err -> throwE err)
-        
-
-
-
-------------------------------------------------------------------------------
--- | Logs out and redirects the user to the site index.
--- in exam mode procedeed to printout 
-handleLogout :: Codex ()
-handleLogout = method GET $ do
-  uid <- require getUserID <|> unauthorized
-  with auth logout 
-  redirect "/" 
 
 
 -- | handle page requests
@@ -336,53 +228,6 @@ tagSplices querytags enabled tag =
 
 
 
--- handle request for submission lists
-handleSubmissionList :: Codex ()    
-handleSubmissionList = do
-  au <- require (with auth currentUser) <|> unauthorized
-  when (not $ isAdmin au) unauthorized
-  method GET handleGet <|> method POST handlePost
-  where
-    handleGet =  listSubmissions emptyPatterns Asc Nothing
-    handlePost = do
-      optPage <- readParam "page"
-      sorting <- require (readParam "sorting")
-      id_pat <- T.decodeUtf8 <$> require (getParam "id_pat")
-      uid_pat <- T.decodeUtf8 <$> require (getParam "uid_pat")
-      path_pat<- T.decodeUtf8 <$> require (getParam "path_pat")
-      lang_pat<- T.decodeUtf8 <$> require (getParam "lang_pat")
-      class_pat<- T.decodeUtf8 <$> require (getParam "class_pat")
-      timing_pat<- T.decodeUtf8 <$> require (getParam "timing_pat")
-      let patts = Patterns { idPat = id_pat, userPat = uid_pat,
-                             pathPat = path_pat, langPat = lang_pat,
-                             classPat = class_pat, timingPat = timing_pat }
-      listSubmissions patts sorting optPage
-
-
-listSubmissions :: Patterns -> Sorting -> Maybe Int -> Codex ()
-listSubmissions patts@Patterns{..} sort optPage = do
-  count <- countSubmissions patts
-  let entries = 50   -- # entries per page 
-  let npages
-        | count>0 = ceiling (fromIntegral count / fromIntegral entries :: Double)
-        | otherwise = 1
-  let page = 1 `max` fromMaybe 1 optPage `min` npages
-  let offset = (page - 1) * entries
-  subs <- filterSubmissions patts sort entries offset
-  tz <- liftIO getCurrentTimeZone
-  renderWithSplices "submission-list" $ do
-    "id_pat" ## I.textSplice idPat
-    "uid_pat" ## I.textSplice userPat
-    "path_pat" ## I.textSplice pathPat
-    "lang_pat" ## I.textSplice langPat
-    "class_pat" ## I.textSplice classPat
-    "timing_pat" ## I.textSplice timingPat
-    "page" ## I.textSplice (T.pack $ show page)
-    "submissions-count" ## I.textSplice (T.pack $ show count)
-    "if-ascending" ## I.ifElseISplice (sort == Asc)
-    "if-submissions" ## I.ifElseISplice (count > 0)
-    "page-count" ## I.textSplice (T.pack $ show npages)
-    "submissions" ## I.mapSplices (I.runChildrenWith . submitSplices tz) subs
 
 
 -- | handle requests for a single submission
@@ -416,23 +261,6 @@ handleSubmission
           redirect (encodePath ("/pub" </> submitPath sub))
 
 
-handleExport :: Codex ()
-handleExport = method POST $ do
-  au <- require (with auth currentUser) <|> unauthorized
-  when (not (isAdmin au)) unauthorized
-  sep <- B.toString <$> require (getParam "sep")
-  serveFile =<< exportSubmissions "export.txt" sep
-  
-
-
--- | splices related to a page
-pageSplices :: Page -> ISplices
-pageSplices page = do
-  let dir = takeDirectory $ pagePath page
-  "file-path" ## I.textSplice (T.pack $ pagePath page)      
-  "file-path-url" ## I.textSplice (T.decodeUtf8 $ encodePath $ pagePath page)
-  "page-description" ## return (blocksToHtml $ pageDescription page)
-  "if-exercise" ## I.ifElseISplice (pageIsExercise page)
 
 
 -- | splices related to exercises
@@ -463,24 +291,6 @@ indexSplices tz pageSubs = do
   where
     auxSplices (page,subs) = pageSplices page >> submissionListSplices tz subs
 -}
-
--- | splices relating to a single submission
-submitSplices :: TimeZone -> Submission -> ISplices
-submitSplices tz Submission{..} = do
-  "submit-id" ##  I.textSplice (toText submitID)
-  "submit-user-id" ## I.textSplice (toText submitUser)
-  "submit-path" ## I.textSplice (T.decodeUtf8 $ encodePath submitPath)
-  "received" ## utcTimeSplice tz submitTime
-  "code-lang" ## I.textSplice (fromLanguage $ codeLang submitCode)
-  "code-text" ##  I.textSplice (codeText submitCode)
-  "classify" ##  I.textSplice (T.pack $ show $ resultClassify submitResult)
-  "message" ## I.textSplice (resultMessage submitResult)
-  "case-timing" ## caseSplice submitTiming
-  "timing" ## I.textSplice (T.pack $ show submitTiming)
-  "valid" ## I.ifElseISplice (submitTiming == Valid)
-  "early" ## I.ifElseISplice (submitTiming == Early)
-  "overdue" ## I.ifElseISplice (submitTiming == Overdue)
-  "accepted" ## I.ifElseISplice (resultClassify submitResult == Accepted)
 
 
 

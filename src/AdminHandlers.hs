@@ -6,8 +6,10 @@
 ------------------------------------------------------------------------------
 -- | Administration facilities; file browsing
 
-module Admin(
-  handleBrowse
+module AdminHandlers(
+  handleBrowse,
+  handleSubmissionList,
+  handleExport
   ) where
 
 import           Snap.Core
@@ -25,10 +27,12 @@ import           Data.Time.Clock
 import           Data.Time.LocalTime
 import           System.FilePath
 import           System.Directory
+import           System.IO
 import           Control.Monad
 import           Control.Monad.Trans (liftIO)
 import           Control.Exception.Lifted 
 import           Control.Applicative
+
 
 import           Data.Text (Text)
 import qualified Data.Text    as T
@@ -39,10 +43,14 @@ import           Data.ByteString.UTF8 (ByteString)
 import qualified Data.ByteString.UTF8 as B
 import qualified Data.ByteString  as B
 
-import           Data.Maybe (catMaybes)
-import           Data.List (sort)
+import           Data.Maybe (fromMaybe,catMaybes)
+import           Data.List (sort, intersperse)
 import           Data.Map.Syntax
+import           Types
+import           Language
+import           Tester
 import           Application
+import           Submission
 import           AceEditor
 import           Utils
 import           Config
@@ -187,3 +195,90 @@ handleRename base = do
   redirect (encodePath ("/files" </> rqdir))
 
 
+
+
+--  | handle requests for submission lists
+handleSubmissionList :: Codex ()    
+handleSubmissionList = do
+  au <- require (with auth currentUser) <|> unauthorized
+  when (not $ isAdmin au) unauthorized
+  method GET handleGet <|> method POST handlePost
+  where
+    handleGet =  listSubmissions emptyPatterns Asc Nothing
+    handlePost = do
+      optPage <- readParam "page"
+      sorting <- require (readParam "sorting")
+      id_pat <- T.decodeUtf8 <$> require (getParam "id_pat")
+      uid_pat <- T.decodeUtf8 <$> require (getParam "uid_pat")
+      path_pat<- T.decodeUtf8 <$> require (getParam "path_pat")
+      lang_pat<- T.decodeUtf8 <$> require (getParam "lang_pat")
+      class_pat<- T.decodeUtf8 <$> require (getParam "class_pat")
+      timing_pat<- T.decodeUtf8 <$> require (getParam "timing_pat")
+      let patts = Patterns { idPat = id_pat, userPat = uid_pat,
+                             pathPat = path_pat, langPat = lang_pat,
+                             classPat = class_pat, timingPat = timing_pat }
+      listSubmissions patts sorting optPage
+
+
+listSubmissions :: Patterns -> Sorting -> Maybe Int -> Codex ()
+listSubmissions patts@Patterns{..} sort optPage = do
+  count <- countSubmissions patts
+  let entries = 50   -- # entries per page 
+  let npages
+        | count>0 = ceiling (fromIntegral count / fromIntegral entries :: Double)
+        | otherwise = 1
+  let page = 1 `max` fromMaybe 1 optPage `min` npages
+  let offset = (page - 1) * entries
+  subs <- filterSubmissions patts sort entries offset
+  tz <- liftIO getCurrentTimeZone
+  renderWithSplices "submission-list" $ do
+    "id_pat" ## I.textSplice idPat
+    "uid_pat" ## I.textSplice userPat
+    "path_pat" ## I.textSplice pathPat
+    "lang_pat" ## I.textSplice langPat
+    "class_pat" ## I.textSplice classPat
+    "timing_pat" ## I.textSplice timingPat
+    "page" ## I.textSplice (T.pack $ show page)
+    "submissions-count" ## I.textSplice (T.pack $ show count)
+    "if-ascending" ## I.ifElseISplice (sort == Asc)
+    "if-submissions" ## I.ifElseISplice (count > 0)
+    "page-count" ## I.textSplice (T.pack $ show npages)
+    "submissions" ## I.mapSplices (I.runChildrenWith . submitSplices tz) subs
+
+
+-- | Export all submissions
+handleExport :: Codex ()
+handleExport = method POST $ do
+  au <- require (with auth currentUser) <|> unauthorized
+  when (not (isAdmin au)) unauthorized
+  sep <- B.toString <$> require (getParam "sep")
+  serveFile =<< exportSubmissions "export.txt" sep
+  
+
+
+-- | export all submissions to a CSV text file
+-- NB: the caller should remove the temporary file 
+exportSubmissions :: FilePath -> String -> Codex FilePath
+exportSubmissions filetpl sep  = do
+  tmpDir <- liftIO getTemporaryDirectory
+  (path, handle) <-
+    liftIO $ openTempFileWithDefaultPermissions tmpDir filetpl
+  liftIO (hPutStrLn handle header)
+  count <- withSubmissions () (output handle)
+  liftIO (hClose handle)
+  return path
+  where
+    header = concat $ intersperse sep ["id", "user_id", "path", "language",
+                                       "classify", "timing", "received"]
+    output :: Handle -> () -> Submission -> IO ()
+    output h _ Submission{..} = do
+      let row = concat $ intersperse sep [show (fromSID submitID),
+                                          show (fromUID submitUser),
+                                          show submitPath,
+                                          show (fromLanguage $
+                                                codeLang submitCode),
+                                          show (resultClassify submitResult),
+                                          show submitTiming,
+                                          show (show submitTime)
+                                         ]
+      hPutStrLn h row

@@ -7,9 +7,6 @@
 
 module Types where
 
-import           Snap.Snaplet.Auth
-
-import           Control.Applicative
 import           Data.ByteString.UTF8(ByteString)
 import qualified Data.ByteString.UTF8 as B
 

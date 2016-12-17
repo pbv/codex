@@ -6,8 +6,8 @@ module AceEditor
        ( inputAceEditorSplices
        , languageMode
        ) where
-import           Control.Applicative((<$>), (<*>))
-import           Data.Maybe            (fromMaybe)
+
+
 import           Data.Text             (Text)
 import qualified Data.Text             as T
 --import           Data.Function         (on)

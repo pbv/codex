@@ -24,7 +24,8 @@ Executable codex
   main-is: Main.hs
   other-modules: 
     AceEditor
-    Admin
+    AdminHandlers
+    AuthHandlers
     Application
     Config
     Db

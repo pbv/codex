@@ -24,7 +24,6 @@ import           Snap.Core
 import           Snap.Snaplet
 import           Snap.Snaplet.Heist
 import           Snap.Snaplet.Auth
-import           Snap.Snaplet.Session
 
 import           Data.Aeson.Types 
 
@@ -49,6 +48,8 @@ import           Data.Time.Format
 
 import           System.FilePath
 
+-- interpreted splices for handlers
+type ISplices = Splices (I.Splice Codex)
 
 
 authUserID :: AuthUser -> UserID

@@ -3,7 +3,7 @@ module Config where
 
 import           Types
 import           SafeExec
-import           Control.Applicative
+
 import           Data.Monoid
 import qualified Data.Configurator as Configurator
 import           Data.Configurator.Types

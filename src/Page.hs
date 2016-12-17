@@ -11,13 +11,22 @@ module Page(
   pageCodeText,
   pageCode,
   pageIsExercise,
-  pageValid
+  pageValid,
+  pageSplices
   ) where
-
+ 
 import           Data.Maybe
 import           Data.Text(Text)
-import           Data.Time 
+import qualified Data.Text as T
+import qualified Data.Text.Encoding as T
 
+import           Data.Time 
+import           Data.Map.Syntax
+import           Heist.Splices     as I
+import qualified Heist.Interpreted as I
+
+
+import           Utils
 import           Language.Types
 import           Markdown
 import           Interval
@@ -80,4 +89,13 @@ pageValid t p
   = lookupFromMeta "valid" (pageMeta p) >>= readInterval t
 
 
+-----------------------------------------------------------------------------
 
+-- | splices related to a page
+pageSplices :: Page -> ISplices
+pageSplices page = do
+  let dir = takeDirectory $ pagePath page
+  "file-path" ## I.textSplice (T.pack $ pagePath page)      
+  "file-path-url" ## I.textSplice (T.decodeUtf8 $ encodePath $ pagePath page)
+  "page-description" ## return (blocksToHtml $ pageDescription page)
+  "if-exercise" ## I.ifElseISplice (pageIsExercise page)
