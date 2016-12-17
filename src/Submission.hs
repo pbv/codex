@@ -8,17 +8,16 @@ module Submission (
   Submission(..),
   Patterns(..),
   Sorting(..),
-  -- evaluate,
-  insert,
-  get,
-  delete,
-  emptyPat,
+  insertSubmission,
+  getSubmission,
+  deleteSubmission,
+  emptyPatterns,
   withSubmissions,
   withFilterSubmissions,
   filterSubmissions,
   countSubmissions,
-  getReport,
-  exportCSV
+  getPageSubmissions,
+  exportSubmissions
   ) where
 
 
@@ -33,12 +32,15 @@ import           Data.List(intersperse)
 import           Data.Text(Text) 
 import qualified Data.Text    as T
 
+import           Data.Maybe(listToMaybe)
+
 import           Control.Monad.Trans (liftIO)
 
 import           Snap.Snaplet.SqliteSimple
 import qualified Database.SQLite.Simple as S
 import           Database.SQLite.Simple.FromField 
 import           Database.SQLite.Simple.ToField 
+
 
 import           Application
 import           Utils
@@ -50,15 +52,14 @@ import           Tester
 
 -- | a row in the submssion table
 data Submission = Submission {
-  id :: SubmitID,     -- submission id
-  userID  :: UserID,    -- user id
-  path  :: FilePath,  -- exercise path
-  received :: UTCTime,    -- submit time  
-  code :: Code,       -- program code
-  result :: Result,   -- accepted/wrong answer/etc
-  timing :: Timing    -- valid, early or overdue?
+  submitID :: SubmitID,     -- submission id
+  submitUser :: UserID,    -- user id
+  submitPath  :: FilePath,  -- exercise path 
+  submitTime :: UTCTime,      -- submition time  
+  submitCode :: Code,       -- program code
+  submitResult :: Result,   -- accepted/wrong answer/etc
+  submitTiming :: Timing    -- valid, early or overdue?
   }
-
 
 
 -- | convertions to/from SQL 
@@ -71,8 +72,6 @@ instance FromField Classify where
     where 
       parse ((s,""):_) = return s
       parse _  = returnError ConversionFailed f "invalid Classify field"
-
-
 
 
 instance ToField Timing where
@@ -111,10 +110,10 @@ instance FromRow Submission where
 
 
 
--- worker function to insert a new submission into the DB
-insert :: UserID -> FilePath -> UTCTime -> Code -> Result -> Timing 
-            -> Codex Submission
-insert uid path received code result timing = do
+-- | insert a new submission into the DB
+insertSubmission ::
+  UserID -> FilePath -> UTCTime -> Code -> Result -> Timing -> Codex Submission
+insertSubmission uid path received code result timing = do
   let (Code lang text) = code
   let (Result classf msg) = result
   sid <- withSqlite $ \conn -> do
@@ -125,26 +124,22 @@ insert uid path received code result timing = do
     fmap SubmitID (S.lastInsertRowId conn)
   return (Submission sid uid path received code result timing)
 
- 
 
 -- | get a single submission 
-get :: SubmitID -> Codex Submission
-get sid = do
-  r <- query "SELECT * FROM submissions WHERE id = ?" (Only sid)
-  case r of
-    [s] -> return s
-    _   -> notFound
+getSubmission :: SubmitID -> Codex (Maybe Submission)
+getSubmission sid = 
+  listToMaybe <$> query "SELECT * FROM submissions WHERE id = ?" (Only sid)
 
 
--- | get all user submissions for a user and path
-getReport :: UserID -> FilePath -> Codex [Submission]  
-getReport uid path = 
+-- | get all submissions for a user and exercise page
+getPageSubmissions :: UserID -> FilePath -> Codex [Submission]  
+getPageSubmissions uid path = 
   query "SELECT * FROM submissions \
        \ WHERE user_id = ? AND path = ? ORDER BY id" (uid, path)
 
 -- | delete a single submission
-delete :: SubmitID -> Codex ()
-delete sid =
+deleteSubmission :: SubmitID -> Codex ()
+deleteSubmission sid =
   execute "DELETE FROM submissions where id = ?" (Only sid)
 
 -------------------------------------------------------------------------
@@ -158,13 +153,12 @@ data Patterns = Patterns {
   langPat :: Pattern,
   classPat :: Pattern,
   timingPat :: Pattern
-  } deriving (Eq, Show)
+  } 
 
-emptyPat :: Patterns
-emptyPat = Patterns {idPat = "", userPat = "", pathPat = "",
-                     langPat = "", classPat = "", timingPat = ""}
+emptyPatterns :: Patterns
+emptyPatterns = Patterns {idPat = "", userPat = "", pathPat = "",
+                          langPat = "", classPat = "", timingPat = ""}
 
-data Sorting = Asc | Desc deriving (Eq, Show, Read)
 
 
 checkEmpty :: Pattern -> Pattern
@@ -181,6 +175,9 @@ checkEmptyPat Patterns{..}
              }
     
 
+data Sorting = Asc | Desc deriving (Eq, Show, Read)
+
+
 countSubmissions :: Patterns -> Codex Int
 countSubmissions patts = do
   let Patterns{..} = checkEmptyPat patts
@@ -190,7 +187,7 @@ countSubmissions patts = do
         (idPat, userPat, pathPat, langPat, classPat, timingPat)
   case r of 
      [Only c] -> return c
-     _ -> error "countSubmissions failed; this should NOT have happened!"
+     _ -> error "countSubmissions failed"
 
 
 filterSubmissions :: Patterns -> Sorting -> Int -> Int -> Codex [Submission]
@@ -206,8 +203,6 @@ filterSubmissions patts sort limit offset = do
         \ AND language LIKE ? AND class LIKE ? AND timing LIKE ? \
         \ ORDER BY received DESC LIMIT ? OFFSET ?" 
   query sql (idPat, userPat, pathPat, langPat, classPat, timingPat, limit, offset)
-
-
 
 
   
@@ -231,8 +226,8 @@ withSubmissions a f = do
 
 -- | export all submissions to a CSV text file
 -- NB: the caller should remove the temporary file 
-exportCSV :: FilePath -> String -> Codex FilePath
-exportCSV filetpl sep  = do
+exportSubmissions :: FilePath -> String -> Codex FilePath
+exportSubmissions filetpl sep  = do
   tmpDir <- liftIO getTemporaryDirectory
   (path, handle) <-
     liftIO $ openTempFileWithDefaultPermissions tmpDir filetpl
@@ -245,13 +240,14 @@ exportCSV filetpl sep  = do
                                        "classify", "timing", "received"]
     output :: Handle -> () -> Submission -> IO ()
     output h _ Submission{..} = do
-      let row = concat $ intersperse sep [show (fromSID id),
-                                          show (fromUID userID),
-                                          show path,
-                                          show (fromLanguage $ codeLang code),
-                                          show (resultClassify result),
-                                          show timing,
-                                          show (show received)
+      let row = concat $ intersperse sep [show (fromSID submitID),
+                                          show (fromUID submitUser),
+                                          show submitPath,
+                                          show (fromLanguage $
+                                                codeLang submitCode),
+                                          show (resultClassify submitResult),
+                                          show submitTiming,
+                                          show (show submitTime)
                                          ]
       hPutStrLn h row
 

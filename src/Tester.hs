@@ -13,6 +13,7 @@ import           System.Directory
 import           Control.Exception
 import           Control.Monad(when)
 
+
 -- submission results
 data Result = Result { resultClassify :: !Classify
                      , resultMessage :: !Text

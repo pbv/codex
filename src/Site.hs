@@ -66,8 +66,9 @@ import           Markdown
 import           Interval
 import           Page  
 -- import qualified Page
-import           Submission (Submission(..), Patterns(..), Sorting(..))
-import qualified Submission
+-- import           Submission (Submission(..), Patterns(..), Sorting(..))
+-- import qualified Submission
+import           Submission
 import           LdapAuth
 import           Config
 import           Admin
@@ -231,7 +232,7 @@ servePage :: UserID -> FilePath -> Codex ()
 servePage uid rqpath = do
   page <- readPageLinks uid rqpath
   if pageIsExercise page then do
-    renderExercise page =<< Submission.getReport uid rqpath
+    renderExercise page =<< getPageSubmissions uid rqpath
     else
     renderWithSplices "page" (pageSplices page)
   
@@ -268,17 +269,23 @@ readPageLinks uid rqpath = do
   -- fetch submisssion count
   submissions <- HM.fromList <$>
                  (forM links $ \url -> do
-                     count <- length <$> Submission.getReport uid (dir</>url)
+                     count <- length <$> getPageSubmissions uid (dir</>url)
                      return (url, count))
   --
   -- patch relevant links
   let patch elm@(Link attr@(_, classes, _) inlines target@(url, _))
-        = fromMaybe elm $ do guard (null inlines && "ex" `elem` classes)
-                             title <- HM.lookup url titles
-                             let count =  HM.lookupDefault 0 url submissions
-                             let target'= (url, show count ++ " submissions")
-                             return (Link attr title target')
-                                       
+        | "ex" `elem` classes =
+             let title = if null inlines then (HM.lookupDefault [] url titles)
+                         else inlines
+                 count =  HM.lookupDefault 0 url submissions
+             in (Span nullAttr
+                     [Link attr title target,
+                      LineBreak,
+                      Span ("",["info"],[])
+                      [Str "(", Str (show count), Space,
+                       Str "submissions", Str ")"]
+                      ])
+        | otherwise = elm
       patch elm = elm
   --
   return page { pageDescription = walk patch (pageDescription page) }
@@ -336,7 +343,7 @@ handleSubmissionList = do
   when (not $ isAdmin au) unauthorized
   method GET handleGet <|> method POST handlePost
   where
-    handleGet =  listSubmissions Submission.emptyPat Asc Nothing
+    handleGet =  listSubmissions emptyPatterns Asc Nothing
     handlePost = do
       optPage <- readParam "page"
       sorting <- require (readParam "sorting")
@@ -354,14 +361,14 @@ handleSubmissionList = do
 
 listSubmissions :: Patterns -> Sorting -> Maybe Int -> Codex ()
 listSubmissions patts@Patterns{..} sort optPage = do
-  count <- Submission.countSubmissions patts
+  count <- countSubmissions patts
   let entries = 50   -- # entries per page 
   let npages
         | count>0 = ceiling (fromIntegral count / fromIntegral entries :: Double)
         | otherwise = 1
   let page = 1 `max` fromMaybe 1 optPage `min` npages
   let offset = (page - 1) * entries
-  subs <- Submission.filterSubmissions patts sort entries offset
+  subs <- filterSubmissions patts sort entries offset
   tz <- liftIO getCurrentTimeZone
   renderWithSplices "submission-list" $ do
     "id_pat" ## I.textSplice idPat
@@ -387,10 +394,10 @@ handleSubmission
           au <- require (with auth currentUser) <|> unauthorized
           let uid = authUserID au
           sid <- require getSubmitID
-          sub <- Submission.get sid
-          when (not (isAdmin au) && Submission.userID sub /= uid)
+          sub <- require (getSubmission sid) <|> notFound
+          when (not (isAdmin au) && submitUser sub /= uid)
             unauthorized
-          page <- liftIO $ readPage publicPath (Submission.path sub)
+          page <- liftIO $ readPage publicPath (submitPath sub)
           t <- liftIO getZonedTime
           let tz = zonedTimeZone t
           renderWithSplices "report" $ do
@@ -402,18 +409,19 @@ handleSubmission
           au <- require (with auth currentUser) <|> unauthorized
           let uid = authUserID au
           sid <- require getSubmitID
-          sub <- Submission.get sid
-          when (not (isAdmin au) && Submission.userID sub /= uid)
+          sub <- require (getSubmission sid) <|> notFound
+          when (not (isAdmin au) && submitUser sub /= uid)
             unauthorized
-          Submission.delete sid
-          redirect (encodePath ("/pub" </> Submission.path sub))
+          deleteSubmission sid
+          redirect (encodePath ("/pub" </> submitPath sub))
+
 
 handleExport :: Codex ()
 handleExport = method POST $ do
   au <- require (with auth currentUser) <|> unauthorized
   when (not (isAdmin au)) unauthorized
   sep <- B.toString <$> require (getParam "sep")
-  serveFile =<< Submission.exportCSV "export.txt" sep
+  serveFile =<< exportSubmissions "export.txt" sep
   
 
 
@@ -459,20 +467,20 @@ indexSplices tz pageSubs = do
 -- | splices relating to a single submission
 submitSplices :: TimeZone -> Submission -> ISplices
 submitSplices tz Submission{..} = do
-  "submit-id" ##  I.textSplice (toText id)
-  "submit-user-id" ## I.textSplice (toText userID)
-  "submit-path" ## I.textSplice (T.decodeUtf8 $ encodePath path)
-  "received" ## utcTimeSplice tz received
-  "code-lang" ## I.textSplice (fromLanguage $ codeLang code)
-  "code-text" ##  I.textSplice (codeText code)
-  "classify" ##  I.textSplice (T.pack $ show $ resultClassify result)
-  "message" ## I.textSplice (resultMessage result)
-  "case-timing" ## caseSplice timing
-  "timing" ## I.textSplice (T.pack $ show timing)
-  "valid" ## I.ifElseISplice (timing == Valid)
-  "early" ## I.ifElseISplice (timing == Early)
-  "overdue" ## I.ifElseISplice (timing == Overdue)
-  "accepted" ## I.ifElseISplice (resultClassify result == Accepted)
+  "submit-id" ##  I.textSplice (toText submitID)
+  "submit-user-id" ## I.textSplice (toText submitUser)
+  "submit-path" ## I.textSplice (T.decodeUtf8 $ encodePath submitPath)
+  "received" ## utcTimeSplice tz submitTime
+  "code-lang" ## I.textSplice (fromLanguage $ codeLang submitCode)
+  "code-text" ##  I.textSplice (codeText submitCode)
+  "classify" ##  I.textSplice (T.pack $ show $ resultClassify submitResult)
+  "message" ## I.textSplice (resultMessage submitResult)
+  "case-timing" ## caseSplice submitTiming
+  "timing" ## I.textSplice (T.pack $ show submitTiming)
+  "valid" ## I.ifElseISplice (submitTiming == Valid)
+  "early" ## I.ifElseISplice (submitTiming == Early)
+  "overdue" ## I.ifElseISplice (submitTiming == Overdue)
+  "accepted" ## I.ifElseISplice (resultClassify submitResult == Accepted)
 
 
 
@@ -557,9 +565,10 @@ evaluate uid page code = do
   case r of
     Right timing -> do
       result <- codeTester page code
-      Submission.insert uid (pagePath page) utc code result timing
-    Left msg -> do
-      Submission.insert uid (pagePath page) utc code (miscError msg) Valid
+      insertSubmission uid (pagePath page) utc code result timing
+    Left msg -> 
+      error (T.unpack msg)
+      -- insertSubmission uid (pagePath page) utc code (miscError msg) Valid
 
 
 
