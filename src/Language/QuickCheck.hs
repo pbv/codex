@@ -1,7 +1,6 @@
 {-
   Utility functions for QuickCheck-related stuff
 -}
-{-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE OverloadedStrings #-}
 
 module Language.QuickCheck where

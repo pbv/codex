@@ -1,10 +1,8 @@
 {-# LANGUAGE OverloadedStrings #-}
-{-# LANGUAGE RecordWildCards #-}
 module Language.Python(
   pythonTester
   ) where
 
-import           Control.Applicative
 import           Control.Monad (liftM2)
 import           Control.Monad.IO.Class
 import           Data.Monoid
@@ -62,7 +60,7 @@ pythonTesterIO :: SafeExecConf -> FilePath -> Text -> FilePath -> IO Result
 pythonTesterIO sf python code tstfile  = 
     withTextTemp "tmp.py" code $ \pyfile ->
     pythonResult <$>
-      (safeExecWith sf python ["python/pytest.py", tstfile, pyfile] "")
+      safeExecWith sf python ["python/pytest.py", tstfile, pyfile] ""
 
 
 pythonResult :: (ExitCode, Text, Text) -> Result

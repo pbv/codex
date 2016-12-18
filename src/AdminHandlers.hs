@@ -1,7 +1,7 @@
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE RecordWildCards #-}
-{-# LANGUAGE PatternGuards #-}
+
 
 ------------------------------------------------------------------------------
 -- | Administration facilities; file browsing
@@ -30,7 +30,7 @@ import           System.Directory
 import           System.IO
 import           Control.Monad
 import           Control.Monad.Trans (liftIO)
-import           Control.Exception.Lifted 
+import           Control.Exception.Lifted
 import           Control.Applicative
 
 
@@ -44,7 +44,7 @@ import qualified Data.ByteString.UTF8 as B
 import qualified Data.ByteString  as B
 
 import           Data.Maybe (fromMaybe,catMaybes)
-import           Data.List (sort, intersperse)
+import           Data.List (sort, intercalate)
 import           Data.Map.Syntax
 import           Types
 import           Language
@@ -63,7 +63,7 @@ import           Config
 handleBrowse :: FilePath -> Codex ()
 handleBrowse base = do
   au <- require (with auth currentUser) <|> unauthorized
-  when (not $ isAdmin au) unauthorized
+  unless (isAdmin au) unauthorized
   handleMethodOverride (method GET (handleGet base) <|>
                         method POST (handleUpload base) <|>
                         method PUT (handleEdit base) <|>
@@ -77,8 +77,8 @@ handleGet base = file <|> directory <|> notFound
     directory = do
       rqpath <- getSafePath
       let path = base </> rqpath
-      c <- liftIO $ doesDirectoryExist path  
-      when (not c) pass
+      c <- liftIO $ doesDirectoryExist path
+      unless c pass
       entries <- liftIO $ listDir path
       tz <- liftIO getCurrentTimeZone
       renderWithSplices "file-list" $ do
@@ -89,7 +89,7 @@ handleGet base = file <|> directory <|> notFound
       rqpath <- getSafePath
       let path = base </> rqpath
       c <- liftIO $ doesFileExist path
-      when (not c) pass
+      unless c pass
       let mime = fileType mimeTypes rqpath
       contents <- if B.isPrefixOf "text" mime then
                     liftIO $ T.readFile path
@@ -103,7 +103,7 @@ handleGet base = file <|> directory <|> notFound
                                      fileSplices >>
                                      inputAceEditorSplices)
 
-  
+
 
 listingSplices tz path list =
   "file-list" ## I.mapSplices (I.runChildrenWith . splices) list
@@ -116,7 +116,7 @@ listingSplices tz path list =
           "if-dir" ## ifElseISplice (mime == "DIR")
 
 
- 
+
 
 pathSplices :: Monad m => FilePath -> Splices (I.Splice m)
 pathSplices rqpath = do
@@ -126,17 +126,17 @@ pathSplices rqpath = do
 
 listDir :: FilePath -> IO [(FilePath, ByteString, UTCTime)]
 listDir base = do
-  entries <-  getDirectoryContents base
-  dirs  <- filterM (doesDirectoryExist . (base</>)) entries
-  files <- filterM (doesFileExist . (base</>)) entries
-  lst <- forM (sort (filter (/=".") dirs)) $ \path -> do
-    time <- getModificationTime (base</>path)
-    return (path, "DIR", time)
-  lst' <- forM (sort files) $ \path -> do
-    time <- getModificationTime (base</>path)
-    return (path, fileType mimeTypes path, time)
-  return (lst ++ lst')
-  
+  -- all entries in alphabetical order, directories first
+  cnts <- getDirectoryContents base
+  dirs  <- (sort . filter (/=".")) <$>
+           filterM (doesDirectoryExist . (base</>)) cnts
+  files <- sort <$> filterM (doesFileExist . (base</>)) cnts
+  times <- forM dirs $ \path -> getModificationTime (base</>path)
+  times'<- forM files $ \path -> getModificationTime (base</>path)
+  return ([(path, "DIR", time) | (path,time)<-zip dirs times] ++
+          [(path, mime, time) | (path,time)<-zip files times',
+            let mime = fileType mimeTypes path])
+
 
 
 handleEdit :: FilePath -> Codex ()
@@ -150,8 +150,8 @@ handleEdit base = do
 handleUpload :: FilePath -> Codex ()
 handleUpload dest = do
   rqpath <- getSafePath
-  b <- liftIO $ doesDirectoryExist (dest</>rqpath)
-  when (not b) pass
+  c <- liftIO $ doesDirectoryExist (dest</>rqpath)
+  unless c pass
   tmpdir <- liftIO getTemporaryDirectory
   msgs <- handleFileUploads tmpdir defaultUploadPolicy
     (const $ allowWithMaximumSize (getMaximumFormInputSize defaultUploadPolicy))
@@ -190,17 +190,17 @@ handleRename base = do
   dest <- B.toString <$> require (getParam "destname")
   let srcfile = base </> rqpath
   let destfile = base </> rqdir </> dest
-  liftIO $ renameFile srcfile destfile 
+  liftIO $ renameFile srcfile destfile
   redirect (encodePath ("/files" </> rqdir))
 
 
 
 
 --  | handle requests for submission lists
-handleSubmissionList :: Codex ()    
+handleSubmissionList :: Codex ()
 handleSubmissionList = do
   au <- require (with auth currentUser) <|> unauthorized
-  when (not $ isAdmin au) unauthorized
+  unless (isAdmin au) unauthorized
   method GET handleGet <|> method POST handlePost
   where
     handleGet =  listSubmissions emptyPatterns Asc Nothing
@@ -222,7 +222,7 @@ handleSubmissionList = do
 listSubmissions :: Patterns -> Sorting -> Maybe Int -> Codex ()
 listSubmissions patts@Patterns{..} sort optPage = do
   count <- countSubmissions patts
-  let entries = 50   -- # entries per page 
+  let entries = 50   -- # entries per page
   let npages
         | count>0 = ceiling (fromIntegral count / fromIntegral entries :: Double)
         | otherwise = 1
@@ -249,14 +249,14 @@ listSubmissions patts@Patterns{..} sort optPage = do
 handleExport :: Codex ()
 handleExport = method POST $ do
   au <- require (with auth currentUser) <|> unauthorized
-  when (not (isAdmin au)) unauthorized
+  unless (isAdmin au) unauthorized
   sep <- B.toString <$> require (getParam "sep")
   serveFile =<< exportSubmissions "export.txt" sep
-  
+
 
 
 -- | export all submissions to a CSV text file
--- NB: the caller should remove the temporary file 
+-- NB: the caller should remove the temporary file
 exportSubmissions :: FilePath -> String -> Codex FilePath
 exportSubmissions filetpl sep  = do
   tmpDir <- liftIO getTemporaryDirectory
@@ -267,17 +267,17 @@ exportSubmissions filetpl sep  = do
   liftIO (hClose handle)
   return path
   where
-    header = concat $ intersperse sep ["id", "user_id", "path", "language",
-                                       "classify", "timing", "received"]
+    header = intercalate sep ["id", "user_id", "path", "language",
+                              "classify", "timing", "received"]
     output :: Handle -> () -> Submission -> IO ()
     output h _ Submission{..} = do
-      let row = concat $ intersperse sep [show (fromSID submitID),
-                                          show (fromUID submitUser),
-                                          show submitPath,
-                                          show (fromLanguage $
-                                                codeLang submitCode),
-                                          show (resultClassify submitResult),
-                                          show submitTiming,
-                                          show (show submitTime)
-                                         ]
+      let row = intercalate sep [show (fromSID submitID),
+                                 show (fromUID submitUser),
+                                 show submitPath,
+                                 show (fromLanguage $
+                                       codeLang submitCode),
+                                 show (resultClassify submitResult),
+                                 show submitTiming,
+                                 show (show submitTime)
+                                ]
       hPutStrLn h row

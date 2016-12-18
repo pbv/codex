@@ -2,7 +2,7 @@
 
 module AuthHandlers (
   handleLogin,
-  handleLogout,   
+  handleLogout,
   handleRegister
   ) where
 
@@ -34,7 +34,7 @@ import           Application
 import           LdapAuth
 
 ------------------------------------------------------------------------------
--- | Handle login requests 
+-- | Handle login requests
 handleLogin :: Codex ()
 handleLogin =
   method GET (handleLoginForm "login" Nothing) <|>
@@ -57,7 +57,7 @@ getLdap = getSnapletUserConfig >>= (liftIO . getLdapConf "users.ldap")
 handleLoginSubmit :: Codex ()
 handleLoginSubmit = do
   login <-  require (getParam "login")
-  passwd <- require (getParam "password") 
+  passwd <- require (getParam "password")
   ldap <- getLdap
   r <- with auth $ loginByUsername (T.decodeUtf8 login) (ClearText passwd) False
   case r of
@@ -73,8 +73,8 @@ loginLdapUser ldapConf login passwd = do
   case r of
     Left err -> handleLoginForm "login" (Just err)
     Right au -> with auth (forceLogin au) >> redirect "/"
-  
-        
+
+
 
 ------------------------------------------------------------------------------
 
@@ -92,7 +92,7 @@ handleRegister =
 
 
 ------------------------------------------------------------------------------
--- | Register a new user 
+-- | Register a new user
 --
 newUser :: Handler b (AuthManager b) (Either AuthFailure AuthUser)
 newUser = do
@@ -115,16 +115,15 @@ newUser = do
       ExceptT (saveUser au') `catchE` (\err -> case err of
                                           DuplicateLogin -> return au'
                                           err -> throwE err)
-        
+
 
 
 
 ------------------------------------------------------------------------------
 -- | Logs out and redirects the user to the site index.
--- in exam mode procedeed to printout 
+-- in exam mode procedeed to printout
 handleLogout :: Codex ()
 handleLogout = method GET $ do
   uid <- require getUserID <|> unauthorized
-  with auth logout 
-  redirect "/" 
-
+  with auth logout
+  redirect "/"

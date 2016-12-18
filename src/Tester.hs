@@ -70,7 +70,7 @@ withTextTemp name contents cont
 
 
 withTempFile :: FilePath -> ((FilePath, Handle) -> IO a) -> IO a
-withTempFile name k = bracket create (\(f,_) -> removeFile f) k
+withTempFile name = bracket create (\(f,_) -> removeFile f) 
   where create = do
           tmpDir <- getTemporaryDirectory
           openTempFileWithDefaultPermissions tmpDir name

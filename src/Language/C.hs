@@ -2,7 +2,6 @@
 -- Test C code using Haskell QuickCheck
 --------------------------------------------------------------------------
 {-# LANGUAGE OverloadedStrings #-}
-{-# LANGUAGE RecordWildCards #-}
 
 module Language.C (
   clangTester

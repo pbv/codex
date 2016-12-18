@@ -2,13 +2,11 @@
 -- Test Haskell code using QuickCheck
 --------------------------------------------------------------------------
 {-# LANGUAGE OverloadedStrings #-}
-{-# LANGUAGE RecordWildCards #-}
 
 module Language.Haskell (
   haskellTester
   ) where
 
-import           Control.Applicative
 import           Control.Monad.State
 import           Data.Text (Text)
 import qualified Data.Text as T
@@ -16,7 +14,6 @@ import qualified Data.Text.IO as T
 import           Data.Monoid
 
 import           System.FilePath
-import           System.Directory
 import           System.IO
 
 import           Snap.Core(pass)
@@ -30,9 +27,7 @@ import           Application
 import           Page
 import           SafeExec
 import           Config
-import           Utils (require)
 
-import           System.Directory
 import           System.Process.Text
 import           System.Exit
 import           Control.Exception

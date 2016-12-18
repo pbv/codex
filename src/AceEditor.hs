@@ -10,9 +10,8 @@ module AceEditor
 
 import           Data.Text             (Text)
 import qualified Data.Text             as T
---import           Data.Function         (on)
---import           Data.List             (unionBy)
 
+import           Data.Maybe(fromMaybe)
 import           Data.Map.Syntax
 import           Heist
 import           Heist.Interpreted
@@ -21,11 +20,11 @@ import qualified Text.XmlHtml          as X
 import           Utils (javascript)
 import           Text.Printf(printf)
 
-import           Language.Types 
+import           Language.Types
 
 -- make a single XHTML node
 element :: Text -> [X.Node] -> [(Text,Text)] -> X.Node
-element tag nodes = flip (X.Element tag) nodes
+element tag = flip (X.Element tag)
 
 
 -- | Splice for a textarea/Ace editor form input
@@ -35,7 +34,7 @@ inputAceEditor = do
     node <- getParamNode
     let children = X.elementChildren node
     let attrs = X.elementAttrs node
-    return $ maybe [X.TextNode "inputAceEditor?"] id $ 
+    return $ fromMaybe [X.TextNode "inputAceEditor?"] $
       do id <- lookup "id" attrs
          mode <- lookup "mode" attrs
          return [
@@ -55,5 +54,3 @@ languageMode (Language l) = case l of
   "c"   -> "c_cpp"
   "cpp" -> "c_cpp"
   l -> l
-
-

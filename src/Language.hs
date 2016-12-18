@@ -1,24 +1,20 @@
 {-# LANGUAGE OverloadedStrings #-}
 
 module Language(
-  module Language.Types,
-  module Language.Python,
-  module Language.Haskell,
-  module Language.C,
-  codeTester
+  codeTester, module Lang
   ) where
 
+import Control.Applicative
 import Data.Monoid
 
 import Page
 import Application
-import Control.Applicative
 import Tester
 
-import Language.Types
-import Language.Python
-import Language.Haskell
-import Language.C
+import Language.Types as Lang
+import Language.Python as Lang
+import Language.Haskell as Lang
+import Language.C as Lang
 
 
 codeTester :: Page -> Code -> Codex Result
