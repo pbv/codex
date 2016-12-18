@@ -1,10 +1,8 @@
-<apply template="base">
+<apply template="_base">
 <h1>Bem-vindo!</h1>
 
-<p><em>Codex</em> é um sistema <em>web</em> para 
-ensino que permite
-resolução de exercícios de programação 
-com correção automática.</p>
+<p><em>Codex</em> é um sistema <em>web</em> para ensino que permite
+resolução de exercícios de programação com correção automática.</p>
 
 <p>Por favor autentique-se para iniciar a sessão
  ou  <a href="/register">registe</a>  uma nova conta de utilizador.</p>
@@ -26,3 +24,4 @@ com correção automática.</p>
 
 <div class="warnings"><p><loginError/></p></div>
 </apply>
+

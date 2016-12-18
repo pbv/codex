@@ -1,4 +1,4 @@
-<apply template="base">
+<apply template="_base">
 <h1>Acesso não autorizado!</h1>
 <ul>
 <li>Não tem autorização para visualizar esta página;

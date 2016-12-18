@@ -31,6 +31,7 @@ import qualified Data.Text as T
 import           Snap.Core
 import           Snap.Snaplet
 import           Snap.Snaplet.Auth
+import           Snap.Snaplet.Session (touchSession)
 import           Snap.Snaplet.Auth.Backends.SqliteSimple
 import qualified Snap.Snaplet.SqliteSimple as S
 import           Snap.Snaplet.Heist
@@ -63,8 +64,7 @@ import           AuthHandlers
 import           AdminHandlers
 
 import           Paths_codex(version)
-import           Data.Version (showVersion)  
-
+import           Data.Version (showVersion) 
 
 
 import           Text.Pandoc hiding (Code)
@@ -76,6 +76,7 @@ import           Text.Pandoc.Walk as Pandoc
 handlePage :: Codex ()
 handlePage = do
   uid <- require getUserID <|> unauthorized
+  with sess touchSession   -- refresh inactivity time-out
   rqpath <- getSafePath
   (method GET (handleGet uid rqpath <|> handleRedir rqpath)
    <|>
@@ -91,7 +92,7 @@ handlePage = do
         servePage uid rqpath
         else
         serveFileAs mime filepath
-    -- handle redirects
+
     handleRedir rqpath = do
         let filepath = publicPath </> rqpath </> "index.md"
         c <- liftIO (doesFileExist filepath)
@@ -99,13 +100,13 @@ handlePage = do
           redirect (encodePath ("/pub" </> rqpath </> "index.md"))
           else
           notFound
-    -- handle POST requests; only for exercise pages
+
     handlePost uid rqpath = do
       let filepath = publicPath </> rqpath
       c <- liftIO $ doesFileExist filepath
       guard (c && fileType mimeTypes rqpath == "text/markdown")
       page <- liftIO (readPage publicPath rqpath)
-      guard (pageIsExercise page)
+      guard (pageIsExercise page)  -- only exercise pages
       text <- require (getTextPost "editform.editor")
       lang <- require (return $ pageLanguage page)
       sub <- evaluate uid page (Code lang text)
@@ -150,7 +151,7 @@ readPageLinks uid rqpath = do
   page <- liftIO $ readPage publicPath rqpath
   let links = queryExerciseLinks page
   let dir = takeDirectory rqpath
-  -- fetch linked titles 
+  -- fetch linked titles; catch and ignore exceptions
   optTitles <- liftIO $
                forM links $ \url ->
                (pageTitle <$> readPage publicPath (dir</>url))
@@ -250,6 +251,7 @@ handleSubmission
             exerciseSplices t page
             submitSplices tz sub 
             inputAceEditorSplices
+            
         handleDelete = do
           au <- require (with auth currentUser) <|> unauthorized
           let uid = authUserID au

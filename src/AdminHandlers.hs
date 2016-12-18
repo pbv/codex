@@ -142,10 +142,9 @@ listDir base = do
 handleEdit :: FilePath -> Codex ()
 handleEdit base = do
   rqpath <- getSafePath
-  let rqdir = takeDirectory rqpath         
   contents <- require (getTextPost "editform.editor")
   liftIO $ T.writeFile (base</>rqpath) contents
-  redirect (encodePath ("/files" </> rqdir))
+  redirect (encodePath ("/files" </> rqpath))
 
 
 handleUpload :: FilePath -> Codex ()

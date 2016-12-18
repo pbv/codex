@@ -87,15 +87,18 @@ img {
 }
 
 #actions {   
-    background-color: cyan;
-     position: absolute;
-     text-align: left;
-     width: 40%;
+   background-color: cyan;
+   position: absolute;
+   text-align: left;
+   width: 40%;
      height: 4ex;
      left: 1em;
      top: 1em; 
 }
 
+
+div.admin  { 
+ }
 
 .info {
    color: #0f0f0f;

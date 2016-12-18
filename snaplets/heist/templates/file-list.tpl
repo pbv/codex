@@ -1,7 +1,7 @@
 <bind tag="icon-folder"><img src="/static/icons/16x16/folder.png"></bind>
 <bind tag="icon-editor"><img src="/static/icons/16x16/text-editor.png"/></bind>
 <bind tag="icon-warning"><img src="/static/icons/16x16/warning.png"/></bind>
-<apply template="base">
+<apply template="_base">
 <h1>/<file-path/></h1>
 
 <table class="filelist">
@@ -34,4 +34,7 @@
   </message-list>
 </dl>
 </div>
+</apply>
+
+<apply template="_browse">
 </apply>

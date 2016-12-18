@@ -20,15 +20,6 @@
 	 <a href="/logout">Logout</a>
        </ifLoggedIn>
      </div>
-     <div id="actions">
-       <ifLoggedIn>
-	 <a class="button" href="/pub">Home</a> &nbsp;
-	 <ifAdmin>
-	   <a class="button" href="/files">Browse files</a> &nbsp;
-	   <a class="button" href="/submited">Browse submissions</a>
-	 </ifAdmin>
-       </ifLoggedIn>
-    </div>
     </div>
      <div id="content">
        <apply-content/>

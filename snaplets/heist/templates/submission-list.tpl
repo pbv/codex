@@ -1,4 +1,4 @@
-<apply template="base">
+<apply template="_base">
 <h1>Submissions</h1>
 <p> 
 </p>
@@ -70,18 +70,16 @@ function move(k) {
 </script>
 
 <hr/>
-<form action="/export" method="POST">
-  <fieldset>
-    <legend>Export to text</legend>
-  <p>Field separator:
-    <select name="sep">
-      <option value=",">comma (,)</option>
-      <option value=";">semicolon (;)</option>
-      <option value="&#9">tabulation</option>
-    </select>
-    &nbsp; <input type="submit" value="Export"/> 
-  </p>
-  </fieldset>
-</form>
 
+</apply>
+
+<apply template="_browse">
+<form action="/export" method="POST" style="display:inline;">
+ <input type="submit" title="Export to text file" value="Export"/> separator:
+ <select name="sep">
+    <option value=",">comma (,)</option>
+    <option value=";">semicolon (;)</option>
+    <option value="&#9">tabulation</option>
+  </select>
+</form>
 </apply>

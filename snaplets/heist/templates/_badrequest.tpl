@@ -1,4 +1,4 @@
-<apply template="base">
+<apply template="_base">
 <h1>Pedido inválido</h1>
 <ul>
 <li>O pedido que tentou efetuar é inválido;</li>

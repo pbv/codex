@@ -1,4 +1,4 @@
-<apply template="base">
+<apply template="_base">
   <h1>/<file-path/></h1>
   <p>Mime-type: <file-mime/></p>
   <if-image-file>
@@ -10,18 +10,16 @@
       <input type="hidden" name="_method" value="PUT"/>
       <input type="hidden" id="editform.path" value="${file-path-url}"/>
       <inputAceEditor id="editform.editor" mode="ace/mode/text"><file-contents/></inputAceEditor>
-      <p><input type="submit" value="Save"/></p>
+      <p><input type="submit" value="Save changes"/> &nbsp;
+	<a class="button" title="Go to parent dir" href="/files/${file-path-url}/..">Cancel</a> 
+      </p>
     </form>
     <script type="text/javascript">
       setAceEditorModeExt('editform.editor', 'editform.path');
     </script>
   </if-text-file>
 
-  <p/>
-
   <div>
-    <a class="button" href="/files/${file-path-url}/..">Up</a> &nbsp;
-    <a class="button" href="/pub/${file-path-url}">View</a> &nbsp;
     <form id="deleteform" method="POST" action="/files/${file-path-url}"
        style="display:inline-block;">
       <input type="hidden" name="_method" value="DELETE"/>
@@ -36,11 +34,19 @@
       }
       }
     </script>
-    <form method="POST" action="/files/${file-path-url}" 
-	  style="display:inline-block;">
+  <form method="POST" action="/files/${file-path-url}" 
+	style="display:inline;">
+    <span>
       <input type="hidden" name="_method" value="PATCH"/>
       <input type="submit" value="Rename file:"/> 
       <input type="text" name="destname" required="required"/>
-    </form>
+    </span>
+  </form>
   </div>
+</apply>
+
+<apply template="_browse">
+  <a class="button" title="View formated page" 
+     href="/pub/${file-path-url}">View</a>  
+  &nbsp;
 </apply>

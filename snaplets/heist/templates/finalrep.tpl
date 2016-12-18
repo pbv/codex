@@ -1,4 +1,4 @@
-<apply template="base">
+<apply template="_base">
 <h1>Relatório de submissão</h1>
 <ul>
 <li>Leia este relatório atentamente;</li>

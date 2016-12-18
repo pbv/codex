@@ -1,4 +1,4 @@
-<apply template="base">
+<apply template="_base">
 <h1>Página não existente</h1>
 <ul>
 <li>A página que tentou aceder não existe;</li>

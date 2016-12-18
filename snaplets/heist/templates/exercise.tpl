@@ -3,7 +3,7 @@
 <bind tag="icon-overdue"><img src="/static/icons/16x16/overdue.png"/></bind>
 <bind tag="icon-editor"><img src="/static/icons/16x16/editor.png"/></bind>
 <bind tag="submit-icons"><overdue>&nbsp;<icon-overdue/><else/><accepted>&nbsp;<icon-accepted/></accepted></overdue></bind>
-<apply template="base">
+<apply template="_base">
 <div class="description">
 <page-description/>
 </div>
@@ -47,11 +47,12 @@
   <p><inputAceEditor id='editform.editor' mode='ace/mode/${language-mode}'><code-text/></inputAceEditor>
 </p>
 <p>
-  <input type="submit" value="Enviar"/>  &nbsp;
-  <a href="/pub/${file-path-url}/.." class="button">Voltar à folha de problemas</a>
-  <ifAdmin>
-    <p><a href="/files/${file-path-url}" class="button">Edit</a></p>
-  </ifAdmin>
+  <input type="submit" value="Submeter"/>  &nbsp;
+  <a href="/pub/${file-path-url}/.." class="button">Voltar à folha de exercícios</a>
 </form>
 </apply>
 
+
+<apply template="_browse">
+  <a title="Edit exercise file" href="/files/${file-path-url}" class="button">Edit</a>
+</apply>

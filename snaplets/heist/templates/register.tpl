@@ -1,4 +1,4 @@
-<apply template="base">
+<apply template="_base">
 <h1>Registar novo utilizador</h1>
 
 <form method="POST" action="/register">
@@ -27,6 +27,8 @@
     </tr>
   </table>
 </form>
-
 <div class="warnings"><p><loginError/></p></div>
+</apply>
+
+<apply template="_browse">
 </apply>

@@ -1,4 +1,4 @@
-<apply template="base">
+<apply template="_base">
 <h1>Erro interno do servidor</h1>
 <ul>
 <li>Aconteceu um erro interno do servidor; isto não deveria ter acontecido!</li>
