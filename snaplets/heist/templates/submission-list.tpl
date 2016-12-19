@@ -1,6 +1,6 @@
 <apply template="_base">
 <h1>Submissions</h1>
-<p> 
+<p>
 </p>
 
 <form id="listform" action="/submited" method="POST">
@@ -20,7 +20,7 @@
     </select> &nbsp;
     &nbsp;&nbsp;
     <input type="submit" onClick="move(-1)" value="Previous page"/> &nbsp;
-    <input type="submit" onClick="move(1)" value="Next page"/>  
+    <input type="submit" onClick="move(1)" value="Next page"/>
   </div>
   <table class="submissions">
     <tr>
@@ -40,7 +40,7 @@
       <th><input type="text" name="class_pat" size="20" value="${class_pat}"/></th>
       <th><input type="text" name="timing_pat" size="6" value="${timing_pat}"/></th>
       <th/>
-    </tr> 
+    </tr>
     <if-submissions>
       <submissions>
 	<tr>
@@ -71,15 +71,16 @@ function move(k) {
 
 <hr/>
 
-</apply>
-
-<apply template="_browse">
 <form action="/export" method="POST" style="display:inline;">
- <input type="submit" title="Export to text file" value="Export"/> separator:
+ <input type="submit" title="Export as text-delimited file" value="Export"/> field separator:
  <select name="sep">
     <option value=",">comma (,)</option>
     <option value=";">semicolon (;)</option>
     <option value="&#9">tabulation</option>
   </select>
 </form>
+
+</apply>
+
+<apply template="_browse">
 </apply>

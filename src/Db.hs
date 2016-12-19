@@ -1,6 +1,6 @@
 {-# LANGUAGE OverloadedStrings, ScopedTypeVariables #-}
-{- 
-  Initialize backend SQLite database tables 
+{-
+  Initialize backend SQLite database tables
 -}
 module Db where
 
@@ -25,7 +25,7 @@ createTables conn = do
   -- Note: for a bigger app, you probably want to create a 'version'
   -- table too and use it to keep track of schema version and
   -- implement your schema upgrade procedure here.
-      
+
 
 initCmds :: [S.Query]
 initCmds = ["CREATE TABLE submissions (\
@@ -40,7 +40,3 @@ initCmds = ["CREATE TABLE submissions (\
             \timing TEXT NOT NULL)",
             "CREATE INDEX user_index ON submissions(user_id)"
            ]
-
-
-
-

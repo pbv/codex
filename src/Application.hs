@@ -34,7 +34,7 @@ instance HasHeist App where
 
 instance HasSqlite (Handler App App) where
    getSqliteState = with db get
-   
+
 ------------------------------------------------------------------------------
 type Codex = Handler App App
 ------------------------------------------------------------------------------

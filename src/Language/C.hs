@@ -73,7 +73,7 @@ clangTesterIO sf gcc_cmd ghc_cmd qcArgs c_code props =
    (cleanupFiles temps)
 
 
-   
+
 runCompiler cmd args = do
   (exitCode, _, stderr) <- readProcessWithExitCode cmd args ""
   case exitCode of
@@ -102,7 +102,7 @@ testScript props
 
 
 
-haskellResult (exitCode, stdout, stderr)  
+haskellResult (exitCode, stdout, stderr)
   | match "Not in scope" stderr ||
     match "parse error" stderr  ||
     match "Couldn't match" stderr  = compileError stderr
@@ -112,5 +112,3 @@ haskellResult (exitCode, stdout, stderr)
   | match "Command terminated by signal" stderr  = runtimeError stderr
   | match "Command exited with non-zero status" stderr = runtimeError stderr
   | otherwise     = accepted stdout
-
-    

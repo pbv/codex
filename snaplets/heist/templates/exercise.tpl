@@ -25,14 +25,14 @@
   <case-timing>
     <Early>
       <p><submissions-count/> submissões antecipadas; os resultados serão
-	visíveis após <valid-from/>.</p>  
+	visíveis após <valid-from/>.</p>
     </Early>
     <default>
       <ol class="submissions">
 	<submissions-list>
 	  <li>
 	    <a href="/submited/${submit-id}">
-	      <span class="info"><classify/></span></a>
+	      <submit-id/></a><sup><span class="info"><classify/></span></sup>
 	  </li>
 	</submissions-list>
       </ol>
@@ -54,5 +54,5 @@
 
 
 <apply template="_browse">
-  <a title="Edit exercise file" href="/files/${file-path-url}" class="button">Edit</a>
+  <li><a title="Edit exercise file" href="/files/${file-path-url}">Edit</a></li>
 </apply>

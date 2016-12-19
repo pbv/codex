@@ -11,6 +11,7 @@ import qualified Data.ByteString.UTF8 as B
 import           Data.String (IsString(..))
 import           Data.Text (Text)
 import qualified Data.Text as T
+import qualified Data.Text.Encoding as T
 
 import           Data.HashMap.Strict(HashMap)
 
@@ -25,10 +26,10 @@ import           Database.SQLite.Simple.FromRow
 
 -- | identifiers
 newtype UserID
-  = UserID {fromUID :: ByteString} deriving (Eq, Ord, Read, Show) 
+  = UserID {fromUID :: ByteString} deriving (Eq, Ord, Read, Show)
 
 newtype SubmitID
-  = SubmitID {fromSID :: Int64} deriving (Eq, Ord, Read, Show) 
+  = SubmitID {fromSID :: Int64} deriving (Eq, Ord, Read, Show)
 
 
 -- | conversion to text
@@ -36,7 +37,8 @@ class ToText a where
   toText :: a -> Text
 
 instance ToText UserID where
-  toText (UserID uid) = T.pack (B.toString uid)
+  toText (UserID uid) = T.decodeUtf8 uid
+    --T.pack (B.toString uid)
 
 {-
 instance ToText ProblemID where
@@ -56,22 +58,22 @@ instance IsString UserID where
 
 -- | convertion to/from SQL fields
 instance ToField UserID where
-  toField (UserID id) = toField id
-  
+  toField (UserID uid) = toField uid
+
 instance FromField UserID where
   fromField f = UserID <$> fromField f
 
 {-
 instance ToField ProblemID where
   toField (ProblemID id) = toField id
-  
+
 instance FromField ProblemID where
   fromField f = ProblemID <$> fromField f
 -}
 
 instance ToField SubmitID where
-  toField (SubmitID id) = toField id
-  
+  toField (SubmitID sid) = toField sid
+
 instance FromField SubmitID where
   fromField f = SubmitID <$> fromField f
 
@@ -87,14 +89,14 @@ instance FromRow ProblemID where
 data LdapConf = LdapConf { ldapURI :: String
                          , ldapBase :: String
                          , ldapMap :: HashMap Text Text  -- ^ attribute mapping
-                         } 
+                         }
                 deriving Show
-                         
+
 -- | Printout configuration
-data PrintConf = PrintConf { printEnabled :: Bool 
+data PrintConf = PrintConf { printEnabled :: Bool
                            , printHeader :: Text
                            , printOptions :: [String]
-                           } 
+                           }
                 deriving Show
 
 

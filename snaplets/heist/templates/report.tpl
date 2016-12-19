@@ -20,22 +20,24 @@
   </default>
 </case-timing>
 
+<ifAdmin>
+<form method="POST" action="/submited/${submit-id}" style="display:inline;">
+    <input type="hidden" name="_method" value="DELETE"/>
+    <input type="submit" title="Delete submission from database" value="Delete"/>
+</form>
+</ifAdmin>
 <h2>Nova submissão</h2>
 
 <form id="editform" method="POST" action="/pub/${file-path-url}"
       onsubmit="submitAceEditorText('editform.editor');">
 <p><inputAceEditor id="editform.editor" mode="ace/mode/${language-mode}"><code-text/></inputAceEditor></p>
-<p><input type="submit" value="Re-enviar"/> 
+<p><input type="submit" value="Re-enviar"/>
 &nbsp;<a class="button" href="/pub/${file-path-url}">Voltar ao exercício</a>
 &nbsp;<a class="button" href="/pub/${file-path-url}/..">Voltar à folha de exercícios</a>
 </form>
 </apply>
 
 <apply template="_browse">
-  <a class="button" title="Edit exercise page" 
-     href="/files/${file-path-url}" >Edit</a> &nbsp;
-  <form method="POST" action="/submited/${submit-id}" style="display:inline;">
-    <input type="hidden" name="_method" value="DELETE"/>
-    <input type="submit" title="Delete submission from database" value="Delete"/>
-  </form>
+  <li><a title="Edit exercise page"
+     href="/files/${file-path-url}">Edit</a><li>
 </apply>

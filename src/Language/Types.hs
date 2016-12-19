@@ -14,12 +14,10 @@ newtype Language
   deriving (Eq, Typeable, Read, Show)
 
 
--- program text in some language 
+-- program text in some language
 data Code = Code { codeLang :: !Language
                  , codeText :: !Text
                  } deriving (Eq, Typeable, Read, Show)
 
 instance FromMetaValue Language where
   fromMeta v = fmap (Language . toLower) (fromMeta v)
-
-

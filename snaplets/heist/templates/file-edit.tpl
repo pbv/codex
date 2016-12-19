@@ -11,7 +11,7 @@
       <input type="hidden" id="editform.path" value="${file-path-url}"/>
       <inputAceEditor id="editform.editor" mode="ace/mode/text"><file-contents/></inputAceEditor>
       <p><input type="submit" value="Save changes"/> &nbsp;
-	<a class="button" title="Go to parent dir" href="/files/${file-path-url}/..">Cancel</a> 
+	<a class="button" title="Go to parent dir" href="/files/${file-path-url}/..">Cancel</a>
       </p>
     </form>
     <script type="text/javascript">
@@ -34,11 +34,11 @@
       }
       }
     </script>
-  <form method="POST" action="/files/${file-path-url}" 
+  <form method="POST" action="/files/${file-path-url}"
 	style="display:inline;">
     <span>
       <input type="hidden" name="_method" value="PATCH"/>
-      <input type="submit" value="Rename file:"/> 
+      <input type="submit" value="Rename file:"/>
       <input type="text" name="destname" required="required"/>
     </span>
   </form>
@@ -46,7 +46,5 @@
 </apply>
 
 <apply template="_browse">
-  <a class="button" title="View formated page" 
-     href="/pub/${file-path-url}">View</a>  
-  &nbsp;
+  <li><a title="View formated page" href="/pub/${file-path-url}">View</a></li>
 </apply>

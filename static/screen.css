@@ -42,79 +42,90 @@ img {
 .index li {
 }
 
-.submissions li {
-   list-style-type: decimal;
-   width: 25%;
-   float: left;
+ul.menubar {
+  list-style-type: none;
+  margin: 0;
+  padding: 0;
+
 }
 
-.submissions:after { 
+ul.menubar li {
+    float: left;
+}
+
+ul.menubar li a {
+    display: inline-block;
+    text-align: center;
+    text-decoration: none;
+    padding: 10px 10px;
+}
+
+ul.menubar li a:hover {
+    background-color: darkcyan;
+    color: white;
+}
+
+
+
+
+ol.submissions {
+  list-style-type: none;
+  width: 80%;
+}
+
+ol.submissions li {
+  padding-right: 1em;
+  padding-bottom: 1ex;
+  float: left;
+}
+
+ol.submissions:after {
   content: '';
   display: block;
   clear: both;
  }
 
 #content {
+   padding-top: 3em;
    margin-left: auto;
    margin-right: auto;
    width: 60em;
 }
 
-#topbar {
-    background-color: cyan;
-    width: auto;
-    height: 6ex;
-    padding-bottom: 0;  
-    padding-top: 0;  
-    padding-left: 0em;
-    margin-left: 0;
-    margin-right: 0;
-}
 
 
-#session { 
-    background-color: cyan;
-    position: absolute;
-    text-align: right;
-    width: 100%;
-    height: auto;
-    left: auto;
-    right: 0em;
-    top: 0em;
-    padding-right: 2em;
-    padding-top: 1ex;
-    padding-bottom: 1ex;
-}
-
-#actions {   
+#actions {
    background-color: cyan;
    position: absolute;
-   text-align: left;
-   width: 40%;
-     height: 4ex;
-     left: 1em;
-     top: 1em; 
+   width: auto;
+   height: 1.5em;
+   left: 0em;
+   right: 0em;
+   top: 0em;
+   bottom: auto;
+   padding-left: 1em;
+   padding-right: 1em;
+   padding-top: 1em;
+   padding-bottom: 1em;
 }
 
 
-div.admin  { 
- }
 
 .info {
    color: #0f0f0f;
-   font-size: 90%; 
+   font-size: 90%;
    font-style: oblique;
    /* vertical-align: text-top;*/
 }
 
-.warnings { 
+.warnings {
   color: red;
   /* font-style: oblique; */
   /* font-size: 90%; */
 }
 
 
-.js-timer { 
+.js-timer {
   font-style: oblique;
 }
 
@@ -122,7 +133,7 @@ div.admin  {
 #footer {
     position: relative;
     clear: both;
-    bottom: -5ex;
+    bottom: -2ex;
     width: auto;
     background-color: cyan;
     padding-top: 2ex;
@@ -133,14 +144,14 @@ div.admin  {
 }
 
 
-pre { 
-    background-color: #ffffcc; 
+pre {
+    background-color: #ffffcc;
     margin-left: 1em;
     padding: 1em;
     width: 55em;
 }
 
-.ace_editor { 
+.ace_editor {
     width:  45em;
     height: 45ex;
 }
@@ -158,51 +169,51 @@ pre {
 
 
 
-td.filename { 
+td.filename {
    padding-left: 0.5em;
    padding-right: 4em;
  }
 
-td.filetype { 
+td.filetype {
    padding-left: 2em;
    padding-right: 2em;
  }
 
-td.filemodified { 
+td.filemodified {
    padding-left: 2em;
    padding-right: 2em;
  }
 
 
 
-table.filelist tr:nth-child(even) { 
+table.filelist tr:nth-child(even) {
   font-family: monospace;
   background: #eeeeee;
  }
 
-table.filelist tr:nth-child(odd)  { 
+table.filelist tr:nth-child(odd)  {
   font-family: monospace;
   background: white;
  }
 
 
-table.submissions tr:nth-child(odd) {  
+table.submissions tr:nth-child(odd) {
   background: white;
 }
 
-table.submissions tr:nth-child(even) {  
+table.submissions tr:nth-child(even) {
   background: #eeeeee;
 }
 
-table.submissions td { 
+table.submissions td {
  font-family: monospace;
 }
 
-table.submissions td.received { 
+table.submissions td.received {
  font-style: oblique;
  }
 
-table.submissions td.classify { 
+table.submissions td.classify {
  font-style: oblique;
  }
 
@@ -212,6 +223,5 @@ table.submissions td.classify {
 /* --- code highlighting --- */
 
 .sourceCode .kw { font-weight: bold; color: blue;  }
-.sourceCode .co { color: darkgreen; } 
+.sourceCode .co { color: darkgreen; }
 .sourceCode .st { color: darkgreen; }
-

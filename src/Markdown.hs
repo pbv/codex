@@ -7,7 +7,7 @@ import           Text.Pandoc hiding (Code)
 
 import qualified Text.Pandoc ( Inline(Code) )
 import           Text.Pandoc.Walk
-import           Text.XmlHtml 
+import           Text.XmlHtml
 import           Text.Blaze.Renderer.XmlHtml
 
 import           Data.Text (Text)
@@ -24,7 +24,7 @@ import           Data.List (intersperse)
 -- | read from a metadata value
 class FromMetaValue a where
   fromMeta :: MetaValue -> Maybe a
-  
+
 instance FromMetaValue Text where
   fromMeta = Just . metaText
 
@@ -42,9 +42,9 @@ instance FromMetaValue Int where
 instance {-# OVERLAPPABLE #-} FromMetaValue a => FromMetaValue [a] where
   fromMeta (MetaList l) = mapM fromMeta l
   fromMeta _            = Nothing
- 
+
 instance {-# OVERLAPPING #-} FromMetaValue String where
-  fromMeta = Just . T.unpack . metaText 
+  fromMeta = Just . T.unpack . metaText
 
 
 -- | lookup from metadata value
@@ -88,8 +88,7 @@ metaText (MetaList l) =
   T.concat (intersperse "," $ map metaText l)
 metaText (MetaMap m) =
   T.concat $
-  intersperse ","  $
-  [ T.concat [T.pack k, ":", metaText v] | (k,v)<- Map.assocs m]
+  intersperse ","  [T.concat [T.pack k, ":", metaText v] | (k,v)<- Map.assocs m]
 
 
 
@@ -110,7 +109,7 @@ blocksToHtml :: [Block] -> [Node]
 blocksToHtml = pandocToHtml . makeDoc
 
 makeDoc :: [Block] -> Pandoc
-makeDoc = Pandoc mempty 
+makeDoc = Pandoc mempty
 
 -- inlinesToHtml :: Inlines -> [Node]
 --inlinesToHtml = blocksToHtml . plain
@@ -124,6 +123,5 @@ readMarkdownFile fp = do
     Right doc -> return doc
   where
     opts = def { readerExtensions = pandocExtensions
-               , readerSmart = True 
+               , readerSmart = True
                }
-
