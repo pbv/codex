@@ -9,6 +9,7 @@ module Submission (
   Patterns(..),
   Sorting(..),
   insertSubmission,
+  updateSubmission,
   getSubmission,
   deleteSubmission,
   emptyPatterns,
@@ -17,7 +18,7 @@ module Submission (
   filterSubmissions,
   countSubmissions,
   getPageSubmissions,
-  submitSplices   
+  submitSplices
   ) where
 
 
@@ -25,7 +26,7 @@ import           Data.Map.Syntax
 import           Data.Time.Clock
 import           Data.Time.LocalTime
 
-import           Data.Text(Text) 
+import           Data.Text(Text)
 import qualified Data.Text          as T
 import qualified Data.Text.Encoding as T
 
@@ -33,12 +34,12 @@ import           Data.Maybe(listToMaybe)
 
 import           Snap.Snaplet.SqliteSimple
 import qualified Database.SQLite.Simple as S
-import           Database.SQLite.Simple.FromField 
-import           Database.SQLite.Simple.ToField 
+import           Database.SQLite.Simple.FromField
+import           Database.SQLite.Simple.ToField
 import           Heist.Splices     as I
 import qualified Heist.Interpreted as I
 
- 
+import           Control.Concurrent.MVar
 
 import           Application
 import           Utils
@@ -52,22 +53,22 @@ import           Tester
 data Submission = Submission {
   submitID :: SubmitID,     -- submission id
   submitUser :: UserID,    -- user id
-  submitPath  :: FilePath,  -- exercise path 
-  submitTime :: UTCTime,      -- submition time  
+  submitPath  :: FilePath,  -- exercise path
+  submitTime :: UTCTime,      -- submition time
   submitCode :: Code,       -- program code
   submitResult :: Result,   -- accepted/wrong answer/etc
   submitTiming :: Timing    -- valid, early or overdue?
   }
 
 
--- | convertions to/from SQL 
+-- | convertions to/from SQL
 instance ToField Classify where
   toField s = toField (show s)
 
 instance FromField Classify where
-  fromField f = do s <- fromField f 
+  fromField f = do s <- fromField f
                    parse (reads s)
-    where 
+    where
       parse ((s,""):_) = return s
       parse _  = returnError ConversionFailed f "invalid Classify field"
 
@@ -76,12 +77,12 @@ instance ToField Timing where
   toField s = toField (show s)
 
 instance FromField Timing where
-  fromField f = do s <- fromField f 
+  fromField f = do s <- fromField f
                    parse (reads s)
-    where 
+    where
       parse ((s,""):_) = return s
       parse _  = returnError ConversionFailed f "invalid Timing field"
-  
+
 
 instance ToField Language where
   toField (Language l) = toField l
@@ -113,28 +114,39 @@ instance FromRow Submission where
 
 -- | insert a new submission into the DB
 insertSubmission ::
-  UserID -> FilePath -> UTCTime -> Code -> Result -> Timing -> Codex Submission
+  UserID -> FilePath ->  UTCTime -> Code -> Result -> Timing
+  -> Codex Submission
 insertSubmission uid path received code result timing = do
   let (Code lang text) = code
   let (Result classf msg) = result
-  sid <- withSqlite $ \conn -> do
-    S.execute conn 
+  withSqlite $ \conn -> do
+    S.execute conn
       "INSERT INTO submissions \
        \ (user_id, path, received, language, code, class, message, timing) \
        \ VALUES(?, ?, ?, ?, ?, ?, ?, ?)" (uid, path, received, lang, text, classf, msg, timing)
-    fmap SubmitID (S.lastInsertRowId conn)
-  return (Submission sid uid path received code result timing)
+    sid <- fmap SubmitID (S.lastInsertRowId conn)
+    return (Submission sid uid path received code result timing)
+
+-- | update submission result after evaluation
+updateSubmission :: Sqlite -> SubmitID -> Result -> IO ()
+updateSubmission sqlite sid result =
+  withMVar (sqliteConn sqlite) $ \conn ->
+     S.execute conn "UPDATE submissions SET class = ?, message = ? \
+                     \ where id = ?"
+                     (resultClassify result, resultMessage result, sid)
 
 
--- | get a single submission 
+
+
+-- | get a single submission
 getSubmission :: SubmitID -> Codex (Maybe Submission)
-getSubmission sid = 
+getSubmission sid =
   listToMaybe <$> query "SELECT * FROM submissions WHERE id = ?" (Only sid)
 
 
 -- | get all submissions for a user and exercise page
-getPageSubmissions :: UserID -> FilePath -> Codex [Submission]  
-getPageSubmissions uid path = 
+getPageSubmissions :: UserID -> FilePath -> Codex [Submission]
+getPageSubmissions uid path =
   query "SELECT * FROM submissions \
        \ WHERE user_id = ? AND path = ? ORDER BY id" (uid, path)
 
@@ -144,7 +156,7 @@ deleteSubmission sid =
   execute "DELETE FROM submissions where id = ?" (Only sid)
 
 -------------------------------------------------------------------------
--- patterns for filtering submissions                                      
+-- patterns for filtering submissions
 type Pattern = Text
 
 data Patterns = Patterns {
@@ -154,7 +166,7 @@ data Patterns = Patterns {
   langPat :: Pattern,
   classPat :: Pattern,
   timingPat :: Pattern
-  } 
+  }
 
 emptyPatterns :: Patterns
 emptyPatterns = Patterns {idPat = "", userPat = "", pathPat = "",
@@ -174,7 +186,7 @@ checkEmptyPat Patterns{..}
                classPat = checkEmpty classPat,
                timingPat = checkEmpty timingPat
              }
-    
+
 
 data Sorting = Asc | Desc deriving (Eq, Show, Read)
 
@@ -184,9 +196,9 @@ countSubmissions patts = do
   let Patterns{..} = checkEmptyPat patts
   r <- query "SELECT COUNT(*) FROM submissions WHERE \
         \ id LIKE ? AND user_id LIKE ? AND path LIKE ? \
-        \ AND language LIKE ? AND class LIKE ? AND timing LIKE ?" 
+        \ AND language LIKE ? AND class LIKE ? AND timing LIKE ?"
         (idPat, userPat, pathPat, langPat, classPat, timingPat)
-  case r of 
+  case r of
      [Only c] -> return c
      _ -> error "countSubmissions failed"
 
@@ -198,15 +210,15 @@ filterSubmissions patts sort limit offset = do
         Asc -> "SELECT * FROM submissions WHERE \
         \ id LIKE ? AND user_id LIKE ? AND path LIKE ? \
         \ AND language LIKE ? AND class LIKE ? AND timing LIKE ? \
-        \ ORDER BY received ASC LIMIT ? OFFSET ?" 
+        \ ORDER BY received ASC LIMIT ? OFFSET ?"
         Desc -> "SELECT * FROM submissions WHERE \
         \ id LIKE ? AND user_id LIKE ? AND path LIKE ? \
         \ AND language LIKE ? AND class LIKE ? AND timing LIKE ? \
-        \ ORDER BY received DESC LIMIT ? OFFSET ?" 
+        \ ORDER BY received DESC LIMIT ? OFFSET ?"
   query sql (idPat, userPat, pathPat, langPat, classPat, timingPat, limit, offset)
 
 
-  
+
 -- | process submissions with a filter
 withFilterSubmissions :: Patterns -> a -> (a -> Submission -> IO a) -> Codex a
 withFilterSubmissions patts a f = do
@@ -225,7 +237,7 @@ withSubmissions a f = do
   withSqlite (\conn -> S.fold_ conn q a f)
 
 
-                                      
+
 {-
 -- | count all submissions
 countSubmissions :: UserID -> FilePath -> AppHandler Int
@@ -243,20 +255,20 @@ countSubmissions' uid pid result = do
              \ FROM submissions WHERE result = ? \
              \ AND  user_id = ? AND problem_id = ?" (result,uid,pid)
   return $ maybe 0 fromOnly r
-  
+
 
 -- | get the best submission for a problem for printouts:.
--- the last Accepted submission; or 
+-- the last Accepted submission; or
 -- the last overall submission (if none was accepted)
--- Note: the query below assumes that the submissions ID key 
+-- Note: the query below assumes that the submissions ID key
 -- is monotonically increasing with time i.e. later submissions have higher IDs
 getBestSubmission :: UserID -> ProblemID -> AppHandler (Maybe Submission)
-getBestSubmission uid pid = 
-  listToMaybe <$> 
+getBestSubmission uid pid =
+  listToMaybe <$>
   query "SELECT id,user_id,problem_id,ip_addr,time,code,status,report \
        \ FROM (SELECT *,status IN ('Accepted', 'Overdue') as accept \
              \ FROM submissions WHERE user_id = ? AND problem_id = ? \
-             \ ORDER BY accept DESC, id DESC LIMIT 1)" (uid,pid) 
+             \ ORDER BY accept DESC, id DESC LIMIT 1)" (uid,pid)
 -}
 
 
@@ -278,3 +290,4 @@ submitSplices tz Submission{..} = do
   "early" ## I.ifElseISplice (submitTiming == Early)
   "overdue" ## I.ifElseISplice (submitTiming == Overdue)
   "accepted" ## I.ifElseISplice (resultClassify submitResult == Accepted)
+  "evaluating" ## I.ifElseISplice (resultClassify submitResult == Evaluating)

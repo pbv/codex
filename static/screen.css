@@ -118,6 +118,11 @@ ol.submissions:after {
    /* vertical-align: text-top;*/
 }
 
+.spinner {
+  
+  }
+
+
 .warnings {
   color: red;
   /* font-style: oblique; */

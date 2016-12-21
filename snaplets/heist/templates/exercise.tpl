@@ -1,8 +1,9 @@
 <bind tag="icon-accepted"><img src="/static/icons/16x16/accepted.png"/></bind>
 <bind tag="icon-rejected"><img src="/static/icons/16x16/rejected.png"/></bind>
+<bind tag="icon-warning"><img src="/static/icons/16x16/warning.png"/></bind>
 <bind tag="icon-overdue"><img src="/static/icons/16x16/overdue.png"/></bind>
 <bind tag="icon-editor"><img src="/static/icons/16x16/editor.png"/></bind>
-<bind tag="submit-icons"><overdue>&nbsp;<icon-overdue/><else/><accepted>&nbsp;<icon-accepted/></accepted></overdue></bind>
+<bind tag="submit-icon"><valid><accepted><icon-accepted/><else/><icon-warning/></accepted><else/><icon-overdue/></valid></bind>
 <apply template="_base">
 <div class="description">
 <page-description/>
@@ -31,8 +32,7 @@
       <ol class="submissions">
 	<submissions-list>
 	  <li>
-	    <a href="/submited/${submit-id}">
-	      <submit-id/></a><sup><span class="info"><classify/></span></sup>
+	    <a href="/submited/${submit-id}"><submit-id/></a><span class="info"><classify/></span>
 	  </li>
 	</submissions-list>
       </ol>
@@ -54,5 +54,5 @@
 
 
 <apply template="_browse">
-  <li><a title="Edit exercise file" href="/files/${file-path-url}">Edit</a></li>
+  <li><a title="Editar a página de exercício" href="/files/${file-path-url}">Editar</a></li>
 </apply>

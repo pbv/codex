@@ -9,12 +9,12 @@ import           Data.Monoid
 import           Data.Text (Text)
 import qualified Data.Text as T
 
-import           Snap.Core(pass)
-import           Snap.Snaplet(getSnapletUserConfig)
+-- import           Snap.Core(pass)
+-- import           Snap.Snaplet(getSnapletUserConfig)
 
 import           Language.Types
 import           Markdown
-import           Application
+-- import           Application
 import           Page
 import           Tester
 import           Config
@@ -24,14 +24,13 @@ import           System.Exit
 import           System.FilePath
 import           System.Directory
 
-
+import           Data.Configurator.Types
 import qualified Data.Configurator as Configurator
 
--- type Doctest = FilePath   -- path to doctest script
 
--- get the relative doctest path for a problem
+-- | get the relative doctest path for a page
 getDoctest :: Page -> FilePath
-getDoctest p 
+getDoctest p
   = let path = pagePath p
         meta = pageMeta p
     in maybe
@@ -39,32 +38,24 @@ getDoctest p
        (takeDirectory path </>)
        (lookupFromMeta "doctest" meta)
 
-
--- running and evaluating python submissions
-pythonTester :: Page -> Code -> Codex Result
-pythonTester page (Code (Language "python") code) = do
-    conf <- getSnapletUserConfig
-    python <- liftIO $ Configurator.require conf "language.python.interpreter"
-    sf <- liftIO $ liftM2 (<>)
+-- | run and evaluate python submissions
+pythonTester :: Config -> Page -> Code -> IO Result
+pythonTester conf page (Code (Language "python") code) = do
+    python <- Configurator.require conf "language.python.interpreter"
+    sf <- liftM2 (<>)
           (getSafeExecConf "language.python.safeexec" conf)
           (getSafeExecConf "safeexec" conf)
     let tstfile = publicPath </> getDoctest page
-    liftIO $ do
-      c <- doesFileExist tstfile
-      if c then pythonTesterIO sf python code tstfile
-        else return (miscError $ T.pack $ "missing doctest file: " ++ tstfile)
-pythonTester _ _ = pass             
-
-
-pythonTesterIO :: SafeExecConf -> FilePath -> Text -> FilePath -> IO Result
-pythonTesterIO sf python code tstfile  = 
-    withTextTemp "tmp.py" code $ \pyfile ->
-    pythonResult <$>
-      safeExecWith sf python ["python/pytest.py", tstfile, pyfile] ""
+    c <- doesFileExist tstfile
+    if c then withTextTemp "tmp.py" code $ \pyfile ->
+                pythonResult <$>
+                safeExecWith sf python ["python/pytest.py", tstfile, pyfile] ""
+      else return (miscError $ T.pack $ "missing doctest file: " ++ tstfile)
+pythonTester _ _ _ = return (miscError "pythonTester: invalid submission")
 
 
 pythonResult :: (ExitCode, Text, Text) -> Result
-pythonResult (exitCode, stdout, stderr) 
+pythonResult (exitCode, stdout, stderr)
   | T.null stdout && match "OK" stderr = accepted stderr
   | match "Time Limit" stderr          = timeLimitExceeded stderr
   | match "Memory Limit" stderr        = memoryLimitExceeded stderr

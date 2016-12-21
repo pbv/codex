@@ -6,9 +6,9 @@ module Language(
 
 import Control.Applicative
 import Data.Monoid
+import Data.Configurator.Types
 
 import Page
-import Application
 import Tester
 
 import Language.Types as Lang
@@ -17,12 +17,16 @@ import Language.Haskell as Lang
 import Language.C as Lang
 
 
-codeTester :: Page -> Code -> Codex Result
-codeTester page code
-  = pythonTester page code <|>
-    haskellTester  page code <|>
-    clangTester page code <|>
-    return (received errMsg)
+codeTester :: Config -> Page -> Code -> IO Result
+codeTester conf page code
+  = case codeLang code of
+    Language "python" ->
+        pythonTester conf page code
+    Language "haskell" ->
+        haskellTester conf page code
+    Language "c" ->
+        clangTester conf page code
+    _ -> return (received errMsg)
   where
     errMsg = "No tester defined for language \"" <>
              fromLanguage (codeLang code) <> "\""

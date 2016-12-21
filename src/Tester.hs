@@ -8,7 +8,7 @@ import           Data.Text(Text)
 import qualified Data.Text as T
 import qualified Data.Text.IO as T
 
-import           System.IO 
+import           System.IO
 import           System.Directory
 import           Control.Exception
 import           Control.Monad(when)
@@ -21,7 +21,8 @@ data Result = Result { resultClassify :: !Classify
               deriving (Eq, Read, Show, Typeable)
 
 -- classification
-data Classify = Received
+data Classify = Evaluating
+              | Received
               | Accepted
               | WrongAnswer
               | CompileError
@@ -36,6 +37,9 @@ instance Exception Result -- default instance
 
 
 -- | "smart" result construtors
+evaluating :: Result
+evaluating = Result Evaluating ""
+
 received, accepted, wrongAnswer, compileError, runtimeError,
    timeLimitExceeded, memoryLimitExceeded, miscError :: Text -> Result
 received = Result Received . trim maxLen
@@ -57,7 +61,7 @@ trim maxlen txt
   | otherwise = T.append (T.take maxlen txt') "\n**Output too long (truncated)***\n"
   where txt' = T.strip txt
 
--- | match a piece of text  
+-- | match a piece of text
 match :: Text -> Text -> Bool
 match = T.isInfixOf
 
@@ -70,7 +74,7 @@ withTextTemp name contents cont
 
 
 withTempFile :: FilePath -> ((FilePath, Handle) -> IO a) -> IO a
-withTempFile name = bracket create (\(f,_) -> removeFile f) 
+withTempFile name = bracket create (\(f,_) -> removeFile f)
   where create = do
           tmpDir <- getTemporaryDirectory
           openTempFileWithDefaultPermissions tmpDir name
@@ -82,4 +86,3 @@ removeFileIfExists f = do b<-doesFileExist f; when b (removeFile f)
 
 cleanupFiles :: [FilePath] -> IO ()
 cleanupFiles = mapM_ removeFileIfExists
-

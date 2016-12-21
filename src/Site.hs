@@ -12,6 +12,7 @@ module Site
 ------------------------------------------------------------------------------
 
 import           Control.Applicative
+import           Control.Concurrent(forkIO, ThreadId)
 import           Control.Concurrent.MVar
 import           Control.Exception                           (SomeException)
 import           Control.Exception.Lifted                    (catch)
@@ -61,6 +62,7 @@ import           Language
 import           Page
 import           Submission
 import           Types
+import           Tester
 import           Utils
 
 import           Data.Version                                (showVersion)
@@ -108,8 +110,9 @@ handlePage = do
       guard (pageIsExercise page)  -- only exercise pages
       text <- require (getTextPost "editform.editor")
       lang <- require (return $ pageLanguage page)
-      sub <- evaluate uid page (Code lang text)
-      renderReport page sub
+      sid <- newSubmission uid page (Code lang text)
+      -- renderReport page sub
+      redirect (encodePath $ "/submited" </> show (fromSID sid))
 
 
 -- | serve a markdown document
@@ -142,7 +145,7 @@ renderReport page sub = do
     pageSplices page
     exerciseSplices t page
     submitSplices tz sub
-  
+
 
 
 
@@ -243,16 +246,21 @@ handleSubmission = do
     unless (isAdmin au || submitUser sub == uid)
       unauthorized
     handleMethodOverride (method GET (handleGet sub) <|>
+                          method PATCH (handleReevaluate sub) <|>
                           method DELETE (handleDelete sub))
   where
+    -- get report on a submission
     handleGet sub = do
       page <- liftIO $ readPage publicPath (submitPath sub)
       renderReport page sub
-
+    -- delete a submission
     handleDelete sub = do
       deleteSubmission (submitID sub)
       redirect (encodePath ("/pub" </> submitPath sub))
-
+    -- revaluate a submissionListSplices
+    handleReevaluate sub = do
+      evaluate sub
+      redirect (encodePath ("/submited" </> show (fromSID $ submitID sub)))
 
 
 
@@ -267,13 +275,19 @@ exerciseSplices t page = do
   "code-text" ##
     maybe (return []) I.textSplice (pageCodeText page)
   --- splices related to submission intervals
-  let interval = fromMaybe Always $ pageValid t page
-  "valid-from" ##
-    maybe (I.textSplice "N/A") timeExprSplice  (Interval.from interval)
-  "valid-until" ##
-    maybe (I.textSplice "N/A") timeExprSplice (Interval.until interval)
-  "case-timing" ##
-    timingSplice interval
+  let valid = fromMaybe (return Always) $ pageValid t page
+  case valid of
+    Left err -> do
+        "valid-from" ## I.textSplice err
+        "valid-until" ## I.textSplice err
+        "case-timing" ## return []
+    Right interval -> do
+        "valid-from" ##
+          maybe (I.textSplice "N/A") timeExprSplice  (Interval.from interval)
+        "valid-until" ##
+          maybe (I.textSplice "N/A") timeExprSplice (Interval.until interval)
+        "case-timing" ##
+          timingSplice interval
 
 
 {-
@@ -356,26 +370,37 @@ versionSplice :: I.Splice Codex
 versionSplice = I.textSplice (T.pack (showVersion version))
 
 
--- | evaluate a submission
--- run code tester and record submission into Db
-evaluate :: UserID -> Page -> Code -> Codex Submission
-evaluate uid page code = do
-  now <- liftIO getZonedTime
-  let utc = zonedTimeToUTC now
+-- | handle a new submission
+-- insert a pending submission and start
+-- run code tester in separate thread
+newSubmission :: UserID -> Page -> Code -> Codex SubmitID
+newSubmission uid page code = do
   env <- require getUserEvents
-  let interval = fromMaybe Always $ pageValid now page
-  let r = Interval.evalI env interval utc
+  zt <- liftIO getZonedTime
+  let now = zonedTimeToUTC zt
+  let r = do interval <- fromMaybe (return Always) $ pageValid zt page
+             Interval.evalI env interval now
   case r of
+    Left msg -> error (T.unpack msg)
     Right timing -> do
-      result <- codeTester page code
-      insertSubmission uid (pagePath page) utc code result timing
-    Left msg ->
-      error (T.unpack msg)
-      -- insertSubmission uid (pagePath page) utc code (miscError msg) Valid
+      sub <- insertSubmission uid (pagePath page) now code evaluating timing
+      evaluate sub
+      return (submitID sub)
 
-
-
-
+-- (re)evaluate a submission;
+-- runs code tester in separate thread
+evaluate :: Submission -> Codex ThreadId
+evaluate sub = do
+  let sid = submitID sub
+  page <- liftIO $ readPage publicPath (submitPath sub)
+  let code = submitCode sub
+  conf <- getSnapletUserConfig
+  sqlite <- S.getSqliteState
+  liftIO $ forkIO $ do
+    updateSubmission sqlite sid evaluating
+    result <- codeTester conf page code `catch`
+               (\ (e::SomeException) -> return (miscError $ T.pack $ show e))
+    updateSubmission sqlite sid result
 
 ------------------------------------------------------------------------------
 -- | The application initializer.
@@ -392,6 +417,7 @@ app =
     let sc = do
           "version" ## versionSplice
           "timeNow" ## nowSplice
+          "evaluating" ## return []
           "loggedInName" ## loggedInName auth
           "ifAdmin" ## do
             mbAu <- lift (withTop auth currentUser)

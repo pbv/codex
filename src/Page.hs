@@ -1,5 +1,4 @@
 {-# LANGUAGE OverloadedStrings #-}
-{-# LANGUAGE RecordWildCards #-}
 {-
   Data types and methods for exercise pages
 -}
@@ -14,13 +13,13 @@ module Page(
   pageValid,
   pageSplices
   ) where
- 
+
 import           Data.Maybe
 import           Data.Text(Text)
 import qualified Data.Text as T
 import qualified Data.Text.Encoding as T
 
-import           Data.Time 
+import           Data.Time
 import           Data.Map.Syntax
 import           Heist.Splices     as I
 import qualified Heist.Interpreted as I
@@ -35,7 +34,7 @@ import           System.FilePath
 
 
 -- | a document page; either a single exercise or an index
-data Page  
+data Page
   = Page { pagePath :: FilePath   -- ^ file path, relative to publicDir
          , pageMeta :: Meta       -- ^ meta data
          , pageDescription :: [Block]  -- ^ document blocks
@@ -51,7 +50,7 @@ readPage base path = do
               , pageDescription = blocks
               }
 
-    
+
 pageTitle :: Page -> Maybe [Inline]
 pageTitle p
   = let t = docTitle (pageMeta p)
@@ -68,7 +67,7 @@ getTags Page{..}
 -}
 
 pageLanguage :: Page -> Maybe Language
-pageLanguage = lookupFromMeta "language" . pageMeta 
+pageLanguage = lookupFromMeta "language" . pageMeta
 
 pageCodeText :: Page -> Maybe Text
 pageCodeText = lookupFromMeta "code" . pageMeta
@@ -84,9 +83,9 @@ pageIsExercise p
 
 -- | time interval for valid submissions
 -- first argument is current time
-pageValid :: ZonedTime -> Page -> Maybe Interval
-pageValid t p
-  = lookupFromMeta "valid" (pageMeta p) >>= readInterval t
+
+pageValid :: ZonedTime -> Page -> Maybe (Either Text Interval)
+pageValid t p = readInterval t <$> lookupFromMeta "valid" (pageMeta p)
 
 
 -----------------------------------------------------------------------------
@@ -94,8 +93,7 @@ pageValid t p
 -- | splices related to a page
 pageSplices :: Page -> ISplices
 pageSplices page = do
-  let dir = takeDirectory $ pagePath page
-  "file-path" ## I.textSplice (T.pack $ pagePath page)      
+  "file-path" ## I.textSplice (T.pack $ pagePath page)
   "file-path-url" ## I.textSplice (T.decodeUtf8 $ encodePath $ pagePath page)
   "page-description" ## return (blocksToHtml $ pageDescription page)
   "if-exercise" ## I.ifElseISplice (pageIsExercise page)

@@ -6,26 +6,37 @@
 <apply template="_base">
 <h1><page-title/></h1>
 <h2>Submissão <submit-id/></h2>
-<case-timing>
-  <Early>
-    <p>Submissão antecipada; o resultado será visível
-      após <valid-from/>.</p>
-  </Early>
-  <default>
-    <h3>Resultado: <em><classify/></em><overdue>&nbsp;(enviada fora do tempo)</overdue></h3>
-    <p>Enviada em: <received/>.</p>
-    <pre>
-      <message/>
-    </pre>
-  </default>
+<p>Enviada por <code><submit-user-id/></code> em <received/>.</p>
+<evaluating>
+  <h3>Avaliando...</h3>
+  <p><img src="/static/images/spinner.svg"></p>
+  <p class="info">Se esta página não atualizar automaticamente, por favor
+      use o botão "reload" do "browser".</p>
+  <else/>
+  <case-timing>
+    <Early>
+      <p>Submissão antecipada; o resultado ficara disponível após <valid-from/>.</p>
+    </Early>
+    <default>
+      <h3>Resultado: <em><classify/></em><overdue>&nbsp;(enviada fora do tempo)</overdue></h3>
+      <overdue><p><p><strong>Enviada fora do tempo.</strong></p></overdue>
+      <pre>
+        <message/>
+      </pre>
+   </default>
 </case-timing>
 
 <ifAdmin>
-<form method="POST" action="/submited/${submit-id}" style="display:inline;">
+<form method="POST" action="/submited/${submit-id}">
     <input type="hidden" name="_method" value="DELETE"/>
-    <input type="submit" title="Delete submission from database" value="Delete"/>
+    <input type="submit" title="Remover submissão da base de dados" value="Apagar"/>
+</form>
+<form method="POST" action="/submited/${submit-id}">
+<input type="hidden" name="_method" value="PATCH"/>
+<input type="submit" title="Re-avaliar a submissão" value="Re-avaliar"/>
 </form>
 </ifAdmin>
+
 <h2>Nova submissão</h2>
 
 <form id="editform" method="POST" action="/pub/${file-path-url}"
@@ -35,9 +46,10 @@
 &nbsp;<a class="button" href="/pub/${file-path-url}">Voltar ao exercício</a>
 &nbsp;<a class="button" href="/pub/${file-path-url}/..">Voltar à folha de exercícios</a>
 </form>
+</evaluating>
 </apply>
 
 <apply template="_browse">
-  <li><a title="Edit exercise page"
-     href="/files/${file-path-url}">Edit</a><li>
+  <li><a title="Editar folha de exercício"
+     href="/files/${file-path-url}">Editar</a><li>
 </apply>

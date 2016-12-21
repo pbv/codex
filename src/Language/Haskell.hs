@@ -16,14 +16,14 @@ import           Data.Monoid
 import           System.FilePath
 import           System.IO
 
-import           Snap.Core(pass)
-import           Snap.Snaplet(getSnapletUserConfig)
+-- import           Snap.Core(pass)
+-- import           Snap.Snaplet(getSnapletUserConfig)
 
 import           Language.Types
 import           Language.QuickCheck
 import           Test.QuickCheck (Args)
 import           Tester
-import           Application
+--import           Application
 import           Page
 import           SafeExec
 import           Config
@@ -32,32 +32,30 @@ import           System.Process.Text
 import           System.Exit
 import           Control.Exception
 
-
+import           Data.Configurator.Types
 import qualified Data.Configurator as Configurator
 
 
--- running and evaluating Haskell submissions
-
-haskellTester :: Page -> Code -> Codex Result
-haskellTester page (Code (Language "haskell") code) = do
-    conf <- getSnapletUserConfig
-    ghc <- liftIO $ Configurator.require conf "language.haskell.compiler"
-    sf <- liftIO $ liftM2 (<>)
+-- | running and evaluating Haskell submissions
+haskellTester :: Config -> Page -> Code -> IO Result
+haskellTester conf page (Code (Language "haskell") code) = do
+    ghc <- Configurator.require conf "language.haskell.compiler"
+    sf <- liftM2 (<>)
           (getSafeExecConf "language.haskell.safeexec" conf)
           (getSafeExecConf "safeexec" conf)
-    liftIO $ case getQuickcheckPath page of
+    case getQuickcheckPath page of
       Nothing -> return (miscError "no QuickCheck file specified")
       Just qcpath -> do
         let args = getQuickcheckArgs page
         props <- T.readFile (publicPath </> qcpath)
-        haskellTesterIO sf ghc args code props `catch` return
-haskellTester _ _  = pass             
+        haskellTesterRun sf ghc args code props `catch` return
+haskellTester _ _  _ = return (miscError "haskellTester: invalid submission")
 
-     
 
-haskellTesterIO :: SafeExecConf -> String -> Args -> Text -> Text -> IO Result
-haskellTesterIO sf ghc qcArgs code props =
-   withTempFile "Submit.hs" $ \(hs_file, h) ->      
+
+haskellTesterRun :: SafeExecConf -> String -> Args -> Text -> Text -> IO Result
+haskellTesterRun sf ghc qcArgs code props =
+   withTempFile "Submit.hs" $ \(hs_file, h) ->
    let codemod = T.pack $ takeBaseName hs_file
        dir = takeDirectory hs_file
    in do
@@ -112,7 +110,7 @@ moduleHeader :: Text -> Text
 moduleHeader name
   = T.unlines ["{-# LANGUAGE Safe #-}", "module " <> name <> " where"]
 
-haskellResult (exitCode, stdout, stderr)  
+haskellResult (exitCode, stdout, stderr)
   | match "Not in scope" stderr ||
     match "parse error" stderr  ||
     match "Couldn't match" stderr  = compileError stderr
@@ -121,5 +119,3 @@ haskellResult (exitCode, stdout, stderr)
   | match "Failed" stdout       = wrongAnswer stdout
   | match "Command exited with non-zero status" stderr = miscError stderr
   | otherwise = accepted stdout
-
-

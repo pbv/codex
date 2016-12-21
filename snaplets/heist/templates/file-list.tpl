@@ -6,8 +6,8 @@
 
 <table class="filelist">
   <tr>
-    <td/> <th>File name</th> <th>Type</th>  <th>Last Modified</th>
-  </tr> 
+    <td/> <th>Nome</th> <th>Tipo</th>  <th>Última alteração</th>
+  </tr>
   <file-list>
     <tr>
       <td>
@@ -16,8 +16,8 @@
       </td>
       <td class="filename">
 	  <a href="/files/${file-path-url}"><file-name/></a>
-      </td> 
-      <td class="filetype"><file-type/></td> 
+      </td>
+      <td class="filetype"><file-type/></td>
       <td class="filemodified"><file-modified/></td>
     </tr>
   </file-list>

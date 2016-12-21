@@ -46,17 +46,16 @@ until (Until e)      = Just e
 until (Between _ e)  = Just e
 until _              = Nothing
 
--- | parse intervals
-
-readInterval :: ZonedTime -> String -> Maybe Interval
+-- | parse an interval; yields an interval or an error message
+readInterval :: ZonedTime -> String -> Either Text Interval
 readInterval t txt
   = let tz = zonedTimeZone t
         loc= zonedTimeToLocalTime t
         parseI = parseInterval tz loc
     in
      case readP_to_S parseI txt of
-       ((i, ""):_) -> Just i
-       _ -> Nothing
+       ((i, ""):_) -> Right i
+       _ -> Left ("invalid interval \"" <> T.pack txt <> "\"")
 
 parseInterval :: TimeZone -> LocalTime -> ReadP Interval
 parseInterval tz now =

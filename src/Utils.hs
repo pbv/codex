@@ -25,7 +25,7 @@ import           Snap.Snaplet
 import           Snap.Snaplet.Heist
 import           Snap.Snaplet.Auth
 
-import           Data.Aeson.Types 
+import           Data.Aeson.Types
 
 import           Heist
 -- import           Heist.Splices
@@ -35,7 +35,7 @@ import qualified Text.XmlHtml as X
 
 
 
--- import           Control.Applicative 
+-- import           Control.Applicative
 import           Control.Exception (SomeException)
 
 import           Types
@@ -56,7 +56,7 @@ authUserID :: AuthUser -> UserID
 authUserID = UserID . T.encodeUtf8 . userLogin
 
 authFullname :: AuthUser -> Maybe Text
-authFullname au 
+authFullname au
   = case HM.lookup "fullname" (userMeta au) of
     Just (String name) -> Just name
     _                  -> Nothing
@@ -67,9 +67,9 @@ isAdmin au = Role "admin" `elem` userRoles au
 
 
 -- | Get current logged in user ID (if any)
---   from the authentication snaplet  
+--   from the authentication snaplet
 getUserID :: Codex (Maybe UserID)
-getUserID = do 
+getUserID = do
   mAu <- with auth currentUser
   return (fmap authUserID mAu)
 
@@ -96,7 +96,7 @@ userEvents au = [(n, t) | (n,f)<-fields, t <- maybeToList (f au)]
                    ("creation", userCreatedAt),
                    ("update", userUpdatedAt),
                    ("login", userCurrentLoginAt)]
- 
+
 
 
 getSubmitID :: Codex (Maybe SubmitID)
@@ -119,7 +119,7 @@ getQueryTags = do
 
 
 
--- | try a Maybe-handler and "pass" if it yields Nothing 
+-- | try a Maybe-handler and "pass" if it yields Nothing
 require :: Handler m m' (Maybe a) -> Handler m m' a
 require handler = do
   opt <- handler
@@ -137,7 +137,7 @@ getTextPost name =
 
 ---------------------------------------------------------------------
 -- | error handlers
----------------------------------------------------------------------    
+---------------------------------------------------------------------
 unauthorized, badRequest, notFound :: Codex a
 unauthorized = render "_unauthorized" >> finishError 401 "Unauthorized"
 badRequest   = render "_badrequest" >> finishError 400 "Bad request"
@@ -146,7 +146,7 @@ notFound     = render "_notfound" >> finishError 404 "Not found"
 
 internalError :: SomeException -> Codex a
 internalError e
-  = do renderWithSplices  "_internalerror" 
+  = do renderWithSplices  "_internalerror"
              ("errorMsg" ## I.textSplice (T.pack $ show e))
        finishError 500 "Internal Server Error"
 
@@ -157,7 +157,7 @@ finishError code msg = do
   modifyResponse (setResponseStatus code msg)
   r <- getResponse
   finishWith r
-  
+
 
 
 -- | splice an UTC time as a local time string
@@ -179,9 +179,9 @@ messageSplices mesgs = do
 {-
 ifElseISplice :: Monad m => Bool -> I.Splice m
 ifElseISplice cond = getParamNode >>= (rewrite . X.childNodes)
-  where rewrite nodes = 
+  where rewrite nodes =
           let (ns, ns') = break (\n -> X.tagName n==Just "else") nodes
-          in I.runNodeList $ if cond then ns else (drop 1 ns') 
+          in I.runNodeList $ if cond then ns else (drop 1 ns')
 -}
 
 -- conditionalSplice :: Monad m => Bool -> I.Splice m
@@ -207,13 +207,13 @@ checkboxInput value checked disabled
   = [X.Element "label" attrs' [X.Element "input" attrs [], X.TextNode value]]
   where attrs = [ ("checked", "checked") | checked ] ++
                 [ ("disabled", "disabled") | disabled ] ++
-                [ ("type", "checkbox"), 
-                  ("name", "tag"), 
-                  ("value", value), 
+                [ ("type", "checkbox"),
+                  ("name", "tag"),
+                  ("value", value),
                   ("onclick", "this.form.submit();")
                 ]
         attrs' = [ ("class","disabled") | disabled ]
-                
+
 
 
 jsTimer :: String -> NominalDiffTime -> [X.Node]
@@ -241,7 +241,7 @@ contained xs ys = all (`elem`ys) xs
 -- (and only if) the request is a POST, _method param is passed, and
 -- it is a parsable method name, it will change the request method to
 -- the supplied one. This works around some browser limitations.
--- Adapted from Snap.Extras.MethodOverride 
+-- Adapted from Snap.Extras.MethodOverride
 handleMethodOverride :: MonadSnap m =>
                         m a
                       -- ^ Internal handler to call
@@ -268,7 +268,7 @@ methodOverride param r
        "PATCH"   -> Just PATCH
        ""        -> Nothing
        _         -> Just (Method meth)
-       
+
 
 
 -- | encode a file path as a URL
@@ -276,5 +276,3 @@ encodePath :: FilePath -> ByteString
 encodePath path = B.concat (intersperse "/" dirs')
   where dirs = map (urlEncode . B.fromString) (splitDirectories path)
         dirs'= if isAbsolute path then "":tail dirs else dirs
-
-    

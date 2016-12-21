@@ -17,40 +17,36 @@ import           System.FilePath
 import           System.Process.Text
 import           System.Exit
 
-import           Snap.Core(pass)
-import           Snap.Snaplet(getSnapletUserConfig)
-
 import           Language.Types
 import           Language.QuickCheck
 
 import           Tester
-import           Application
 import           Page
 import           SafeExec
 import           Config
 import           Control.Exception
 
+import           Data.Configurator.Types
 import qualified Data.Configurator as Configurator
 
 
-clangTester :: Page -> Code -> Codex Result
-clangTester page (Code (Language "c") code) = do
-  conf <- getSnapletUserConfig
-  ghc <- liftIO $ Configurator.require conf "language.haskell.compiler"
-  gcc <- liftIO $ Configurator.require conf "language.c.compiler"
-  sf <- liftIO $ liftM2 (<>)
+clangTester :: Config -> Page -> Code -> IO Result
+clangTester conf page (Code (Language "c") code) = do
+  ghc <- Configurator.require conf "language.haskell.compiler"
+  gcc <- Configurator.require conf "language.c.compiler"
+  sf <- liftM2 (<>)
         (getSafeExecConf "language.haskell.safeexec" conf)
         (getSafeExecConf "safeexec" conf)
-  liftIO $ case getQuickcheckPath page of
-    Nothing ->   return (miscError "no QuickCheck file specified")
+  case getQuickcheckPath page of
+    Nothing -> return (miscError "no QuickCheck file specified")
     Just qcpath -> do
       let args = getQuickcheckArgs page
       props <- T.readFile (publicPath </> qcpath)
-      clangTesterIO sf gcc ghc args code props `catch` return
-clangTester _ _ = pass
+      clangTesterRun sf gcc ghc args code props `catch` return
+clangTester _ _ _ = return (miscError "clangTester: invalid submission")
 
 
-clangTesterIO sf gcc_cmd ghc_cmd qcArgs c_code props =
+clangTesterRun sf gcc_cmd ghc_cmd qcArgs c_code props =
   withTextTemp "sub.c" c_code $ \c_file ->
   withTextTemp "Main.hs" (testScript props) $ \hs_file ->
   let dir = takeDirectory c_file

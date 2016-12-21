@@ -12,9 +12,9 @@
         title="Voltar ao ínício">Início</a></li>
     <ifAdmin>
        <li><a href="/files"
-	 title="Browse files">Files</a></li>
+	 title="Ver ficheiros">Ficheiros</a></li>
       <li><a href="/submited"
-	 title="Browse submissions">Submissions</a></li>
+	 title="Ver submissões">Submissões</a></li>
       <apply-content/>
         </ifAdmin>
 

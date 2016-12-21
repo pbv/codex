@@ -9,19 +9,14 @@
     <script src="/static/ace-builds/src-min-noconflict/ext-modelist.js" type="text/javascript" charset="utf-8"></script>
     <script type="text/javascript" src="/static/js/ace-glue.js"/>
     <script type="text/javascript" src="/static/js/timer.js"/>
+    <evaluating>
+      <META HTTP-EQUIV="refresh" CONTENT="5">
+    </evaluating>
   </head>
   <body>
      <div id="content">
        <apply-content/>
      </div>
-     <div id="footer">
-       <span class="info">
-         &copy; 2016 Pedro Vasconcelos, DCC/FCUP. Built using
-       <a href="http://snapframework.com/">Snap</a>,
-       <a href="http://johnmacfarlane.net/pandoc/">Pandoc</a>,
-       <a href="http://ace.ajax.org">ACE</a> and
-       <a href="http://www.mathjax.org">MathJax</a>.
-     </span>
-     </div>
-   </body>
+     <apply template="_footer"/>
+  </body>
 </html>

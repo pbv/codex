@@ -10,8 +10,8 @@
       <input type="hidden" name="_method" value="PUT"/>
       <input type="hidden" id="editform.path" value="${file-path-url}"/>
       <inputAceEditor id="editform.editor" mode="ace/mode/text"><file-contents/></inputAceEditor>
-      <p><input type="submit" value="Save changes"/> &nbsp;
-	<a class="button" title="Go to parent dir" href="/files/${file-path-url}/..">Cancel</a>
+      <p><input type="submit" value="Gravar alterações"/> &nbsp;
+	<a class="button" title="Voltar ao diretório anterior" href="/files/${file-path-url}/..">Cancelar</a>
       </p>
     </form>
     <script type="text/javascript">
@@ -23,11 +23,12 @@
     <form id="deleteform" method="POST" action="/files/${file-path-url}"
        style="display:inline-block;">
       <input type="hidden" name="_method" value="DELETE"/>
-      <input type="button" value="Delete file" onClick="confirmDelete()"/>
+      <input type="button" value="Apagar"
+          title="Apagar ficheiro"  onClick="confirmDelete()"/>
     </form> &nbsp;
     <script type="text/javascript">
       function confirmDelete() {
-      var r = confirm("Are you sure you want to delete this file?\nWARNING: this action cannot be undone.");
+      var r = confirm("Remover ficheiro (esta operação não é reversível)?");
       if (r) {
         var form = document.getElementById("deleteform");
         form.submit();
@@ -38,7 +39,7 @@
 	style="display:inline;">
     <span>
       <input type="hidden" name="_method" value="PATCH"/>
-      <input type="submit" value="Rename file:"/>
+      <input type="submit" value="Mudar nome:"/>
       <input type="text" name="destname" required="required"/>
     </span>
   </form>
@@ -46,5 +47,5 @@
 </apply>
 
 <apply template="_browse">
-  <li><a title="View formated page" href="/pub/${file-path-url}">View</a></li>
+  <li><a title="Ver página formatada" href="/pub/${file-path-url}">Visualizar</a></li>
 </apply>

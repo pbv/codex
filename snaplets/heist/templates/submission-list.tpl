@@ -6,21 +6,21 @@
 <form id="listform" action="/submited" method="POST">
   <div>
     <span class="info">
-      <submissions-count/> total (page <page/> of <page-count/>)
+      <submissions-count/> submissões (página <page/> de <page-count/>)
     </span>
     &nbsp;&nbsp;
     <select name="sorting" onChange="this.form.submit()">
       <if-ascending>
-	<option value="Asc" selected>ascending</option>
-	<option value="Desc">descending</option>
+	<option value="Asc" selected>ascendente</option>
+	<option value="Desc">descendente</option>
 	<else/>
-	<option value="Asc">ascending</option>
-	<option value="Desc" selected>descending</option>
+	<option value="Asc">ascendente</option>
+	<option value="Desc" selected>descendente</option>
       </if-ascending>
     </select> &nbsp;
     &nbsp;&nbsp;
-    <input type="submit" onClick="move(-1)" value="Previous page"/> &nbsp;
-    <input type="submit" onClick="move(1)" value="Next page"/>
+    <input type="submit" onClick="move(-1)" value="Anterior"/> &nbsp;
+    <input type="submit" onClick="move(1)" value="Seguinte"/>
   </div>
   <table class="submissions">
     <tr>
@@ -72,11 +72,11 @@ function move(k) {
 <hr/>
 
 <form action="/export" method="POST" style="display:inline;">
- <input type="submit" title="Export as text-delimited file" value="Export"/> field separator:
+ <input type="submit" title="Exportar como texto" value="Exportar"/> separador:
  <select name="sep">
-    <option value=",">comma (,)</option>
-    <option value=";">semicolon (;)</option>
-    <option value="&#9">tabulation</option>
+    <option value=",">vírgula (,)</option>
+    <option value=";">ponto-e-vírgula (;)</option>
+    <option value="&#9">tabulação</option>
   </select>
 </form>
 
