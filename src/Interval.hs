@@ -17,25 +17,36 @@ import           Text.ParserCombinators.ReadP
 -- abstract syntax
 
 -- | a time interval
+{-
 data Interval = Always
               | Until !TimeExpr
               | After !TimeExpr
               | Between !TimeExpr !TimeExpr
               deriving (Eq, Show)
+              -}
+
+-- | an interval of `t's
+data Interval t
+    = Interval { lower :: Maybe t
+               , higher :: Maybe t
+               } deriving (Eq, Read, Show)
+
+
 
 -- | a time expression
-data TimeExpr = Event !Text
-              | Absolute !UTCTime
-              | Add !NominalDiffTime !TimeExpr
-          deriving (Eq, Show)
+data TimeExpr
+    = TimeEvent Text                     -- named time event
+    | TimeConst LocalTime                -- literal (local time)
+    | TimeAdd NominalDiffTime TimeExpr   -- add time difference
+    deriving (Eq, Show)
 
 
 -- | timing values
-data Timing = Valid
-            | Early
-            | Overdue
-            deriving (Eq, Read, Show, Typeable)
+-- relation between a time and an Interval
+data Timing = Early | Valid | Overdue
+            deriving (Eq, Ord, Read, Show, Typeable)
 
+{-
 -- | get endpoints of an interval
 from, until :: Interval -> Maybe TimeExpr
 from (After e)     = Just e
@@ -45,87 +56,85 @@ from _             = Nothing
 until (Until e)      = Just e
 until (Between _ e)  = Just e
 until _              = Nothing
+-}
+
 
 -- | parse an interval; yields an interval or an error message
-readInterval :: ZonedTime -> String -> Either Text Interval
-readInterval t txt
-  = let tz = zonedTimeZone t
-        loc= zonedTimeToLocalTime t
-        parseI = parseInterval tz loc
-    in
-     case readP_to_S parseI txt of
+parseInterval :: String -> Either Text (Interval TimeExpr)
+parseInterval str
+  = case readP_to_S parseIntervalP str of
        ((i, ""):_) -> Right i
-       _ -> Left ("invalid interval \"" <> T.pack txt <> "\"")
+       _ -> Left ("invalid interval \"" <> T.pack str <> "\"")
 
-parseInterval :: TimeZone -> LocalTime -> ReadP Interval
-parseInterval tz now =
+
+parseIntervalP :: ReadP (Interval TimeExpr)
+parseIntervalP =
   do token "always"
-     return Always
+     return (Interval Nothing Nothing)
   <++
   do token "until"
-     Until <$> parseTimeExpr tz now
+     t <- parseTimeExpr
+     return (Interval Nothing (Just t))
   <++
   do token "after"
-     After <$> parseTimeExpr tz now
+     t <- parseTimeExpr
+     return (Interval (Just t) Nothing)
   <++
   do token "between"
-     start <- parseTimeExpr tz now
+     start <- parseTimeExpr
      token "and"
-     end <- parseTimeExpr tz now
-     return (Between start end)
+     end <- parseTimeExpr
+     return (Interval (Just start) (Just end))
 
 
 -- parse time expressions
-parseTimeExpr :: TimeZone -> LocalTime -> ReadP TimeExpr
-parseTimeExpr tz now
-  = do expr <- base
-       (do {diff <- parseDiff; return (Add diff expr)}
+parseTimeExpr :: ReadP TimeExpr
+parseTimeExpr
+  = do skipSpaces
+       expr <- base
+       (do {diff <- parseDiff; return (TimeAdd diff expr)}
         <++ return expr)
   where
-    base = Absolute <$> parseUTCTime tz now
-           <|>
-           Event <$> (skipSpaces >> parseEvent)
+    base = TimeConst <$> parseLocalTime <|>
+           TimeEvent <$> parseEvent
 
-
--- parse time strings
-parseLocalTime :: LocalTime -> ReadP LocalTime
-parseLocalTime now  =
+-- parse local time strings
+parseLocalTime ::  ReadP LocalTime
+parseLocalTime =
   readS_to_P (readSTime True defaultTimeLocale "%H:%M %d/%m/%0Y")
-   <++
-   readS_to_P (readSTime True defaultTimeLocale "%d/%m/%0Y")
-   <++
-   (readS_to_P (readSTime True defaultTimeLocale "%H:%M") >>= \t ->
-     return t { localDay = localDay now })
+  <++
+  readS_to_P (readSTime True defaultTimeLocale "%d/%m/%0Y %H:%M")
+  <++
+  readS_to_P (readSTime True defaultTimeLocale "%d/%m/%0Y")
 
-
-parseUTCTime :: TimeZone -> LocalTime -> ReadP UTCTime
-parseUTCTime tz now  = localTimeToUTC tz <$> parseLocalTime now
 
 parseEvent :: ReadP Text
 parseEvent = do
-  x <- satisfy isAlpha
-  xs<- munch isAlphaNum
-  return (T.pack (x:xs))
-
+   char '\"'
+   x <- satisfy isAlpha
+   xs<- munch isAlphaNum
+   char '\"'
+   return (T.pack (x:xs))
 
 parseDiff :: ReadP NominalDiffTime
 parseDiff
-  = do s <- skipSpaces >> parseSign
-       ds <- many1' diff
-       return (s * sum ds)
-  where diff =  do
-          x <- readS_to_P reads :: ReadP Int
-          u <- skipSpaces >> parseUnit
-          return (fromIntegral x * u)
+ = do s <- skipSpaces >> parseSign
+      ds <- many1' diff
+      return (s * sum ds)
+ where diff =  do
+         x <- readS_to_P reads :: ReadP Int
+         u <- skipSpaces >> parseUnit
+         return (fromIntegral x * u)
 
+parseSign :: ReadP NominalDiffTime
 parseSign = do char '+'; return 1
-            <|> do char '-'; return (-1)
+           <|> do char '-'; return (-1)
 
 parseUnit :: ReadP NominalDiffTime
 parseUnit = do char 'd'; return (24*3600)   -- 1 day
-            <|> do char 'h'; return 3600    -- 1 hour
-            <|> do char 'm'; return 60      -- 1 minute
-            <|> do char 's'; return 1       -- 1 second
+           <|> do char 'h'; return 3600    -- 1 hour
+           <|> do char 'm'; return 60      -- 1 minute
+           <|> do char 's'; return 1       -- 1 second
 
 
 
@@ -140,24 +149,68 @@ token :: String -> ReadP String
 token s = skipSpaces >> string s
 
 
--- * semantics
+{-
+parseUTCTime :: TimeZone -> LocalTime -> ReadP UTCTime
+parseUTCTime tz now  = localTimeToUTC tz <$> parseLocalTime now
+-}
+
+
+
+-- semantics of time expressions
 -- | an environment for events
 type Events = [(Text, UTCTime)]
 
 -- | semantics of a time expression
-evalT :: Events -> TimeExpr -> Either Text UTCTime
-evalT env (Absolute t)
-  = return t
-
-evalT env (Event n)
-  = case lookup n env of
-  Just t -> return t
-  Nothing -> Left ("invalid event: " <> n)
-
-evalT env (Add d e)
-  = addUTCTime d <$> evalT env e
+evalT :: TimeZone -> Events -> TimeExpr -> Either Text UTCTime
+evalT tz events (TimeEvent ev)
+  = case lookup ev events of
+    Nothing -> Left ("undefined event: " <> "\"" <> ev <> "\"")
+    Just t -> return t
+evalT tz events (TimeConst t)
+   = return (localTimeToUTC tz t)
+evalT tz events (TimeAdd d e)
+  = addUTCTime d <$> evalT tz events e
 
 
+evalI :: TimeZone -> Events -> UTCTime
+        -> Interval TimeExpr -> Either Text Timing
+evalI tz events now (Interval (Just start) (Just end)) = do
+  low <- evalT tz events start
+  high <- evalT tz events end
+  return (if now < low then Early
+            else if now > high then Overdue
+              else Valid)
+evalI tz events now (Interval (Just start) Nothing) = do
+  low <- evalT tz events start
+  return (if now < low then Early else Valid)
+evalI tz events now (Interval Nothing (Just end)) = do
+    high <- evalT tz events end
+    return (if now > high then Overdue else Valid)
+evalI _ _ _ _ = return Valid
+
+
+{-
+evalI :: TimeZone -> UTCTime -> Events -> Interval TimeExpr
+       -> Either Text Timing
+evalI tz now events (Interval (Just l) (Just r))= do
+   t1 <- evalT tz events l
+   t2 <- evalT tz events r
+   return (if now < t1 then Early
+            else if now > t2 then Overdue
+              else Valid)
+
+evalI tz now events (Interval (Just l) Nothing) = do
+  t1 <- evalT tz now events l
+  return (if now < t1 then Early else Valid)
+evalI tz now events (Interval Nothing (Just r)) = do
+  t2 <- evalT tz now events r
+  return (if now > t2 then Overdue else Valid)
+evalI tz now events (Interval Nothing Nothing) =
+  return Valid
+-}
+
+
+{-
 -- | semantics of a time interval
 evalI :: Events -> Interval -> UTCTime -> Either Text Timing
 evalI env Always t
@@ -174,24 +227,8 @@ evalI env (Between e1 e2) t
        return (if t <= t1 then Early
                else if t <= t2 then Valid
                     else Overdue)
-
-{-
-timingVal :: Events -> Interval -> UTCTime -> Maybe Timing
-timingVal env Always    t
-  = return OnTime
-timingVal env (Until e) t
-  = do t' <- timeVal env e
-       return (if t <= t' then OnTime else Overdue)
-timingVal env (After e) t
-  = do t' <- timeVal env e
-       return (if t > t' then OnTime else Early)
-timingVal env (Between e1 e2) t
-  = do t1 <- timeVal env e1
-       t2 <- timeVal env e2
-       return (if t <= t1 then Early
-               else if t <= t2 then OnTime
-                   else Overdue)
 -}
+
 
 -- * pretty-printing
 {-
@@ -221,6 +258,6 @@ formatNominalDiffTime secs
                [show (m`rem`60) ++ "m" | m>0] ++
                ["<1m" | secs<60]
   | otherwise = "--/--"
-  where m = (floor (secs / 60)) :: Int
-        h = (m `div` 60)
-        d = (h `div` 24)
+  where m = floor (secs / 60) :: Int
+        h = m `div` 60
+        d = h `div` 24

@@ -8,9 +8,8 @@
 <h2>Submissão <submit-id/></h2>
 <p>Enviada por <code><submit-user-id/></code> em <received/>.</p>
 <evaluating>
-  <h3>Avaliando...</h3>
   <p><img src="/static/images/spinner.svg"></p>
-  <p class="info">Se esta página não atualizar automaticamente, por favor
+  <p class="info">Se a página não atualizar automaticamente,
       use o botão "reload" do "browser".</p>
   <else/>
   <case-timing>

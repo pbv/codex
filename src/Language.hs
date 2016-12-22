@@ -4,7 +4,7 @@ module Language(
   codeTester, module Lang
   ) where
 
-import Control.Applicative
+--import Control.Applicative
 import Data.Monoid
 import Data.Configurator.Types
 

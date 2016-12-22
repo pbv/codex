@@ -128,12 +128,12 @@ insertSubmission uid path received code result timing = do
     return (Submission sid uid path received code result timing)
 
 -- | update submission result after evaluation
-updateSubmission :: Sqlite -> SubmitID -> Result -> IO ()
-updateSubmission sqlite sid result =
+updateSubmission :: Sqlite -> SubmitID -> Result -> Timing -> IO ()
+updateSubmission sqlite sid result timing =
   withMVar (sqliteConn sqlite) $ \conn ->
-     S.execute conn "UPDATE submissions SET class = ?, message = ? \
-                     \ where id = ?"
-                     (resultClassify result, resultMessage result, sid)
+     S.execute conn
+       "UPDATE submissions SET class = ?, message =?, timing = ? \
+       \ where id = ?" (resultClassify result, resultMessage result, timing, sid)
 
 
 

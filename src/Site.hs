@@ -107,11 +107,11 @@ handlePage = do
       c <- liftIO $ doesFileExist filepath
       guard (c && fileType mimeTypes rqpath == "text/markdown")
       page <- liftIO (readPage publicPath rqpath)
-      guard (pageIsExercise page)  -- only exercise pages
+      -- ensure the request is for an exercise page
+      guard (pageIsExercise page)
       text <- require (getTextPost "editform.editor")
       lang <- require (return $ pageLanguage page)
       sid <- newSubmission uid page (Code lang text)
-      -- renderReport page sub
       redirect (encodePath $ "/submited" </> show (fromSID sid))
 
 
@@ -127,23 +127,21 @@ servePage uid rqpath = do
 --  render an exercise page
 renderExercise :: Page -> [Submission] -> Codex ()
 renderExercise page subs = do
-  t <- liftIO getZonedTime
-  let tz = zonedTimeZone t
+  tz <- liftIO getCurrentTimeZone
   renderWithSplices "exercise" $ do
     pageSplices page
-    exerciseSplices t page
+    exerciseSplices page
     submissionListSplices tz subs
     inputAceEditorSplices
 
 -- render report for a single submission
 renderReport :: Page -> Submission -> Codex ()
 renderReport page sub = do
-  t <- liftIO getZonedTime
-  let tz = zonedTimeZone t
+  tz <- liftIO getCurrentTimeZone
   renderWithSplices "report" $ do
     inputAceEditorSplices
     pageSplices page
-    exerciseSplices t page
+    exerciseSplices page
     submitSplices tz sub
 
 
@@ -181,7 +179,7 @@ readPageLinks uid rqpath = do
                       LineBreak,
                       Span ("",["info"],[])
                       [Str "(", Str (show count), Space,
-                       Str "submissions", Str ")"]
+                       Str "submissões", Str ")"]
                      ]
         | otherwise = elm
       patch elm = elm
@@ -265,8 +263,8 @@ handleSubmission = do
 
 
 -- | splices related to exercises
-exerciseSplices :: ZonedTime -> Page -> ISplices
-exerciseSplices t page = do
+exerciseSplices ::  Page -> ISplices
+exerciseSplices page = do
   -- splices related to programming languages
   "language" ##
     maybe (return []) (I.textSplice . fromLanguage) (pageLanguage page)
@@ -275,17 +273,16 @@ exerciseSplices t page = do
   "code-text" ##
     maybe (return []) I.textSplice (pageCodeText page)
   --- splices related to submission intervals
-  let valid = fromMaybe (return Always) $ pageValid t page
-  case valid of
+  case pageInterval page of
     Left err -> do
         "valid-from" ## I.textSplice err
         "valid-until" ## I.textSplice err
-        "case-timing" ## return []
+        "case-timing" ## I.textSplice err
     Right interval -> do
         "valid-from" ##
-          maybe (I.textSplice "N/A") timeExprSplice  (Interval.from interval)
+          maybe (I.textSplice "N/A") timeExprSplice (Interval.lower interval)
         "valid-until" ##
-          maybe (I.textSplice "N/A") timeExprSplice (Interval.until interval)
+          maybe (I.textSplice "N/A") timeExprSplice (Interval.higher interval)
         "case-timing" ##
           timingSplice interval
 
@@ -317,17 +314,18 @@ submissionListSplices tz list = do
 timeExprSplice :: TimeExpr -> I.Splice Codex
 timeExprSplice e = do
   tz <- liftIO getCurrentTimeZone
-  env <- lift (require getUserEvents)
-  case evalT env e of
+  events <- lift (require getUserEvents)
+  case evalT tz events e of
     Right t -> I.textSplice (showTime tz t)
     Left err -> I.textSplice err
 
 
-timingSplice :: Interval -> I.Splice Codex
+timingSplice :: Interval TimeExpr -> I.Splice Codex
 timingSplice interval = do
-  t <- liftIO getCurrentTime
+  tz <- liftIO getCurrentTimeZone
+  now <- liftIO getCurrentTime
   env <- lift (require getUserEvents)
-  case Interval.evalI env interval t of
+  case Interval.evalI tz env now interval  of
     Right v -> caseSplice v
     Left err -> I.textSplice err
 
@@ -375,32 +373,28 @@ versionSplice = I.textSplice (T.pack (showVersion version))
 -- run code tester in separate thread
 newSubmission :: UserID -> Page -> Code -> Codex SubmitID
 newSubmission uid page code = do
-  env <- require getUserEvents
-  zt <- liftIO getZonedTime
-  let now = zonedTimeToUTC zt
-  let r = do interval <- fromMaybe (return Always) $ pageValid zt page
-             Interval.evalI env interval now
-  case r of
-    Left msg -> error (T.unpack msg)
-    Right timing -> do
-      sub <- insertSubmission uid (pagePath page) now code evaluating timing
-      evaluate sub
-      return (submitID sub)
+  now <- liftIO getCurrentTime
+  sub <- insertSubmission uid (pagePath page) now code evaluating Valid
+  evaluate sub
+  return (submitID sub)
 
 -- (re)evaluate a submission;
 -- runs code tester in separate thread
 evaluate :: Submission -> Codex ThreadId
 evaluate sub = do
-  let sid = submitID sub
+  let sid = submitID sub            -- ^ submission #
+  let code = submitCode sub         -- ^ program code
+  let received = submitTime sub     -- ^ time received
   page <- liftIO $ readPage publicPath (submitPath sub)
-  let code = submitCode sub
+  evs <- require getUserEvents
+  timing <- liftIO $ evalTiming page evs received
   conf <- getSnapletUserConfig
   sqlite <- S.getSqliteState
   liftIO $ forkIO $ do
-    updateSubmission sqlite sid evaluating
+    updateSubmission sqlite sid evaluating timing
     result <- codeTester conf page code `catch`
                (\ (e::SomeException) -> return (miscError $ T.pack $ show e))
-    updateSubmission sqlite sid result
+    updateSubmission sqlite sid result timing
 
 ------------------------------------------------------------------------------
 -- | The application initializer.

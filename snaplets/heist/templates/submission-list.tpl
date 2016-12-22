@@ -1,8 +1,5 @@
 <apply template="_base">
-<h1>Submissions</h1>
-<p>
-</p>
-
+<h1>Submissões</h1>
 <form id="listform" action="/submited" method="POST">
   <div>
     <span class="info">
