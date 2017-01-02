@@ -1,12 +1,24 @@
 {-# LANGUAGE DeriveDataTypeable #-}
 {-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE DeriveFunctor #-}
 
-module Interval where
+module Interval(
+    Interval(..),
+    TimeExpr,
+    Events,
+    Timing(..),
+    timing,
+    parseInterval,
+    evalT,
+    evalI,
+    evalI',
+    showTime
+    ) where
 
 import           Data.Char
 import           Data.Text (Text)
 import qualified Data.Text as T
-import           Data.Monoid
+--import           Data.Monoid
 import           Data.Typeable
 import           Data.Time
 import           Control.Applicative
@@ -14,26 +26,13 @@ import           Control.Applicative
 import           Text.ParserCombinators.ReadP
 
 
--- abstract syntax
-
--- | a time interval
-{-
-data Interval = Always
-              | Until !TimeExpr
-              | After !TimeExpr
-              | Between !TimeExpr !TimeExpr
-              deriving (Eq, Show)
-              -}
-
 -- | an interval of `t's
-data Interval t
-    = Interval { lower :: Maybe t
-               , higher :: Maybe t
-               } deriving (Eq, Read, Show)
+data Interval t = Interval { lower :: !(Maybe t),
+                             higher :: !(Maybe t) }
+    deriving (Eq, Read, Show, Functor)
 
 
-
--- | a time expression
+-- | abstract syntax for time expressions
 data TimeExpr
     = TimeEvent Text                     -- named time event
     | TimeConst LocalTime                -- literal (local time)
@@ -46,25 +45,25 @@ data TimeExpr
 data Timing = Early | Valid | Overdue
             deriving (Eq, Ord, Read, Show, Typeable)
 
-{-
--- | get endpoints of an interval
-from, until :: Interval -> Maybe TimeExpr
-from (After e)     = Just e
-from (Between e _) = Just e
-from _             = Nothing
+timing :: Ord t => t -> Interval t -> Timing
+timing t (Interval (Just low) (Just high))
+   | t<low     = Early
+   | t>high    = Overdue
+   | otherwise = Valid
+timing t (Interval (Just low) Nothing)
+   = if t<low then Early else Valid
+timing t (Interval Nothing (Just high))
+   = if t<=high then Valid else Overdue
+timing t (Interval Nothing Nothing)
+   = Valid
 
-until (Until e)      = Just e
-until (Between _ e)  = Just e
-until _              = Nothing
--}
 
-
--- | parse an interval; yields an interval or an error message
-parseInterval :: String -> Either Text (Interval TimeExpr)
+-- | parse an interval
+parseInterval :: String -> Maybe (Interval TimeExpr)
 parseInterval str
   = case readP_to_S parseIntervalP str of
-       ((i, ""):_) -> Right i
-       _ -> Left ("invalid interval \"" <> T.pack str <> "\"")
+       ((i, ""):_) -> Just i
+       _ -> Nothing -- ("invalid interval \"" <> T.pack str <> "\"")
 
 
 parseIntervalP :: ReadP (Interval TimeExpr)
@@ -149,31 +148,61 @@ token :: String -> ReadP String
 token s = skipSpaces >> string s
 
 
-{-
-parseUTCTime :: TimeZone -> LocalTime -> ReadP UTCTime
-parseUTCTime tz now  = localTimeToUTC tz <$> parseLocalTime now
--}
 
 
 
 -- semantics of time expressions
 -- | an environment for events
-type Events = [(Text, UTCTime)]
+type Events = Text -> Maybe UTCTime
 
 -- | semantics of a time expression
-evalT :: TimeZone -> Events -> TimeExpr -> Either Text UTCTime
+evalT :: TimeZone -> Events -> TimeExpr -> Maybe UTCTime
 evalT tz events (TimeEvent ev)
-  = case lookup ev events of
-    Nothing -> Left ("undefined event: " <> "\"" <> ev <> "\"")
-    Just t -> return t
+   = events ev -- lookup ev events
 evalT tz events (TimeConst t)
    = return (localTimeToUTC tz t)
 evalT tz events (TimeAdd d e)
   = addUTCTime d <$> evalT tz events e
 
 
+-- semantics for intervals
+evalI :: TimeZone -> Events -> Interval TimeExpr -> Maybe (Interval UTCTime)
+evalI tz events = evalI' (evalT tz events)
+
+evalI' :: (t -> Maybe t') -> Interval t -> Maybe (Interval t')
+evalI' f (Interval (Just l) (Just h)) = do
+    l' <- f l
+    h' <- f h
+    return (Interval (Just l') (Just h'))
+evalI' f (Interval (Just l) Nothing) = do
+    l' <- f l
+    return (Interval (Just l') Nothing)
+evalI' f (Interval Nothing (Just h)) = do
+      h' <- f h
+      return (Interval Nothing (Just h'))
+evalI' _ _  =
+      return (Interval Nothing Nothing)
+
+{-
+-- semantics for intervals
+evalI :: TimeZone -> Events -> Interval TimeExpr -> Maybe (Interval UTCTime)
+evalI tz events (Interval (Just low) (Just high)) = do
+    l <- evalT tz events low
+    h <- evalT tz events high
+    return (Interval (Just l) (Just h))
+evalI tz events (Interval (Just low) Nothing) = do
+    l <- evalT tz events low
+    return (Interval (Just l) Nothing)
+evalI tz events (Interval Nothing (Just high)) = do
+      h <- evalT tz events high
+      return (Interval Nothing (Just h))
+evalI _ _ _  =
+      return (Interval Nothing Nothing)
+-}
+
+{-
 evalI :: TimeZone -> Events -> UTCTime
-        -> Interval TimeExpr -> Either Text Timing
+        -> Interval TimeExpr -> Maybe Timing
 evalI tz events now (Interval (Just start) (Just end)) = do
   low <- evalT tz events start
   high <- evalT tz events end
@@ -187,47 +216,8 @@ evalI tz events now (Interval Nothing (Just end)) = do
     high <- evalT tz events end
     return (if now > high then Overdue else Valid)
 evalI _ _ _ _ = return Valid
-
-
-{-
-evalI :: TimeZone -> UTCTime -> Events -> Interval TimeExpr
-       -> Either Text Timing
-evalI tz now events (Interval (Just l) (Just r))= do
-   t1 <- evalT tz events l
-   t2 <- evalT tz events r
-   return (if now < t1 then Early
-            else if now > t2 then Overdue
-              else Valid)
-
-evalI tz now events (Interval (Just l) Nothing) = do
-  t1 <- evalT tz now events l
-  return (if now < t1 then Early else Valid)
-evalI tz now events (Interval Nothing (Just r)) = do
-  t2 <- evalT tz now events r
-  return (if now > t2 then Overdue else Valid)
-evalI tz now events (Interval Nothing Nothing) =
-  return Valid
 -}
 
-
-{-
--- | semantics of a time interval
-evalI :: Events -> Interval -> UTCTime -> Either Text Timing
-evalI env Always t
-  = return Valid
-evalI env (Until e) t
-  = do t' <- evalT env e
-       return (if t <= t' then Valid else Overdue)
-evalI env (After e) t
-  = do t' <- evalT env e
-       return (if t > t' then Valid else Early)
-evalI env (Between e1 e2) t
-  = do t1 <- evalT env e1
-       t2 <- evalT env e2
-       return (if t <= t1 then Early
-               else if t <= t2 then Valid
-                    else Overdue)
--}
 
 
 -- * pretty-printing
@@ -243,10 +233,7 @@ evalTimeExpr tz env e = showTime tz <$> evalT env e
 
 
 showTime :: TimeZone -> UTCTime -> Text
-showTime tz = T.pack . showLocalTime . utcToLocalTime tz
-
-showLocalTime :: LocalTime -> String
-showLocalTime = formatTime defaultTimeLocale "%c"
+showTime tz = T.pack . formatTime defaultTimeLocale "%c"  . utcToLocalTime tz
 
 
 -- format a time difference

@@ -4,12 +4,20 @@ module Config where
 import           Types
 import           SafeExec
 
+import           Data.Maybe (fromMaybe)
 import           Data.Monoid
 import qualified Data.Configurator as Configurator
 import           Data.Configurator.Types
 import qualified Data.HashMap.Strict as HashMap
 import           Snap.Util.FileServe(MimeMap, defaultMimeTypes)
 
+import           Control.Concurrent.QSem
+
+-- | configured semaphore for throttling evaluation t
+getEvalQS :: Name -> Config -> IO QSem
+getEvalQS prefix conf = do
+  mbN <- Configurator.lookup conf prefix
+  newQSem (fromMaybe 10 mbN)  -- default value
 
 getSafeExecConf :: Name -> Config -> IO SafeExecConf
 getSafeExecConf prefix conf = do
@@ -21,7 +29,7 @@ getSafeExecConf prefix conf = do
   nproc<- Configurator.lookup conf (prefix <> ".num_proc")
   return
       mempty { safeExecPath = path
-             , maxCpuTime   = cpu 
+             , maxCpuTime   = cpu
              , maxClockTime = clock
              , maxMemory    = mem
              , maxStack     = stack
@@ -60,12 +68,10 @@ staticPath = "static"
 
 -- | custom mime type mapping
 mimeTypes :: MimeMap
-mimeTypes 
+mimeTypes
   = HashMap.union defaultMimeTypes $
     HashMap.fromList [(".tst", "text/plain"),
                       (".py",  "text/plain"),
                       (".mdown", "text/markdown"),
                       (".md",  "text/markdown"),
                       (".db", "application/x-sqlite3")]
-
-

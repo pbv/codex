@@ -23,9 +23,13 @@
   </file-list>
 </table>
 <hr/>
-<form action="/files/${file-path}" enctype="multipart/form-data" method="POST">
-<input type="file" name="datafile" required="required"/>  &nbsp;
-<input type="submit" value="Upload"/>
+
+
+<form action="/files/${file-path}"
+      enctype="multipart/form-data" method="POST">
+<input type="hidden" name="_method" value="POST"/>
+<input type="file" name="datafile" required="required"/>
+<input type="submit" value="Upload file"/>
 </form>
 <div class="warnings">
 <dl>

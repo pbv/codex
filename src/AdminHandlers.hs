@@ -30,7 +30,7 @@ import           System.Directory
 import           System.IO
 import           Control.Monad
 import           Control.Monad.Trans (liftIO)
-import           Control.Exception.Lifted
+import           Control.Exception.Lifted (catch, SomeException)
 import           Control.Applicative
 
 
@@ -47,7 +47,7 @@ import           Data.Maybe (fromMaybe,catMaybes)
 import           Data.List (sort, intercalate)
 import           Data.Map.Syntax
 import           Types
-import           Language
+import           Language.Types
 import           Tester
 import           Application
 import           Submission
@@ -138,7 +138,6 @@ listDir base = do
             let mime = fileType mimeTypes path])
 
 
-
 handleEdit :: FilePath -> Codex ()
 handleEdit base = do
   rqpath <- getSafePath
@@ -146,6 +145,23 @@ handleEdit base = do
   liftIO $ T.writeFile (base</>rqpath) contents
   redirect (encodePath ("/files" </> rqpath))
 
+{-
+handlePost ::  FilePath -> Codex ()
+handlePost base = do
+  c <- (read . B.toString) <$> require (getParam "newfile")
+  if c then handleCreate base else handleUpload base
+-}
+
+handleCreate :: FilePath -> Codex ()
+handleCreate base = do
+  rqpath <- getSafePath
+  filename <- B.toString <$> require (getParam "filename")
+  let path = base </> rqpath </> filename
+  liftIO $ do
+    c <- doesFileExist path
+    if c then ioError (userError $ "file " ++ show path ++ " already exists")
+      else T.writeFile path ""
+  redirect (encodePath ("/files" </> rqpath))
 
 handleUpload :: FilePath -> Codex ()
 handleUpload dest = do

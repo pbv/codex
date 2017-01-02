@@ -14,13 +14,13 @@ module Site
 import           Control.Applicative
 import           Control.Concurrent(forkIO, ThreadId)
 import           Control.Concurrent.MVar
-import           Control.Exception                           (SomeException)
-import           Control.Exception.Lifted                    (catch)
+import           Control.Concurrent.QSem
+import           Control.Exception  (SomeException, bracket_)
+import           Control.Exception.Lifted  (catch)
 import           Control.Lens
 import           Control.Monad.State
 
 import           Data.ByteString.UTF8                        (ByteString)
-import           Data.Maybe                                  (fromMaybe)
 
 import qualified Data.HashMap.Strict                         as HM
 import           Data.Map.Syntax
@@ -128,9 +128,10 @@ servePage uid rqpath = do
 renderExercise :: Page -> [Submission] -> Codex ()
 renderExercise page subs = do
   tz <- liftIO getCurrentTimeZone
+  splices <- exerciseSplices page
   renderWithSplices "exercise" $ do
+    splices
     pageSplices page
-    exerciseSplices page
     submissionListSplices tz subs
     inputAceEditorSplices
 
@@ -138,10 +139,11 @@ renderExercise page subs = do
 renderReport :: Page -> Submission -> Codex ()
 renderReport page sub = do
   tz <- liftIO getCurrentTimeZone
+  splices <- exerciseSplices page
   renderWithSplices "report" $ do
+    splices
     inputAceEditorSplices
     pageSplices page
-    exerciseSplices page
     submitSplices tz sub
 
 
@@ -199,41 +201,6 @@ queryExerciseLinks page = query extractURL (pageDescription page)
 
 
 
-
-{-
-renderIndex uid page links = do
-  querytags <- getQueryTags
-  pages <- liftIO $ mapM (Page.readPage publicPath) links
-  let alltags = nub $ sort $ concatMap Page.getTags pages
-  let pages' = filter (\p -> querytags `contained` Page.getTags p) pages
-  let abletags = nub $ sort $ concatMap Page.getTags pages'
-  subs <- mapM (Submission.getReport uid . Page.path) pages'
-  tz <- liftIO getCurrentTimeZone
-  renderWithSplices "indexsheet" $ do
-    pageSplices page
-    indexSplices tz (zip pages' subs)
-    "if-tagged" ## I.ifElseISplice (not $ null alltags)
-    "available" ## I.textSplice $ T.pack $ show $ length pages
-    "visible" ## I.textSplice $ T.pack $ show $ length pages'
-    "tag-list" ##  I.mapSplices (I.runChildrenWith .
-                                 tagSplices querytags abletags) alltags
-
--- context-dependent splices for for a tag selection checkbox
-tagSplices :: [Text] -> [Text] -> Text -> ISplices
-tagSplices querytags enabled tag =
-  let checked = tag `elem` querytags
-      disabled= tag `notElem` enabled
-       -- null (filter (isTagged tag) visible)
-  in do "tag-text" ## I.textSplice tag
-        "tag-checkbox" ## return (checkboxInput tag checked disabled)
--}
-
-
-
-
-
-
-
 -- | handle requests for a single submission
 handleSubmission :: Codex ()
 handleSubmission = do
@@ -263,38 +230,26 @@ handleSubmission = do
 
 
 -- | splices related to exercises
-exerciseSplices ::  Page -> ISplices
+exerciseSplices :: Page -> Codex ISplices
 exerciseSplices page = do
-  -- splices related to programming languages
-  "language" ##
-    maybe (return []) (I.textSplice . fromLanguage) (pageLanguage page)
-  "language-mode" ##
-    maybe (return []) (I.textSplice . languageMode) (pageLanguage page)
-  "code-text" ##
-    maybe (return []) I.textSplice (pageCodeText page)
-  --- splices related to submission intervals
-  case pageInterval page of
-    Left err -> do
-        "valid-from" ## I.textSplice err
-        "valid-until" ## I.textSplice err
-        "case-timing" ## I.textSplice err
-    Right interval -> do
-        "valid-from" ##
-          maybe (I.textSplice "N/A") timeExprSplice (Interval.lower interval)
-        "valid-until" ##
-          maybe (I.textSplice "N/A") timeExprSplice (Interval.higher interval)
-        "case-timing" ##
-          timingSplice interval
+  tz <- liftIO getCurrentTimeZone
+  now <- liftIO getCurrentTime
+  events <- getEvents
+  case evalI tz events (submitInterval page) of
+    Nothing ->  error "invalid submission interval"
+    Just interval -> return $ do
+      "language" ##
+        maybe (return []) (I.textSplice . fromLanguage) (pageLanguage page)
+      "language-mode" ##
+        maybe (return []) (I.textSplice . languageMode) (pageLanguage page)
+      "code-text" ##
+        maybe (return []) I.textSplice (pageCodeText page)
+      "valid-from" ##
+        I.textSplice $ maybe "N/A" (showTime tz) (Interval.lower interval)
+      "valid-until" ##
+        I.textSplice $ maybe "N/A" (showTime tz) (Interval.higher interval)
+      "case-timing" ## caseSplice (timing now interval)
 
-
-{-
-indexSplices :: TimeZone -> [(Page, [Submission])] -> ISplices
-indexSplices tz pageSubs = do
-  "index-list" ##
-    I.mapSplices (I.runChildrenWith . auxSplices) pageSubs
-  where
-    auxSplices (page,subs) = pageSplices page >> submissionListSplices tz subs
--}
 
 
 
@@ -309,26 +264,26 @@ submissionListSplices tz list = do
   "submissions-list" ##
     I.mapSplices (I.runChildrenWith . submitSplices tz) list
 
-
+{-
 -- | splice for time expressions and intervals
 timeExprSplice :: TimeExpr -> I.Splice Codex
 timeExprSplice e = do
   tz <- liftIO getCurrentTimeZone
   events <- lift (require getUserEvents)
   case evalT tz events e of
-    Right t -> I.textSplice (showTime tz t)
-    Left err -> I.textSplice err
-
+    Just t -> I.textSplice (showTime tz t)
+    Nothing -> do logError "invalid time expression"
+                  return []
 
 timingSplice :: Interval TimeExpr -> I.Splice Codex
 timingSplice interval = do
   tz <- liftIO getCurrentTimeZone
   now <- liftIO getCurrentTime
   env <- lift (require getUserEvents)
-  case Interval.evalI tz env now interval  of
-    Right v -> caseSplice v
-    Left err -> I.textSplice err
-
+  case Interval.evalI tz env interval of
+    Just i -> caseSplice (timing now i)
+    Nothing -> return []
+-}
 
 
 
@@ -382,19 +337,32 @@ newSubmission uid page code = do
 -- runs code tester in separate thread
 evaluate :: Submission -> Codex ThreadId
 evaluate sub = do
-  let sid = submitID sub            -- ^ submission #
+  let sid = submitID sub            -- ^ submission number
   let code = submitCode sub         -- ^ program code
   let received = submitTime sub     -- ^ time received
   page <- liftIO $ readPage publicPath (submitPath sub)
-  evs <- require getUserEvents
-  timing <- liftIO $ evalTiming page evs received
+  evs <- getEvents
+  tv <- liftIO $ evalTiming page evs received
   conf <- getSnapletUserConfig
   sqlite <- S.getSqliteState
-  liftIO $ forkIO $ do
-    updateSubmission sqlite sid evaluating timing
+  evQS <- gets evalQS
+  liftIO $ forkIO $ bracket_ (waitQSem evQS) (signalQSem evQS) $ do
+    updateSubmission sqlite sid evaluating tv
     result <- codeTester conf page code `catch`
                (\ (e::SomeException) -> return (miscError $ T.pack $ show e))
-    updateSubmission sqlite sid result timing
+    updateSubmission sqlite sid result tv
+
+
+-- | evaluate timing for a page
+evalTiming :: Page -> Events -> UTCTime -> IO Timing
+evalTiming page evs t = do
+  tz <- getCurrentTimeZone
+  case Interval.evalI tz evs (submitInterval page) of
+    Nothing -> ioError (userError errMsg)
+    Just int -> return (timing t int)
+ where
+   errMsg = show (pagePath page) ++ ": invalid submit interval"
+
 
 ------------------------------------------------------------------------------
 -- | The application initializer.
@@ -404,7 +372,6 @@ app =
     h <- nestSnaplet "" heist $ heistInit "templates"
     s <- nestSnaplet "sess" sess $
            initCookieSessionManager "site_key.txt" "sess" Nothing (Just 3600)
-
     d <- nestSnaplet "db" db S.sqliteInit
     a <- nestSnaplet "auth" auth $ initSqliteAuth sess d
     addAuthSplices h auth
@@ -416,18 +383,20 @@ app =
           "ifAdmin" ## do
             mbAu <- lift (withTop auth currentUser)
             I.ifElseISplice (maybe False isAdmin mbAu)
-
     addConfig h (mempty & scInterpretedSplices .~ sc)
     -- Grab the DB connection pool from the sqlite snaplet and call
     -- into the Model to create all the DB tables if necessary.
     let c = S.sqliteConn $ d ^# snapletValue
     liftIO $ withMVar c $ \conn -> Db.createTables conn
     addRoutes routes
+    -- get max # of concurrent evaluation threads
+    conf <- getSnapletUserConfig
+    evQS <- liftIO $ getEvalQS "system.workers" conf
     return App { _heist = h
                , _sess = s
                , _auth = a
                , _db   = d
-               -- , ekg = Nothing
+               , evalQS = evQS
                }
 
 

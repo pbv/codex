@@ -22,12 +22,11 @@ import           Database.SQLite.Simple.FromField
 import           Database.SQLite.Simple.FromRow
 
 
-
-
--- | identifiers
+-- | user identifier
 newtype UserID
   = UserID {fromUID :: ByteString} deriving (Eq, Ord, Read, Show)
 
+-- | submission identifier
 newtype SubmitID
   = SubmitID {fromSID :: Int64} deriving (Eq, Ord, Read, Show)
 
@@ -39,14 +38,6 @@ class ToText a where
 instance ToText UserID where
   toText (UserID uid) = T.decodeUtf8 uid
     --T.pack (B.toString uid)
-
-{-
-instance ToText ProblemID where
-  toText (ProblemID pid) = T.pack (B.toString pid)
-
-instance IsString ProblemID where
-  fromString s = ProblemID (B.fromString s)
--}
 
 instance ToText SubmitID where
   toText (SubmitID sid) = T.pack (show sid)
@@ -63,14 +54,6 @@ instance ToField UserID where
 instance FromField UserID where
   fromField f = UserID <$> fromField f
 
-{-
-instance ToField ProblemID where
-  toField (ProblemID id) = toField id
-
-instance FromField ProblemID where
-  fromField f = ProblemID <$> fromField f
--}
-
 instance ToField SubmitID where
   toField (SubmitID sid) = toField sid
 
@@ -80,10 +63,7 @@ instance FromField SubmitID where
 instance FromRow UserID where
     fromRow = field
 
-{-
-instance FromRow ProblemID where
-    fromRow = field
--}
+
 
 -- | LDAP configuration
 data LdapConf = LdapConf { ldapURI :: String

@@ -24,6 +24,8 @@ import           Snap.Core
 import           Snap.Snaplet
 import           Snap.Snaplet.Heist
 import           Snap.Snaplet.Auth
+import           Snap.Snaplet.SqliteSimple
+
 
 import           Data.Aeson.Types
 
@@ -86,11 +88,16 @@ getUserRoles = do
   return (fmap userRoles mAu)
 
 
-getUserEvents :: Codex (Maybe Events)
-getUserEvents = fmap userEvents <$> with auth currentUser
+getEvents :: Codex Events
+getEvents = do
+  -- collect all user and Db events
+  uevs <- maybe [] userEvents <$> with auth currentUser
+  dbevs <- query_ "SELECT name, time FROM events"
+  let evs = uevs ++ dbevs
+  return (`lookup` evs)
 
 -- | events associated with a user account
-userEvents :: AuthUser -> Events
+userEvents :: AuthUser -> [(Text, UTCTime)]
 userEvents au = [(n, t) | (n,f)<-fields, t <- maybeToList (f au)]
   where fields =  [("activation", userActivatedAt),
                    ("creation", userCreatedAt),

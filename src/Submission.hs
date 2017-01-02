@@ -49,9 +49,10 @@ import           Language
 import           Tester
 
 
+
 -- | a row in the submssion table
 data Submission = Submission {
-  submitID :: SubmitID,     -- submission id
+  submitID :: SubmitID,    -- submission DB id
   submitUser :: UserID,    -- user id
   submitPath  :: FilePath,  -- exercise path
   submitTime :: UTCTime,      -- submition time

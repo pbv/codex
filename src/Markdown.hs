@@ -13,7 +13,7 @@ import           Text.Blaze.Renderer.XmlHtml
 import           Data.Text (Text)
 import qualified Data.Text as T
 import qualified Data.Map as Map
--- import           Data.Monoid
+import           Data.Monoid
 
 import           Data.List (intersperse)
 -- import           System.IO.Error (ioError, userError)
@@ -55,11 +55,21 @@ lookupFromMeta tag meta = lookupMeta tag meta >>= fromMeta
 -- collect text in inline and block elements
 inlineText :: Inline -> Text
 inlineText (Str s)   = T.pack s
-inlineText Space     = T.singleton ' '
-inlineText LineBreak = T.singleton '\n'
-inlineText (Math _ s)= T.pack s
+inlineText Space     = " "
+inlineText LineBreak  = "\n"
+inlineText (Math _ s) = T.pack s
 inlineText (Text.Pandoc.Code _ s) = T.pack s
 inlineText (RawInline _ s) = T.pack s
+inlineText (Quoted qt l) =  quote <> T.concat (map inlineText l) <> quote
+  where quote = case qt of
+            SingleQuote -> "\'"
+            DoubleQuote -> "\""
+inlineText (Emph l)  = T.concat (map inlineText l)
+inlineText (Strong l)  = T.concat (map inlineText l)
+inlineText (Superscript l)  = T.concat (map inlineText l)
+inlineText (Subscript l)  = T.concat (map inlineText l)
+inlineText (SmallCaps l)  = T.concat (map inlineText l)
+inlineText (Span _ l)  = T.concat (map inlineText l)
 inlineText _         = T.empty
 
 blockText :: Block -> Text

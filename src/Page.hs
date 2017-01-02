@@ -10,9 +10,8 @@ module Page(
   pageCodeText,
   pageCode,
   pageIsExercise,
-  pageInterval,
-  pageSplices,
-  evalTiming
+  submitInterval,
+  pageSplices
   ) where
 
 import           Data.Maybe
@@ -20,7 +19,6 @@ import           Data.Text(Text)
 import qualified Data.Text as T
 import qualified Data.Text.Encoding as T
 
-import           Data.Time
 import           Data.Map.Syntax
 import           Heist.Splices     as I
 import qualified Heist.Interpreted as I
@@ -82,20 +80,11 @@ pageIsExercise :: Page -> Bool
 pageIsExercise p
   = fromMaybe False $ lookupFromMeta "exercise" (pageMeta p)
 
--- | get the time interval for valid submissions
--- first argument is current time
-pageInterval :: Page -> Either Text (Interval TimeExpr)
-pageInterval p
-  = maybe (Right $ Interval Nothing Nothing) parseInterval (lookupFromMeta "valid" (pageMeta p))
-
--- | evaluate timing for a page
-evalTiming :: Page -> Events -> UTCTime -> IO Timing
-evalTiming page evs t = do
-  tz <- getCurrentTimeZone
-  case pageInterval page >>= Interval.evalI tz evs t of
-    Left errMsg -> ioError (userError $ T.unpack errMsg)
-    Right timing -> return timing
-
+-- | time interval for valid submissions
+submitInterval :: Page -> Interval TimeExpr
+submitInterval p
+  = fromMaybe (Interval Nothing Nothing) $
+    lookupFromMeta "valid" (pageMeta p) >>= parseInterval
 
 
 

@@ -26,11 +26,11 @@
 </case-timing>
 
 <ifAdmin>
-<form method="POST" action="/submited/${submit-id}">
+<form method="POST" action="/submited/${submit-id}" style="display:inline;">
     <input type="hidden" name="_method" value="DELETE"/>
     <input type="submit" title="Remover submissão da base de dados" value="Apagar"/>
 </form>
-<form method="POST" action="/submited/${submit-id}">
+<form method="POST" action="/submited/${submit-id}" style="display:inline;">
 <input type="hidden" name="_method" value="PATCH"/>
 <input type="submit" title="Re-avaliar a submissão" value="Re-avaliar"/>
 </form>

@@ -15,6 +15,7 @@ import Snap.Snaplet.Auth
 import Snap.Snaplet.Session
 import Snap.Snaplet.SqliteSimple
 
+import Control.Concurrent.QSem
 -- import System.Remote.Monitoring
 
 
@@ -24,6 +25,7 @@ data App = App
     , _sess  :: Snaplet SessionManager
     , _auth  :: Snaplet (AuthManager App)
     , _db    :: Snaplet Sqlite
+    , evalQS :: QSem  -- ^ semaphore for "throttling" concurrent evaluation threads
 --    , ekg :: Maybe Server           -- optional EKG monitoring server
     }
 
