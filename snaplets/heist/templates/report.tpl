@@ -11,14 +11,13 @@
   <p><img src="/static/images/spinner.svg"></p>
   <p class="info">Se a página não atualizar automaticamente,
       use o botão "reload" do "browser".</p>
-  <else/>
+<else/>
   <case-timing>
     <Early>
       <p>Submissão antecipada; o resultado ficara disponível após <valid-from/>.</p>
     </Early>
     <default>
       <h3>Resultado: <em><classify/></em><overdue>&nbsp;(enviada fora do tempo)</overdue></h3>
-      <overdue><p><p><strong>Enviada fora do tempo.</strong></p></overdue>
       <pre>
         <message/>
       </pre>

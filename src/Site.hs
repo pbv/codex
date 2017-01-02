@@ -12,7 +12,7 @@ module Site
 ------------------------------------------------------------------------------
 
 import           Control.Applicative
-import           Control.Concurrent(forkIO, ThreadId)
+import           Control.Concurrent(forkIO)
 import           Control.Concurrent.MVar
 import           Control.Concurrent.QSem
 import           Control.Exception  (SomeException, bracket_)
@@ -20,12 +20,15 @@ import           Control.Exception.Lifted  (catch)
 import           Control.Lens
 import           Control.Monad.State
 
+import qualified Data.ByteString.UTF8                        as B
 import           Data.ByteString.UTF8                        (ByteString)
 
 import qualified Data.HashMap.Strict                         as HM
 import           Data.Map.Syntax
 
 import qualified Data.Text                                   as T
+import           Data.Monoid((<>))
+import           Data.Maybe(isJust)
 
 import           Heist
 import qualified Heist.Interpreted                           as I
@@ -128,23 +131,26 @@ servePage uid rqpath = do
 renderExercise :: Page -> [Submission] -> Codex ()
 renderExercise page subs = do
   tz <- liftIO getCurrentTimeZone
-  splices <- exerciseSplices page
+  intSplices <- intervalSplices page
   renderWithSplices "exercise" $ do
-    splices
     pageSplices page
+    exerciseSplices page
+    intSplices
     submissionListSplices tz subs
     inputAceEditorSplices
+    
 
 -- render report for a single submission
 renderReport :: Page -> Submission -> Codex ()
 renderReport page sub = do
   tz <- liftIO getCurrentTimeZone
-  splices <- exerciseSplices page
+  intSplices <- intervalSplices page
   renderWithSplices "report" $ do
-    splices
-    inputAceEditorSplices
     pageSplices page
+    exerciseSplices page
+    intSplices
     submitSplices tz sub
+    inputAceEditorSplices
 
 
 
@@ -155,11 +161,11 @@ readPageLinks :: UserID -> FilePath -> Codex Page
 readPageLinks uid rqpath = do
   page <- liftIO $ readPage publicPath rqpath
   let links = queryExerciseLinks page
-  let dir = takeDirectory rqpath
+  let rqdir = takeDirectory rqpath
   -- fetch linked titles; catch and ignore exceptions
   optTitles <- liftIO $
                forM links $ \url ->
-               (pageTitle <$> readPage publicPath (dir</>url))
+               (pageTitle <$> readPage publicPath (rqdir</>url))
                `catch` (\(_ :: SomeException) -> return Nothing)
 
   let titles = HM.fromList [(url,title) | (url, Just title)<-zip links optTitles]
@@ -167,7 +173,7 @@ readPageLinks uid rqpath = do
   -- fetch submisssion count
   submissions <- HM.fromList <$>
                  forM links ( \url -> do
-                     count <- length <$> getPageSubmissions uid (dir</>url)
+                     count <- length <$> getPageSubmissions uid (rqdir</>url)
                      return (url, count))
   --
   -- patch relevant links
@@ -195,20 +201,19 @@ readPageLinks uid rqpath = do
 queryExerciseLinks :: Page -> [String]
 queryExerciseLinks page = query extractURL (pageDescription page)
   where
-    extractURL (Link attr@(_,classes,_) inlines target@(url,_))
-      = [url | "ex" `elem` classes]
-    extractURL _  = []
+    extractURL (Link (_,classes,_) _ (url,_)) = [url | "ex" `elem` classes]
+    extractURL _                              = []
 
 
 
 -- | handle requests for a single submission
 handleSubmission :: Codex ()
 handleSubmission = do
-    au <- require (with auth currentUser) <|> unauthorized
-    let uid = authUserID au
+    usr <- require (with auth currentUser) <|> unauthorized
+    let uid = authUserID usr
     sid <- require getSubmitID
     sub <- require (getSubmission sid) <|> notFound
-    unless (isAdmin au || submitUser sub == uid)
+    unless (isAdmin usr || submitUser sub == uid)
       unauthorized
     handleMethodOverride (method GET (handleGet sub) <|>
                           method PATCH (handleReevaluate sub) <|>
@@ -230,27 +235,35 @@ handleSubmission = do
 
 
 -- | splices related to exercises
-exerciseSplices :: Page -> Codex ISplices
+exerciseSplices :: Page -> ISplices
 exerciseSplices page = do
-  tz <- liftIO getCurrentTimeZone
+  "language" ##
+    maybe (return []) (I.textSplice . fromLanguage) (pageLanguage page)
+  "language-mode" ##
+    maybe (return []) (I.textSplice . languageMode) (pageLanguage page)
+  "code-text" ##
+    maybe (return []) I.textSplice (pageCodeText page)
+ 
+
+
+-- | splices related to the submission interval for an exercise
+intervalSplices :: Page -> Codex ISplices
+intervalSplices page = do
+  tz  <- liftIO getCurrentTimeZone
   now <- liftIO getCurrentTime
   events <- getEvents
-  case evalI tz events (submitInterval page) of
-    Nothing ->  error "invalid submission interval"
-    Just interval -> return $ do
-      "language" ##
-        maybe (return []) (I.textSplice . fromLanguage) (pageLanguage page)
-      "language-mode" ##
-        maybe (return []) (I.textSplice . languageMode) (pageLanguage page)
-      "code-text" ##
-        maybe (return []) I.textSplice (pageCodeText page)
-      "valid-from" ##
-        I.textSplice $ maybe "N/A" (showTime tz) (Interval.lower interval)
-      "valid-until" ##
-        I.textSplice $ maybe "N/A" (showTime tz) (Interval.higher interval)
-      "case-timing" ## caseSplice (timing now interval)
-
-
+  let interval = evalI tz events (submitInterval page)
+  unless (isJust interval) $ 
+    logError ("WARNING: invalid submission interval for page " <>
+               B.fromString (show $ pagePath page))
+  return $ do
+    "valid-from" ##
+      I.textSplice $ maybe "N/A" (showTime tz) (Interval.lower =<< interval)
+    "valid-until" ##
+      I.textSplice $ maybe "N/A" (showTime tz) (Interval.higher =<< interval)
+    "case-timing" ##
+      maybe (return []) (caseSplice.timing now) interval
+ 
 
 
 -- | splices relating to a list of submissions
@@ -333,35 +346,34 @@ newSubmission uid page code = do
   evaluate sub
   return (submitID sub)
 
--- (re)evaluate a submission;
+-- evaluate a submission (1st time or re-evaluation);
 -- runs code tester in separate thread
-evaluate :: Submission -> Codex ThreadId
+evaluate :: Submission -> Codex ()
 evaluate sub = do
-  let sid = submitID sub            -- ^ submission number
-  let code = submitCode sub         -- ^ program code
-  let received = submitTime sub     -- ^ time received
+  let sid = submitID sub        -- ^ submission number
+  let code = submitCode sub     -- ^ program code
+  let time = submitTime sub     -- ^ time received
   page <- liftIO $ readPage publicPath (submitPath sub)
-  evs <- getEvents
-  tv <- liftIO $ evalTiming page evs received
-  conf <- getSnapletUserConfig
   sqlite <- S.getSqliteState
-  evQS <- gets evalQS
-  liftIO $ forkIO $ bracket_ (waitQSem evQS) (signalQSem evQS) $ do
-    updateSubmission sqlite sid evaluating tv
-    result <- codeTester conf page code `catch`
-               (\ (e::SomeException) -> return (miscError $ T.pack $ show e))
-    updateSubmission sqlite sid result tv
+  -- evaluate submission timing 
+  evs <- getEvents
+  tz <- liftIO getCurrentTimeZone
+  let optT = timing time <$> evalI tz evs (submitInterval page)
+  case optT of
+    Nothing -> liftIO $ 
+      updateSubmission sqlite sid (miscError "Invalid submission interval") Overdue
+    Just tv -> do
+      -- create a worker thread for submission evaluation 
+      conf <- getSnapletUserConfig
+      evQS <- gets evalQS
+      liftIO $ forkIO $ bracket_ (waitQSem evQS) (signalQSem evQS) $ do
+        updateSubmission sqlite sid evaluating tv
+        result <- codeTester conf page code `catch`
+                  (\ (e::SomeException) -> return (miscError $ T.pack $ show e))
+        updateSubmission sqlite sid result tv
+      return ()
 
 
--- | evaluate timing for a page
-evalTiming :: Page -> Events -> UTCTime -> IO Timing
-evalTiming page evs t = do
-  tz <- getCurrentTimeZone
-  case Interval.evalI tz evs (submitInterval page) of
-    Nothing -> ioError (userError errMsg)
-    Just int -> return (timing t int)
- where
-   errMsg = show (pagePath page) ++ ": invalid submit interval"
 
 
 ------------------------------------------------------------------------------

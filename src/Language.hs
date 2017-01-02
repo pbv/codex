@@ -17,6 +17,7 @@ import Language.Haskell as Lang
 import Language.C as Lang
 
 
+
 codeTester :: Config -> Page -> Code -> IO Result
 codeTester conf page code
   = case codeLang code of
@@ -24,8 +25,8 @@ codeTester conf page code
         pythonTester conf page code
     Language "haskell" ->
         haskellTester conf page code
-    Language "c" ->
-        clangTester conf page code
+    Language "c" -> 
+         clangTester conf page code
     _ -> return (received errMsg)
   where
     errMsg = "No tester defined for language \"" <>
