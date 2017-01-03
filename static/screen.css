@@ -225,6 +225,10 @@ table.submissions td.classify {
  font-style: oblique;
  }
 
+table.submissions td.Evaluating  {
+ font-style: oblique;
+ font-weight: bold;
+ }
 
 
 

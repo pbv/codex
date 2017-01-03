@@ -281,15 +281,13 @@ submitSplices tz Submission{..} = do
   "submit-id" ##  I.textSplice (toText submitID)
   "submit-user-id" ## I.textSplice (toText submitUser)
   "submit-path" ## I.textSplice (T.decodeUtf8 $ encodePath submitPath)
-  "received" ## utcTimeSplice tz submitTime
+  "submit-time" ## utcTimeSplice tz submitTime
   "code-lang" ## I.textSplice (fromLanguage $ codeLang submitCode)
   "code-text" ##  I.textSplice (codeText submitCode)
   let classify = T.pack $ show $ resultClassify submitResult
-  "classify" ##  I.textSplice classify
-  "classify-short" ## I.textSplice (T.filter isUpper classify)
-  "message" ## I.textSplice (resultMessage submitResult)
-  "case-timing" ## caseSplice submitTiming
-  "timing" ## I.textSplice (T.pack $ show submitTiming)
+  "submit-classify" ##  I.textSplice classify
+  "submit-message" ## I.textSplice (resultMessage submitResult)
+  "submit-timing" ## I.textSplice (T.pack $ show submitTiming)
   "valid" ## I.ifElseISplice (submitTiming == Valid)
   "early" ## I.ifElseISplice (submitTiming == Early)
   "overdue" ## I.ifElseISplice (submitTiming == Overdue)

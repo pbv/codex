@@ -17,7 +17,8 @@
     </select> &nbsp;
     &nbsp;&nbsp;
     <input type="submit" onClick="move(-1)" value="Anterior"/> &nbsp;
-    <input type="submit" onClick="move(1)" value="Seguinte"/>
+    <input type="submit" onClick="move(1)" value="Seguinte"/> &nbsp;
+    <input type="submit" onClick="reevaluate()" value="Re-avaliar"/>
   </div>
   <table class="submissions">
     <tr>
@@ -45,9 +46,9 @@
 	  <td class="userid"><submit-user-id/></td>
 	  <td class="path"><submit-path/></td>
 	  <td class="lang"><code-lang/></td>
-	  <td class="classify"><classify/></td>
-	  <td class="timing"><timing/></td>
-	  <td class="received"><received/></td>
+	  <td class="classify ${submit-classify}"><submit-classify/></td>
+	  <td class="timing"><submit-timing/></td>
+	  <td class="received"><submit-time/></td>
 	</tr>
       </submissions>
       <else/>
@@ -55,6 +56,7 @@
     </if-submissions>
   </table>
   <input id="page" type="hidden" name="page" value="${page}"/>
+  <input id="_method" type="hidden" name="_method" value="POST"/>
 </form>
 <script>
 function move(k) {
@@ -62,6 +64,12 @@ function move(k) {
   var param = document.getElementById("page");
   var page = parseInt(param.value, 10);
   param.value = String(page + k);
+  form.submit();
+}
+function reevaluate() {
+  var form = document.getElementById("listform");
+  var param = document.getElementById("_method");
+  param.value = "PATCH";
   form.submit();
 }
 </script>

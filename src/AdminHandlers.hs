@@ -8,6 +8,7 @@
 
 module AdminHandlers(
   handleBrowse,
+  handleSubmission,
   handleSubmissionList,
   handleExport
   ) where
@@ -32,6 +33,7 @@ import           Control.Monad
 import           Control.Monad.Trans (liftIO)
 import           Control.Exception.Lifted (catch, SomeException)
 import           Control.Applicative
+import           Control.Concurrent (ThreadId)
 
 
 import           Data.Text (Text)
@@ -47,7 +49,8 @@ import           Data.Maybe (fromMaybe,catMaybes)
 import           Data.List (sort, intercalate)
 import           Data.Map.Syntax
 import           Types
-import           Language.Types
+import           Language
+import           Page
 import           Tester
 import           Application
 import           Submission
@@ -217,25 +220,42 @@ handleRename base = do
 handleSubmissionList :: Codex ()
 handleSubmissionList = do
   usr <- require (with auth currentUser) <|> unauthorized
-  unless (isAdmin usr) unauthorized
-  method GET handleList <|> method POST handlePost
+  unless (isAdmin usr)
+    unauthorized
+  handleMethodOverride
+    (method GET handleList <|>
+     method POST handlePost <|>
+     method PATCH handleReeval)
   where
     handleList =  listSubmissions emptyPatterns Asc Nothing
     handlePost = do
       optPage <- readParam "page"
       sorting <- require (readParam "sorting")
-      id_pat <- T.decodeUtf8 <$> require (getParam "id_pat")
-      uid_pat <- T.decodeUtf8 <$> require (getParam "uid_pat")
-      path_pat<- T.decodeUtf8 <$> require (getParam "path_pat")
-      lang_pat<- T.decodeUtf8 <$> require (getParam "lang_pat")
-      class_pat<- T.decodeUtf8 <$> require (getParam "class_pat")
-      timing_pat<- T.decodeUtf8 <$> require (getParam "timing_pat")
-      let patts = Patterns { idPat = id_pat, userPat = uid_pat,
-                             pathPat = path_pat, langPat = lang_pat,
-                             classPat = class_pat, timingPat = timing_pat }
+      patts <- getPatterns
       listSubmissions patts sorting optPage
+    handleReeval = do
+      optPage <- readParam "page"
+      sorting <- require (readParam "sorting")
+      patts <- getPatterns
+      reevalSubmissions patts sorting optPage
+            
 
 
+-- helper function to decode patterns from request parameters
+getPatterns :: Codex Patterns
+getPatterns = do
+  id_pat <- T.decodeUtf8 <$> require (getParam "id_pat")
+  uid_pat <- T.decodeUtf8 <$> require (getParam "uid_pat")
+  path_pat<- T.decodeUtf8 <$> require (getParam "path_pat")
+  lang_pat<- T.decodeUtf8 <$> require (getParam "lang_pat")
+  class_pat<- T.decodeUtf8 <$> require (getParam "class_pat")
+  timing_pat<- T.decodeUtf8 <$> require (getParam "timing_pat")
+  return Patterns { idPat = id_pat, userPat = uid_pat,
+                    pathPat = path_pat, langPat = lang_pat,
+                    classPat = class_pat, timingPat = timing_pat }
+  
+
+-- | list submissions
 listSubmissions :: Patterns -> Sorting -> Maybe Int -> Codex ()
 listSubmissions patts@Patterns{..} sort optPage = do
   count <- countSubmissions patts
@@ -262,6 +282,22 @@ listSubmissions patts@Patterns{..} sort optPage = do
     "submissions" ## I.mapSplices (I.runChildrenWith . submitSplices tz) subs
 
 
+-- | re-evaluate some submissions 
+reevalSubmissions :: Patterns -> Sorting -> Maybe Int -> Codex ()
+reevalSubmissions patts@Patterns{..} sort optPage = do
+  count <- countSubmissions patts
+  let entries = 50   -- # entries per page
+  let npages
+        | count>0 = ceiling (fromIntegral count / fromIntegral entries :: Double)
+        | otherwise = 1
+  let page = 1 `max` fromMaybe 1 optPage `min` npages
+  let offset = (page - 1) * entries
+  subs <- filterSubmissions patts sort entries offset
+  liftIO $ putStrLn "starting evaluation threads"
+  mapM_ evaluate subs
+  liftIO $ putStrLn "created evaluation threads"
+  redirect "/submit"
+
 
 -- | Export all submissions
 handleExport :: Codex ()
@@ -278,12 +314,12 @@ handleExport = method POST $ do
 exportSubmissions :: FilePath -> String -> Codex FilePath
 exportSubmissions filetpl sep  = do
   tmpDir <- liftIO getTemporaryDirectory
-  (path, handle) <-
+  (tmpPath, handle) <-
     liftIO $ openTempFileWithDefaultPermissions tmpDir filetpl
   liftIO (hPutStrLn handle header)
-  count <- withSubmissions () (output handle)
+  withSubmissions () (output handle)
   liftIO (hClose handle)
-  return path
+  return tmpPath
   where
     header = intercalate sep ["id", "user_id", "path", "language",
                               "classify", "timing", "received"]
@@ -299,3 +335,38 @@ exportSubmissions filetpl sep  = do
                                  show (show submitTime)
                                 ]
       hPutStrLn h row
+
+
+
+
+-- | handle admin requests for submissions
+handleSubmission :: Codex ()
+handleSubmission = do
+    usr <- require (with auth currentUser) <|> unauthorized
+    unless (isAdmin usr)
+      unauthorized
+    sid <- require getSubmitID
+    sub <- require (getSubmission sid) <|> notFound
+    handleMethodOverride (method GET (report sub) <|>
+                          method PATCH (reevaluate sub) <|>
+                          method DELETE (delete sub))
+  where
+    -- get report on a submission
+    report sub = do
+      page <- liftIO $ readPage publicPath (submitPath sub)
+      tz <- liftIO getCurrentTimeZone
+      renderWithSplices "submission" $ do
+        pageSplices page
+        submitSplices tz sub
+
+    -- delete a submission
+    delete sub = do
+      deleteSubmission (submitID sub)
+      redirect (encodePath ("/pub" </> submitPath sub))
+
+    -- revaluate a single submission
+    reevaluate sub = do
+      evaluate sub
+      redirect (encodePath ("/submit" </> show (fromSID $ submitID sub)))
+
+

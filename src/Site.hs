@@ -12,12 +12,11 @@ module Site
 ------------------------------------------------------------------------------
 
 import           Control.Applicative
-import           Control.Concurrent(forkIO)
 import           Control.Concurrent.MVar
-import           Control.Exception  (SomeException)
-import           Control.Exception.Lifted  (catch)
 import           Control.Lens
 import           Control.Monad.State
+import           Control.Exception  (SomeException)
+import           Control.Exception.Lifted  (catch)
 
 import qualified Data.ByteString.UTF8                        as B
 import           Data.ByteString.UTF8                        (ByteString)
@@ -114,7 +113,7 @@ handlePage = do
       text <- require (getTextPost "editform.editor")
       lang <- require (return $ pageLanguage page)
       sid <- newSubmission uid page (Code lang text)
-      redirect (encodePath $ "/submit" </> show (fromSID sid))
+      redirect (encodePath $ "/report" </> show (fromSID sid))
 
 
 -- | serve a markdown document
@@ -205,32 +204,18 @@ queryExerciseLinks page = query extractURL (pageDescription page)
 
 
 
--- | handle requests for a single submission
-handleSubmission :: Codex ()
-handleSubmission = do
-    usr <- require (with auth currentUser) <|> unauthorized
-    let uid = authUserID usr
-    sid <- require getSubmitID
-    sub <- require (getSubmission sid) <|> notFound
-    unless (isAdmin usr || submitUser sub == uid)
+-- | handle GET requests for submission reports
+handleReport :: Codex ()
+handleReport = do
+  usr <- require (with auth currentUser) <|> unauthorized
+  let uid = authUserID usr
+  sid <- require getSubmitID
+  sub <- require (getSubmission sid) <|> notFound
+  unless (isAdmin usr || submitUser sub == uid)
       unauthorized
-    handleMethodOverride (method GET (handleGet sub) <|>
-                          method PATCH (handleReevaluate sub) <|>
-                          method DELETE (handleDelete sub))
-  where
-    -- get report on a submission
-    handleGet sub = do
-      page <- liftIO $ readPage publicPath (submitPath sub)
-      renderReport page sub
-    -- delete a submission
-    handleDelete sub = do
-      deleteSubmission (submitID sub)
-      redirect (encodePath ("/pub" </> submitPath sub))
-    -- revaluate a single submission
-    handleReevaluate sub = do
-      evaluate sub
-      redirect (encodePath ("/submit" </> show (fromSID $ submitID sub)))
-
+  method GET $ do
+    page <- liftIO $ readPage publicPath (submitPath sub)
+    renderReport page sub
 
 
 -- | splices related to exercises
@@ -246,7 +231,6 @@ exerciseSplices page = do
   "feedback-low" ## I.ifElseISplice (fb >= 25)
   "feedback-medium" ## I.ifElseISplice (fb >= 50)
   "feedback-high" ## I.ifElseISplice (fb >= 75)
- 
 
 
 -- | splices related to the submission interval for an exercise
@@ -264,7 +248,7 @@ intervalSplices page = do
       I.textSplice $ maybe "N/A" (showTime tz) (Interval.lower =<< interval)
     "valid-until" ##
       I.textSplice $ maybe "N/A" (showTime tz) (Interval.higher =<< interval)
-    "case-timing" ##
+    "current-timing" ##
       maybe (return []) (caseSplice.timing now) interval
  
 
@@ -280,26 +264,6 @@ submissionListSplices tz list = do
   "submissions-list" ##
     I.mapSplices (I.runChildrenWith . submitSplices tz) list
 
-{-
--- | splice for time expressions and intervals
-timeExprSplice :: TimeExpr -> I.Splice Codex
-timeExprSplice e = do
-  tz <- liftIO getCurrentTimeZone
-  events <- lift (require getUserEvents)
-  case evalT tz events e of
-    Just t -> I.textSplice (showTime tz t)
-    Nothing -> do logError "invalid time expression"
-                  return []
-
-timingSplice :: Interval TimeExpr -> I.Splice Codex
-timingSplice interval = do
-  tz <- liftIO getCurrentTimeZone
-  now <- liftIO getCurrentTime
-  env <- lift (require getUserEvents)
-  case Interval.evalI tz env interval of
-    Just i -> caseSplice (timing now i)
-    Nothing -> return []
--}
 
 
 
@@ -311,6 +275,7 @@ routes = [ ("/login",    handleLogin `catch` internalError)
          , ("/logout",   handleLogout `catch` internalError)
          , ("/register", handleRegister `catch` internalError)
          , ("/pub",      handlePage `catch` internalError)
+         , ("/report/:sid", handleReport `catch` internalError)
          , ("/submit/:sid", handleSubmission `catch` internalError)
          , ("/submit",  handleSubmissionList `catch` internalError)
          , ("/files",  handleBrowse publicPath `catch`  internalError)
@@ -348,34 +313,6 @@ newSubmission uid page code = do
   sub <- insertSubmission uid (pagePath page) now code evaluating Valid
   evaluate sub
   return (submitID sub)
-
--- evaluate a submission (1st time or re-evaluation);
--- runs code tester in separate thread
-evaluate :: Submission -> Codex ()
-evaluate sub = do
-  let sid = submitID sub        -- ^ submission number
-  let code = submitCode sub     -- ^ program code
-  let time = submitTime sub     -- ^ time received
-  page <- liftIO $ readPage publicPath (submitPath sub)
-  sqlite <- S.getSqliteState
-  -- evaluate submission timing 
-  evs <- getEvents
-  tz <- liftIO getCurrentTimeZone
-  let optT = timing time <$> evalI tz evs (submitInterval page)
-  case optT of
-    Nothing -> liftIO $ 
-      updateSubmission sqlite sid (miscError "Invalid submission interval") Overdue
-    Just tv -> do
-      conf <- getSnapletUserConfig
-      sem <- gets evalQS
-      -- fork a thread for evaluating submission
-      liftIO $ forkIO $ withQSem sem $ do
-        updateSubmission sqlite sid evaluating tv
-        result <- codeTester conf page code `catch`
-                  (\ (e::SomeException) -> return (miscError $ T.pack $ show e))
-        updateSubmission sqlite sid result tv
-      return ()
-
 
 
 

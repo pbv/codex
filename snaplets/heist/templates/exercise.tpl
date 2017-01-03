@@ -20,7 +20,7 @@
   </p>
   
 <p class="info">
-  <case-timing>
+  <current-timing>
     <Early>
       Submissões visíveis após: <valid-from/>.
     </Early>
@@ -30,12 +30,12 @@
     <Overdue>
       Submissões terminaram em: <valid-until/>.
     </Overdue>
-  </case-timing>
+  </current-timing>
 </p>
 
 <if-submitted>
   <h2>Submissões anteriores</h2>
-  <case-timing>
+  <current-timing>
     <Early>
       <p><submissions-count/> submissões antecipadas; os resultados serão
 	visíveis após <valid-from/>.</p>
@@ -44,17 +44,13 @@
       <ol class="submissions">
 	<submissions-list>
 	  <li>
-	    <a href="/submit/${submit-id}"><submit-id/></a>
-	    <feedback-medium>
-	      <span class="tag">
-		<classify-short/>
-	      </span>
-	    </feedback-medium>
+	    <a href="/report/${submit-id}"><submit-id/></a>&nbsp;<feedback-medium
+               ><span class="tag"><submit-classify/></span></feedback-medium>
 	  </li>
 	</submissions-list>
       </ol>
     </default>
-  </case-timing>
+  </current-timing>
 </if-submitted>
 
 <h2>Nova submissão</h2>

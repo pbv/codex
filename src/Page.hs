@@ -102,3 +102,6 @@ pageSplices page = do
   "file-path-url" ## I.textSplice (T.decodeUtf8 $ encodePath $ pagePath page)
   "page-description" ## return (blocksToHtml $ pageDescription page)
   "if-exercise" ## I.ifElseISplice (pageIsExercise page)
+
+
+ 
