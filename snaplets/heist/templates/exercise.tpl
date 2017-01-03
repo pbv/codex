@@ -3,23 +3,35 @@
 <bind tag="icon-warning"><img src="/static/icons/16x16/warning.png"/></bind>
 <bind tag="icon-overdue"><img src="/static/icons/16x16/overdue.png"/></bind>
 <bind tag="icon-editor"><img src="/static/icons/16x16/editor.png"/></bind>
-<bind tag="submit-icon"><valid><accepted><icon-accepted/><else/><icon-warning/></accepted><else/><icon-overdue/></valid></bind>
 <apply template="_base">
-<div class="description">
-<page-description/>
-</div>
-
-<case-timing>
-  <Early>
-    <p>Submissões iniciam em: <valid-from/></p>
-  </Early>
-  <Valid>
-    <p>Submissões terminam em: <valid-until/></p>
-  </Valid>
-  <Overdue>
-    <p>Submissões terminaram em: <valid-until/></p>
-  </Overdue>
-</case-timing>
+  <div class="description">
+    <page-description/>
+  </div>
+  <p class="info">
+    <feedback-high>
+      Exercício com "<em>feedback</em>" de resultados e testes.
+    <else/>
+    <feedback-medium>
+      Exercício com "<em>feedback</em>" só de resultados.
+      <else/>
+      Exercício sem "<em>feedback</em>".
+    </feedback-medium>
+  </feedback-high>
+  </p>
+  
+<p class="info">
+  <case-timing>
+    <Early>
+      Submissões visíveis após: <valid-from/>.
+    </Early>
+    <Valid>
+      Submissões terminam em: <valid-until/>.
+    </Valid>
+    <Overdue>
+      Submissões terminaram em: <valid-until/>.
+    </Overdue>
+  </case-timing>
+</p>
 
 <if-submitted>
   <h2>Submissões anteriores</h2>
@@ -32,7 +44,12 @@
       <ol class="submissions">
 	<submissions-list>
 	  <li>
-	    <a href="/submited/${submit-id}"><submit-id/></a><span class="info"><classify/></span>
+	    <a href="/submited/${submit-id}"><submit-id/></a>
+	    <feedback-medium>
+	      <span class="tag">
+		<classify-short/>
+	      </span>
+	    </feedback-medium>
 	  </li>
 	</submissions-list>
       </ol>

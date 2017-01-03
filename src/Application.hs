@@ -25,8 +25,8 @@ data App = App
     , _sess  :: Snaplet SessionManager
     , _auth  :: Snaplet (AuthManager App)
     , _db    :: Snaplet Sqlite
-    , evalQS :: QSem  -- ^ semaphore for "throttling" concurrent evaluation threads
---    , ekg :: Maybe Server           -- optional EKG monitoring server
+    , evalQS :: QSem  -- semaphore for "throttling" evaluation threads
+    --, ekg :: Maybe Server           -- optional EKG monitoring server
     }
 
 makeLenses ''App

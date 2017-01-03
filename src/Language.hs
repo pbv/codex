@@ -1,20 +1,19 @@
 {-# LANGUAGE OverloadedStrings #-}
 
 module Language(
-  codeTester, module Lang
+  codeTester, module Language.Types
   ) where
 
---import Control.Applicative
 import Data.Monoid
 import Data.Configurator.Types
 
 import Page
 import Tester
 
-import Language.Types as Lang
-import Language.Python as Lang
-import Language.Haskell as Lang
-import Language.C as Lang
+import Language.Types  
+import Language.Python 
+import Language.Haskell
+import Language.C 
 
 
 
@@ -31,3 +30,4 @@ codeTester conf page code
   where
     errMsg = "No tester defined for language \"" <>
              fromLanguage (codeLang code) <> "\""
+

@@ -62,13 +62,14 @@ import           Config
 --
 handleBrowse :: FilePath -> Codex ()
 handleBrowse base = do
-  au <- require (with auth currentUser) <|> unauthorized
-  unless (isAdmin au) unauthorized
-  handleMethodOverride (method GET (handleGet base) <|>
-                        method POST (handleUpload base) <|>
-                        method PUT (handleEdit base) <|>
-                        method DELETE (handleDelete base) <|>
-                        method PATCH (handleRename base))
+  usr <- require (with auth currentUser) <|> unauthorized
+  unless (isAdmin usr) unauthorized
+  handleMethodOverride
+    (method GET (handleGet base) <|>
+     method POST (handleUpload base) <|>
+     method PUT (handleEdit base) <|>
+     method DELETE (handleDelete base) <|>
+     method PATCH (handleRename base))
 
 
 handleGet :: FilePath -> Codex ()
@@ -215,11 +216,11 @@ handleRename base = do
 --  | handle requests for submission lists
 handleSubmissionList :: Codex ()
 handleSubmissionList = do
-  au <- require (with auth currentUser) <|> unauthorized
-  unless (isAdmin au) unauthorized
-  method GET handleGet <|> method POST handlePost
+  usr <- require (with auth currentUser) <|> unauthorized
+  unless (isAdmin usr) unauthorized
+  method GET handleList <|> method POST handlePost
   where
-    handleGet =  listSubmissions emptyPatterns Asc Nothing
+    handleList =  listSubmissions emptyPatterns Asc Nothing
     handlePost = do
       optPage <- readParam "page"
       sorting <- require (readParam "sorting")
@@ -259,6 +260,7 @@ listSubmissions patts@Patterns{..} sort optPage = do
     "if-submissions" ## I.ifElseISplice (count > 0)
     "page-count" ## I.textSplice (T.pack $ show npages)
     "submissions" ## I.mapSplices (I.runChildrenWith . submitSplices tz) subs
+
 
 
 -- | Export all submissions

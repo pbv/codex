@@ -4,17 +4,12 @@ module Language.Python(
   ) where
 
 import           Control.Monad (liftM2)
-import           Control.Monad.IO.Class
 import           Data.Monoid
 import           Data.Text (Text)
 import qualified Data.Text as T
 
--- import           Snap.Core(pass)
--- import           Snap.Snaplet(getSnapletUserConfig)
-
 import           Language.Types
 import           Markdown
--- import           Application
 import           Page
 import           Tester
 import           Config
@@ -55,7 +50,7 @@ pythonTester _ _ _ = return (miscError "pythonTester: invalid submission")
 
 
 pythonResult :: (ExitCode, Text, Text) -> Result
-pythonResult (exitCode, stdout, stderr)
+pythonResult (_, stdout, stderr)
   | T.null stdout && match "OK" stderr = accepted stderr
   | match "Time Limit" stderr          = timeLimitExceeded stderr
   | match "Memory Limit" stderr        = memoryLimitExceeded stderr

@@ -4,7 +4,6 @@
 -}
 module Utils where
 
--- import           Control.Monad.State
 import           Data.ByteString.UTF8 (ByteString)
 import qualified Data.ByteString.UTF8 as B
 import qualified Data.ByteString      as B
@@ -13,7 +12,6 @@ import           Data.Text(Text)
 import qualified Data.Text as T
 import qualified Data.Text.Encoding as T
 import qualified Data.Text.Encoding.Error as T
--- import qualified Data.Text.IO as T
 import           Data.List (intersperse)
 import           Data.Maybe (fromMaybe, listToMaybe, maybeToList)
 import qualified Data.Map as Map
@@ -38,7 +36,8 @@ import qualified Text.XmlHtml as X
 
 
 -- import           Control.Applicative
-import           Control.Exception (SomeException)
+import           Control.Exception (SomeException, bracket_)
+import           Control.Concurrent.QSem
 
 import           Types
 import           Interval
@@ -280,6 +279,12 @@ methodOverride param r
 
 -- | encode a file path as a URL
 encodePath :: FilePath -> ByteString
-encodePath path = B.concat (intersperse "/" dirs')
-  where dirs = map (urlEncode . B.fromString) (splitDirectories path)
-        dirs'= if isAbsolute path then "":tail dirs else dirs
+encodePath rqpath = B.concat (intersperse "/" dirs')
+  where dirs = map (urlEncode . B.fromString) (splitDirectories rqpath)
+        dirs'= if isAbsolute rqpath then "":tail dirs else dirs
+
+
+-- | aquire and release a quantity semaphore for an I/O action
+withQSem :: QSem -> IO a -> IO a
+withQSem qs = bracket_ (waitQSem qs) (signalQSem qs)
+

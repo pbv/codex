@@ -12,18 +12,22 @@
   <p class="info">Se a página não atualizar automaticamente,
       use o botão "reload" do "browser".</p>
 <else/>
+<feedback-medium>
   <case-timing>
     <Early>
-      <p>Submissão antecipada; o resultado ficara disponível após <valid-from/>.</p>
+      <p>Submissão antecipada; o resultado ficara disponível
+	após <valid-from/>.</p>
     </Early>
     <default>
       <h3>Resultado: <em><classify/></em><overdue>&nbsp;(enviada fora do tempo)</overdue></h3>
-      <pre>
-        <message/>
-      </pre>
+      <feedback-high>
+	<pre>
+          <message/>
+	</pre>
+      </feedback-high>
    </default>
-</case-timing>
-
+  </case-timing>
+</feedback-medium>
 <ifAdmin>
 <form method="POST" action="/submited/${submit-id}" style="display:inline;">
     <input type="hidden" name="_method" value="DELETE"/>

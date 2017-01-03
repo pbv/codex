@@ -14,8 +14,7 @@ module Site
 import           Control.Applicative
 import           Control.Concurrent(forkIO)
 import           Control.Concurrent.MVar
-import           Control.Concurrent.QSem
-import           Control.Exception  (SomeException, bracket_)
+import           Control.Exception  (SomeException)
 import           Control.Exception.Lifted  (catch)
 import           Control.Lens
 import           Control.Monad.State
@@ -227,7 +226,7 @@ handleSubmission = do
     handleDelete sub = do
       deleteSubmission (submitID sub)
       redirect (encodePath ("/pub" </> submitPath sub))
-    -- revaluate a submissionListSplices
+    -- revaluate a single submission
     handleReevaluate sub = do
       evaluate sub
       redirect (encodePath ("/submited" </> show (fromSID $ submitID sub)))
@@ -237,12 +236,16 @@ handleSubmission = do
 -- | splices related to exercises
 exerciseSplices :: Page -> ISplices
 exerciseSplices page = do
+  let fb = submitFeedback page
   "language" ##
     maybe (return []) (I.textSplice . fromLanguage) (pageLanguage page)
   "language-mode" ##
     maybe (return []) (I.textSplice . languageMode) (pageLanguage page)
   "code-text" ##
     maybe (return []) I.textSplice (pageCodeText page)
+  "feedback-low" ## I.ifElseISplice (fb >= 25)
+  "feedback-medium" ## I.ifElseISplice (fb >= 50)
+  "feedback-high" ## I.ifElseISplice (fb >= 75)
  
 
 
@@ -363,10 +366,10 @@ evaluate sub = do
     Nothing -> liftIO $ 
       updateSubmission sqlite sid (miscError "Invalid submission interval") Overdue
     Just tv -> do
-      -- create a worker thread for submission evaluation 
       conf <- getSnapletUserConfig
-      evQS <- gets evalQS
-      liftIO $ forkIO $ bracket_ (waitQSem evQS) (signalQSem evQS) $ do
+      sem <- gets evalQS
+      -- fork a thread for evaluating submission
+      liftIO $ forkIO $ withQSem sem $ do
         updateSubmission sqlite sid evaluating tv
         result <- codeTester conf page code `catch`
                   (\ (e::SomeException) -> return (miscError $ T.pack $ show e))

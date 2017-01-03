@@ -16,14 +16,11 @@ import           Data.Monoid
 import           System.FilePath
 import           System.IO
 
--- import           Snap.Core(pass)
--- import           Snap.Snaplet(getSnapletUserConfig)
 
 import           Language.Types
 import           Language.QuickCheck
 import           Test.QuickCheck (Args)
 import           Tester
---import           Application
 import           Page
 import           SafeExec
 import           Config
@@ -48,13 +45,13 @@ haskellTester conf page (Code (Language "haskell") code) = do
       Just qcpath -> do
         let args = getQuickcheckArgs page
         props <- T.readFile (publicPath </> qcpath)
-        haskellTesterRun sf ghc args code props `catch` return
+        haskellRunner sf ghc args code props `catch` return
 haskellTester _ _  _ = return (miscError "haskellTester: invalid submission")
 
 
 
-haskellTesterRun :: SafeExecConf -> String -> Args -> Text -> Text -> IO Result
-haskellTesterRun sf ghc qcArgs code props =
+haskellRunner :: SafeExecConf -> String -> Args -> Text -> Text -> IO Result
+haskellRunner sf ghc qcArgs code props =
    withTempFile "Submit.hs" $ \(hs_file, h) ->
    let codemod = T.pack $ takeBaseName hs_file
        dir = takeDirectory hs_file
@@ -75,13 +72,12 @@ haskellTesterRun sf ghc qcArgs code props =
          (cleanupFiles temps)
 
 
-
-
+runCompiler :: FilePath -> [String] -> IO ()
 runCompiler cmd args = do
-  (exitCode, _, stderr) <- readProcessWithExitCode cmd args ""
+  (exitCode, _, err) <- readProcessWithExitCode cmd args ""
   case exitCode of
     ExitFailure _ ->
-      throw (compileError stderr)
+      throw (compileError err)
     ExitSuccess ->
       return ()
 

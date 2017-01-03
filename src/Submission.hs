@@ -30,6 +30,7 @@ import           Data.Text(Text)
 import qualified Data.Text          as T
 import qualified Data.Text.Encoding as T
 
+import           Data.Char(isUpper)
 import           Data.Maybe(listToMaybe)
 
 import           Snap.Snaplet.SqliteSimple
@@ -45,7 +46,7 @@ import           Application
 import           Utils
 import           Interval
 import           Types
-import           Language
+import           Language.Types
 import           Tester
 
 
@@ -283,7 +284,9 @@ submitSplices tz Submission{..} = do
   "received" ## utcTimeSplice tz submitTime
   "code-lang" ## I.textSplice (fromLanguage $ codeLang submitCode)
   "code-text" ##  I.textSplice (codeText submitCode)
-  "classify" ##  I.textSplice (T.pack $ show $ resultClassify submitResult)
+  let classify = T.pack $ show $ resultClassify submitResult
+  "classify" ##  I.textSplice classify
+  "classify-short" ## I.textSplice (T.filter isUpper classify)
   "message" ## I.textSplice (resultMessage submitResult)
   "case-timing" ## caseSplice submitTiming
   "timing" ## I.textSplice (T.pack $ show submitTiming)
@@ -292,3 +295,4 @@ submitSplices tz Submission{..} = do
   "overdue" ## I.ifElseISplice (submitTiming == Overdue)
   "accepted" ## I.ifElseISplice (resultClassify submitResult == Accepted)
   "evaluating" ## I.ifElseISplice (resultClassify submitResult == Evaluating)
+

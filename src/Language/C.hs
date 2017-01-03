@@ -42,11 +42,11 @@ clangTester conf page (Code (Language "c") code) = do
     Just qcpath -> do
       let args = getQuickcheckArgs page
       props <- T.readFile (publicPath </> qcpath)
-      clangTesterRun sf gcc ghc args code props `catch` return
+      clangRunner sf gcc ghc args code props `catch` return
 clangTester _ _ _ = return (miscError "clangTester: invalid submission")
 
 
-clangTesterRun sf gcc_cmd ghc_cmd qcArgs c_code props =
+clangRunner sf gcc_cmd ghc_cmd qcArgs c_code props =
   withTextTemp "sub.c" c_code $ \c_file ->
   withTextTemp "Main.hs" (testScript props) $ \hs_file ->
   let dir = takeDirectory c_file
@@ -70,11 +70,12 @@ clangTesterRun sf gcc_cmd ghc_cmd qcArgs c_code props =
 
 
 
+runCompiler :: FilePath -> [String] -> IO ()
 runCompiler cmd args = do
-  (exitCode, _, stderr) <- readProcessWithExitCode cmd args ""
+  (exitCode, _, err) <- readProcessWithExitCode cmd args ""
   case exitCode of
     ExitFailure _ ->
-      throw (compileError stderr)
+      throw (compileError err)
     ExitSuccess ->
       return ()
 
@@ -97,8 +98,8 @@ testScript props
     ]
 
 
-
-haskellResult (exitCode, stdout, stderr)
+haskellResult :: (ExitCode, Text,Text) -> Result
+haskellResult (_, stdout, stderr)
   | match "Not in scope" stderr ||
     match "parse error" stderr  ||
     match "Couldn't match" stderr  = compileError stderr

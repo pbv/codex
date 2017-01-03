@@ -11,6 +11,7 @@ module Page(
   pageCode,
   pageIsExercise,
   submitInterval,
+  submitFeedback,
   pageSplices
   ) where
 
@@ -85,6 +86,10 @@ submitInterval :: Page -> Interval TimeExpr
 submitInterval p
   = fromMaybe (Interval Nothing Nothing) $
     lookupFromMeta "valid" (pageMeta p) >>= parseInterval
+
+-- | feedback level for submissions
+submitFeedback :: Page -> Int
+submitFeedback p = fromMaybe 100 (lookupFromMeta "feedback" (pageMeta p))
 
 
 
