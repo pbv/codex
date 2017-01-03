@@ -1,6 +1,6 @@
 <div id="actions">
   <ifLoggedOut>
-  <em>Codex <version/>. <timeNow/></em>
+    <em>Codex <version/>. <timeNow/></em>
   </ifLoggedOut>
   <ifLoggedIn>
     <ul class="menubar">
@@ -9,7 +9,7 @@
     <ifAdmin>
        <li><a href="/files"
 	 title="Ver ficheiros">Ficheiros</a></li>
-      <li><a href="/submited"
+      <li><a href="/submit"
 	 title="Ver submissões">Submissões</a></li>
       <apply-content/>
     </ifAdmin>

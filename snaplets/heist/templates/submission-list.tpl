@@ -1,6 +1,6 @@
 <apply template="_base">
 <h1>Submissões</h1>
-<form id="listform" action="/submited" method="POST">
+<form id="listform" action="/submit" method="POST">
   <div>
     <span class="info">
       <submissions-count/> submissões (página <page/> de <page-count/>)
@@ -41,7 +41,7 @@
     <if-submissions>
       <submissions>
 	<tr>
-	  <td class="submitid"><a href="/submited/${submit-id}"><submit-id/></a></td>
+	  <td class="submitid"><a href="/submit/${submit-id}"><submit-id/></a></td>
 	  <td class="userid"><submit-user-id/></td>
 	  <td class="path"><submit-path/></td>
 	  <td class="lang"><code-lang/></td>

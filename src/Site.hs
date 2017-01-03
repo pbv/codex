@@ -114,7 +114,7 @@ handlePage = do
       text <- require (getTextPost "editform.editor")
       lang <- require (return $ pageLanguage page)
       sid <- newSubmission uid page (Code lang text)
-      redirect (encodePath $ "/submited" </> show (fromSID sid))
+      redirect (encodePath $ "/submit" </> show (fromSID sid))
 
 
 -- | serve a markdown document
@@ -229,7 +229,7 @@ handleSubmission = do
     -- revaluate a single submission
     handleReevaluate sub = do
       evaluate sub
-      redirect (encodePath ("/submited" </> show (fromSID $ submitID sub)))
+      redirect (encodePath ("/submit" </> show (fromSID $ submitID sub)))
 
 
 
@@ -311,8 +311,8 @@ routes = [ ("/login",    handleLogin `catch` internalError)
          , ("/logout",   handleLogout `catch` internalError)
          , ("/register", handleRegister `catch` internalError)
          , ("/pub",      handlePage `catch` internalError)
-         , ("/submited/:sid", handleSubmission `catch` internalError)
-         , ("/submited",  handleSubmissionList `catch` internalError)
+         , ("/submit/:sid", handleSubmission `catch` internalError)
+         , ("/submit",  handleSubmissionList `catch` internalError)
          , ("/files",  handleBrowse publicPath `catch`  internalError)
          , ("/export", handleExport `catch` internalError)
          , ("/static",   serveDirectory staticPath <|> notFound)
