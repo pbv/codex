@@ -217,20 +217,25 @@ table.submissions td {
  font-family: monospace;
 }
 
-table.submissions td.received {
- font-style: oblique;
- }
 
-table.submissions td.classify {
- font-style: oblique;
- }
+.Accepted {
+  color: green; 
+  font-weight: bold;
+} 
 
-table.submissions td.Evaluating  {
- font-style: oblique;
- font-weight: bold;
- }
+.WrongAnswer { 
+  color: red;
+  font-weight: bold;
+} 
 
+.CompileError, .RuntimeError, .MiscError, 
+.MemoryLimitExceeded, .TimeLimitExceeded  { 
+  font-weight: bold;
+}
 
+.Evaluating { 
+  font-style: oblique;
+}
 
 /* --- code highlighting --- */
 

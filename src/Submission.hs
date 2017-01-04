@@ -10,6 +10,7 @@ module Submission (
   Sorting(..),
   insertSubmission,
   updateSubmission,
+  markEvaluating,
   getSubmission,
   deleteSubmission,
   emptyPatterns,
@@ -95,18 +96,18 @@ instance FromField Language where
 
 instance FromRow Submission where
   fromRow = do
-    id <- field
+    sid <- field
     uid <- field
     path <- field
-    received <- field
+    time <- field
     lang <- field
     text <- field
     classf <- field
     msg <- field
-    timing <- field
+    tv <- field
     let code = Code lang text
     let result = Result classf msg
-    return (Submission id uid path received code result timing)
+    return (Submission sid uid path time code result tv)
 
 
 
@@ -118,32 +119,41 @@ instance FromRow Submission where
 insertSubmission ::
   UserID -> FilePath ->  UTCTime -> Code -> Result -> Timing
   -> Codex Submission
-insertSubmission uid path received code result timing = do
+insertSubmission uid path time code result timing = do
   let (Code lang text) = code
   let (Result classf msg) = result
   withSqlite $ \conn -> do
     S.execute conn
       "INSERT INTO submissions \
        \ (user_id, path, received, language, code, class, message, timing) \
-       \ VALUES(?, ?, ?, ?, ?, ?, ?, ?)" (uid, path, received, lang, text, classf, msg, timing)
+       \ VALUES(?, ?, ?, ?, ?, ?, ?, ?)"
+       (uid, path, time, lang, text, classf, msg, timing)
     sid <- fmap SubmitID (S.lastInsertRowId conn)
-    return (Submission sid uid path received code result timing)
+    return (Submission sid uid path time code result timing)
 
 -- | update submission result after evaluation
 updateSubmission :: Sqlite -> SubmitID -> Result -> Timing -> IO ()
 updateSubmission sqlite sid result timing =
   withMVar (sqliteConn sqlite) $ \conn ->
      S.execute conn
-       "UPDATE submissions SET class = ?, message =?, timing = ? \
+       "UPDATE submissions SET class=?, message=?, timing=? \
        \ where id = ?" (resultClassify result, resultMessage result, timing, sid)
 
+
+-- | mark submissions to the "evaluating" state
+markEvaluating :: Sqlite -> [SubmitID] -> IO ()
+markEvaluating sqlite sids = do
+  withMVar (sqliteConn sqlite) $ \conn ->
+    S.withTransaction conn $
+    S.executeMany conn
+     "UPDATE submissions SET class='Evaluating' where id=?" (map Only sids)
 
 
 
 -- | get a single submission
 getSubmission :: SubmitID -> Codex (Maybe Submission)
 getSubmission sid =
-  listToMaybe <$> query "SELECT * FROM submissions WHERE id = ?" (Only sid)
+  listToMaybe <$> query "SELECT * FROM submissions WHERE id=?" (Only sid)
 
 
 -- | get all submissions for a user and exercise page

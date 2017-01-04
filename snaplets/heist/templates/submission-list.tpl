@@ -18,7 +18,7 @@
     &nbsp;&nbsp;
     <input type="submit" onClick="move(-1)" value="Anterior"/> &nbsp;
     <input type="submit" onClick="move(1)" value="Seguinte"/> &nbsp;
-    <input type="submit" onClick="reevaluate()" value="Re-avaliar"/>
+    <input type="submit" onClick="reevaluate()" value="Re-avaliar submissões"/>
   </div>
   <table class="submissions">
     <tr>

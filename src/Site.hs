@@ -129,11 +129,11 @@ servePage uid rqpath = do
 renderExercise :: Page -> [Submission] -> Codex ()
 renderExercise page subs = do
   tz <- liftIO getCurrentTimeZone
-  intSplices <- intervalSplices page
+  timeSplices <- timingSplices page
   renderWithSplices "exercise" $ do
     pageSplices page
     exerciseSplices page
-    intSplices
+    timeSplices
     submissionListSplices tz subs
     inputAceEditorSplices
     
@@ -142,11 +142,11 @@ renderExercise page subs = do
 renderReport :: Page -> Submission -> Codex ()
 renderReport page sub = do
   tz <- liftIO getCurrentTimeZone
-  intSplices <- intervalSplices page
+  timeSplices <- timingSplices page
   renderWithSplices "report" $ do
     pageSplices page
     exerciseSplices page
-    intSplices
+    timeSplices
     submitSplices tz sub
     inputAceEditorSplices
 
@@ -167,13 +167,11 @@ readPageLinks uid rqpath = do
                `catch` (\(_ :: SomeException) -> return Nothing)
 
   let titles = HM.fromList [(url,title) | (url, Just title)<-zip links optTitles]
-  --
   -- fetch submisssion count
   submissions <- HM.fromList <$>
                  forM links ( \url -> do
                      count <- length <$> getPageSubmissions uid (rqdir</>url)
                      return (url, count))
-  --
   -- patch relevant links
   let patch elm@(Link attr@(_, classes, _) inlines target@(url, _))
         | "ex" `elem` classes =
@@ -234,8 +232,8 @@ exerciseSplices page = do
 
 
 -- | splices related to the submission interval for an exercise
-intervalSplices :: Page -> Codex ISplices
-intervalSplices page = do
+timingSplices :: Page -> Codex ISplices
+timingSplices page = do
   tz  <- liftIO getCurrentTimeZone
   now <- liftIO getCurrentTime
   events <- getEvents
@@ -249,7 +247,7 @@ intervalSplices page = do
     "valid-until" ##
       I.textSplice $ maybe "N/A" (showTime tz) (Interval.higher =<< interval)
     "current-timing" ##
-      maybe (return []) (caseSplice.timing now) interval
+      maybe (return []) (caseSplice . rankTime now) interval
  
 
 

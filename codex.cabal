@@ -67,7 +67,7 @@ Executable codex
     snap-server               >= 1.0,
     snap-loader-static        >= 1.0,
     snaplet-sqlite-simple     >= 0.4,
-    sqlite-simple             >= 0.4,
+    sqlite-simple             >= 0.4.12,
     text                      >= 0.11,
     time                      >= 1.5,
     xmlhtml                   >= 0.1,

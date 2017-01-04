@@ -34,34 +34,30 @@ import           Language.C
 
 -- evaluate a submission (1st time or re-evaluation);
 -- runs code tester in separate thread
-evaluate :: Submission -> Codex (Maybe ThreadId)
+evaluate :: Submission -> Codex ThreadId
 evaluate sub = do
-  let sid = submitID sub        -- ^ submission number
-  let code = submitCode sub     -- ^ program code
-  let time = submitTime sub     -- ^ time received
-  page <- liftIO $ readPage publicPath (submitPath sub)
   sqlite <- S.getSqliteState
-  -- evaluate submission timing 
   evs <- getEvents
-  tz <- liftIO getCurrentTimeZone
-  let optT = timing time <$> evalI tz evs (submitInterval page)
-  case optT of
-    Nothing -> do
-      let res = miscError "Invalid submission interval"
-      liftIO $ updateSubmission sqlite sid res Overdue
-      return Nothing
-    Just tv -> do
-      conf <- getSnapletUserConfig
-      sem <- gets evalQS
-      -- fork a thread for evaluating submission
-      tid <- liftIO $ forkIO $ withQSem sem $ do
-        -- putStrLn $ "start evaluation of " ++ show sid
-        updateSubmission sqlite sid evaluating tv
+  conf <- getSnapletUserConfig
+  -- get semaphore for "throttling" evaluation and fork an evaluation thread
+  sem <- gets evalQS
+  liftIO $ forkIO $ withQSem sem $ do
+    tz <- getCurrentTimeZone
+    page <- readPage publicPath (submitPath sub)
+    let sid = submitID sub        -- ^ submission number
+    let optT = rankTime (submitTime sub) <$> evalI tz evs (submitInterval page)
+    case optT of
+      Nothing -> 
+        updateSubmission sqlite sid (miscError "Invalid submission interval") Overdue
+      Just t -> do
+        putStrLn $ "start evaluation of " ++ show sid
+        -- updateSubmission sqlite sid evaluating tv
+        let code = submitCode sub     -- ^ program code
         result <- codeTester conf page code `catch`
                   (\ (e::SomeException) -> return (miscError $ T.pack $ show e))
-        updateSubmission sqlite sid result tv
-        -- putStrLn $ "end evaluation of " ++ show sid
-      return (Just tid)
+        updateSubmission sqlite sid result t
+        putStrLn $ "end evaluation of " ++ show sid
+
 
 
 

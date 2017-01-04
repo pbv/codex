@@ -7,7 +7,7 @@ module Interval(
     TimeExpr,
     Events,
     Timing(..),
-    timing,
+    rankTime,
     parseInterval,
     evalT,
     evalI,
@@ -35,27 +35,27 @@ data Interval t = Interval { lower :: !(Maybe t),
 -- | abstract syntax for time expressions
 data TimeExpr
     = TimeEvent Text                     -- named time event
-    | TimeConst LocalTime                -- literal (local time)
+    | TimeConst LocalTime                -- literal local time
     | TimeAdd NominalDiffTime TimeExpr   -- add time difference
     deriving (Eq, Show)
 
 
 -- | timing values
--- relation between a time and an Interval
+-- relation between a time and an interval
 data Timing = Early | Valid | Overdue
             deriving (Eq, Ord, Read, Show, Typeable)
 
-timing :: Ord t => t -> Interval t -> Timing
-timing t (Interval (Just low) (Just high))
+
+rankTime :: Ord t => t -> Interval t -> Timing
+rankTime t (Interval (Just low) (Just high))
    | t<low     = Early
    | t>high    = Overdue
    | otherwise = Valid
-timing t (Interval (Just low) Nothing)
+rankTime t (Interval (Just low) Nothing)
    = if t<low then Early else Valid
-timing t (Interval Nothing (Just high))
+rankTime t (Interval Nothing (Just high))
    = if t<=high then Valid else Overdue
-timing t (Interval Nothing Nothing)
-   = Valid
+rankTime _ _  = Valid
 
 
 -- | parse an interval

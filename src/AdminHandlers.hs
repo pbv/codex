@@ -2,7 +2,6 @@
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE RecordWildCards #-}
 
-
 ------------------------------------------------------------------------------
 -- | Administration facilities; file browsing
 
@@ -17,6 +16,8 @@ import           Snap.Core
 import           Snap.Snaplet
 import           Snap.Snaplet.Auth
 import           Snap.Snaplet.Heist
+import           Snap.Snaplet.Session                        (touchSession)
+import qualified Snap.Snaplet.SqliteSimple                   as S
 import           Snap.Util.FileServe hiding (mimeTypes)
 import           Snap.Util.FileUploads
 import           Heist
@@ -33,7 +34,6 @@ import           Control.Monad
 import           Control.Monad.Trans (liftIO)
 import           Control.Exception.Lifted (catch, SomeException)
 import           Control.Applicative
-import           Control.Concurrent (ThreadId)
 
 
 import           Data.Text (Text)
@@ -60,13 +60,14 @@ import           Config
 
 
 --
--- | handle file browser requests
--- ensure that an user with admin privileges is logged in
+-- | Handle file browsing requests
 --
 handleBrowse :: FilePath -> Codex ()
 handleBrowse base = do
+  -- ensure that a user with admin privileges is logged in
   usr <- require (with auth currentUser) <|> unauthorized
   unless (isAdmin usr) unauthorized
+  with sess touchSession  -- refresh inactivity timeout
   handleMethodOverride
     (method GET (handleGet base) <|>
      method POST (handleUpload base) <|>
@@ -216,12 +217,12 @@ handleRename base = do
 
 
 
---  | handle requests for submission lists
+--  | Handle requests for submission lists
 handleSubmissionList :: Codex ()
 handleSubmissionList = do
   usr <- require (with auth currentUser) <|> unauthorized
-  unless (isAdmin usr)
-    unauthorized
+  unless (isAdmin usr) unauthorized
+  with sess touchSession  -- refresh inactivity timeout
   handleMethodOverride
     (method GET handleList <|>
      method POST handlePost <|>
@@ -241,7 +242,7 @@ handleSubmissionList = do
             
 
 
--- helper function to decode patterns from request parameters
+-- | Helper function to decode patterns from request parameters
 getPatterns :: Codex Patterns
 getPatterns = do
   id_pat <- T.decodeUtf8 <$> require (getParam "id_pat")
@@ -282,7 +283,7 @@ listSubmissions patts@Patterns{..} sort optPage = do
     "submissions" ## I.mapSplices (I.runChildrenWith . submitSplices tz) subs
 
 
--- | re-evaluate some submissions 
+-- | Re-evaluate selected submissions 
 reevalSubmissions :: Patterns -> Sorting -> Maybe Int -> Codex ()
 reevalSubmissions patts@Patterns{..} sort optPage = do
   count <- countSubmissions patts
@@ -293,7 +294,10 @@ reevalSubmissions patts@Patterns{..} sort optPage = do
   let page = 1 `max` fromMaybe 1 optPage `min` npages
   let offset = (page - 1) * entries
   subs <- filterSubmissions patts sort entries offset
-  liftIO $ putStrLn "starting evaluation threads"
+  liftIO $ putStrLn "marking submission state"
+  sqlite <- S.getSqliteState
+  liftIO $ markEvaluating sqlite (map submitID subs)
+  liftIO $ putStrLn "starting evaluation threads"  
   mapM_ evaluate subs
   liftIO $ putStrLn "created evaluation threads"
   redirect "/submit"
@@ -309,7 +313,7 @@ handleExport = method POST $ do
 
 
 
--- | export all submissions to a CSV text file
+-- | Create a CSV text file with submission listsing
 -- NB: the caller should remove the temporary file
 exportSubmissions :: FilePath -> String -> Codex FilePath
 exportSubmissions filetpl sep  = do
@@ -339,7 +343,7 @@ exportSubmissions filetpl sep  = do
 
 
 
--- | handle admin requests for submissions
+-- | Handle admin requests for submissions
 handleSubmission :: Codex ()
 handleSubmission = do
     usr <- require (with auth currentUser) <|> unauthorized
@@ -366,7 +370,10 @@ handleSubmission = do
 
     -- revaluate a single submission
     reevaluate sub = do
+      let sid = submitID sub
+      sqlite <- S.getSqliteState
+      liftIO $ markEvaluating sqlite [sid]
       evaluate sub
-      redirect (encodePath ("/submit" </> show (fromSID $ submitID sub)))
+      redirect (encodePath ("/submit" </> show (fromSID sid)))
 
 
