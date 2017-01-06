@@ -1,11 +1,12 @@
 <apply template="_base">
 <h1>Submissões</h1>
-<form id="listform" action="/submit" method="POST">
+<form id="listform" action="/submissions" method="POST">
   <table class="submissions">
-    <tr><th colspan="4">
+    <tr>
+      <td colspan="6">
 	<span class="info">
 	  <submissions-count/> submissões (página <page/> de <page-count/>)
-	</span>
+	</span> &nbsp;
 	<select name="sorting" onChange="this.form.submit()">
 	  <if-ascending>
 	    <option value="Asc" selected>ascendente</option>
@@ -14,14 +15,15 @@
 	    <option value="Asc">ascendente</option>
 	    <option value="Desc" selected>descendente</option>
 	  </if-ascending>
-	</select> 
-      </th>
-      <th colspan="3">
-	<input type="submit" onClick="move(-1)" value="Anterior"/> &nbsp;
-	<input type="submit" onClick="move(1)" value="Seguinte"/> &nbsp;
-	<input type="submit" onClick="reevaluate()" value="Re-avaliar"/>
-	<input type="submit" onClick="cancel()" value="Cancelar"/>
-      </th>
+	</select> &nbsp;
+	<a class="button" href="/submissions?page=${prev-page}&sorting=${sorting}&${patterns}">&lt;</a> &nbsp;
+	<a class="button" href="/submissions?page=${next-page}&sorting=${sorting}&${patterns}">&gt;</a> &nbsp;
+	<input type="submit" value="Filtrar"/>
+      </td>
+      <td colspan="1">
+	<input type="button" onClick="reevaluate()" value="Re-avaliar"/>
+	<input type="button" onClick="cancel()" value="Cancelar"/>	
+      </td>
     </tr>
     <tr>
       <th>id</th>
@@ -37,16 +39,16 @@
       <th><input type="text" name="uid_pat" size="8" value="${uid_pat}"/></th>
       <th><input type="text" name="path_pat" size="20" value="${path_pat}"/></th>
       <th><input type="text" name="lang_pat" size="8" value="${lang_pat}"/></th>
-      <th><input type="text" name="class_pat" size="20" value="${class_pat}"/></th>
+      <th><input type="text" name="class_pat" size="28" value="${class_pat}"/></th>
       <th><input type="text" name="timing_pat" size="6" value="${timing_pat}"/></th>
       <th/>
     </tr>
     <if-submissions>
       <submissions>
 	<tr>
-	  <td class="submitid"><a href="/submit/${submit-id}"><submit-id/></a></td>
+	  <td class="submitid"><a href="/submissions/${submit-id}"><submit-id/></a></td>
 	  <td class="userid"><submit-user-id/></td>
-	  <td class="path"><a href="/files/${submit-path}"><submit-path/></a></td>
+	  <td class="path"><a href="/pub/${submit-path}"><submit-path/></a></td>
 	  <td class="lang"><code-lang/></td>
 	  <td class="classify ${submit-classify}"><submit-classify/></td>
 	  <td class="timing"><submit-timing/></td>
@@ -54,20 +56,13 @@
 	</tr>
       </submissions>
       <else/>
-      <tr><td colspan=7 align="center">(No submissions)</td></tr>
+      <tr><td colspan="7" align="center">(No submissions)</td></tr>
     </if-submissions>
   </table>
   <input id="page" type="hidden" name="page" value="${page}"/>
-  <input id="_method" type="hidden" name="_method" value="POST"/>
+  <input id="_method" type="hidden" name="_method" value="GET"/>
 </form>
 <script>
-function move(k) {
-  var form = document.getElementById("listform");
-  var param = document.getElementById("page");
-  var page = parseInt(param.value, 10);
-  param.value = String(page + k);
-  form.submit();
-}
 function reevaluate() {
   var form = document.getElementById("listform");
   var param = document.getElementById("_method");
@@ -77,7 +72,7 @@ function reevaluate() {
 function cancel() {
   var form = document.getElementById("listform");
   var param = document.getElementById("_method");
-  param.value = "DELETE";
+  param.value = "CANCEL";
   form.submit();
 }
 </script>

@@ -24,7 +24,7 @@ import           Heist
 import           Heist.Splices     as I
 import qualified Heist.Interpreted as I
 
-
+import qualified Data.Map as Map
 import           Data.Time.Clock
 import           Data.Time.LocalTime
 import           System.FilePath
@@ -216,61 +216,44 @@ handleRename base = do
 
 
 
-
---  | Handle requests for submission lists
+--
+--  | Handle requests for submission listing
+--
 handleSubmissionList :: Codex ()
-handleSubmissionList = do
+handleSubmissionList =  handleMethodOverride $ do
   usr <- require (with auth currentUser) <|> unauthorized
   unless (isAdmin usr) unauthorized
   with sess touchSession  -- refresh inactivity timeout
-  handleMethodOverride
-    (method GET handleList <|>
-     method POST handlePost <|>
-     method PATCH handleReeval <|>
-     method DELETE handleCancel)
-  where
-    handleList =  listSubmissions emptyPatterns Asc Nothing
-    handlePost = do
-      optPage <- readParam "page"
-      sorting <- require (readParam "sorting")
-      patts <- getPatterns
-      listSubmissions patts sorting optPage
-    handleCancel = do
-      cancelPending
-      setPending []
-      redirect "/submit"
-    handleReeval = do
-      sorting <- require (readParam "sorting")
-      patts <- getPatterns
-      reevalSubmissions patts sorting 
+  patts <- getPatterns
+  page <- fromMaybe 1 <$> readParam "page"
+  sorting <- fromMaybe Asc <$> readParam "sorting"
+  methods [GET,POST] (listSubmissions patts sorting page)
+    <|>
+   method PATCH (reevalSubmissions patts sorting >>
+                 listSubmissions patts sorting page)
+    <|>
+    method (Method "CANCEL") (cancelPending >>
+                              setPending [] >>
+                              listSubmissions patts sorting page)
+  
             
 
 
--- | Helper function to decode patterns from request parameters
-getPatterns :: Codex Patterns
-getPatterns = do
-  id_pat <- T.decodeUtf8 <$> require (getParam "id_pat")
-  uid_pat <- T.decodeUtf8 <$> require (getParam "uid_pat")
-  path_pat<- T.decodeUtf8 <$> require (getParam "path_pat")
-  lang_pat<- T.decodeUtf8 <$> require (getParam "lang_pat")
-  class_pat<- T.decodeUtf8 <$> require (getParam "class_pat")
-  timing_pat<- T.decodeUtf8 <$> require (getParam "timing_pat")
-  return Patterns { idPat = id_pat, userPat = uid_pat,
-                    pathPat = path_pat, langPat = lang_pat,
-                    classPat = class_pat, timingPat = timing_pat }
   
 
 -- | List submissions
-listSubmissions :: Patterns -> Sorting -> Maybe Int -> Codex ()
-listSubmissions patts@Patterns{..} sort optPage = do
-  count <- countSubmissions patts
+listSubmissions :: Patterns -> Sorting -> Int -> Codex ()
+listSubmissions patts@Patterns{..} sorting page = do
+  let patts' = normalizePatterns patts
+  count <- countSubmissions patts'
   let entries = 50   -- # entries per page
   let npages
         | count>0 = ceiling (fromIntegral count / fromIntegral entries :: Double)
         | otherwise = 1
-  let page = 1 `max` fromMaybe 1 optPage `min` npages
-  let offset = (page - 1) * entries
-  subs <- filterSubmissions patts sort entries offset
+  -- restrict to visible pages
+  let page' = 1 `max` page `min` npages
+  let offset = (page' - 1) * entries
+  subs <- filterSubmissions patts' sorting entries offset
   tz <- liftIO getCurrentTimeZone
   renderWithSplices "submission-list" $ do
     "id_pat" ## I.textSplice idPat
@@ -279,19 +262,32 @@ listSubmissions patts@Patterns{..} sort optPage = do
     "lang_pat" ## I.textSplice langPat
     "class_pat" ## I.textSplice classPat
     "timing_pat" ## I.textSplice timingPat
-    "page" ## I.textSplice (T.pack $ show page)
+    "page" ## I.textSplice (T.pack $ show page')
+    "sorting" ## I.textSplice (T.pack $ show sorting)
     "submissions-count" ## I.textSplice (T.pack $ show count)
-    "if-ascending" ## I.ifElseISplice (sort == Asc)
+    "if-ascending" ## I.ifElseISplice (sorting == Asc)
     "if-submissions" ## I.ifElseISplice (count > 0)
     "page-count" ## I.textSplice (T.pack $ show npages)
+    "prev-page" ## I.textSplice (T.pack $ show $ max 1 (page'-1))
+    "next-page" ## I.textSplice (T.pack $ show $ min npages (page'+1))
     "submissions" ## I.mapSplices (I.runChildrenWith . submitSplices tz) subs
+    let qs = Map.fromList $ map (\(k,v) -> (k,[T.encodeUtf8 v])) $
+             [("id_pat", idPat),
+              ("uid_pat", userPat),
+              ("path_pat", pathPat),
+              ("lang_pat", langPat),
+              ("class_pat", classPat),
+              ("timing_pat", timingPat)
+             ]
+    "patterns" ## I.textSplice (T.decodeUtf8 $ printUrlEncoded qs)
 
 
 -- | Re-evaluate selected submissions 
 reevalSubmissions :: Patterns -> Sorting -> Codex ()
 reevalSubmissions patts@Patterns{..} sorting  = do
-  count <- countSubmissions patts
-  subs  <- filterSubmissions patts sorting count 0
+  let patts' = normalizePatterns patts
+  count <- countSubmissions patts'
+  subs  <- filterSubmissions patts' sorting count 0
   liftIO $ putStrLn "marking submission state"
   sqlite <- S.getSqliteState
   liftIO $ markEvaluating sqlite (map submitID subs)
@@ -299,7 +295,7 @@ reevalSubmissions patts@Patterns{..} sorting  = do
   cancelPending
   tids <- mapM evaluate subs
   setPending tids
-  redirect "/submit"
+
 
 
 -- | Export all submissions
@@ -342,17 +338,17 @@ exportSubmissions filetpl sep  = do
 
 
 
--- | Handle admin requests for submissions
+-- | Handle admin requests for a single submission
 handleSubmission :: Codex ()
-handleSubmission = do
+handleSubmission = handleMethodOverride $ do
     usr <- require (with auth currentUser) <|> unauthorized
     unless (isAdmin usr)
       unauthorized
     sid <- require getSubmitID
     sub <- require (getSubmission sid) <|> notFound
-    handleMethodOverride (method GET (report sub) <|>
-                          method PATCH (reevaluate sub) <|>
-                          method DELETE (delete sub))
+    method GET (report sub) <|>
+      method PATCH (reevaluate sub) <|>
+      method DELETE (delete sub)
   where
     -- get report on a submission
     report sub = do
@@ -373,6 +369,6 @@ handleSubmission = do
       sqlite <- S.getSqliteState
       liftIO $ markEvaluating sqlite [sid]
       evaluate sub
-      redirect (encodePath ("/submit" </> show (fromSID sid)))
+      redirect (encodePath ("/submissions" </> show (fromSID sid)))
 
 

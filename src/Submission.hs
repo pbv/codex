@@ -13,7 +13,8 @@ module Submission (
   markEvaluating,
   getSubmission,
   deleteSubmission,
-  emptyPatterns,
+  getPatterns,
+  normalizePatterns,
   withSubmissions,
   withFilterSubmissions,
   filterSubmissions,
@@ -31,9 +32,9 @@ import           Data.Text(Text)
 import qualified Data.Text          as T
 import qualified Data.Text.Encoding as T
 
-import           Data.Char(isUpper)
-import           Data.Maybe(listToMaybe)
+import           Data.Maybe(fromMaybe, listToMaybe)
 
+import           Snap.Core
 import           Snap.Snaplet.SqliteSimple
 import qualified Database.SQLite.Simple as S
 import           Database.SQLite.Simple.FromField
@@ -61,7 +62,7 @@ data Submission = Submission {
   submitCode :: Code,       -- program code
   submitResult :: Result,   -- accepted/wrong answer/etc
   submitTiming :: Timing    -- valid, early or overdue?
-  }
+  } 
 
 
 -- | convertions to/from SQL
@@ -178,34 +179,14 @@ data Patterns = Patterns {
   langPat :: Pattern,
   classPat :: Pattern,
   timingPat :: Pattern
-  }
-
-emptyPatterns :: Patterns
-emptyPatterns = Patterns {idPat = "", userPat = "", pathPat = "",
-                          langPat = "", classPat = "", timingPat = ""}
-
-
-
-checkEmpty :: Pattern -> Pattern
-checkEmpty p = let q=T.strip p in if T.null q then "%" else q
-
-checkEmptyPat :: Patterns -> Patterns
-checkEmptyPat Patterns{..}
-  = Patterns { idPat = checkEmpty idPat,
-               userPat = checkEmpty userPat,
-               pathPat =checkEmpty pathPat,
-               langPat = checkEmpty langPat,
-               classPat = checkEmpty classPat,
-               timingPat = checkEmpty timingPat
-             }
+  } deriving Show
 
 
 data Sorting = Asc | Desc deriving (Eq, Show, Read)
 
 
 countSubmissions :: Patterns -> Codex Int
-countSubmissions patts = do
-  let Patterns{..} = checkEmptyPat patts
+countSubmissions Patterns{..} = do
   r <- query "SELECT COUNT(*) FROM submissions WHERE \
         \ id LIKE ? AND user_id LIKE ? AND path LIKE ? \
         \ AND language LIKE ? AND class LIKE ? AND timing LIKE ?"
@@ -216,9 +197,10 @@ countSubmissions patts = do
 
 
 filterSubmissions :: Patterns -> Sorting -> Int -> Int -> Codex [Submission]
-filterSubmissions patts sort limit offset = do
-  let Patterns{..} = checkEmptyPat patts
-  let sql = case sort of
+filterSubmissions Patterns{..} sort limit offset = 
+  let
+    patts = (idPat, userPat, pathPat, langPat, classPat, timingPat, limit, offset)
+    sql = case sort of
         Asc -> "SELECT * FROM submissions WHERE \
         \ id LIKE ? AND user_id LIKE ? AND path LIKE ? \
         \ AND language LIKE ? AND class LIKE ? AND timing LIKE ? \
@@ -227,20 +209,19 @@ filterSubmissions patts sort limit offset = do
         \ id LIKE ? AND user_id LIKE ? AND path LIKE ? \
         \ AND language LIKE ? AND class LIKE ? AND timing LIKE ? \
         \ ORDER BY received DESC LIMIT ? OFFSET ?"
-  query sql (idPat, userPat, pathPat, langPat, classPat, timingPat, limit, offset)
+    in query sql patts
 
 
 
 -- | process submissions with a filter
 withFilterSubmissions :: Patterns -> a -> (a -> Submission -> IO a) -> Codex a
-withFilterSubmissions patts a f = do
-  let Patterns{..} = checkEmptyPat patts
-  let patts' = (idPat, userPat, pathPat, langPat, classPat, timingPat)
-  let q = "SELECT * FROM submissions WHERE \
+withFilterSubmissions Patterns{..} a f = 
+  let patts = (idPat, userPat, pathPat, langPat, classPat, timingPat)
+      q = "SELECT * FROM submissions WHERE \
         \ id LIKE ? AND user_id LIKE ? AND path LIKE ? \
         \ AND language LIKE ? AND class LIKE ? AND timing LIKE ? \
         \ ORDER BY received ASC"
-  withSqlite (\conn -> S.fold conn q patts' a f)
+  in withSqlite (\conn -> S.fold conn q patts a f)
 
 -- | process all submissions
 withSubmissions :: a -> (a -> Submission -> IO a) -> Codex a
@@ -248,6 +229,57 @@ withSubmissions a f = do
   let q = "SELECT * FROM submissions ORDER BY id ASC"
   withSqlite (\conn -> S.fold_ conn q a f)
 
+
+-- | Helper function to decode patterns from an http request parameters
+getPatterns :: Codex Patterns
+getPatterns = do
+  id_pat <-   T.decodeUtf8 <$> getParamDef "id_pat" ""
+  uid_pat <-  T.decodeUtf8 <$> getParamDef "uid_pat" ""
+  path_pat<-  T.decodeUtf8 <$> getParamDef "path_pat" ""
+  lang_pat<-  T.decodeUtf8 <$> getParamDef "lang_pat" ""
+  class_pat<- T.decodeUtf8 <$> getParamDef "class_pat" ""
+  timing_pat<- T.decodeUtf8 <$> getParamDef "timing_pat" ""
+  return Patterns { idPat = id_pat, userPat = uid_pat,
+                    pathPat = path_pat, langPat = lang_pat,
+                    classPat = class_pat, timingPat = timing_pat }
+
+
+-- | normalize patterns
+-- remove whitespace and replace empty strings with SQL wilcards `%'
+normalizePatterns :: Patterns -> Patterns
+normalizePatterns Patterns{..}
+  = Patterns { idPat = normal idPat,
+               userPat = normal userPat,
+               pathPat =normal pathPat,
+               langPat = normal langPat,
+               classPat = normal classPat,
+               timingPat = normal timingPat
+             }
+  where normal :: Pattern -> Pattern
+        normal pat = let pat'=T.strip pat in if T.null pat' then "%" else pat'
+
+
+
+
+
+-- | splices relating to a single submission
+submitSplices :: TimeZone -> Submission -> ISplices
+submitSplices tz Submission{..} = do
+  "submit-id" ##  I.textSplice (toText submitID)
+  "submit-user-id" ## I.textSplice (toText submitUser)
+  "submit-path" ## I.textSplice (T.decodeUtf8 $ encodePath submitPath)
+  "submit-time" ## utcTimeSplice tz submitTime
+  "code-lang" ## I.textSplice (fromLanguage $ codeLang submitCode)
+  "code-text" ##  I.textSplice (codeText submitCode)
+  let classify = T.pack $ show $ resultClassify submitResult
+  "submit-classify" ##  I.textSplice classify
+  "submit-message" ## I.textSplice (resultMessage submitResult)
+  "submit-timing" ## I.textSplice (T.pack $ show submitTiming)
+  "valid" ## I.ifElseISplice (submitTiming == Valid)
+  "early" ## I.ifElseISplice (submitTiming == Early)
+  "overdue" ## I.ifElseISplice (submitTiming == Overdue)
+  "accepted" ## I.ifElseISplice (resultClassify submitResult == Accepted)
+  "evaluating" ## I.ifElseISplice (resultClassify submitResult == Evaluating)
 
 
 {-
@@ -283,24 +315,4 @@ getBestSubmission uid pid =
              \ ORDER BY accept DESC, id DESC LIMIT 1)" (uid,pid)
 -}
 
-
-
--- | splices relating to a single submission
-submitSplices :: TimeZone -> Submission -> ISplices
-submitSplices tz Submission{..} = do
-  "submit-id" ##  I.textSplice (toText submitID)
-  "submit-user-id" ## I.textSplice (toText submitUser)
-  "submit-path" ## I.textSplice (T.decodeUtf8 $ encodePath submitPath)
-  "submit-time" ## utcTimeSplice tz submitTime
-  "code-lang" ## I.textSplice (fromLanguage $ codeLang submitCode)
-  "code-text" ##  I.textSplice (codeText submitCode)
-  let classify = T.pack $ show $ resultClassify submitResult
-  "submit-classify" ##  I.textSplice classify
-  "submit-message" ## I.textSplice (resultMessage submitResult)
-  "submit-timing" ## I.textSplice (T.pack $ show submitTiming)
-  "valid" ## I.ifElseISplice (submitTiming == Valid)
-  "early" ## I.ifElseISplice (submitTiming == Early)
-  "overdue" ## I.ifElseISplice (submitTiming == Overdue)
-  "accepted" ## I.ifElseISplice (resultClassify submitResult == Accepted)
-  "evaluating" ## I.ifElseISplice (resultClassify submitResult == Evaluating)
 

@@ -178,11 +178,13 @@ pre {
 
 
 td.filename {
+   font-family: monospace;
    padding-left: 0.5em;
    padding-right: 4em;
  }
 
 td.filetype {
+   font-family: monospace;
    padding-left: 2em;
    padding-right: 2em;
  }
@@ -195,32 +197,25 @@ td.filemodified {
 
 
 table.filelist tr:nth-child(even) {
-  font-family: monospace;
   background: #eeeeee;
  }
 
 table.filelist tr:nth-child(odd)  {
-  font-family: monospace;
   background: white;
  }
 
 
-table.submissions tr.header { 
-  background: white;
- }
-
-table.submissions tr:nth-child(odd) {
+table.submissions tr:nth-child(2n+2) {
   background: white;
 }
 
-table.submissions tr:nth-child(even) {
+table.submissions tr:nth-child(2n+3) {
   background: #eeeeee;
 }
 
-table.submissions td {
- font-family: monospace;
+table.submissions td.path, td.userid { 
+  font-family: monospace;
 }
-
 
 .Accepted {
   color: green; 

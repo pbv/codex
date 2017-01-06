@@ -109,6 +109,8 @@ userEvents au = [(n, t) | (n,f)<-fields, t <- maybeToList (f au)]
 getSubmitID :: Codex (Maybe SubmitID)
 getSubmitID = fmap SubmitID <$> readParam "sid"
 
+
+-- |  use Read instance to decode an HTTP parameter 
 readParam :: (Read a, MonadSnap m) => ByteString -> m (Maybe a)
 readParam name = do
   opt <- getParam name
@@ -116,14 +118,6 @@ readParam name = do
               case reads (B.toString bs) of
                 [(x, "")] -> Just x
                 _   -> Nothing
-
-
--- get tag list from query string
-getQueryTags :: Codex [Text]
-getQueryTags = do
-  params <- getParams
-  return (map T.decodeUtf8 $ Map.findWithDefault [] "tag" params)
-
 
 
 -- | try a Maybe-handler and "pass" if it yields Nothing
@@ -141,6 +135,10 @@ getTextPost name =
   do opt <- getPostParam name
      return ((T.filter (/='\r') . T.decodeUtf8With T.ignore) <$> opt)
 
+
+-- | get a parameter with a default value
+getParamDef :: MonadSnap m => ByteString -> ByteString -> m ByteString
+getParamDef name def = fromMaybe def <$> getParam name
 
 ---------------------------------------------------------------------
 -- | error handlers

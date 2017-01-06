@@ -9,7 +9,7 @@
     <ifAdmin>
        <li><a href="/files"
 	 title="Ver ficheiros">Ficheiros</a></li>
-      <li><a href="/submit"
+      <li><a href="/submissions"
 	 title="Ver submissões">Submissões</a></li>
       <apply-content/>
     </ifAdmin>

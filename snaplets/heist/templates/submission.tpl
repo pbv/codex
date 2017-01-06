@@ -21,11 +21,11 @@
   <code-text/>
 </pre> 
 <hr/>
-<form method="POST" action="/submit/${submit-id}" style="display:inline;">
+<form method="POST" action="/submissions/${submit-id}" style="display:inline;">
     <input type="hidden" name="_method" value="DELETE"/>
     <input type="submit" title="Apagar a submissão" value="Apagar"/>
 </form>
-<form method="POST" action="/submit/${submit-id}" style="display:inline;">
+<form method="POST" action="/submissions/${submit-id}" style="display:inline;">
   <input type="hidden" name="_method" value="PATCH"/>
   <input type="submit" title="Re-avaliar a submissão" value="Re-avaliar"/>
 </form>
