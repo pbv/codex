@@ -3,13 +3,16 @@
 
 module Language(
   module Language.Types,
+  evaluateWith, 
   evaluate   -- ^ evaluate a single submission
   ) where
 
 import qualified Data.Text                                   as T
 import           Data.Monoid
+import           Data.Maybe
 import           Data.Configurator.Types
 import           Data.Time.LocalTime
+import           Control.Applicative
 import           Control.Monad.State
 import           Control.Concurrent(ThreadId, forkIO)
 import           Control.Exception  (SomeException)
@@ -20,11 +23,13 @@ import qualified Snap.Snaplet.SqliteSimple                   as S
 
 import           Application
 import           Config
+import           Types
 import           Utils
 import           Page
 import           Submission
 import           Tester
 import           Interval
+import           Markdown
 
 import           Language.Types  
 import           Language.Python 
@@ -32,14 +37,28 @@ import           Language.Haskell
 import           Language.C 
 
 
--- evaluate a submission (1st time or re-evaluation);
--- runs code tester in separate thread
+-- | all language testers
+allTesters :: Config -> Page -> Code -> Tester Result
+allTesters conf page code =
+  pythonTester conf page code <|>
+  haskellTester conf page code <|>
+  clangTester conf page code
+
+-- | default evaluator
 evaluate :: Submission -> Codex ThreadId
-evaluate sub = do
+evaluate = evaluateWith allTesters 
+
+
+-- evaluate a submission (1st time or re-evaluation) with a specific tester;
+-- runs code tester in separate thread
+-- uses a semaphore for "throttling" evaluations 
+evaluateWith :: (Config -> Page -> Code -> Tester Result)
+             -> Submission
+             -> Codex ThreadId
+evaluateWith testf sub = do
   sqlite <- S.getSqliteState
   evs <- getEvents
   conf <- getSnapletUserConfig
-  -- get semaphore for "throttling" evaluation and fork an evaluation thread
   sem <- gets evalQS
   liftIO $ forkIO $ withQSem sem $ do
     tz <- getCurrentTimeZone
@@ -47,28 +66,27 @@ evaluate sub = do
     let sid = submitID sub        -- ^ submission number
     let optT = rankTime (submitTime sub) <$> evalI tz evs (submitInterval page)
     case optT of
-      Nothing -> 
-        updateSubmission sqlite sid (miscError "Invalid submission interval") Overdue
+      Nothing ->
+        updateSubmission sqlite sid (wrongInterval page) Valid
       Just t -> do
-        putStrLn $ "start evaluation of " ++ show sid
-        -- updateSubmission sqlite sid evaluating tv
+        putStrLn $ "start evaluation of submission " ++ show (fromSID sid)
         let code = submitCode sub     -- ^ program code
-        result <- codeTester conf page code `catch`
-                  (\ (e::SomeException) -> return (miscError $ T.pack $ show e))
+        mayResult <- runTester (testf conf page code)
+                     `catch`
+                     (\(e::SomeException) ->
+                         return (Just $ miscError $ T.pack $ show e))
+        let result = fromMaybe (missingTester code) mayResult
         updateSubmission sqlite sid result t
-        putStrLn $ "end evaluation of " ++ show sid
+        putStrLn $ "end evaluation of submission " ++ show (fromSID sid)
 
 
-codeTester :: Config -> Page -> Code -> IO Result
-codeTester conf page code
-  = case codeLang code of
-    Language "python" ->
-        pythonTester conf page code
-    Language "haskell" ->
-        haskellTester conf page code
-    Language "c" -> 
-         clangTester conf page code
-    _ -> return (received errMsg)
-  where
-    errMsg = "No tester defined for \"" <>fromLanguage (codeLang code) <> "\""
+wrongInterval :: Page -> Result
+wrongInterval page =
+  let valid = fromMaybe "" $ lookupFromMeta "valid" (pageMeta page)
+  in miscError $ "Invalid submission interval \"" <> valid <> "\""
+  
+
+missingTester :: Code -> Result
+missingTester code = miscError $
+  "No tester defined for language \"" <> fromLanguage (codeLang code) <> "\""
 

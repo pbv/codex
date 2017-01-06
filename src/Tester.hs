@@ -12,6 +12,18 @@ import           System.IO
 import           System.Directory
 import           Control.Exception
 import           Control.Monad(when)
+import           Control.Monad.Trans.Maybe
+
+
+-- | monadic type for problem testers;
+-- allows with IO, optional passing and reading from a configuration environment
+type Tester  = MaybeT IO
+
+runTester :: Tester a -> IO (Maybe a)
+runTester = runMaybeT
+
+tester :: IO (Maybe a) -> Tester a
+tester = MaybeT
 
 
 -- submission results
@@ -36,12 +48,11 @@ data Classify = Evaluating
 instance Exception Result -- default instance
 
 
--- | "smart" result construtors
+-- | result construtors
 evaluating :: Result
 evaluating = Result Evaluating ""
 
-received, accepted, wrongAnswer, compileError, runtimeError,
-   timeLimitExceeded, memoryLimitExceeded, miscError :: Text -> Result
+received, accepted, wrongAnswer, compileError, runtimeError, timeLimitExceeded, memoryLimitExceeded, miscError :: Text -> Result
 received = Result Received . trim maxLen
 accepted = Result Accepted . trim maxLen
 wrongAnswer = Result WrongAnswer . trim maxLen

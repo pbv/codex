@@ -7,6 +7,7 @@ module Language.Haskell (
   haskellTester
   ) where
 
+import           Control.Applicative
 import           Control.Monad.State
 import           Data.Text (Text)
 import qualified Data.Text as T
@@ -34,19 +35,19 @@ import qualified Data.Configurator as Configurator
 
 
 -- | running and evaluating Haskell submissions
-haskellTester :: Config -> Page -> Code -> IO Result
-haskellTester conf page (Code (Language "haskell") code) = do
+haskellTester :: Config -> Page -> Code -> Tester Result
+haskellTester conf page (Code (Language "haskell") code) = tester $ do
     ghc <- Configurator.require conf "language.haskell.compiler"
     sf <- liftM2 (<>)
           (getSafeExecConf "language.haskell.safeexec" conf)
           (getSafeExecConf "safeexec" conf)
     case getQuickcheckPath page of
-      Nothing -> return (miscError "no QuickCheck file specified")
+      Nothing -> return (Just $ miscError "no QuickCheck file specified")
       Just qcpath -> do
         let args = getQuickcheckArgs page
         props <- T.readFile (publicPath </> qcpath)
-        haskellRunner sf ghc args code props `catch` return
-haskellTester _ _  _ = return (miscError "haskellTester: invalid submission")
+        Just <$> haskellRunner sf ghc args code props `catch` return
+haskellTester _ _  _ = empty
 
 
 
