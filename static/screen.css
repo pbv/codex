@@ -205,6 +205,10 @@ table.filelist tr:nth-child(odd)  {
  }
 
 
+table.submissions tr.header { 
+  background: white;
+ }
+
 table.submissions tr:nth-child(odd) {
   background: white;
 }

@@ -226,7 +226,8 @@ handleSubmissionList = do
   handleMethodOverride
     (method GET handleList <|>
      method POST handlePost <|>
-     method PATCH handleReeval)
+     method PATCH handleReeval <|>
+     method DELETE handleCancel)
   where
     handleList =  listSubmissions emptyPatterns Asc Nothing
     handlePost = do
@@ -234,11 +235,14 @@ handleSubmissionList = do
       sorting <- require (readParam "sorting")
       patts <- getPatterns
       listSubmissions patts sorting optPage
+    handleCancel = do
+      cancelPending
+      setPending []
+      redirect "/submit"
     handleReeval = do
-      optPage <- readParam "page"
       sorting <- require (readParam "sorting")
       patts <- getPatterns
-      reevalSubmissions patts sorting optPage
+      reevalSubmissions patts sorting 
             
 
 
@@ -256,7 +260,7 @@ getPatterns = do
                     classPat = class_pat, timingPat = timing_pat }
   
 
--- | list submissions
+-- | List submissions
 listSubmissions :: Patterns -> Sorting -> Maybe Int -> Codex ()
 listSubmissions patts@Patterns{..} sort optPage = do
   count <- countSubmissions patts
@@ -284,22 +288,17 @@ listSubmissions patts@Patterns{..} sort optPage = do
 
 
 -- | Re-evaluate selected submissions 
-reevalSubmissions :: Patterns -> Sorting -> Maybe Int -> Codex ()
-reevalSubmissions patts@Patterns{..} sort optPage = do
+reevalSubmissions :: Patterns -> Sorting -> Codex ()
+reevalSubmissions patts@Patterns{..} sorting  = do
   count <- countSubmissions patts
-  let entries = 50   -- # entries per page
-  let npages
-        | count>0 = ceiling (fromIntegral count / fromIntegral entries :: Double)
-        | otherwise = 1
-  let page = 1 `max` fromMaybe 1 optPage `min` npages
-  let offset = (page - 1) * entries
-  subs <- filterSubmissions patts sort entries offset
+  subs  <- filterSubmissions patts sorting count 0
   liftIO $ putStrLn "marking submission state"
   sqlite <- S.getSqliteState
   liftIO $ markEvaluating sqlite (map submitID subs)
-  liftIO $ putStrLn "starting evaluation threads"  
-  mapM_ evaluate subs
-  liftIO $ putStrLn "created evaluation threads"
+  liftIO $ putStrLn "canceling previous pending evaluations"
+  cancelPending
+  tids <- mapM evaluate subs
+  setPending tids
   redirect "/submit"
 
 

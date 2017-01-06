@@ -35,8 +35,9 @@ import qualified Text.XmlHtml as X
 
 
 
--- import           Control.Applicative
+import           Control.Monad.State
 import           Control.Exception (SomeException, bracket_)
+import           Control.Concurrent
 import           Control.Concurrent.QSem
 
 import           Types
@@ -287,4 +288,24 @@ encodePath rqpath = B.concat (intersperse "/" dirs')
 -- | aquire and release a quantity semaphore for an I/O action
 withQSem :: QSem -> IO a -> IO a
 withQSem qs = bracket_ (waitQSem qs) (signalQSem qs)
+
+
+
+-- | cancel pending evaluations 
+cancelPending :: Codex ()
+cancelPending = do
+  mv <- gets evalThreads
+  tids <- liftIO $ takeMVar mv
+  liftIO $ do
+    putStrLn $ "canceling " ++ show (length tids) ++ " threads"
+    mapM_ killThread tids
+
+
+setPending :: [ThreadId] -> Codex ()
+setPending tids = do
+  mv <- gets evalThreads
+  liftIO $ do
+    putStrLn $ "created " ++ show (length tids) ++ " threads"
+    putMVar mv tids
+
 

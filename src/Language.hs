@@ -59,8 +59,6 @@ evaluate sub = do
         putStrLn $ "end evaluation of " ++ show sid
 
 
-
-
 codeTester :: Config -> Page -> Code -> IO Result
 codeTester conf page code
   = case codeLang code of

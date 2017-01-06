@@ -342,11 +342,13 @@ app =
     -- get max # of concurrent evaluation threads
     conf <- getSnapletUserConfig
     evQS <- liftIO $ getEvalQS "system.workers" conf
+    evThs <- liftIO $ newMVar []
     return App { _heist = h
                , _sess = s
                , _auth = a
                , _db   = d
                , evalQS = evQS
+               , evalThreads = evThs
                }
 
 
