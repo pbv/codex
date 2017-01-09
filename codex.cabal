@@ -18,7 +18,6 @@ Flag old-base
   default: False
   manual: False
 
-
 Executable codex
   hs-source-dirs: src
   main-is: Main.hs
@@ -45,7 +44,6 @@ Executable codex
     Tester
     Types
     Utils
-
 
   Build-depends:
     filepath                 >= 1.3,

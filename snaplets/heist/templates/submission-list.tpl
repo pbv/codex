@@ -39,7 +39,7 @@
       <th><input type="text" name="uid_pat" size="8" value="${uid_pat}"/></th>
       <th><input type="text" name="path_pat" size="20" value="${path_pat}"/></th>
       <th><input type="text" name="lang_pat" size="8" value="${lang_pat}"/></th>
-      <th><input type="text" name="class_pat" size="28" value="${class_pat}"/></th>
+      <th><input type="text" name="class_pat" size="20" value="${class_pat}"/></th>
       <th><input type="text" name="timing_pat" size="6" value="${timing_pat}"/></th>
       <th/>
     </tr>

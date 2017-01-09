@@ -89,9 +89,8 @@ ol.submissions:after {
    padding-top: 3em;
    margin-left: auto;
    margin-right: auto;
-   width: 60em;
+   width: 80%;
 }
-
 
 
 #actions {
@@ -216,6 +215,10 @@ table.submissions tr:nth-child(2n+3) {
 table.submissions td.path, td.userid { 
   font-family: monospace;
 }
+
+table.submissions td.received { 
+  font-size: 80%;
+ }
 
 .Accepted {
   color: green; 
