@@ -5,7 +5,7 @@
 ------------------------------------------------------------------------------
 -- | Administration facilities; file browsing
 
-module AdminHandlers(
+module Codex.AdminHandlers(
   handleBrowse,
   handleSubmission,
   handleSubmissionList,
@@ -48,15 +48,16 @@ import qualified Data.ByteString  as B
 import           Data.Maybe (fromMaybe,catMaybes)
 import           Data.List (sort, intercalate)
 import           Data.Map.Syntax
-import           Types
-import           Language
-import           Page
-import           Tester
-import           Application
-import           Submission
-import           AceEditor
-import           Utils
-import           Config
+
+import           Codex.Types
+import           Codex.Language
+import           Codex.Page
+import           Codex.Tester
+import           Codex.Application
+import           Codex.Submission
+import           Codex.AceEditor
+import           Codex.Utils
+import           Codex.Config
 
 
 --

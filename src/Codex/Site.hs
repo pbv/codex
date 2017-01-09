@@ -5,7 +5,7 @@
 -- | This module is where all the routes and handlers are defined for your
 -- site. The 'app' function is the initializer that combines everything
 -- together and is exported by this module.
-module Site
+module Codex.Site
   ( app
   ) where
 
@@ -52,19 +52,19 @@ import           System.FilePath
 
 
 ------------------------------------------------------------------------------
-import           AceEditor
-import           AdminHandlers
-import           Application
-import           AuthHandlers
-import           Config
-import           Db
-import           Interval
-import           Language
-import           Page
-import           Submission
-import           Types
-import           Tester
-import           Utils
+import           Codex.AceEditor
+import           Codex.AdminHandlers
+import           Codex.Application
+import           Codex.AuthHandlers
+import           Codex.Config
+import qualified Codex.Db           as  Db
+import           Codex.Interval
+import           Codex.Language
+import           Codex.Page
+import           Codex.Submission
+import           Codex.Types
+import           Codex.Tester
+import           Codex.Utils
 
 import           Data.Version                                (showVersion)
 import           Paths_codex                                 (version)
@@ -243,9 +243,9 @@ timingSplices page = do
                B.fromString (show $ pagePath page))
   return $ do
     "valid-from" ##
-      I.textSplice $ maybe "N/A" (showTime tz) (Interval.lower =<< interval)
+      I.textSplice $ maybe "N/A" (showTime tz) (lower =<< interval)
     "valid-until" ##
-      I.textSplice $ maybe "N/A" (showTime tz) (Interval.higher =<< interval)
+      I.textSplice $ maybe "N/A" (showTime tz) (higher =<< interval)
     "current-timing" ##
       maybe (return []) (caseSplice . rankTime now) interval
  

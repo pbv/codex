@@ -1,8 +1,7 @@
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE OverloadedStrings #-}
 
-module Language(
-  module Language.Types,
+module Codex.Language(
   evaluateWith, 
   evaluate   -- ^ evaluate a single submission
   ) where
@@ -21,20 +20,19 @@ import           Control.Exception.Lifted  (catch)
 import           Snap.Snaplet
 import qualified Snap.Snaplet.SqliteSimple                   as S
 
-import           Application
-import           Config
-import           Types
-import           Utils
-import           Page
-import           Submission
-import           Tester
-import           Interval
-import           Markdown
+import           Codex.Application
+import           Codex.Config
+import           Codex.Types
+import           Codex.Utils
+import           Codex.Page
+import           Codex.Submission
+import           Codex.Tester
+import           Codex.Interval
+import           Codex.Markdown
 
-import           Language.Types  
-import           Language.Python 
-import           Language.Haskell
-import           Language.C 
+import           Codex.Language.Python 
+import           Codex.Language.Haskell
+import           Codex.Language.C 
 
 
 -- | all language testers

@@ -2,7 +2,7 @@
 {-
   Initialize backend SQLite database tables
 -}
-module Db where
+module Codex.Db where
 
 import           Control.Monad
 import qualified Data.Map as Map

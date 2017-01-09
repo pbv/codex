@@ -2,7 +2,7 @@
 {-
   Data types and methods for exercise pages
 -}
-module Page(
+module Codex.Page(
   Page(..),
   readPage,
   pageTitle,
@@ -24,11 +24,11 @@ import           Data.Map.Syntax
 import           Heist.Splices     as I
 import qualified Heist.Interpreted as I
 
+import           Codex.Types
+import           Codex.Utils
+import           Codex.Markdown
+import           Codex.Interval
 
-import           Utils
-import           Language.Types
-import           Markdown
-import           Interval
 import           Text.Pandoc hiding (Code)
 import           System.FilePath
 

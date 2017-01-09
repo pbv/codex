@@ -1,6 +1,6 @@
 {-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE OverloadedStrings #-}
-module LdapAuth 
+module Codex.LdapAuth 
        (ldapAuth
        ) where
 
@@ -20,7 +20,8 @@ import           Data.Aeson.Types
 import           Data.Time.Clock
 import           Snap.Snaplet.Auth
 import           LDAP
-import           Types
+
+import           Codex.Types
 
 
 -- user meta attributes

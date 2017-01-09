@@ -3,7 +3,7 @@
 --------------------------------------------------------------------------
 {-# LANGUAGE OverloadedStrings #-}
 
-module Language.C (
+module Codex.Language.C (
   clangTester
   ) where
 
@@ -18,17 +18,17 @@ import           System.FilePath
 import           System.Process.Text
 import           System.Exit
 
-import           Language.Types
-import           Language.QuickCheck
-
-import           Tester
-import           Page
-import           SafeExec
-import           Config
 import           Control.Exception
 
 import           Data.Configurator.Types
 import qualified Data.Configurator as Configurator
+
+import           Codex.Language.QuickCheck
+import           Codex.Types
+import           Codex.Tester
+import           Codex.Page
+import           Codex.SafeExec
+import           Codex.Config
 
 
 clangTester :: Config -> Page -> Code -> Tester Result

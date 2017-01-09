@@ -3,7 +3,7 @@
 -}
 {-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE OverloadedStrings #-}
-module SafeExec where
+module Codex.SafeExec where
 
 import           Data.Text (Text)
 import           Data.Maybe

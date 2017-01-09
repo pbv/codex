@@ -2,7 +2,7 @@
 {-
   Some helper handlers for our application monad
 -}
-module Utils where
+module Codex.Utils where
 
 import           Data.ByteString.UTF8 (ByteString)
 import qualified Data.ByteString.UTF8 as B
@@ -40,9 +40,9 @@ import           Control.Exception (SomeException, bracket_)
 import           Control.Concurrent
 import           Control.Concurrent.QSem
 
-import           Types
-import           Interval
-import           Application
+import           Codex.Types
+import           Codex.Interval
+import           Codex.Application
 
 import           Data.Time.Clock
 import           Data.Time.LocalTime

@@ -1,12 +1,15 @@
 {-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE DeriveDataTypeable #-}
 {-
   Types for various entities
 -}
 
-module Types where
+module Codex.Types where
 
 import           Data.ByteString.UTF8(ByteString)
 import qualified Data.ByteString.UTF8 as B
+
+import           Data.Typeable
 
 import           Data.String (IsString(..))
 import           Data.Text (Text)
@@ -29,6 +32,17 @@ newtype UserID
 -- | submission identifier
 newtype SubmitID
   = SubmitID {fromSID :: Int64} deriving (Eq, Ord, Read, Show)
+
+
+-- | language identifier
+newtype Language
+  = Language {fromLanguage :: Text} deriving (Eq, Typeable, Read, Show)
+
+-- | program code tagged with language id
+data Code = Code { codeLang :: !Language
+                 , codeText :: !Text
+                 } deriving (Eq, Typeable, Read, Show)
+
 
 
 -- | conversion to text
@@ -72,6 +86,7 @@ data LdapConf = LdapConf { ldapURI :: String
                          }
                 deriving Show
 
+{-
 -- | Printout configuration
 data PrintConf = PrintConf { printEnabled :: Bool
                            , printHeader :: Text
@@ -80,4 +95,4 @@ data PrintConf = PrintConf { printEnabled :: Bool
                 deriving Show
 
 
-
+-}

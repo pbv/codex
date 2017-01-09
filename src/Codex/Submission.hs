@@ -4,7 +4,7 @@
    Evaluating, storing and fetching submissions to/from database
 -}
 
-module Submission (
+module Codex.Submission (
   Submission(..),
   Patterns(..),
   Sorting(..),
@@ -44,12 +44,11 @@ import qualified Heist.Interpreted as I
 
 import           Control.Concurrent.MVar
 
-import           Application
-import           Utils
-import           Interval
-import           Types
-import           Language.Types
-import           Tester
+import           Codex.Application
+import           Codex.Utils
+import           Codex.Interval
+import           Codex.Types
+import           Codex.Tester
 
 
 

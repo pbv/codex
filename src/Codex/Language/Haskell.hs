@@ -3,7 +3,7 @@
 --------------------------------------------------------------------------
 {-# LANGUAGE OverloadedStrings #-}
 
-module Language.Haskell (
+module Codex.Language.Haskell (
   haskellTester
   ) where
 
@@ -16,16 +16,6 @@ import           Data.Monoid
 
 import           System.FilePath
 import           System.IO
-
-
-import           Language.Types
-import           Language.QuickCheck
-import           Test.QuickCheck (Args)
-import           Tester
-import           Page
-import           SafeExec
-import           Config
-
 import           System.Process.Text
 import           System.Exit
 import           Control.Exception
@@ -33,6 +23,14 @@ import           Control.Exception
 import           Data.Configurator.Types
 import qualified Data.Configurator as Configurator
 
+import           Test.QuickCheck (Args)
+
+import           Codex.Language.QuickCheck
+import           Codex.Types
+import           Codex.Tester
+import           Codex.Page
+import           Codex.SafeExec
+import           Codex.Config
 
 -- | running and evaluating Haskell submissions
 haskellTester :: Config -> Page -> Code -> Tester Result

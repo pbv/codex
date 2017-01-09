@@ -1,5 +1,5 @@
 {-# LANGUAGE OverloadedStrings #-}
-module Language.Python(
+module Codex.Language.Python(
   pythonTester
   ) where
 
@@ -9,19 +9,19 @@ import           Data.Monoid
 import           Data.Text (Text)
 import qualified Data.Text as T
 
-import           Language.Types
-import           Markdown
-import           Page
-import           Tester
-import           Config
-import           SafeExec
-
 import           System.Exit
 import           System.FilePath
 import           System.Directory
 
 import           Data.Configurator.Types
 import qualified Data.Configurator as Configurator
+
+import           Codex.Types
+import           Codex.Markdown
+import           Codex.Page
+import           Codex.Tester
+import           Codex.Config
+import           Codex.SafeExec
 
 
 -- | run and evaluate python submissions

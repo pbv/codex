@@ -1,7 +1,7 @@
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE DeriveDataTypeable #-}
 
-module Tester where
+module Codex.Tester where
 
 import           Data.Typeable
 import           Data.Text(Text)

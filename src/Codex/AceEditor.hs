@@ -2,7 +2,7 @@
 -- | Heist splice for Ace Editor
 --------------------------------------------------------------------------------
 {-# LANGUAGE OverloadedStrings #-}
-module AceEditor
+module Codex.AceEditor
        ( inputAceEditorSplices
        , languageMode
        ) where
@@ -16,11 +16,10 @@ import           Data.Map.Syntax
 import           Heist
 import           Heist.Interpreted
 import qualified Text.XmlHtml          as X
-
-import           Utils (javascript)
 import           Text.Printf(printf)
 
-import           Language.Types
+import           Codex.Types
+import           Codex.Utils (javascript)
 
 -- make a single XHTML node
 element :: Text -> [X.Node] -> [(Text,Text)] -> X.Node

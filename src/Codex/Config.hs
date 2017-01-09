@@ -1,8 +1,8 @@
 {-# LANGUAGE OverloadedStrings #-}
-module Config where
+module Codex.Config where
 
-import           Types
-import           SafeExec
+import           Codex.Types
+import           Codex.SafeExec
 
 import           Data.Maybe (fromMaybe)
 import           Data.Monoid

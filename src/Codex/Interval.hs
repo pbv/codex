@@ -2,7 +2,7 @@
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE DeriveFunctor #-}
 
-module Interval(
+module Codex.Interval(
     Interval(..),
     TimeExpr,
     Events,
@@ -18,7 +18,6 @@ module Interval(
 import           Data.Char
 import           Data.Text (Text)
 import qualified Data.Text as T
---import           Data.Monoid
 import           Data.Typeable
 import           Data.Time
 import           Control.Applicative

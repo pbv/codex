@@ -3,15 +3,14 @@
 -}
 {-# LANGUAGE OverloadedStrings #-}
 
-module Language.QuickCheck where
+module Codex.Language.QuickCheck where
 
-import           Page
-import           Markdown
+import           Codex.Page
+import           Codex.Markdown
 
 import           Test.QuickCheck
 import           Test.QuickCheck.Random
 import           System.FilePath
-
 
 
 -- relative filepath to Quickcheck properties

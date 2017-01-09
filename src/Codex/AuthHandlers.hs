@@ -1,6 +1,6 @@
 {-# LANGUAGE OverloadedStrings #-}
 
-module AuthHandlers (
+module Codex.AuthHandlers (
   handleLogin,
   handleLogout,
   handleRegister
@@ -26,12 +26,11 @@ import           Snap.Snaplet.Heist
 
 import qualified Heist.Interpreted as I
 
-import           Types
-import           Config
-import           Utils
-import           Application
-
-import           LdapAuth
+import           Codex.Types
+import           Codex.Config
+import           Codex.Utils
+import           Codex.Application
+import           Codex.LdapAuth
 
 ------------------------------------------------------------------------------
 -- | Handle login requests

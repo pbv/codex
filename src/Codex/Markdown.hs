@@ -1,7 +1,7 @@
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE TypeSynonymInstances #-}
 {-# LANGUAGE FlexibleInstances #-}
-module Markdown where
+module Codex.Markdown where
 
 import           Text.Pandoc hiding (Code)
 
@@ -16,10 +16,8 @@ import qualified Data.Map as Map
 import           Data.Monoid
 
 import           Data.List (intersperse)
--- import           System.IO.Error (ioError, userError)
--- import           Types
 
-
+import           Codex.Types
 
 -- | read from a metadata value
 class FromMetaValue a where
@@ -45,6 +43,11 @@ instance {-# OVERLAPPABLE #-} FromMetaValue a => FromMetaValue [a] where
 
 instance {-# OVERLAPPING #-} FromMetaValue String where
   fromMeta = Just . T.unpack . metaText
+
+
+instance FromMetaValue Language where
+  fromMeta v = fmap (Language . T.toLower) (fromMeta v)
+
 
 
 -- | lookup from metadata value
