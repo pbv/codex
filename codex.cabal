@@ -37,18 +37,21 @@ Executable codex
     Codex.Config
     Codex.Db
     Codex.Interval
-    Codex.Language
-    Codex.Language.C
-    Codex.Language.Haskell
-    Codex.Language.Python
-    Codex.Language.QuickCheck
+    Codex.Tester
+    Codex.Tester.Monad
+    Codex.Tester.Result
+    Codex.Tester.Utils
+    Codex.Tester.C
+    Codex.Tester.Haskell
+    Codex.Tester.Python
+    Codex.Tester.QuickCheck
+    Codex.Evaluate
     Codex.LdapAuth
     Codex.Markdown
     Codex.Page
     Codex.Site
     Codex.SafeExec
     Codex.Submission
-    Codex.Tester
     Codex.Types
     Codex.Utils
   build-depends:

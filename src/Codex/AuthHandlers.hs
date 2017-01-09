@@ -26,6 +26,8 @@ import           Snap.Snaplet.Heist
 
 import qualified Heist.Interpreted as I
 
+import qualified Data.Configurator as Configurator
+
 import           Codex.Types
 import           Codex.Config
 import           Codex.Utils
@@ -48,7 +50,9 @@ handleLoginForm file authFail = heistLocal (I.bindSplices errs) $ render file
 
 
 getLdap :: Codex (Maybe LdapConf)
-getLdap = getSnapletUserConfig >>= (liftIO . getLdapConf "users.ldap")
+getLdap = do
+  conf <- getSnapletUserConfig
+  liftIO $ getLdapConf (Configurator.subconfig "users.ldap" conf)
 
 
 -- | handler for login attempts

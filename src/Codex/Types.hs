@@ -42,9 +42,13 @@ newtype Language
 data Code = Code { codeLang :: !Language
                  , codeText :: !Text
                  } deriving (Eq, Typeable, Read, Show)
+  
 
 
-
+instance IsString Language where
+  fromString = Language . T.pack
+  
+  
 -- | conversion to text
 class ToText a where
   toText :: a -> Text

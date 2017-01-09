@@ -19,6 +19,14 @@ import           Data.List (intersperse)
 
 import           Codex.Types
 
+-- | a document page; either a single exercise or an index
+data Page
+  = Page { pagePath :: FilePath   -- ^ file path, relative to publicDir
+         , pageMeta :: Meta       -- ^ meta data
+         , pageDescription :: [Block]  -- ^ document blocks
+         } -- deriving Show
+
+
 -- | read from a metadata value
 class FromMetaValue a where
   fromMeta :: MetaValue -> Maybe a

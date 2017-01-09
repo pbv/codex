@@ -1,17 +1,16 @@
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE OverloadedStrings #-}
 
-module Codex.Language(
-  evaluateWith, 
-  evaluate   -- ^ evaluate a single submission
+module Codex.Evaluate(
+  -- * evaluate a single submission
+  evaluate,
+  evaluateWith 
   ) where
 
 import qualified Data.Text                                   as T
 import           Data.Monoid
 import           Data.Maybe
-import           Data.Configurator.Types
 import           Data.Time.LocalTime
-import           Control.Applicative
 import           Control.Monad.State
 import           Control.Concurrent(ThreadId, forkIO)
 import           Control.Exception  (SomeException)
@@ -30,30 +29,30 @@ import           Codex.Tester
 import           Codex.Interval
 import           Codex.Markdown
 
-import           Codex.Language.Python 
-import           Codex.Language.Haskell
-import           Codex.Language.C 
 
-
+{-
 -- | all language testers
 allTesters :: Config -> Page -> Code -> Tester Result
 allTesters conf page code =
   pythonTester conf page code <|>
   haskellTester conf page code <|>
   clangTester conf page code
+-}
+
 
 -- | default evaluator
 evaluate :: Submission -> Codex ThreadId
-evaluate = evaluateWith allTesters 
+evaluate sub = do
+  tester <- gets defaultTester
+  evaluateWith tester sub
 
 
--- evaluate a submission (1st time or re-evaluation) with a specific tester;
+-- evaluate a submission  with a specific tester
+-- (1st time or re-evaluation);
 -- runs code tester in separate thread
 -- uses a semaphore for "throttling" evaluations 
-evaluateWith :: (Config -> Page -> Code -> Tester Result)
-             -> Submission
-             -> Codex ThreadId
-evaluateWith testf sub = do
+evaluateWith :: Tester Result -> Submission -> Codex ThreadId
+evaluateWith tester sub = do
   sqlite <- S.getSqliteState
   evs <- getEvents
   conf <- getSnapletUserConfig
@@ -69,7 +68,7 @@ evaluateWith testf sub = do
       Just t -> do
         putStrLn $ "start evaluation of submission " ++ show (fromSID sid)
         let code = submitCode sub     -- ^ program code
-        mayResult <- runTester (testf conf page code)
+        mayResult <- runTester conf page code tester
                      `catch`
                      (\(e::SomeException) ->
                          return (Just $ miscError $ T.pack $ show e))

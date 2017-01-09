@@ -59,12 +59,15 @@ import           Codex.AuthHandlers
 import           Codex.Config
 import qualified Codex.Db           as  Db
 import           Codex.Interval
-import           Codex.Language
 import           Codex.Page
 import           Codex.Submission
 import           Codex.Types
-import           Codex.Tester
 import           Codex.Utils
+import           Codex.Evaluate
+import           Codex.Tester.Result
+import           Codex.Tester.Python
+import           Codex.Tester.Haskell
+import           Codex.Tester.C
 
 import           Data.Version                                (showVersion)
 import           Paths_codex                                 (version)
@@ -349,6 +352,7 @@ app =
                , _db   = d
                , evalQS = evQS
                , evalThreads = evThs
+               , defaultTester = pythonTester <|> haskellTester <|> clangTester
                }
 
 

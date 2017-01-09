@@ -17,8 +17,9 @@ import Snap.Snaplet.SqliteSimple
 
 import Control.Concurrent (MVar, ThreadId)
 import Control.Concurrent.QSem
--- import System.Remote.Monitoring
 
+import Codex.Tester.Monad
+import Codex.Tester.Result
 
 ------------------------------------------------------------------------------
 data App = App
@@ -26,9 +27,9 @@ data App = App
     , _sess  :: Snaplet SessionManager
     , _auth  :: Snaplet (AuthManager App)
     , _db    :: Snaplet Sqlite
+    , defaultTester :: Tester Result  -- default tester for exercises
     , evalThreads :: MVar [ThreadId]  -- list of pending evaluation threads
-    , evalQS :: QSem        -- semaphore for "throttling" evaluation threads
-    --, ekg :: Maybe Server           -- optional EKG monitoring server
+    , evalQS :: QSem        -- semaphore for "throttling" evaluation 
     }
 
 makeLenses ''App

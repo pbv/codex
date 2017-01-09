@@ -3,7 +3,7 @@
 -}
 {-# LANGUAGE OverloadedStrings #-}
 
-module Codex.Language.QuickCheck where
+module Codex.Tester.QuickCheck where
 
 import           Codex.Page
 import           Codex.Markdown

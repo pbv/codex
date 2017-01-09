@@ -3,15 +3,15 @@
 --------------------------------------------------------------------------
 {-# LANGUAGE OverloadedStrings #-}
 
-module Codex.Language.Haskell (
+module Codex.Tester.Haskell (
   haskellTester
   ) where
 
-import           Control.Applicative
 import           Control.Monad.State
 import           Data.Text (Text)
 import qualified Data.Text as T
 import qualified Data.Text.IO as T
+
 import           Data.Monoid
 
 import           System.FilePath
@@ -20,33 +20,29 @@ import           System.Process.Text
 import           System.Exit
 import           Control.Exception
 
-import           Data.Configurator.Types
 import qualified Data.Configurator as Configurator
 
 import           Test.QuickCheck (Args)
 
-import           Codex.Language.QuickCheck
-import           Codex.Types
-import           Codex.Tester
-import           Codex.Page
-import           Codex.SafeExec
 import           Codex.Config
+import           Codex.SafeExec
+import           Codex.Tester
+import           Codex.Tester.QuickCheck
 
 -- | running and evaluating Haskell submissions
-haskellTester :: Config -> Page -> Code -> Tester Result
-haskellTester conf page (Code (Language "haskell") code) = tester $ do
-    ghc <- Configurator.require conf "language.haskell.compiler"
-    sf <- liftM2 (<>)
-          (getSafeExecConf "language.haskell.safeexec" conf)
-          (getSafeExecConf "safeexec" conf)
-    case getQuickcheckPath page of
-      Nothing -> return (Just $ miscError "no QuickCheck file specified")
-      Just qcpath -> do
-        let args = getQuickcheckArgs page
-        props <- T.readFile (publicPath </> qcpath)
-        Just <$> haskellRunner sf ghc args code props `catch` return
-haskellTester _ _  _ = empty
-
+haskellTester :: Tester Result
+haskellTester = language "haskell" $ \code -> do
+    conf <- getConfig
+    page <- getPage
+    liftIO $ do
+      ghc <- Configurator.require conf "language.haskell.compiler"
+      sf <- getSafeExecConf (Configurator.subconfig "safeexec" conf)
+      case getQuickcheckPath page of
+        Nothing -> return (miscError "no QuickCheck file specified")
+        Just qcpath -> do
+          let args = getQuickcheckArgs page
+          props <- T.readFile (publicPath </> qcpath)
+          haskellRunner sf ghc args code props `catch` return
 
 
 haskellRunner :: SafeExecConf -> String -> Args -> Text -> Text -> IO Result

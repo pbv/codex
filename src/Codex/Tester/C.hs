@@ -3,16 +3,14 @@
 --------------------------------------------------------------------------
 {-# LANGUAGE OverloadedStrings #-}
 
-module Codex.Language.C (
+module Codex.Tester.C (
   clangTester
   ) where
 
-import           Control.Applicative
 import           Control.Monad.State
 import           Data.Text (Text)
 import qualified Data.Text as T
 import qualified Data.Text.IO as T
-import           Data.Monoid
 
 import           System.FilePath
 import           System.Process.Text
@@ -20,31 +18,28 @@ import           System.Exit
 
 import           Control.Exception
 
-import           Data.Configurator.Types
 import qualified Data.Configurator as Configurator
 
-import           Codex.Language.QuickCheck
-import           Codex.Types
+import           Codex.Tester.QuickCheck
 import           Codex.Tester
-import           Codex.Page
 import           Codex.SafeExec
 import           Codex.Config
 
 
-clangTester :: Config -> Page -> Code -> Tester Result
-clangTester conf page (Code (Language "c") code) = tester $ do
-  ghc <- Configurator.require conf "language.haskell.compiler"
-  gcc <- Configurator.require conf "language.c.compiler"
-  sf <- liftM2 (<>)
-        (getSafeExecConf "language.haskell.safeexec" conf)
-        (getSafeExecConf "safeexec" conf)
-  case getQuickcheckPath page of
-    Nothing -> return (Just $ miscError "no QuickCheck file specified")
-    Just qcpath -> do
-      let args = getQuickcheckArgs page
-      props <- T.readFile (publicPath </> qcpath)
-      Just <$> clangRunner sf gcc ghc args code props `catch` return
-clangTester _ _ _ = empty
+clangTester :: Tester Result
+clangTester = language "c" $ \code -> do
+  conf <- getConfig
+  page <- getPage
+  liftIO $ do
+    ghc <- Configurator.require conf "language.haskell.compiler"
+    gcc <- Configurator.require conf "language.c.compiler"
+    sf <- getSafeExecConf (Configurator.subconfig "safeexec" conf)
+    case getQuickcheckPath page of
+      Nothing -> return (miscError "no QuickCheck file specified")
+      Just qcpath -> do
+        let args = getQuickcheckArgs page
+        props <- T.readFile (publicPath </> qcpath)
+        clangRunner sf gcc ghc args code props `catch` return
 
 
 clangRunner sf gcc_cmd ghc_cmd qcArgs c_code props =

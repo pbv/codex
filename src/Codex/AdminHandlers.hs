@@ -50,11 +50,11 @@ import           Data.List (sort, intercalate)
 import           Data.Map.Syntax
 
 import           Codex.Types
-import           Codex.Language
 import           Codex.Page
-import           Codex.Tester
+import           Codex.Tester.Result
 import           Codex.Application
 import           Codex.Submission
+import           Codex.Evaluate
 import           Codex.AceEditor
 import           Codex.Utils
 import           Codex.Config

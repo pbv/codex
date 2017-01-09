@@ -33,14 +33,6 @@ import           Text.Pandoc hiding (Code)
 import           System.FilePath
 
 
--- | a document page; either a single exercise or an index
-data Page
-  = Page { pagePath :: FilePath   -- ^ file path, relative to publicDir
-         , pageMeta :: Meta       -- ^ meta data
-         , pageDescription :: [Block]  -- ^ document blocks
-         } deriving Show
-
-
 -- | read a page from a markdown file
 readPage :: FilePath -> FilePath -> IO Page
 readPage base path = do
@@ -96,7 +88,8 @@ submitFeedback p = fromMaybe 100 (lookupFromMeta "feedback" (pageMeta p))
 -----------------------------------------------------------------------------
 
 -- | splices related to a page
-pageSplices :: Page -> ISplices
+--pageSplices :: Page -> ISplices
+pageSplices  :: Page -> ISplices
 pageSplices page = do
   "file-path" ## I.textSplice (T.pack $ pagePath page)
   "file-path-url" ## I.textSplice (T.decodeUtf8 $ encodePath $ pagePath page)
