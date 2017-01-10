@@ -10,7 +10,6 @@ import           Text.Pandoc.Walk
 import           Text.XmlHtml
 import           Text.Blaze.Renderer.XmlHtml
 
-import           Data.Text (Text)
 import qualified Data.Text as T
 import qualified Data.Map as Map
 import           Data.Monoid

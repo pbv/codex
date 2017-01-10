@@ -8,7 +8,6 @@ import           Data.ByteString.UTF8 (ByteString)
 import qualified Data.ByteString.UTF8 as B
 import qualified Data.ByteString      as B
 import           Data.Char(toUpper)
-import           Data.Text(Text)
 import qualified Data.Text as T
 import qualified Data.Text.Encoding as T
 import qualified Data.Text.Encoding.Error as T
@@ -51,8 +50,8 @@ import           System.FilePath
 type ISplices = Splices (I.Splice Codex)
 
 
-authUserID :: AuthUser -> UserID
-authUserID = UserID . T.encodeUtf8 . userLogin
+authUserId :: AuthUser -> UserId
+authUserId = UserId . userLogin
 
 authFullname :: AuthUser -> Maybe Text
 authFullname au
@@ -67,10 +66,10 @@ isAdmin au = Role "admin" `elem` userRoles au
 
 -- | Get current logged in user ID (if any)
 --   from the authentication snaplet
-getUserID :: Codex (Maybe UserID)
-getUserID = do
+getUserId :: Codex (Maybe UserId)
+getUserId = do
   mAu <- with auth currentUser
-  return (fmap authUserID mAu)
+  return (fmap authUserId mAu)
 
 
 getFullname :: Codex (Maybe Text)
@@ -103,8 +102,8 @@ userEvents au = [(n, t) | (n,f)<-fields, t <- maybeToList (f au)]
 
 
 
-getSubmitID :: Codex (Maybe SubmitID)
-getSubmitID = fmap SubmitID <$> readParam "sid"
+getSubmitId :: Codex (Maybe SubmitId)
+getSubmitId = fmap SubmitId <$> readParam "sid"
 
 
 -- |  use Read instance to decode an HTTP parameter 
@@ -227,15 +226,6 @@ jsTimer id secs
 
 javascript :: Text -> X.Node
 javascript txt = X.Element "script" [("type","text/javascript")] [X.TextNode txt]
-
-
-{-
--- | set list element containtment
-contained :: Eq a => [a] -> [a] -> Bool
-contained xs ys = all (`elem`ys) xs
--}
-
-
 
 -------------------------------------------------------------------------------
 

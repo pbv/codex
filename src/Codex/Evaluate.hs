@@ -30,15 +30,6 @@ import           Codex.Interval
 import           Codex.Markdown
 
 
-{-
--- | all language testers
-allTesters :: Config -> Page -> Code -> Tester Result
-allTesters conf page code =
-  pythonTester conf page code <|>
-  haskellTester conf page code <|>
-  clangTester conf page code
--}
-
 
 -- | default evaluator
 evaluate :: Submission -> Codex ThreadId
@@ -60,13 +51,13 @@ evaluateWith tester sub = do
   liftIO $ forkIO $ withQSem sem $ do
     tz <- getCurrentTimeZone
     page <- readPage publicPath (submitPath sub)
-    let sid = submitID sub        -- ^ submission number
+    let sid = submitId sub        -- ^ submission number
     let optT = rankTime (submitTime sub) <$> evalI tz evs (submitInterval page)
     case optT of
       Nothing ->
         updateSubmission sqlite sid (wrongInterval page) Valid
       Just t -> do
-        putStrLn $ "start evaluation of submission " ++ show (fromSID sid)
+        putStrLn $ "start evaluation of submission " ++ show (unSid sid)
         let code = submitCode sub     -- ^ program code
         mayResult <- runTester conf page code tester
                      `catch`
@@ -74,7 +65,7 @@ evaluateWith tester sub = do
                          return (Just $ miscError $ T.pack $ show e))
         let result = fromMaybe (missingTester code) mayResult
         updateSubmission sqlite sid result t
-        putStrLn $ "end evaluation of submission " ++ show (fromSID sid)
+        putStrLn $ "end evaluation of submission " ++ show (unSid sid)
 
 
 wrongInterval :: Page -> Result

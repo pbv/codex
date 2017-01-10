@@ -182,45 +182,9 @@ evalI' f (Interval Nothing (Just h)) = do
 evalI' _ _  =
       return (Interval Nothing Nothing)
 
-{-
--- semantics for intervals
-evalI :: TimeZone -> Events -> Interval TimeExpr -> Maybe (Interval UTCTime)
-evalI tz events (Interval (Just low) (Just high)) = do
-    l <- evalT tz events low
-    h <- evalT tz events high
-    return (Interval (Just l) (Just h))
-evalI tz events (Interval (Just low) Nothing) = do
-    l <- evalT tz events low
-    return (Interval (Just l) Nothing)
-evalI tz events (Interval Nothing (Just high)) = do
-      h <- evalT tz events high
-      return (Interval Nothing (Just h))
-evalI _ _ _  =
-      return (Interval Nothing Nothing)
--}
 
 {-
-evalI :: TimeZone -> Events -> UTCTime
-        -> Interval TimeExpr -> Maybe Timing
-evalI tz events now (Interval (Just start) (Just end)) = do
-  low <- evalT tz events start
-  high <- evalT tz events end
-  return (if now < low then Early
-            else if now > high then Overdue
-              else Valid)
-evalI tz events now (Interval (Just start) Nothing) = do
-  low <- evalT tz events start
-  return (if now < low then Early else Valid)
-evalI tz events now (Interval Nothing (Just end)) = do
-    high <- evalT tz events end
-    return (if now > high then Overdue else Valid)
-evalI _ _ _ _ = return Valid
--}
-
-
-
 -- * pretty-printing
-{-
 showTimeExpr :: TimeZone -> Events -> TimeExpr -> Maybe String
 showTimeExpr tz env e
   = (showLocalTime . utcToLocalTime tz) <$> either (const Nothing) Just (evalT env e )

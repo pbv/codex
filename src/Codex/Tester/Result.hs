@@ -8,6 +8,9 @@ import           Control.Exception
 import           Data.Text(Text)
 import qualified Data.Text as T
 
+import           Database.SQLite.Simple.FromField
+import           Database.SQLite.Simple.ToField
+
 -- submission results
 data Result = Result { resultClassify :: !Classify
                      , resultMessage :: !Text
@@ -25,6 +28,17 @@ data Classify = Evaluating
               | MemoryLimitExceeded
               | MiscError
               deriving (Eq, Read, Show, Typeable)
+
+-- | convertions to/from SQL
+instance ToField Classify where
+  toField s = toField (show s)
+
+instance FromField Classify where
+  fromField f = do s <- fromField f
+                   parse (reads s)
+    where
+      parse ((s,""):_) = return s
+      parse _  = returnError ConversionFailed f "invalid Classify field"
 
 
 instance Exception Result -- default instance

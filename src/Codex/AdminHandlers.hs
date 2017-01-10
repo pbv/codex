@@ -152,11 +152,11 @@ handleEdit base = do
   redirect (encodePath ("/files" </> rqpath))
 
 {-
+-- create files;  not yet enabled
 handlePost ::  FilePath -> Codex ()
 handlePost base = do
   c <- (read . B.toString) <$> require (getParam "newfile")
   if c then handleCreate base else handleUpload base
--}
 
 handleCreate :: FilePath -> Codex ()
 handleCreate base = do
@@ -168,6 +168,7 @@ handleCreate base = do
     if c then ioError (userError $ "file " ++ show path ++ " already exists")
       else T.writeFile path ""
   redirect (encodePath ("/files" </> rqpath))
+-}
 
 handleUpload :: FilePath -> Codex ()
 handleUpload dest = do
@@ -253,7 +254,7 @@ listSubmissions patts@Patterns{..} sorting page = do
         | otherwise = 1
   -- restrict to visible pages
   let page' = 1 `max` page `min` npages
-  let offset = (page' - 1) * entries
+  let offset = (page' - 1) * entries  
   subs <- filterSubmissions patts' sorting entries offset
   tz <- liftIO getCurrentTimeZone
   renderWithSplices "submission-list" $ do
@@ -291,7 +292,7 @@ reevalSubmissions patts@Patterns{..} sorting  = do
   subs  <- filterSubmissions patts' sorting count 0
   liftIO $ putStrLn "marking submission state"
   sqlite <- S.getSqliteState
-  liftIO $ markEvaluating sqlite (map submitID subs)
+  liftIO $ markEvaluating sqlite (map submitId subs)
   liftIO $ putStrLn "canceling previous pending evaluations"
   cancelPending
   tids <- mapM evaluate subs
@@ -325,8 +326,8 @@ exportSubmissions filetpl sep  = do
                               "classify", "timing", "received"]
     output :: Handle -> () -> Submission -> IO ()
     output h _ Submission{..} = do
-      let row = intercalate sep [show (fromSID submitID),
-                                 show (fromUID submitUser),
+      let row = intercalate sep [show (unSid submitId),
+                                 show (unUid submitUser),
                                  show submitPath,
                                  show (fromLanguage $
                                        codeLang submitCode),
@@ -345,7 +346,7 @@ handleSubmission = handleMethodOverride $ do
     usr <- require (with auth currentUser) <|> unauthorized
     unless (isAdmin usr)
       unauthorized
-    sid <- require getSubmitID
+    sid <- require getSubmitId
     sub <- require (getSubmission sid) <|> notFound
     method GET (report sub) <|>
       method PATCH (reevaluate sub) <|>
@@ -361,15 +362,15 @@ handleSubmission = handleMethodOverride $ do
 
     -- delete a submission
     delete sub = do
-      deleteSubmission (submitID sub)
+      deleteSubmission (submitId sub)
       redirect (encodePath ("/pub" </> submitPath sub))
 
     -- revaluate a single submission
     reevaluate sub = do
-      let sid = submitID sub
+      let sid = submitId sub
       sqlite <- S.getSqliteState
       liftIO $ markEvaluating sqlite [sid]
       evaluate sub
-      redirect (encodePath ("/submissions" </> show (fromSID sid)))
+      redirect (encodePath ("/submissions" </> show (unSid sid)))
 
 

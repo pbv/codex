@@ -4,17 +4,18 @@
   Types for various entities
 -}
 
-module Codex.Types where
-
-import           Data.ByteString.UTF8(ByteString)
-import qualified Data.ByteString.UTF8 as B
+module Codex.Types
+  ( -- * types
+    UserId(..), SubmitId(..),  Language(..), Code(..),
+    -- * typeclass
+    Text, toText
+  ) where
 
 import           Data.Typeable
 
 import           Data.String (IsString(..))
 import           Data.Text (Text)
 import qualified Data.Text as T
-import qualified Data.Text.Encoding as T
 
 import           Data.Int(Int64)
 
@@ -22,62 +23,71 @@ import           Database.SQLite.Simple.ToField
 import           Database.SQLite.Simple.FromField
 import           Database.SQLite.Simple.FromRow
 
+import           Snap.Snaplet.Auth (UserId(..))
 
--- | user identifier
-newtype UserID
-  = UserID {fromUID :: ByteString} deriving (Eq, Ord, Read, Show)
+
+-- | user identifiers
+-- UserId defined in Snap.Snaplet.Auth
 
 -- | submission identifier
-newtype SubmitID
-  = SubmitID {fromSID :: Int64} deriving (Eq, Ord, Read, Show)
-
+newtype SubmitId
+  = SubmitId {unSid :: Int64} deriving (Eq, Ord, Read, Show)
 
 -- | language identifier
 newtype Language
   = Language {fromLanguage :: Text} deriving (Eq, Typeable, Read, Show)
 
--- | program code tagged with language id
+-- | program code tagged with language identifier
 data Code = Code { codeLang :: !Language
                  , codeText :: !Text
                  } deriving (Eq, Typeable, Read, Show)
   
+  
+-- | type class to overload conversion to text
+class ToText a where
+  toText :: a -> Text
 
+instance ToText Text where
+  toText = id
+
+instance ToText UserId where
+  toText = unUid
+
+instance ToText SubmitId where
+  toText = T.pack . show . unSid
+
+instance ToText Language where
+  toText = fromLanguage
+
+
+-- | conversion from strings
+instance IsString UserId where
+  fromString = UserId . T.pack
 
 instance IsString Language where
   fromString = Language . T.pack
   
-  
--- | conversion to text
-class ToText a where
-  toText :: a -> Text
-
-instance ToText UserID where
-  toText (UserID uid) = T.decodeUtf8 uid
-
-instance ToText SubmitID where
-  toText (SubmitID sid) = T.pack (show sid)
-
--- | conversion from strings
-instance IsString UserID where
-  fromString s = UserID (B.fromString s)
-
-
 -- | convertion to/from SQL fields
-instance ToField UserID where
-  toField (UserID uid) = toField uid
+instance ToField UserId where
+  toField = toField . unUid
 
-instance FromField UserID where
-  fromField f = UserID <$> fromField f
+instance FromField UserId where
+  fromField f = UserId <$> fromField f
 
-instance ToField SubmitID where
-  toField (SubmitID sid) = toField sid
+instance ToField SubmitId where
+  toField = toField . unSid
 
-instance FromField SubmitID where
-  fromField f = SubmitID <$> fromField f
+instance FromField SubmitId where
+  fromField f = SubmitId <$> fromField f
 
-instance FromRow UserID where
+instance FromRow UserId where
     fromRow = field
 
+instance ToField Language where
+  toField = toField . fromLanguage
+
+instance FromField Language where
+  fromField f = Language <$> fromField f
 
 
 {-

@@ -28,7 +28,6 @@ import           Data.Map.Syntax
 import           Data.Time.Clock
 import           Data.Time.LocalTime
 
-import           Data.Text(Text)
 import qualified Data.Text          as T
 import qualified Data.Text.Encoding as T
 
@@ -47,32 +46,20 @@ import           Codex.Application
 import           Codex.Utils
 import           Codex.Interval
 import           Codex.Types
-import           Codex.Tester
+import           Codex.Tester.Result
 
 
 
 -- | a row in the submssion table
 data Submission = Submission {
-  submitID :: SubmitID,    -- submission DB id
-  submitUser :: UserID,    -- user id
-  submitPath  :: FilePath,  -- exercise path
-  submitTime :: UTCTime,      -- submition time
-  submitCode :: Code,       -- program code
+  submitId     :: SubmitId,    -- submission DB id
+  submitUser   :: UserId,    -- user id
+  submitPath   :: FilePath,  -- exercise path
+  submitTime   :: UTCTime,      -- submition time
+  submitCode   :: Code,       -- program code
   submitResult :: Result,   -- accepted/wrong answer/etc
   submitTiming :: Timing    -- valid, early or overdue?
   } 
-
-
--- | convertions to/from SQL
-instance ToField Classify where
-  toField s = toField (show s)
-
-instance FromField Classify where
-  fromField f = do s <- fromField f
-                   parse (reads s)
-    where
-      parse ((s,""):_) = return s
-      parse _  = returnError ConversionFailed f "invalid Classify field"
 
 
 instance ToField Timing where
@@ -86,13 +73,6 @@ instance FromField Timing where
       parse _  = returnError ConversionFailed f "invalid Timing field"
 
 
-instance ToField Language where
-  toField (Language l) = toField l
-
-instance FromField Language where
-  fromField f = Language <$> fromField f
-
-
 instance FromRow Submission where
   fromRow = do
     sid <- field
@@ -100,7 +80,7 @@ instance FromRow Submission where
     path <- field
     time <- field
     lang <- field
-    text <- field
+    text <- field 
     classf <- field
     msg <- field
     tv <- field
@@ -109,14 +89,9 @@ instance FromRow Submission where
     return (Submission sid uid path time code result tv)
 
 
-
-
-
-
-
 -- | insert a new submission into the DB
 insertSubmission ::
-  UserID -> FilePath ->  UTCTime -> Code -> Result -> Timing
+  UserId -> FilePath ->  UTCTime -> Code -> Result -> Timing
   -> Codex Submission
 insertSubmission uid path time code result timing = do
   let (Code lang text) = code
@@ -127,11 +102,11 @@ insertSubmission uid path time code result timing = do
        \ (user_id, path, received, language, code, class, message, timing) \
        \ VALUES(?, ?, ?, ?, ?, ?, ?, ?)"
        (uid, path, time, lang, text, classf, msg, timing)
-    sid <- fmap SubmitID (S.lastInsertRowId conn)
+    sid <- fmap SubmitId (S.lastInsertRowId conn)
     return (Submission sid uid path time code result timing)
 
 -- | update submission result after evaluation
-updateSubmission :: Sqlite -> SubmitID -> Result -> Timing -> IO ()
+updateSubmission :: Sqlite -> SubmitId -> Result -> Timing -> IO ()
 updateSubmission sqlite sid result timing =
   withMVar (sqliteConn sqlite) $ \conn ->
      S.execute conn
@@ -140,7 +115,7 @@ updateSubmission sqlite sid result timing =
 
 
 -- | mark submissions to the "evaluating" state
-markEvaluating :: Sqlite -> [SubmitID] -> IO ()
+markEvaluating :: Sqlite -> [SubmitId] -> IO ()
 markEvaluating sqlite sids = do
   withMVar (sqliteConn sqlite) $ \conn ->
     S.withTransaction conn $
@@ -150,19 +125,19 @@ markEvaluating sqlite sids = do
 
 
 -- | get a single submission
-getSubmission :: SubmitID -> Codex (Maybe Submission)
+getSubmission :: SubmitId -> Codex (Maybe Submission)
 getSubmission sid =
   listToMaybe <$> query "SELECT * FROM submissions WHERE id=?" (Only sid)
 
 
 -- | get all submissions for a user and exercise page
-getPageSubmissions :: UserID -> FilePath -> Codex [Submission]
+getPageSubmissions :: UserId -> FilePath -> Codex [Submission]
 getPageSubmissions uid path =
   query "SELECT * FROM submissions \
        \ WHERE user_id = ? AND path = ? ORDER BY id" (uid, path)
 
 -- | delete a single submission
-deleteSubmission :: SubmitID -> Codex ()
+deleteSubmission :: SubmitId -> Codex ()
 deleteSubmission sid =
   execute "DELETE FROM submissions where id = ?" (Only sid)
 
@@ -263,11 +238,11 @@ normalizePatterns Patterns{..}
 -- | splices relating to a single submission
 submitSplices :: TimeZone -> Submission -> ISplices
 submitSplices tz Submission{..} = do
-  "submit-id" ##  I.textSplice (toText submitID)
+  "submit-id" ##  I.textSplice (toText submitId)
   "submit-user-id" ## I.textSplice (toText submitUser)
   "submit-path" ## I.textSplice (T.decodeUtf8 $ encodePath submitPath)
   "submit-time" ## utcTimeSplice tz submitTime
-  "code-lang" ## I.textSplice (fromLanguage $ codeLang submitCode)
+  "code-lang" ## I.textSplice (toText $ codeLang submitCode)
   "code-text" ##  I.textSplice (codeText submitCode)
   let classify = T.pack $ show $ resultClassify submitResult
   "submit-classify" ##  I.textSplice classify

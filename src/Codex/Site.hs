@@ -83,7 +83,7 @@ import           Text.Pandoc.Walk                            as Pandoc
 -- | handle page requests
 handlePage :: Codex ()
 handlePage = do
-  uid <- require getUserID <|> unauthorized
+  uid <- require getUserId <|> unauthorized
   with sess touchSession   -- refresh inactivity time-out
   rqpath <- getSafePath
   method GET (handleGet uid rqpath <|> handleRedir rqpath) <|>
@@ -118,11 +118,11 @@ handlePage = do
       text <- require (getTextPost "editform.editor")
       lang <- require (return $ pageLanguage page)
       sid <- newSubmission uid page (Code lang text)
-      redirect (encodePath $ "/report" </> show (fromSID sid))
+      redirect (encodePath $ "/report" </> show (unSid sid))
 
 
 -- | serve a markdown document
-servePage :: UserID -> FilePath -> Codex ()
+servePage :: UserId -> FilePath -> Codex ()
 servePage uid rqpath = do
   page <- readPageLinks uid rqpath
   if pageIsExercise page then
@@ -160,7 +160,7 @@ renderReport page sub = do
 
 -- | read a page, collect exercise links
 --  and patch with titles of linked pages
-readPageLinks :: UserID -> FilePath -> Codex Page
+readPageLinks :: UserId -> FilePath -> Codex Page
 readPageLinks uid rqpath = do
   page <- liftIO $ readPage publicPath rqpath
   let links = queryExerciseLinks page
@@ -211,8 +211,8 @@ queryExerciseLinks page = query extractURL (pageDescription page)
 handleReport :: Codex ()
 handleReport = do
   usr <- require (with auth currentUser) <|> unauthorized
-  let uid = authUserID usr
-  sid <- require getSubmitID
+  let uid = authUserId usr
+  sid <- require getSubmitId
   sub <- require (getSubmission sid) <|> notFound
   unless (isAdmin usr || submitUser sub == uid)
       unauthorized
@@ -310,12 +310,12 @@ versionSplice = I.textSplice (T.pack (showVersion version))
 -- | handle a new submission
 -- insert a pending submission and start
 -- run code tester in separate thread
-newSubmission :: UserID -> Page -> Code -> Codex SubmitID
+newSubmission :: UserId -> Page -> Code -> Codex SubmitId
 newSubmission uid page code = do
   now <- liftIO getCurrentTime
   sub <- insertSubmission uid (pagePath page) now code evaluating Valid
   evaluate sub
-  return (submitID sub)
+  return (submitId sub)
 
 
 
