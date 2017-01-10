@@ -14,7 +14,6 @@ import qualified Data.Text.Encoding as T
 import qualified Data.Text.Encoding.Error as T
 import           Data.List (intersperse)
 import           Data.Maybe (fromMaybe, listToMaybe, maybeToList)
-import qualified Data.Map as Map
 import qualified Data.HashMap.Strict as HM
 import           Data.Map.Syntax
 
@@ -28,7 +27,6 @@ import           Snap.Snaplet.SqliteSimple
 import           Data.Aeson.Types
 
 import           Heist
--- import           Heist.Splices
 import qualified Heist.Interpreted as I
 
 import qualified Text.XmlHtml as X
@@ -38,7 +36,6 @@ import qualified Text.XmlHtml as X
 import           Control.Monad.State
 import           Control.Exception (SomeException, bracket_)
 import           Control.Concurrent
-import           Control.Concurrent.QSem
 
 import           Codex.Types
 import           Codex.Interval
@@ -232,11 +229,11 @@ javascript :: Text -> X.Node
 javascript txt = X.Element "script" [("type","text/javascript")] [X.TextNode txt]
 
 
-
+{-
 -- | set list element containtment
 contained :: Eq a => [a] -> [a] -> Bool
 contained xs ys = all (`elem`ys) xs
-
+-}
 
 
 

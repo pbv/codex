@@ -28,8 +28,6 @@ import qualified Heist.Interpreted as I
 
 import qualified Data.Configurator as Configurator
 
-import           Codex.Types
-import           Codex.Config
 import           Codex.Utils
 import           Codex.Application
 import           Codex.LdapAuth

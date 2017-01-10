@@ -27,10 +27,11 @@ data App = App
     , _sess  :: Snaplet SessionManager
     , _auth  :: Snaplet (AuthManager App)
     , _db    :: Snaplet Sqlite
+    -- * local application state follows
     , defaultTester :: Tester Result  -- default tester for exercises
-    , evalThreads :: MVar [ThreadId]  -- list of pending evaluation threads
-    , evalQS :: QSem        -- semaphore for "throttling" evaluation 
-    }
+    , evalThreads   :: MVar [ThreadId]  -- list of pending evaluation threads 
+    , evalSem       :: QSem        -- semaphore for "throttling" evaluation
+   }
 
 makeLenses ''App
 

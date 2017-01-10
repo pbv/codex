@@ -13,6 +13,7 @@ module Codex.Site
 
 import           Control.Applicative
 import           Control.Concurrent.MVar
+import           Control.Concurrent.QSem
 import           Control.Lens
 import           Control.Monad.State
 import           Control.Exception  (SomeException)
@@ -50,6 +51,7 @@ import           Data.Time.LocalTime
 import           System.Directory                            (doesFileExist)
 import           System.FilePath
 
+import qualified Data.Configurator as Conf
 
 ------------------------------------------------------------------------------
 import           Codex.AceEditor
@@ -342,15 +344,15 @@ app =
     let c = S.sqliteConn $ d ^# snapletValue
     liftIO $ withMVar c $ \conn -> Db.createTables conn
     addRoutes routes
-    -- get max # of concurrent evaluation threads
+    -- create a semaphore for throttling concurrent evaluation threads
     conf <- getSnapletUserConfig
-    evQS <- liftIO $ getEvalQS "system.workers" conf
+    evSem <- liftIO $ newQSem =<< Conf.require conf "system.workers"
     evThs <- liftIO $ newMVar []
     return App { _heist = h
                , _sess = s
                , _auth = a
                , _db   = d
-               , evalQS = evQS
+               , evalSem = evSem
                , evalThreads = evThs
                , defaultTester = pythonTester <|> haskellTester <|> clangTester
                }

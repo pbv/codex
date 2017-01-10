@@ -13,7 +13,7 @@ import           Codex.Config
 import           Codex.SafeExec
 import           Data.Text(Text)
 import qualified Data.Text as T
-import qualified Data.Configurator as Configurator
+import qualified Data.Configurator as Conf
 
 
 pythonTester :: Tester Result
@@ -21,8 +21,10 @@ pythonTester = language "python" $ \code -> do
     conf <- getConfig
     page <- getPage
     liftIO $ do
-      python <- Configurator.require conf "language.python.interpreter"
-      sf <- getSafeExecConf (Configurator.subconfig "safeexec" conf)
+      python <- Conf.require conf "language.python.interpreter"
+      sf1 <- getSafeExecConf (Conf.subconfig "safeexec" conf)
+      sf2 <- getSafeExecConf (Conf.subconfig "language.python.safeexec" conf)
+      let sf = sf2 `override` sf1
       let tstfile = publicPath </> getDoctest page
       c <- doesFileExist tstfile
       if c then withTextTemp "tmp.py" code $
@@ -41,11 +43,11 @@ pythonResult (_, stdout, stderr)
   | match "Exception Raised" stdout    = runtimeError stdout
   | match "SyntaxError" stderr         = compileError stderr
   | match "Failed" stdout              = wrongAnswer stdout
-  | otherwise                   = miscError (stdout `T.append` stderr)
+  | otherwise                          = miscError (stdout `T.append` stderr)
 
 
 
--- | guess the relative doctest path from metada or the filename
+-- | guess the doctest path from page metadata or filename
 getDoctest :: Page -> FilePath
 getDoctest p
   = let path = pagePath p

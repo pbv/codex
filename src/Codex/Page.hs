@@ -1,6 +1,6 @@
 {-# LANGUAGE OverloadedStrings #-}
 {-
-  Data types and methods for exercise pages
+  Operations over document and exercise pages
 -}
 module Codex.Page(
   Page(..),
@@ -51,12 +51,6 @@ pageTitle p
 firstHeader :: [Block] -> Maybe [Inline]
 firstHeader blocks = listToMaybe [h | Header _ _ h <- blocks]
 
-{-
--- | fetch page tags
-getTags :: Page -> [Text]
-getTags Page{..}
-  = fromMaybe [] (lookupFromMeta "tags" meta)
--}
 
 pageLanguage :: Page -> Maybe Language
 pageLanguage = lookupFromMeta "language" . pageMeta
@@ -84,11 +78,9 @@ submitFeedback :: Page -> Int
 submitFeedback p = fromMaybe 100 (lookupFromMeta "feedback" (pageMeta p))
 
 
-
 -----------------------------------------------------------------------------
 
 -- | splices related to a page
---pageSplices :: Page -> ISplices
 pageSplices  :: Page -> ISplices
 pageSplices page = do
   "file-path" ## I.textSplice (T.pack $ pagePath page)

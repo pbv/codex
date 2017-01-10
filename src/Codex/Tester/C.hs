@@ -18,7 +18,7 @@ import           System.Exit
 
 import           Control.Exception
 
-import qualified Data.Configurator as Configurator
+import qualified Data.Configurator as Conf
 
 import           Codex.Tester.QuickCheck
 import           Codex.Tester
@@ -31,9 +31,11 @@ clangTester = language "c" $ \code -> do
   conf <- getConfig
   page <- getPage
   liftIO $ do
-    ghc <- Configurator.require conf "language.haskell.compiler"
-    gcc <- Configurator.require conf "language.c.compiler"
-    sf <- getSafeExecConf (Configurator.subconfig "safeexec" conf)
+    ghc <- Conf.require conf "language.haskell.compiler"
+    gcc <- Conf.require conf "language.c.compiler"
+    sf1 <- getSafeExecConf (Conf.subconfig "safeexec" conf)
+    sf2 <- getSafeExecConf (Conf.subconfig "language.haskell.safeexec" conf)
+    let sf = sf2 `override` sf1
     case getQuickcheckPath page of
       Nothing -> return (miscError "no QuickCheck file specified")
       Just qcpath -> do

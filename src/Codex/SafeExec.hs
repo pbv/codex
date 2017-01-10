@@ -1,8 +1,8 @@
+{-# LANGUAGE RecordWildCards #-}
+{-# LANGUAGE OverloadedStrings #-}
 {-
   Run UNIX commands under a "sandbox" limiting memory, cpu time, etc.
 -}
-{-# LANGUAGE RecordWildCards #-}
-{-# LANGUAGE OverloadedStrings #-}
 module Codex.SafeExec where
 
 import           Data.Text (Text)
@@ -10,9 +10,11 @@ import           Data.Maybe
 
 import           System.Exit (ExitCode)
 import           System.Process.Text (readProcessWithExitCode)
+import           Data.Configurator.Types(Config)
+import qualified Data.Configurator as Configurator
 
-import           Control.Monad
-   
+import           Control.Applicative
+  
 
 -- | safeexec configuration parameters
 data SafeExecConf =
@@ -26,28 +28,41 @@ data SafeExecConf =
                , numProc :: Maybe Int
                } deriving (Eq, Show, Read)
 
-instance Monoid SafeExecConf where
-  mempty = SafeExecConf {
-    safeExecPath = Nothing,
-    maxCpuTime   = Nothing,
-    maxClockTime = Nothing,
-    maxMemory    = Nothing,
-    maxStack     = Nothing,
-    maxFSize     = Nothing,
-    maxCore      = Nothing,
-    numProc      = Nothing
+
+getSafeExecConf :: Config -> IO SafeExecConf
+getSafeExecConf conf = do
+  path <- Configurator.lookup conf "path"
+  cpu  <- Configurator.lookup conf "max_cpu"
+  clock<- Configurator.lookup conf "max_clock"
+  mem  <- Configurator.lookup conf "max_memory"
+  stack <- Configurator.lookup conf"max_stack"
+  nproc<- Configurator.lookup conf "num_proc"
+  max_fsize <- Configurator.lookup conf "max_fsize"
+  max_core <- Configurator.lookup conf "max_core"
+  return SafeExecConf { safeExecPath = path
+                      , maxCpuTime   = cpu
+                      , maxClockTime = clock
+                      , maxMemory    = mem
+                      , maxStack     = stack
+                      , numProc      = nproc
+                      , maxFSize     = max_fsize
+                      , maxCore      = max_core
+                      }
+
+
+-- | combine two configs, overriding rhs settings with lhs ones
+override :: SafeExecConf -> SafeExecConf -> SafeExecConf
+c1 `override` c2 = SafeExecConf {
+    safeExecPath = safeExecPath c1 <|> safeExecPath c2,
+    maxCpuTime   = maxCpuTime c1 <|> maxCpuTime c2,
+    maxClockTime = maxClockTime c1 <|> maxClockTime c2,    
+    maxMemory    = maxMemory c1 <|> maxMemory c2,
+    maxStack     = maxStack c1 <|> maxStack c2,
+    maxFSize     = maxFSize c1 <|> maxFSize c2,
+    maxCore      = maxCore c1 <|> maxCore c2,
+    numProc      = numProc c1 <|> numProc c2
     }
 
-  mappend c1 c2 = SafeExecConf {
-    safeExecPath = safeExecPath c1 `mplus` safeExecPath c2,
-    maxCpuTime   = maxCpuTime c1 `mplus` maxCpuTime c2,
-    maxClockTime = maxClockTime c1 `mplus` maxClockTime c2,    
-    maxMemory    = maxMemory c1 `mplus` maxMemory c2,
-    maxStack     = maxStack c1 `mplus` maxStack c2,
-    maxFSize     = maxFSize c1 `mplus` maxFSize c2,
-    maxCore      = maxCore c1 `mplus` maxCore c2,
-    numProc      = numProc c1 `mplus` numProc c2
-    }
 
 
 

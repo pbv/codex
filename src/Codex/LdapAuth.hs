@@ -1,8 +1,10 @@
 {-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE OverloadedStrings #-}
-module Codex.LdapAuth 
-       (ldapAuth
-       ) where
+module Codex.LdapAuth (
+  LdapConf(..),
+  getLdapConf,
+  ldapAuth
+  ) where
 
 import           Control.Monad
 import           Data.ByteString.UTF8 (ByteString)
@@ -21,7 +23,16 @@ import           Data.Time.Clock
 import           Snap.Snaplet.Auth
 import           LDAP
 
-import           Codex.Types
+import qualified Data.Configurator as Conf
+import           Data.Configurator.Types (Config)
+
+
+-- | LDAP configuration
+data LdapConf = LdapConf { ldapURI :: String
+                         , ldapBase :: String
+                         , ldapMap :: HashMap Text Text  -- ^ attribute mapping
+                         }
+                deriving Show
 
 
 -- user meta attributes
@@ -89,4 +100,15 @@ updateUserAttrs r login attrs = do
   save r user
 
 
+
+getLdapConf ::  Config -> IO (Maybe LdapConf)
+getLdapConf conf = do
+  enabled <- Conf.lookupDefault False conf "enabled"
+  if enabled then
+    do uri <- Conf.require conf "uri"
+       base <- Conf.require conf "base"
+       assocs <- Conf.require conf "attrs"
+       let attrs = HM.fromList assocs
+       return (Just (LdapConf uri base attrs))
+    else return Nothing
 

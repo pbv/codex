@@ -16,8 +16,6 @@ import           Data.Text (Text)
 import qualified Data.Text as T
 import qualified Data.Text.Encoding as T
 
-import           Data.HashMap.Strict(HashMap)
-
 import           Data.Int(Int64)
 
 import           Database.SQLite.Simple.ToField
@@ -55,7 +53,6 @@ class ToText a where
 
 instance ToText UserID where
   toText (UserID uid) = T.decodeUtf8 uid
-    --T.pack (B.toString uid)
 
 instance ToText SubmitID where
   toText (SubmitID sid) = T.pack (show sid)
@@ -82,13 +79,6 @@ instance FromRow UserID where
     fromRow = field
 
 
-
--- | LDAP configuration
-data LdapConf = LdapConf { ldapURI :: String
-                         , ldapBase :: String
-                         , ldapMap :: HashMap Text Text  -- ^ attribute mapping
-                         }
-                deriving Show
 
 {-
 -- | Printout configuration

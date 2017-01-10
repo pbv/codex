@@ -56,7 +56,7 @@ evaluateWith tester sub = do
   sqlite <- S.getSqliteState
   evs <- getEvents
   conf <- getSnapletUserConfig
-  sem <- gets evalQS
+  sem <- gets evalSem
   liftIO $ forkIO $ withQSem sem $ do
     tz <- getCurrentTimeZone
     page <- readPage publicPath (submitPath sub)

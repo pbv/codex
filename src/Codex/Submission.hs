@@ -32,9 +32,8 @@ import           Data.Text(Text)
 import qualified Data.Text          as T
 import qualified Data.Text.Encoding as T
 
-import           Data.Maybe(fromMaybe, listToMaybe)
+import           Data.Maybe(listToMaybe)
 
-import           Snap.Core
 import           Snap.Snaplet.SqliteSimple
 import qualified Database.SQLite.Simple as S
 import           Database.SQLite.Simple.FromField
