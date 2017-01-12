@@ -36,6 +36,8 @@ import           Control.Monad.State
 import           Control.Exception (SomeException, bracket_)
 import           Control.Concurrent
 
+import qualified Data.Configurator as Configurator
+
 import           Codex.Types
 import           Codex.Interval
 import           Codex.Application
@@ -50,18 +52,16 @@ import           System.FilePath
 type ISplices = Splices (I.Splice Codex)
 
 
-authUserLogin :: AuthUser -> UserLogin
-authUserLogin = UserLogin . userLogin
+-- | fectch document root directory from config file
+getDocumentRoot :: Codex FilePath
+getDocumentRoot = do
+  conf <- getSnapletUserConfig
+  liftIO (Configurator.require conf "documentRoot")
 
-authFullname :: AuthUser -> Maybe Text
-authFullname au
-  = case HM.lookup "fullname" (userMeta au) of
-    Just (String name) -> Just name
-    _                  -> Nothing
-
-
-isAdmin :: AuthUser -> Bool
-isAdmin au = Role "admin" `elem` userRoles au
+getStaticRoot :: Codex FilePath
+getStaticRoot = do
+  conf <- getSnapletUserConfig
+  liftIO (Configurator.require conf "staticRoot")
 
 
 -- | Get current logged in user ID (if any)
@@ -71,11 +71,20 @@ getUserLogin = do
   mAu <- with auth currentUser
   return (fmap authUserLogin mAu)
 
-
 getFullname :: Codex (Maybe Text)
 getFullname = do
   mAu <- with auth currentUser
   return (mAu >>=  authFullname)
+
+
+authUserLogin :: AuthUser -> UserLogin
+authUserLogin = UserLogin . userLogin
+
+authFullname :: AuthUser -> Maybe Text
+authFullname au
+  = case HM.lookup "fullname" (userMeta au) of
+    Just (String name) -> Just name
+    _                  -> Nothing
 
 -- | Get user id and roles
 getUserRoles :: Codex (Maybe [Role])
@@ -84,9 +93,13 @@ getUserRoles = do
   return (fmap userRoles mAu)
 
 
+isAdmin :: AuthUser -> Bool
+isAdmin au = Role "admin" `elem` userRoles au
+
+
+-- | get all events 
 getEvents :: Codex Events
 getEvents = do
-  -- collect all user and Db events
   uevs <- maybe [] userEvents <$> with auth currentUser
   dbevs <- query_ "SELECT name, time FROM events"
   let evs = uevs ++ dbevs
@@ -101,7 +114,7 @@ userEvents au = [(n, t) | (n,f)<-fields, t <- maybeToList (f au)]
                    ("login", userCurrentLoginAt)]
 
 
-
+-- | get submission id from request parameters
 getSubmitId :: Codex (Maybe SubmitId)
 getSubmitId = fmap SubmitId <$> readParam "sid"
 
@@ -293,4 +306,7 @@ setPending tids = do
     putStrLn $ "created " ++ show (length tids) ++ " threads"
     putMVar mv tids
 
+
+
+  
 

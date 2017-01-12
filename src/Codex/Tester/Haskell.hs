@@ -24,7 +24,6 @@ import qualified Data.Configurator as Conf
 
 import           Test.QuickCheck (Args)
 
-import           Codex.Config
 import           Codex.SafeExec
 import           Codex.Tester
 import           Codex.Tester.QuickCheck
@@ -35,6 +34,7 @@ haskellTester = language "haskell" $ \code -> do
     conf <- getConfig
     page <- getPage
     liftIO $ do
+      root <- Conf.require conf "documentRoot"
       ghc <- Conf.require conf "language.haskell.compiler"
       sf1 <- getSafeExecConf (Conf.subconfig "safeexec" conf)
       sf2 <- getSafeExecConf (Conf.subconfig "language.haskell.safeexec" conf)
@@ -43,7 +43,7 @@ haskellTester = language "haskell" $ \code -> do
         Nothing -> return (miscError "no QuickCheck file specified")
         Just qcpath -> do
           let args = getQuickcheckArgs page
-          props <- T.readFile (publicPath </> qcpath)
+          props <- T.readFile (root </> qcpath)
           haskellRunner sf ghc args code props `catch` return
 
 

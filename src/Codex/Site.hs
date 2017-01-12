@@ -85,12 +85,14 @@ handlePage :: Codex ()
 handlePage = do
   uid <- require getUserLogin <|> unauthorized
   with sess touchSession   -- refresh inactivity time-out
+  root <- getDocumentRoot
   rqpath <- getSafePath
-  method GET (handleGet uid rqpath <|> handleRedir rqpath) <|>
-   method POST (handlePost uid rqpath)
+  method GET (handleGet uid root rqpath <|>
+               handleRedir root rqpath) <|>
+   method POST (handlePost uid root rqpath)
   where
-    handleGet uid rqpath =  do
-      let filepath = publicPath </> rqpath
+    handleGet uid root rqpath =  do
+      let filepath = root </> rqpath
       c <- liftIO (doesFileExist filepath)
       unless c pass
       -- serve according to mime type
@@ -100,19 +102,19 @@ handlePage = do
         else
         serveFileAs mime filepath
 
-    handleRedir rqpath = do
-        let filepath = publicPath </> rqpath </> "index.md"
+    handleRedir root rqpath = do
+        let filepath = root </> rqpath </> "index.md"
         c <- liftIO (doesFileExist filepath)
         if c then
           redirect (encodePath ("/pub" </> rqpath </> "index.md"))
           else
           notFound
 
-    handlePost uid rqpath = do
-      let filepath = publicPath </> rqpath
+    handlePost uid root rqpath = do
+      let filepath = root </> rqpath
       c <- liftIO $ doesFileExist filepath
       guard (c && fileType mimeTypes rqpath == "text/markdown")
-      page <- liftIO (readPage publicPath rqpath)
+      page <- liftIO (readPage root rqpath)
       -- ensure the request is for an exercise page
       guard (pageIsExercise page)
       text <- require (getTextPost "editform.editor")
@@ -162,13 +164,14 @@ renderReport page sub = do
 --  and patch with titles of linked pages
 readPageLinks :: UserLogin -> FilePath -> Codex Page
 readPageLinks uid rqpath = do
-  page <- liftIO $ readPage publicPath rqpath
+  root <- getDocumentRoot
+  page <- liftIO $ readPage root rqpath
   let links = queryExerciseLinks page
   let rqdir = takeDirectory rqpath
   -- fetch linked titles; catch and ignore exceptions
   optTitles <- liftIO $
                forM links $ \url ->
-               (pageTitle <$> readPage publicPath (rqdir</>url))
+               (pageTitle <$> readPage root (rqdir</>url))
                `catch` (\(_ :: SomeException) -> return Nothing)
 
   let titles = HM.fromList [(url,title) | (url, Just title)<-zip links optTitles]
@@ -216,8 +219,9 @@ handleReport = do
   sub <- require (getSubmission sid) <|> notFound
   unless (isAdmin usr || submitUser sub == uid)
       unauthorized
+  root <- getDocumentRoot
   method GET $ do
-    page <- liftIO $ readPage publicPath (submitPath sub)
+    page <- liftIO $ readPage root (submitPath sub)
     renderReport page sub
 
 
@@ -281,11 +285,10 @@ routes = [ ("/login",    handleLogin `catch` internalError)
          , ("/report/:sid", handleReport `catch` internalError)
          , ("/submissions/:sid", handleSubmission `catch` internalError)
          , ("/submissions",  handleSubmissionList `catch` internalError)
-         , ("/files",  handleBrowse publicPath `catch`  internalError)
+         , ("/files",  handleBrowse `catch`  internalError)
          , ("/export", handleExport `catch` internalError)
-         , ("/static",   serveDirectory staticPath <|> notFound)
+         , ("/static",  (getStaticRoot >>= serveDirectory) <|> notFound)
          ]
-
 
 
 -- | current logged in full user name

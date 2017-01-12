@@ -4,7 +4,6 @@ module Codex.Config where
 import qualified Data.HashMap.Strict as HashMap
 import           Snap.Util.FileServe(MimeMap, defaultMimeTypes)
 
-
 {-
 getPrintConf :: Config -> IO PrintConf
 getPrintConf conf = do
@@ -15,13 +14,14 @@ getPrintConf conf = do
   where defaultHeader = "Codex"
 -}
 
-
+{-
 -- | constant paths
 publicPath :: FilePath
 publicPath = "public"
 
 staticPath :: FilePath
 staticPath = "static"
+-}
 
 -- | custom mime type mapping
 mimeTypes :: MimeMap

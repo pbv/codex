@@ -7,9 +7,7 @@ import           System.FilePath
 import           System.Exit
 import           System.Directory (doesFileExist)
 import           Codex.Tester
---import           Codex.Page
 import           Codex.Markdown
-import           Codex.Config
 import           Codex.SafeExec
 import           Data.Text(Text)
 import qualified Data.Text as T
@@ -22,10 +20,11 @@ pythonTester = language "python" $ \code -> do
     page <- getPage
     liftIO $ do
       python <- Conf.require conf "language.python.interpreter"
+      root <- Conf.require conf "documentRoot"
       sf1 <- getSafeExecConf (Conf.subconfig "safeexec" conf)
       sf2 <- getSafeExecConf (Conf.subconfig "language.python.safeexec" conf)
       let sf = sf2 `override` sf1
-      let tstfile = publicPath </> getDoctest page
+      let tstfile = root </> getDoctest page
       c <- doesFileExist tstfile
       if c then
           withTextTemp "tmp.py" code $ \pyfile ->

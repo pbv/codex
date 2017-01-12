@@ -49,6 +49,8 @@ import           Data.Maybe (fromMaybe,catMaybes)
 import           Data.List (sort, intercalate)
 import           Data.Map.Syntax
 
+import qualified Data.Configurator as Configurator
+
 import           Codex.Types
 import           Codex.Page
 import           Codex.Tester.Result
@@ -63,29 +65,30 @@ import           Codex.Config
 --
 -- | Handle file browsing requests
 --
-handleBrowse :: FilePath -> Codex ()
-handleBrowse base = do
+handleBrowse :: Codex ()
+handleBrowse = do
   -- ensure that a user with admin privileges is logged in
   usr <- require (with auth currentUser) <|> unauthorized
   unless (isAdmin usr) unauthorized
   with sess touchSession  -- refresh inactivity timeout
+  root <- getDocumentRoot
   handleMethodOverride
-    (method GET (handleGet base) <|>
-     method POST (handleUpload base) <|>
-     method PUT (handleEdit base) <|>
-     method DELETE (handleDelete base) <|>
-     method PATCH (handleRename base))
+    (method GET (handleGet root) <|>
+     method POST (handleUpload root) <|>
+     method PUT (handleEdit root) <|>
+     method DELETE (handleDelete root) <|>
+     method PATCH (handleRename root))
 
 
 handleGet :: FilePath -> Codex ()
-handleGet base = file <|> directory <|> notFound
+handleGet root = file <|> directory <|> notFound
   where
     directory = do
       rqpath <- getSafePath
-      let path = base </> rqpath
-      c <- liftIO $ doesDirectoryExist path
+      let filepath = root </> rqpath
+      c <- liftIO $ doesDirectoryExist filepath
       unless c pass
-      entries <- liftIO $ listDir path
+      entries <- liftIO $ listDir filepath
       tz <- liftIO getCurrentTimeZone
       renderWithSplices "file-list" $ do
         pathSplices rqpath
@@ -93,12 +96,12 @@ handleGet base = file <|> directory <|> notFound
         messageSplices []
     file = do
       rqpath <- getSafePath
-      let path = base </> rqpath
-      c <- liftIO $ doesFileExist path
+      let filepath = root </> rqpath
+      c <- liftIO $ doesFileExist filepath
       unless c pass
       let mime = fileType mimeTypes rqpath
       contents <- if B.isPrefixOf "text" mime then
-                    liftIO $ T.readFile path
+                    liftIO $ T.readFile filepath
                     else return ""
       let fileSplices = do
           "file-mime" ## I.textSplice (T.decodeUtf8 mime)
@@ -131,24 +134,24 @@ pathSplices rqpath = do
 
 
 listDir :: FilePath -> IO [(FilePath, ByteString, UTCTime)]
-listDir base = do
+listDir root = do
   -- all entries in alphabetical order, directories first
-  cnts <- getDirectoryContents base
+  cnts <- getDirectoryContents root
   dirs  <- (sort . filter (/=".")) <$>
-           filterM (doesDirectoryExist . (base</>)) cnts
-  files <- sort <$> filterM (doesFileExist . (base</>)) cnts
-  times <- forM dirs $ \path -> getModificationTime (base</>path)
-  times'<- forM files $ \path -> getModificationTime (base</>path)
+           filterM (doesDirectoryExist . (root</>)) cnts
+  files <- sort <$> filterM (doesFileExist . (root</>)) cnts
+  times <- forM dirs $ \path -> getModificationTime (root</>path)
+  times'<- forM files $ \path -> getModificationTime (root</>path)
   return ([(path, "DIR", time) | (path,time)<-zip dirs times] ++
           [(path, mime, time) | (path,time)<-zip files times',
             let mime = fileType mimeTypes path])
 
 
 handleEdit :: FilePath -> Codex ()
-handleEdit base = do
+handleEdit root = do
   rqpath <- getSafePath
   contents <- require (getTextPost "editform.editor")
-  liftIO $ T.writeFile (base</>rqpath) contents
+  liftIO $ T.writeFile (root</>rqpath) contents
   redirect (encodePath ("/files" </> rqpath))
 
 {-
@@ -343,8 +346,7 @@ exportSubmissions filetpl sep  = do
 handleSubmission :: Codex ()
 handleSubmission = handleMethodOverride $ do
     usr <- require (with auth currentUser) <|> unauthorized
-    unless (isAdmin usr)
-      unauthorized
+    unless (isAdmin usr) unauthorized
     sid <- require getSubmitId
     sub <- require (getSubmission sid) <|> notFound
     method GET (report sub) <|>
@@ -353,7 +355,8 @@ handleSubmission = handleMethodOverride $ do
   where
     -- get report on a submission
     report sub = do
-      page <- liftIO $ readPage publicPath (submitPath sub)
+      root <- getDocumentRoot
+      page <- liftIO $ readPage root (submitPath sub)
       tz <- liftIO getCurrentTimeZone
       renderWithSplices "submission" $ do
         pageSplices page

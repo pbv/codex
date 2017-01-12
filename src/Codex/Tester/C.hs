@@ -23,7 +23,6 @@ import qualified Data.Configurator as Conf
 import           Codex.Tester.QuickCheck
 import           Codex.Tester
 import           Codex.SafeExec
-import           Codex.Config
 
 
 clangTester :: Tester Result
@@ -31,6 +30,7 @@ clangTester = language "c" $ \code -> do
   conf <- getConfig
   page <- getPage
   liftIO $ do
+    root <- Conf.require conf "documentRoot"
     ghc <- Conf.require conf "language.haskell.compiler"
     gcc <- Conf.require conf "language.c.compiler"
     sf1 <- getSafeExecConf (Conf.subconfig "safeexec" conf)
@@ -40,7 +40,7 @@ clangTester = language "c" $ \code -> do
       Nothing -> return (miscError "no QuickCheck file specified")
       Just qcpath -> do
         let args = getQuickcheckArgs page
-        props <- T.readFile (publicPath </> qcpath)
+        props <- T.readFile (root </> qcpath)
         clangRunner sf gcc ghc args code props `catch` return
 
 

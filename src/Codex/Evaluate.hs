@@ -18,6 +18,7 @@ import           Control.Exception.Lifted  (catch)
 
 import           Snap.Snaplet
 import qualified Snap.Snaplet.SqliteSimple                   as S
+import qualified Data.Configurator as Configurator
 
 import           Codex.Application
 import           Codex.Config
@@ -46,11 +47,12 @@ evaluateWith :: Tester Result -> Submission -> Codex ThreadId
 evaluateWith tester sub = do
   sqlite <- S.getSqliteState
   evs <- getEvents
+  root <- getDocumentRoot
   conf <- getSnapletUserConfig
   sem <- gets evalSem
   liftIO $ forkIO $ withQSem sem $ do
     tz <- getCurrentTimeZone
-    page <- readPage publicPath (submitPath sub)
+    page <- readPage root (submitPath sub)
     let sid = submitId sub        -- ^ submission number
     let optT = rankTime (submitTime sub) <$> evalI tz evs (submitInterval page)
     case optT of
