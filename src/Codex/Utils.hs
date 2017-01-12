@@ -50,8 +50,8 @@ import           System.FilePath
 type ISplices = Splices (I.Splice Codex)
 
 
-authUserId :: AuthUser -> UserId
-authUserId = UserId . userLogin
+authUserLogin :: AuthUser -> UserLogin
+authUserLogin = UserLogin . userLogin
 
 authFullname :: AuthUser -> Maybe Text
 authFullname au
@@ -66,10 +66,10 @@ isAdmin au = Role "admin" `elem` userRoles au
 
 -- | Get current logged in user ID (if any)
 --   from the authentication snaplet
-getUserId :: Codex (Maybe UserId)
-getUserId = do
+getUserLogin :: Codex (Maybe UserLogin)
+getUserLogin = do
   mAu <- with auth currentUser
-  return (fmap authUserId mAu)
+  return (fmap authUserLogin mAu)
 
 
 getFullname :: Codex (Maybe Text)

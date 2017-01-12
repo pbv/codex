@@ -6,7 +6,7 @@
 
 module Codex.Types
   ( -- * types
-    UserId(..), SubmitId(..),  Language(..), Code(..),
+    UserLogin(..), SubmitId(..),  Language(..), Code(..),
     -- * typeclass
     Text, toText
   ) where
@@ -23,26 +23,42 @@ import           Database.SQLite.Simple.ToField
 import           Database.SQLite.Simple.FromField
 import           Database.SQLite.Simple.FromRow
 
-import           Snap.Snaplet.Auth (UserId(..))
 
+-- | a user login; should uniquely identify the user
+newtype UserLogin
+  = UserLogin {fromLogin :: Text} deriving (Eq, Ord)
 
--- | user identifiers
--- UserId defined in Snap.Snaplet.Auth
 
 -- | submission identifier
 newtype SubmitId
-  = SubmitId {unSid :: Int64} deriving (Eq, Ord, Read, Show)
+  = SubmitId {fromSid :: Int64} deriving (Eq, Ord)
+
+
+-- | conversion to strings
+instance Show UserLogin where
+  showsPrec prec (UserLogin uid) = showsPrec prec uid
+
+instance Show SubmitId where
+  showsPrec prec (SubmitId sid) = showsPrec prec sid
+
+{-
+instance Read SubmitId where
+  readsPrec prec txt = [(SubmitId sid, r) | (sid,r) <- readsPrec prec txt]
+-}
 
 -- | language identifier
 newtype Language
-  = Language {fromLanguage :: Text} deriving (Eq, Typeable, Read, Show)
+  = Language {fromLanguage :: Text} deriving (Eq, Typeable) --, Read, Show)
 
 -- | program code tagged with language identifier
 data Code = Code { codeLang :: !Language
                  , codeText :: !Text
-                 } deriving (Eq, Typeable, Read, Show)
+                 } deriving (Eq, Typeable) --, Read, Show)
   
-  
+instance Show Language where
+  showsPrec prec (Language l) = showsPrec prec l
+
+
 -- | type class to overload conversion to text
 class ToText a where
   toText :: a -> Text
@@ -50,37 +66,37 @@ class ToText a where
 instance ToText Text where
   toText = id
 
-instance ToText UserId where
-  toText = unUid
+instance ToText UserLogin where
+  toText = fromLogin
 
 instance ToText SubmitId where
-  toText = T.pack . show . unSid
+  toText = T.pack . show . fromSid
 
 instance ToText Language where
   toText = fromLanguage
 
 
 -- | conversion from strings
-instance IsString UserId where
-  fromString = UserId . T.pack
+instance IsString UserLogin where
+  fromString = UserLogin . T.pack
 
 instance IsString Language where
   fromString = Language . T.pack
   
 -- | convertion to/from SQL fields
-instance ToField UserId where
-  toField = toField . unUid
+instance ToField UserLogin where
+  toField = toField . fromLogin
 
-instance FromField UserId where
-  fromField f = UserId <$> fromField f
+instance FromField UserLogin where
+  fromField f = UserLogin <$> fromField f
 
 instance ToField SubmitId where
-  toField = toField . unSid
+  toField = toField . fromSid
 
 instance FromField SubmitId where
   fromField f = SubmitId <$> fromField f
 
-instance FromRow UserId where
+instance FromRow UserLogin where
     fromRow = field
 
 instance ToField Language where

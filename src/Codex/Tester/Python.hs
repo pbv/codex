@@ -7,7 +7,7 @@ import           System.FilePath
 import           System.Exit
 import           System.Directory (doesFileExist)
 import           Codex.Tester
-import           Codex.Page
+--import           Codex.Page
 import           Codex.Markdown
 import           Codex.Config
 import           Codex.SafeExec
@@ -27,11 +27,11 @@ pythonTester = language "python" $ \code -> do
       let sf = sf2 `override` sf1
       let tstfile = publicPath </> getDoctest page
       c <- doesFileExist tstfile
-      if c then withTextTemp "tmp.py" code $
-                \pyfile ->
-                    pythonResult <$>
-                    safeExecWith sf python ["python/pytest.py", tstfile, pyfile] ""
-           else return (miscError $ T.pack $ "missing doctest file: " ++ tstfile)
+      if c then
+          withTextTemp "tmp.py" code $ \pyfile ->
+                 pythonResult <$>
+                 safeExecWith sf python ["python/pytest.py", tstfile, pyfile] ""
+        else return (miscError $ T.pack $ "missing doctest file: " ++ tstfile)
 
 
 

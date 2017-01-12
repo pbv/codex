@@ -326,11 +326,10 @@ exportSubmissions filetpl sep  = do
                               "classify", "timing", "received"]
     output :: Handle -> () -> Submission -> IO ()
     output h _ Submission{..} = do
-      let row = intercalate sep [show (unSid submitId),
-                                 show (unUid submitUser),
+      let row = intercalate sep [show submitId,
+                                 show submitUser,
                                  show submitPath,
-                                 show (fromLanguage $
-                                       codeLang submitCode),
+                                 show (codeLang submitCode),
                                  show (resultClassify submitResult),
                                  show submitTiming,
                                  show (show submitTime)
@@ -371,6 +370,6 @@ handleSubmission = handleMethodOverride $ do
       sqlite <- S.getSqliteState
       liftIO $ markEvaluating sqlite [sid]
       evaluate sub
-      redirect (encodePath ("/submissions" </> show (unSid sid)))
+      redirect (encodePath ("/submissions" </> show sid))
 
 

@@ -125,6 +125,6 @@ newUser = do
 -- in exam mode procedeed to printout
 handleLogout :: Codex ()
 handleLogout = method GET $ do
-  _ <- require getUserId <|> unauthorized
+  _ <- require getUserLogin <|> unauthorized
   with auth logout
   redirect "/"

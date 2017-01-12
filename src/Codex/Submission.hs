@@ -53,7 +53,7 @@ import           Codex.Tester.Result
 -- | a row in the submssion table
 data Submission = Submission {
   submitId     :: SubmitId,    -- submission DB id
-  submitUser   :: UserId,    -- user id
+  submitUser   :: UserLogin,    -- user login
   submitPath   :: FilePath,  -- exercise path
   submitTime   :: UTCTime,      -- submition time
   submitCode   :: Code,       -- program code
@@ -91,7 +91,7 @@ instance FromRow Submission where
 
 -- | insert a new submission into the DB
 insertSubmission ::
-  UserId -> FilePath ->  UTCTime -> Code -> Result -> Timing
+  UserLogin -> FilePath ->  UTCTime -> Code -> Result -> Timing
   -> Codex Submission
 insertSubmission uid path time code result timing = do
   let (Code lang text) = code
@@ -131,7 +131,7 @@ getSubmission sid =
 
 
 -- | get all submissions for a user and exercise page
-getPageSubmissions :: UserId -> FilePath -> Codex [Submission]
+getPageSubmissions :: UserLogin -> FilePath -> Codex [Submission]
 getPageSubmissions uid path =
   query "SELECT * FROM submissions \
        \ WHERE user_id = ? AND path = ? ORDER BY id" (uid, path)

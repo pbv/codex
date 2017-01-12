@@ -15,8 +15,6 @@ import           Codex.Markdown(Page)
 import           Data.Configurator.Types
 import qualified Data.Configurator as Configurator
 
-import           Data.Text(Text)
-
 import           Control.Applicative
 import           Control.Monad.Trans
 import           Control.Monad.Trans.Maybe
