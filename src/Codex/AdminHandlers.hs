@@ -126,13 +126,6 @@ listingSplices tz path list =
 
 
 
-
-pathSplices :: Monad m => FilePath -> Splices (I.Splice m)
-pathSplices rqpath = do
-  "file-path" ## I.textSplice (T.pack rqpath)
-  "file-path-url" ## I.textSplice (T.decodeUtf8 $ encodePath rqpath)
-
-
 listDir :: FilePath -> IO [(FilePath, ByteString, UTCTime)]
 listDir root = do
   -- all entries in alphabetical order, directories first
@@ -356,7 +349,7 @@ handleSubmission = handleMethodOverride $ do
     -- get report on a submission
     report sub = do
       root <- getDocumentRoot
-      page <- liftIO $ readPage root (submitPath sub)
+      page <- liftIO $ readMarkdownFile (root </>submitPath sub)
       tz <- liftIO getCurrentTimeZone
       renderWithSplices "submission" $ do
         pageSplices page

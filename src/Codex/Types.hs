@@ -23,6 +23,8 @@ import           Database.SQLite.Simple.ToField
 import           Database.SQLite.Simple.FromField
 import           Database.SQLite.Simple.FromRow
 
+import           Data.Configurator.Types
+import           Data.Configurator ()
 
 -- | a user login; should uniquely identify the user
 newtype UserLogin
@@ -41,11 +43,6 @@ instance Show UserLogin where
 instance Show SubmitId where
   showsPrec prec (SubmitId sid) = showsPrec prec sid
 
-{-
-instance Read SubmitId where
-  readsPrec prec txt = [(SubmitId sid, r) | (sid,r) <- readsPrec prec txt]
--}
-
 -- | language identifier
 newtype Language
   = Language {fromLanguage :: Text} deriving (Eq, Typeable) --, Read, Show)
@@ -57,6 +54,9 @@ data Code = Code { codeLang :: !Language
   
 instance Show Language where
   showsPrec prec (Language l) = showsPrec prec l
+
+instance Configured Language where
+  convert v = (Language . T.toLower) <$> convert v
 
 
 -- | type class to overload conversion to text

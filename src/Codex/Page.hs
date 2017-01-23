@@ -1,46 +1,34 @@
 {-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE FlexibleInstances #-}
 {-
-  Operations over document and exercise pages
+  Definitions for document and exercise pages
 -}
-module Codex.Page(
-  Page(..),
-  readPage,
-  pageTitle,
-  pageLanguage,
-  pageCodeText,
-  pageCode,
-  pageIsExercise,
-  submitInterval,
-  submitFeedback,
-  pageSplices
-  ) where
-
-import           Data.Maybe
-import           Data.Text(Text)
-import qualified Data.Text as T
-import qualified Data.Text.Encoding as T
-
-import           Data.Map.Syntax
-import           Heist.Splices     as I
-import qualified Heist.Interpreted as I
-
-import           Codex.Types
-import           Codex.Utils
-import           Codex.Markdown
-import           Codex.Interval
+module Codex.Page where
 
 import           Text.Pandoc hiding (Code)
-import           System.FilePath
+import qualified Text.Pandoc ( Inline(Code) )
+import           Text.Pandoc.Walk
+import           Text.XmlHtml
+import           Text.Blaze.Renderer.XmlHtml
 
+import           Data.Maybe
+import qualified Data.Text as T
+import qualified Data.Map as Map
+import           Data.Monoid
 
--- | read a page from a markdown file
-readPage :: FilePath -> FilePath -> IO Page
-readPage base path = do
-  Pandoc meta blocks <- readMarkdownFile (base </> path)
-  return Page { pagePath = path
-              , pageMeta = meta
-              , pageDescription = blocks
-              }
+import           Data.List (intersperse)
+
+import           Codex.Types
+import           Codex.Interval
+
+-- | a document page; either a single exercise or an index
+type Page = Pandoc
+
+pageMeta :: Page -> Meta
+pageMeta (Pandoc meta _) = meta
+
+pageDescription :: Page -> [Block]
+pageDescription (Pandoc _ blocks) = blocks
 
 
 pageTitle :: Page -> Maybe [Inline]
@@ -78,15 +66,114 @@ submitFeedback :: Page -> Int
 submitFeedback p = fromMaybe 100 (lookupFromMeta "feedback" (pageMeta p))
 
 
------------------------------------------------------------------------------
 
--- | splices related to a page
-pageSplices  :: Page -> ISplices
-pageSplices page = do
-  "file-path" ## I.textSplice (T.pack $ pagePath page)
-  "file-path-url" ## I.textSplice (T.decodeUtf8 $ encodePath $ pagePath page)
-  "page-description" ## return (blocksToHtml $ pageDescription page)
-  "if-exercise" ## I.ifElseISplice (pageIsExercise page)
+-- | read from a metadata value
+class FromMetaValue a where
+  fromMeta :: MetaValue -> Maybe a
 
+instance FromMetaValue Text where
+  fromMeta = Just . metaText
+
+instance FromMetaValue Bool where
+  fromMeta (MetaBool b) = Just b
+  fromMeta _            = Nothing
+
+instance FromMetaValue Int where
+  fromMeta (MetaString s) =
+    case reads s of
+      ((n,""):_) -> Just n
+      _ -> Nothing
+  fromMeta _ = Nothing
+
+instance {-# OVERLAPPABLE #-} FromMetaValue a => FromMetaValue [a] where
+  fromMeta (MetaList l) = mapM fromMeta l
+  fromMeta _            = Nothing
+
+instance {-# OVERLAPPING #-} FromMetaValue String where
+  fromMeta = Just . T.unpack . metaText
+
+
+instance FromMetaValue Language where
+  fromMeta v = fmap (Language . T.toLower) (fromMeta v)
+
+
+
+-- | lookup from metadata value
+lookupFromMeta :: FromMetaValue a => String -> Meta -> Maybe a
+lookupFromMeta tag meta = lookupMeta tag meta >>= fromMeta
+
+
+-- collect text in inline and block elements
+inlineText :: Inline -> Text
+inlineText (Str s)   = T.pack s
+inlineText Space     = " "
+inlineText LineBreak  = "\n"
+inlineText (Math _ s) = T.pack s
+inlineText (Text.Pandoc.Code _ s) = T.pack s
+inlineText (RawInline _ s) = T.pack s
+inlineText (Quoted qt l) =  quote <> T.concat (map inlineText l) <> quote
+  where quote = case qt of
+            SingleQuote -> "\'"
+            DoubleQuote -> "\""
+inlineText (Emph l)  = T.concat (map inlineText l)
+inlineText (Strong l)  = T.concat (map inlineText l)
+inlineText (Superscript l)  = T.concat (map inlineText l)
+inlineText (Subscript l)  = T.concat (map inlineText l)
+inlineText (SmallCaps l)  = T.concat (map inlineText l)
+inlineText (Span _ l)  = T.concat (map inlineText l)
+inlineText _         = T.empty
+
+blockText :: Block -> Text
+blockText (Plain l)       = query inlineText l
+blockText (Para p)        = query inlineText p
+blockText (Header _ _ l)  = query inlineText l
+blockText (CodeBlock _ s) = T.pack s
+blockText (RawBlock  _ s) = T.pack s
+blockText _               = T.empty
+
+inlineString :: Inline -> String
+inlineString = T.unpack . inlineText
+
+
+-- | collect text from a meta value
+metaText :: MetaValue -> Text
+metaText (MetaString s) =
+  T.pack s
+metaText (MetaBool b) =
+  T.pack (show b)
+metaText (MetaInlines l) =
+  T.concat (map inlineText l)
+metaText (MetaBlocks l) =
+  T.concat (map blockText l)
+metaText (MetaList l) =
+  T.concat (intersperse "," $ map metaText l)
+metaText (MetaMap m) =
+  T.concat $
+  intersperse ","  [T.concat [T.pack k, ":", metaText v] | (k,v)<- Map.assocs m]
+
+
+
+
+-- | render a page as a list of HTML nodes
+pageToHtml :: Page -> [Node]
+pageToHtml = renderHtmlNodes . writeHtml opts
+  where
+    opts = def { writerExtensions = pandocExtensions
+               , writerHTMLMathMethod = MathJax "/mathjax",
+                 writerHighlight = True
+               }
+
+
+-- | read a file and parse markdown to a Pandoc document
+readMarkdownFile :: FilePath -> IO Pandoc
+readMarkdownFile fp = do
+  r <- readMarkdown opts <$> readFile fp
+  case r of
+    Left err -> ioError (userError $ show err)
+    Right doc -> return doc
+  where
+    opts = def { readerExtensions = pandocExtensions
+               , readerSmart = True
+               }
 
  

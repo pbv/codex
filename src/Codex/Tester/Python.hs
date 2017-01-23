@@ -7,7 +7,7 @@ import           System.FilePath
 import           System.Exit
 import           System.Directory (doesFileExist)
 import           Codex.Tester
-import           Codex.Markdown
+import           Codex.Page
 import           Codex.SafeExec
 import           Data.Text(Text)
 import qualified Data.Text as T
@@ -18,18 +18,20 @@ pythonTester :: Tester Result
 pythonTester = language "python" $ \code -> do
     conf <- getConfig
     page <- getPage
+    path <- getFilePath
     liftIO $ do
       python <- Conf.require conf "language.python.interpreter"
-      root <- Conf.require conf "documentRoot"
+      pytest <-  Conf.require conf "language.python.pytest"
+      scripts <- Conf.require conf "language.python.scripts"
       sf1 <- getSafeExecConf (Conf.subconfig "safeexec" conf)
       sf2 <- getSafeExecConf (Conf.subconfig "language.python.safeexec" conf)
       let sf = sf2 `override` sf1
-      let tstfile = root </> getDoctest page
+      let tstfile = getDoctest path page
       c <- doesFileExist tstfile
       if c then
           withTextTemp "tmp.py" code $ \pyfile ->
                  pythonResult <$>
-                 safeExecWith sf python ["python/pytest.py", tstfile, pyfile] ""
+                 safeExecWith sf python [pytest, scripts, tstfile, pyfile] ""
         else return (miscError $ T.pack $ "missing doctest file: " ++ tstfile)
 
 
@@ -47,13 +49,11 @@ pythonResult (_, stdout, stderr)
 
 
 -- | guess the doctest path from page metadata or filename
-getDoctest :: Page -> FilePath
-getDoctest p
-  = let path = pagePath p
-        meta = pageMeta p
-    in maybe
-       (replaceExtension path ".tst")
-       (takeDirectory path </>)
-       (lookupFromMeta "doctest" meta)
+getDoctest :: FilePath -> Page -> FilePath
+getDoctest filepath page
+  = maybe
+       (replaceExtension filepath ".tst")
+       (takeDirectory filepath </>)
+       (lookupFromMeta "doctest" $ pageMeta page)
 
   

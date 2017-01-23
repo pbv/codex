@@ -19,15 +19,13 @@ import           Control.Monad.State
 import           Control.Exception  (SomeException)
 import           Control.Exception.Lifted  (catch)
 
-import qualified Data.ByteString.UTF8                        as B
 import           Data.ByteString.UTF8                        (ByteString)
 
 import qualified Data.HashMap.Strict                         as HM
 import           Data.Map.Syntax
 
 import qualified Data.Text                                   as T
-import           Data.Monoid((<>))
-import           Data.Maybe(isJust)
+import           Data.Maybe(fromMaybe,isJust)
 
 import           Heist
 import qualified Heist.Interpreted                           as I
@@ -67,9 +65,7 @@ import           Codex.Types
 import           Codex.Utils
 import           Codex.Evaluate
 import           Codex.Tester.Result
-import           Codex.Tester.Python
-import           Codex.Tester.Haskell
-import           Codex.Tester.C
+import           Codex.Testers
 
 import           Data.Version                                (showVersion)
 import           Paths_codex                                 (version)
@@ -114,12 +110,12 @@ handlePage = do
       let filepath = root </> rqpath
       c <- liftIO $ doesFileExist filepath
       guard (c && fileType mimeTypes rqpath == "text/markdown")
-      page <- liftIO (readPage root rqpath)
+      page <- liftIO (readMarkdownFile $ root </> rqpath)
       -- ensure the request is for an exercise page
       guard (pageIsExercise page)
       text <- require (getTextPost "editform.editor")
       lang <- require (return $ pageLanguage page)
-      sid <- newSubmission uid page (Code lang text)
+      sid <- newSubmission uid rqpath (Code lang text)
       redirect (encodePath $ "/report" </> show sid)
 
 
@@ -128,16 +124,18 @@ servePage :: UserLogin -> FilePath -> Codex ()
 servePage uid rqpath = do
   page <- readPageLinks uid rqpath
   if pageIsExercise page then
-    renderExercise page =<< getPageSubmissions uid rqpath
+    renderExercise rqpath page =<< getPageSubmissions uid rqpath
     else
-    renderWithSplices "page" (pageSplices page)
+    renderWithSplices "page" (pathSplices rqpath >>
+                              pageSplices page)
 
 --  render an exercise page
-renderExercise :: Page -> [Submission] -> Codex ()
-renderExercise page subs = do
+renderExercise :: FilePath -> Page -> [Submission] -> Codex ()
+renderExercise rqpath page subs = do
   tz <- liftIO getCurrentTimeZone
   timeSplices <- timingSplices page
   renderWithSplices "exercise" $ do
+    pathSplices rqpath
     pageSplices page
     exerciseSplices page
     timeSplices
@@ -146,11 +144,12 @@ renderExercise page subs = do
     
 
 -- render report for a single submission
-renderReport :: Page -> Submission -> Codex ()
-renderReport page sub = do
+renderReport :: FilePath -> Page -> Submission -> Codex ()
+renderReport rqpath page sub = do
   tz <- liftIO getCurrentTimeZone
   timeSplices <- timingSplices page
   renderWithSplices "report" $ do
+    pathSplices rqpath
     pageSplices page
     exerciseSplices page
     timeSplices
@@ -161,17 +160,17 @@ renderReport page sub = do
 
 
 -- | read a page, collect exercise links
---  and patch with titles of linked pages
+--  and patch titles of linked pages
 readPageLinks :: UserLogin -> FilePath -> Codex Page
 readPageLinks uid rqpath = do
   root <- getDocumentRoot
-  page <- liftIO $ readPage root rqpath
+  page <- liftIO $ readMarkdownFile (root </> rqpath)
   let links = queryExerciseLinks page
   let rqdir = takeDirectory rqpath
   -- fetch linked titles; catch and ignore exceptions
   optTitles <- liftIO $
                forM links $ \url ->
-               (pageTitle <$> readPage root (rqdir</>url))
+               (pageTitle <$> readMarkdownFile (root </> rqdir </> url))
                `catch` (\(_ :: SomeException) -> return Nothing)
 
   let titles = HM.fromList [(url,title) | (url, Just title)<-zip links optTitles]
@@ -196,7 +195,7 @@ readPageLinks uid rqpath = do
         | otherwise = elm
       patch elm = elm
   --
-  return page { pageDescription = walk patch (pageDescription page) }
+  return (walk patch page)
 
 
 
@@ -221,8 +220,9 @@ handleReport = do
       unauthorized
   root <- getDocumentRoot
   method GET $ do
-    page <- liftIO $ readPage root (submitPath sub)
-    renderReport page sub
+    let rqpath = submitPath sub
+    page <- liftIO $ readMarkdownFile (root </> rqpath)
+    renderReport rqpath page sub
 
 
 -- | splices related to exercises
@@ -248,8 +248,7 @@ timingSplices page = do
   events <- getEvents
   let interval = evalI tz events (submitInterval page)
   unless (isJust interval) $ 
-    logError ("WARNING: invalid submission interval for page " <>
-               B.fromString (show $ pagePath page))
+    logError ("WARNING: invalid submission interval")
   return $ do
     "valid-from" ##
       I.textSplice $ maybe "N/A" (showTime tz) (lower =<< interval)
@@ -313,10 +312,10 @@ versionSplice = I.textSplice (T.pack (showVersion version))
 -- | handle a new submission
 -- insert a pending submission and start
 -- run code tester in separate thread
-newSubmission :: UserLogin -> Page -> Code -> Codex SubmitId
-newSubmission uid page code = do
+newSubmission :: UserLogin -> FilePath -> Code -> Codex SubmitId
+newSubmission uid rqpath code = do
   now <- liftIO getCurrentTime
-  sub <- insertSubmission uid (pagePath page) now code evaluating Valid
+  sub <- insertSubmission uid rqpath now code evaluating Valid
   evaluate sub
   return (submitId sub)
 
@@ -351,14 +350,20 @@ app =
     conf <- getSnapletUserConfig
     evSem <- liftIO $ newQSem =<< Conf.require conf "system.workers"
     evThs <- liftIO $ newMVar []
+    --    langs <- liftIO $ Conf.require conf "system.languages"
+    -- case getTesters langs of
+    --  Nothing -> error "invalid languages"
+    --  Just tester -> 
     return App { _heist = h
                , _sess = s
                , _auth = a
                , _db   = d
                , evalSem = evSem
                , evalThreads = evThs
-               , defaultTester = pythonTester <|> haskellTester <|> clangTester
+               -- , defaultTester = tester
                }
+
+
 
 
 {-

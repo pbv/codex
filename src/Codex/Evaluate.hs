@@ -15,28 +15,27 @@ import           Control.Monad.State
 import           Control.Concurrent(ThreadId, forkIO)
 import           Control.Exception  (SomeException)
 import           Control.Exception.Lifted  (catch)
+import           System.FilePath
 
 import           Snap.Snaplet
 import qualified Snap.Snaplet.SqliteSimple                   as S
-import qualified Data.Configurator as Configurator
 
 import           Codex.Application
-import           Codex.Config
 import           Codex.Types
 import           Codex.Utils
 import           Codex.Page
 import           Codex.Submission
 import           Codex.Tester
+import           Codex.Testers
 import           Codex.Interval
-import           Codex.Markdown
 
 
 
 -- | default evaluator
 evaluate :: Submission -> Codex ThreadId
 evaluate sub = do
-  tester <- gets defaultTester
-  evaluateWith tester sub
+  -- tester <- gets defaultTester
+  evaluateWith allTesters sub
 
 
 -- evaluate a submission  with a specific tester
@@ -52,7 +51,8 @@ evaluateWith tester sub = do
   sem <- gets evalSem
   liftIO $ forkIO $ withQSem sem $ do
     tz <- getCurrentTimeZone
-    page <- readPage root (submitPath sub)
+    let filepath = root </> submitPath sub
+    page <- readMarkdownFile filepath
     let sid = submitId sub        -- ^ submission number
     let optT = rankTime (submitTime sub) <$> evalI tz evs (submitInterval page)
     case optT of
@@ -61,7 +61,7 @@ evaluateWith tester sub = do
       Just t -> do
         putStrLn $ "start evaluation of submission " ++ show sid
         let code = submitCode sub     -- ^ program code
-        mayResult <- runTester conf page code tester
+        mayResult <- runTester conf filepath page code tester
                      `catch`
                      (\(e::SomeException) ->
                          return (Just $ miscError $ T.pack $ show e))

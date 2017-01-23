@@ -8,20 +8,21 @@ import sys
 import doctest
 
 
-if len(sys.argv) != 3:
-    sys.stderr.write("usage: "+sys.argv[0]+" <doctest-file> <python-file>\n")
+if len(sys.argv) != 4:
+    sys.stderr.write("usage: "+sys.argv[0]+" <scripts-dir> <doctest-file> <python-file>\n")
     exit (-1)
 
 
-docfile = sys.argv[1]
-inpfile = sys.argv[2]
+scripts = sys.argv[1]
+docfile = sys.argv[2]
+inpfile = sys.argv[3]
 
 (pydir, pyfile) = os.path.split(inpfile)
 (pymod, pyext) = os.path.splitext(pyfile)
 
 # setup module search path
 # add submissions directory to module search path
-sys.path.insert(0, 'python')
+sys.path.insert(0, scripts)
 sys.path.insert(0, pydir)
 
 # lower recursion depth for shorter stack traces on unbounded recursions

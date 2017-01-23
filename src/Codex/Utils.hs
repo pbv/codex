@@ -26,6 +26,7 @@ import           Snap.Snaplet.SqliteSimple
 import           Data.Aeson.Types
 
 import           Heist
+import qualified Heist.Splices as I
 import qualified Heist.Interpreted as I
 
 import qualified Text.XmlHtml as X
@@ -39,6 +40,7 @@ import           Control.Concurrent
 import qualified Data.Configurator as Configurator
 
 import           Codex.Types
+import           Codex.Page
 import           Codex.Interval
 import           Codex.Application
 
@@ -180,6 +182,20 @@ utcTimeSplice tz t =
   I.textSplice $ T.pack $ formatTime defaultTimeLocale "%c" $ utcToLocalTime tz t
 
 
+-----------------------------------------------------------------------------
+
+-- | splices related to a page
+pageSplices  :: Monad m => Page -> Splices (I.Splice m)
+pageSplices page = do
+  "page-description" ## return (pageToHtml page)
+  "if-exercise" ## I.ifElseISplice (pageIsExercise page)
+
+pathSplices :: Monad m => FilePath -> Splices (I.Splice m)
+pathSplices filepath = do
+  "file-path" ## I.textSplice (T.pack filepath)
+  "file-path-url" ## I.textSplice (T.decodeUtf8 $ encodePath filepath)
+
+
 -- list of messages
 messageSplices :: Monad m => [Text] -> Splices (I.Splice m)
 messageSplices mesgs = do
@@ -187,19 +203,6 @@ messageSplices mesgs = do
   where splice msg = "message" ## I.textSplice msg
 
 
-
--- if/then/else conditional splice
--- split children around the <else/> element; removes the <else/> element
-{-
-ifElseISplice :: Monad m => Bool -> I.Splice m
-ifElseISplice cond = getParamNode >>= (rewrite . X.childNodes)
-  where rewrite nodes =
-          let (ns, ns') = break (\n -> X.tagName n==Just "else") nodes
-          in I.runNodeList $ if cond then ns else (drop 1 ns')
--}
-
--- conditionalSplice :: Monad m => Bool -> I.Splice m
--- conditionalSplice = ifElseISplice
 
 
 tagCaseSplice :: Monad m => Text -> I.Splice m
@@ -214,6 +217,8 @@ caseSplice :: (Monad m, Show a) => a -> I.Splice m
 caseSplice v = tagCaseSplice (T.pack $ show v)
 
 
+
+--------------------------------------------------------------
 
 -- | make a checkbox input for a tag filter
 checkboxInput :: Text -> Bool -> Bool -> [X.Node]
@@ -288,7 +293,6 @@ withQSem :: QSem -> IO a -> IO a
 withQSem qs = bracket_ (waitQSem qs) (signalQSem qs)
 
 
-
 -- | cancel pending evaluations 
 cancelPending :: Codex ()
 cancelPending = do
@@ -309,4 +313,6 @@ setPending tids = do
 
 
   
+
+
 

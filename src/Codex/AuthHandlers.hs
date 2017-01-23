@@ -81,9 +81,12 @@ loginLdapUser ldapConf login passwd = do
 
 -- | Handle sign-in requests
 handleRegister :: Codex ()
-handleRegister =
+handleRegister = do
+  conf <- getSnapletUserConfig
+  c <- liftIO $ Configurator.require conf "users.register"
+  unless c unauthorized
   method GET (handleLoginForm "register" Nothing) <|>
-  method POST handleSubmit
+    method POST handleSubmit
   where
     handleSubmit = do
       r <- with auth newUser

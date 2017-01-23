@@ -6,7 +6,6 @@
 module Codex.Tester.QuickCheck where
 
 import           Codex.Page
-import           Codex.Markdown
 
 import           Test.QuickCheck
 import           Test.QuickCheck.Random
@@ -14,9 +13,9 @@ import           System.FilePath
 
 
 -- relative filepath to Quickcheck properties
-getQuickcheckPath :: Page -> Maybe FilePath
-getQuickcheckPath p
-  = (takeDirectory (pagePath p) </>) <$> lookupFromMeta "quickcheck" (pageMeta p)
+getQuickcheckPath :: FilePath -> Page -> Maybe FilePath
+getQuickcheckPath base page
+  = (base </>) <$> lookupFromMeta "quickcheck" (pageMeta page)
 
 
 getQuickcheckArgs :: Page -> Args

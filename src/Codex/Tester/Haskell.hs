@@ -33,17 +33,17 @@ haskellTester :: Tester Result
 haskellTester = language "haskell" $ \code -> do
     conf <- getConfig
     page <- getPage
+    base <-  takeDirectory <$> getFilePath
     liftIO $ do
-      root <- Conf.require conf "documentRoot"
       ghc <- Conf.require conf "language.haskell.compiler"
       sf1 <- getSafeExecConf (Conf.subconfig "safeexec" conf)
       sf2 <- getSafeExecConf (Conf.subconfig "language.haskell.safeexec" conf)
       let sf = sf2 `override` sf1
-      case getQuickcheckPath page of
+      case getQuickcheckPath base page of
         Nothing -> return (miscError "no QuickCheck file specified")
         Just qcpath -> do
           let args = getQuickcheckArgs page
-          props <- T.readFile (root </> qcpath)
+          props <- T.readFile qcpath
           haskellRunner sf ghc args code props `catch` return
 
 
@@ -60,7 +60,8 @@ haskellRunner sf ghc qcArgs code props =
        let out_file = dir </> takeBaseName tstfile
        let submit_file = dir </> takeBaseName hs_file
        let cmd:args = words ghc
-       let args' = args ++ ["-i"++dir, "-O0", "-dynamic", tstfile, "-o", out_file]
+       let args' = args ++ ["-i"++dir, "-O0", "-dynamic", tstfile,
+                            "-o", out_file]
        let temps = [out_file, out_file <.> "o", out_file <.> "hi",
                     submit_file <.> "o", submit_file <.> "hi"]
        finally

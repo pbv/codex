@@ -25,7 +25,7 @@ Library
  Build-depends:
     base                      >= 4.4,
     QuickCheck                >= 2.8
-
+    
 Executable codex
   hs-source-dirs: src
   main-is: Main.hs
@@ -41,13 +41,13 @@ Executable codex
     Codex.Tester.Monad
     Codex.Tester.Result
     Codex.Tester.Utils
-    Codex.Tester.C
-    Codex.Tester.Haskell
     Codex.Tester.Python
     Codex.Tester.QuickCheck
+    Codex.Tester.Haskell
+    Codex.Tester.C
+    Codex.Testers            
     Codex.Evaluate
     Codex.LdapAuth
-    Codex.Markdown
     Codex.Page
     Codex.Site
     Codex.SafeExec
@@ -109,3 +109,51 @@ Executable codex
     else
       ghc-options: -threaded -Wall -fwarn-tabs -funbox-strict-fields -O2
                    -fno-warn-orphans
+
+
+                   Executable codex-tester 
+
+    
+Executable codex-tester
+  hs-source-dirs: src
+  main-is: RunTester.hs
+  other-modules:
+    Codex.Config
+    Codex.Interval
+    Codex.Tester
+    Codex.Tester.Monad
+    Codex.Tester.Result
+    Codex.Tester.Utils
+    Codex.Tester.Python
+    Codex.Tester.QuickCheck
+    Codex.Tester.Haskell
+    Codex.Tester.C
+    Codex.Testers            
+    Codex.Evaluate
+    Codex.Page
+    Codex.SafeExec
+    Codex.Types
+  build-depends:
+    filepath                 >= 1.3,
+    directory                >= 1.2,
+    old-locale               >= 1.0,
+    process                  >= 1.0,
+    unix                     >= 2.5,
+    transformers             >= 0.3,
+    mtl                       >= 2,
+    bytestring                >= 0.9.1,
+    utf8-string               >= 0.3, 
+    xmlhtml                   >= 0.1,
+    sqlite-simple             >= 0.4.12,
+    text                      >= 0.11,
+    time                      >= 1.5,
+    pandoc-types              >= 1.12,
+    pandoc                    >= 1.13,
+    unordered-containers      >= 0.2,
+    containers                >= 0.4,
+    configurator              >= 0.2,
+    base                      >= 4.4,
+    lens                      >= 3.7.6,
+    process-extras            >= 0.3.3,
+    QuickCheck                >= 2.8,
+    codex

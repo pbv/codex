@@ -29,18 +29,18 @@ clangTester :: Tester Result
 clangTester = language "c" $ \code -> do
   conf <- getConfig
   page <- getPage
+  base <- takeDirectory <$> getFilePath
   liftIO $ do
-    root <- Conf.require conf "documentRoot"
     ghc <- Conf.require conf "language.haskell.compiler"
     gcc <- Conf.require conf "language.c.compiler"
     sf1 <- getSafeExecConf (Conf.subconfig "safeexec" conf)
     sf2 <- getSafeExecConf (Conf.subconfig "language.haskell.safeexec" conf)
     let sf = sf2 `override` sf1
-    case getQuickcheckPath page of
+    case getQuickcheckPath base page of
       Nothing -> return (miscError "no QuickCheck file specified")
       Just qcpath -> do
         let args = getQuickcheckArgs page
-        props <- T.readFile (root </> qcpath)
+        props <- T.readFile qcpath
         clangRunner sf gcc ghc args code props `catch` return
 
 
