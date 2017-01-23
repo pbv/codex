@@ -25,7 +25,7 @@ import qualified Data.HashMap.Strict                         as HM
 import           Data.Map.Syntax
 
 import qualified Data.Text                                   as T
-import           Data.Maybe(fromMaybe,isJust)
+import           Data.Maybe(isJust)
 
 import           Heist
 import qualified Heist.Interpreted                           as I
@@ -65,7 +65,6 @@ import           Codex.Types
 import           Codex.Utils
 import           Codex.Evaluate
 import           Codex.Tester.Result
-import           Codex.Testers
 
 import           Data.Version                                (showVersion)
 import           Paths_codex                                 (version)
@@ -269,7 +268,6 @@ submissionListSplices tz list = do
     I.ifElseISplice (count > 0)
   "submissions-list" ##
     I.mapSplices (I.runChildrenWith . submitSplices tz) list
-
 
 
 
