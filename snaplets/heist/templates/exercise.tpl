@@ -34,18 +34,18 @@
 </p>
 
 <if-submitted>
-  <h2>Submissões anteriores</h2>
   <current-timing>
     <Early>
       <p><submissions-count/> submissões antecipadas; os resultados serão
 	visíveis após <valid-from/>.</p>
     </Early>
     <default>
+      <h2>Submissões anteriores</h2>
       <ol class="submissions">
 	<submissions-list>
 	  <li>
 	    <a href="/report/${submit-id}"><submit-id/></a>&nbsp;<feedback-medium
-               ><span class="tag"><submit-classify/></span></feedback-medium>
+               ><span class="${submit-classify}"><submit-classify/></span><valid-accepted><icon-accepted/></valid-accepted></feedback-medium>
 	  </li>
 	</submissions-list>
       </ol>

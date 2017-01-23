@@ -24,6 +24,9 @@ import           Codex.Interval
 -- | a document page; either a single exercise or an index
 type Page = Pandoc
 
+emptyPage :: Page
+emptyPage = Pandoc nullMeta []
+
 pageMeta :: Page -> Meta
 pageMeta (Pandoc meta _) = meta
 

@@ -350,6 +350,7 @@ handleSubmission = handleMethodOverride $ do
     report sub = do
       root <- getDocumentRoot
       page <- liftIO $ readMarkdownFile (root </>submitPath sub)
+                       `catch` (\ (_ :: SomeException) -> return emptyPage)
       tz <- liftIO getCurrentTimeZone
       renderWithSplices "submission" $ do
         pageSplices page

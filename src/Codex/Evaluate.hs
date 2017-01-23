@@ -53,6 +53,7 @@ evaluateWith tester sub = do
     tz <- getCurrentTimeZone
     let filepath = root </> submitPath sub
     page <- readMarkdownFile filepath
+            `catch` (\(_ :: SomeException) -> return emptyPage)
     let sid = submitId sub        -- ^ submission number
     let optT = rankTime (submitTime sub) <$> evalI tz evs (submitInterval page)
     case optT of

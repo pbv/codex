@@ -89,6 +89,7 @@ instance FromRow Submission where
     return (Submission sid uid path time code result tv)
 
 
+
 -- | insert a new submission into the DB
 insertSubmission ::
   UserLogin -> FilePath ->  UTCTime -> Code -> Result -> Timing
@@ -253,6 +254,9 @@ submitSplices tz Submission{..} = do
   "overdue" ## I.ifElseISplice (submitTiming == Overdue)
   "accepted" ## I.ifElseISplice (resultClassify submitResult == Accepted)
   "evaluating" ## I.ifElseISplice (resultClassify submitResult == Evaluating)
+  "valid-accepted" ## I.ifElseISplice (resultClassify submitResult == Accepted
+                                       && submitTiming == Valid)
+                                      
 
 
 {-
