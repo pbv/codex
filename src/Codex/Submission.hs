@@ -254,8 +254,6 @@ submitSplices tz Submission{..} = do
   "overdue" ## I.ifElseISplice (submitTiming == Overdue)
   "accepted" ## I.ifElseISplice (resultClassify submitResult == Accepted)
   "evaluating" ## I.ifElseISplice (resultClassify submitResult == Evaluating)
-  "valid-accepted" ## I.ifElseISplice (resultClassify submitResult == Accepted
-                                       && submitTiming == Valid)
                                       
 
 

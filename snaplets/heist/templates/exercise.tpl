@@ -3,6 +3,8 @@
 <bind tag="icon-warning"><img src="/static/icons/16x16/warning.png"/></bind>
 <bind tag="icon-overdue"><img src="/static/icons/16x16/overdue.png"/></bind>
 <bind tag="icon-editor"><img src="/static/icons/16x16/editor.png"/></bind>
+<bind tag="time-icon"><valid><icon-accepted/><else/><icon-overdue/></valid></bind>
+
 <apply template="_base">
   <div class="description">
     <page-description/>
@@ -45,7 +47,7 @@
 	<submissions-list>
 	  <li>
 	    <a href="/report/${submit-id}"><submit-id/></a>&nbsp;<feedback-medium
-               ><span class="${submit-classify}"><submit-classify/></span><valid-accepted><icon-accepted/></valid-accepted></feedback-medium>
+               ><span class="${submit-classify}"><submit-classify/></span><accepted><time-icon/></accepted></feedback-medium>
 	  </li>
 	</submissions-list>
       </ol>
