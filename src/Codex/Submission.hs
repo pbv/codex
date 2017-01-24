@@ -20,7 +20,10 @@ module Codex.Submission (
   filterSubmissions,
   countSubmissions,
   getPageSubmissions,
-  submitSplices
+  submitSplices,
+  getLastAccepted,
+  getLastSubmitted,
+  allSubmitted
   ) where
 
 
@@ -71,7 +74,6 @@ instance FromField Timing where
     where
       parse ((s,""):_) = return s
       parse _  = returnError ConversionFailed f "invalid Timing field"
-
 
 instance FromRow Submission where
   fromRow = do
@@ -291,3 +293,24 @@ getBestSubmission uid pid =
 -}
 
 
+
+getLastAccepted :: UserLogin -> FilePath -> Codex (Maybe Submission)
+getLastAccepted uid path 
+  = listToMaybe <$>
+    query "SELECT * FROM submissions WHERE \
+          \ user_id = ? AND path = ? AND class='Accepted' \
+          \ ORDER BY id DESC LIMIT 1" (uid, path)
+
+getLastSubmitted :: UserLogin -> FilePath -> Codex (Maybe Submission)
+getLastSubmitted uid path 
+  = listToMaybe <$>
+    query "SELECT * FROM submissions WHERE \
+          \ user_id = ? AND path = ? \
+          \ ORDER BY id DESC LIMIT 1" (uid, path)
+  
+
+allSubmitted :: UserLogin -> Codex [FilePath]
+allSubmitted uid
+  = map T.unpack <$>
+    query "SELECT path FROM submissions WHERE \
+          \ user_id = ? GROUP BY path" (Only uid)

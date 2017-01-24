@@ -26,7 +26,7 @@ Library
     base                      >= 4.4,
     QuickCheck                >= 2.8
     
-Executable codex
+Executable codex-server
   hs-source-dirs: src
   main-is: Main.hs
   other-modules:
@@ -54,6 +54,7 @@ Executable codex
     Codex.Submission
     Codex.Types
     Codex.Utils
+    Codex.Printout            
   build-depends:
     filepath                 >= 1.3,
     directory                >= 1.2,

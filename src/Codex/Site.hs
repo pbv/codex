@@ -65,6 +65,7 @@ import           Codex.Types
 import           Codex.Utils
 import           Codex.Evaluate
 import           Codex.Tester.Result
+import           Codex.Printout
 
 import           Data.Version                                (showVersion)
 import           Paths_codex                                 (version)
@@ -284,6 +285,7 @@ routes = [ ("/login",    handleLogin `catch` internalError)
          , ("/submissions",  handleSubmissionList `catch` internalError)
          , ("/files",  handleBrowse `catch`  internalError)
          , ("/export", handleExport `catch` internalError)
+         -- , ("/printout", handlePrintout `catch` internalError)
          , ("/static",  (getStaticRoot >>= serveDirectory) <|> notFound)
          ]
 

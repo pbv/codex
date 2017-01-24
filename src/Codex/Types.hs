@@ -105,6 +105,9 @@ instance ToField Language where
 instance FromField Language where
   fromField f = Language <$> fromField f
 
+instance FromRow Text where
+  fromRow = field
+
 
 {-
 -- | Printout configuration
