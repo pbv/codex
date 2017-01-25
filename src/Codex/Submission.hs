@@ -23,7 +23,8 @@ module Codex.Submission (
   submitSplices,
   getLastAccepted,
   getLastSubmitted,
-  allSubmitted
+  querySubmissionPaths,
+  querySubmissionUsers
   ) where
 
 
@@ -46,6 +47,7 @@ import qualified Heist.Interpreted as I
 import           Control.Concurrent.MVar
 
 import           Codex.Application
+
 import           Codex.Utils
 import           Codex.Interval
 import           Codex.Types
@@ -259,40 +261,6 @@ submitSplices tz Submission{..} = do
                                       
 
 
-{-
--- | count all submissions
-countSubmissions :: UserID -> FilePath -> AppHandler Int
-countSubmissions uid path = do
-  r <- listToMaybe <$>
-       query "SELECT COUNT(*) \
-               \ FROM submissions WHERE user_id = ? AND path = ?" (uid,path)
-  return $ maybe 0 fromOnly r
-
--- | count submissions with a given status
-countSubmissions' :: UserID -> ProblemID -> Result -> AppHandler Int
-countSubmissions' uid pid result = do
-  r <- listToMaybe <$>
-       query "SELECT COUNT(*) \
-             \ FROM submissions WHERE result = ? \
-             \ AND  user_id = ? AND problem_id = ?" (result,uid,pid)
-  return $ maybe 0 fromOnly r
-
-
--- | get the best submission for a problem for printouts:.
--- the last Accepted submission; or
--- the last overall submission (if none was accepted)
--- Note: the query below assumes that the submissions ID key
--- is monotonically increasing with time i.e. later submissions have higher IDs
-getBestSubmission :: UserID -> ProblemID -> AppHandler (Maybe Submission)
-getBestSubmission uid pid =
-  listToMaybe <$>
-  query "SELECT id,user_id,problem_id,ip_addr,time,code,status,report \
-       \ FROM (SELECT *,status IN ('Accepted', 'Overdue') as accept \
-             \ FROM submissions WHERE user_id = ? AND problem_id = ? \
-             \ ORDER BY accept DESC, id DESC LIMIT 1)" (uid,pid)
--}
-
-
 
 getLastAccepted :: UserLogin -> FilePath -> Codex (Maybe Submission)
 getLastAccepted uid path 
@@ -309,8 +277,12 @@ getLastSubmitted uid path
           \ ORDER BY id DESC LIMIT 1" (uid, path)
   
 
-allSubmitted :: UserLogin -> Codex [FilePath]
-allSubmitted uid
+querySubmissionPaths :: UserLogin -> Codex [FilePath]
+querySubmissionPaths uid
   = map T.unpack <$>
-    query "SELECT path FROM submissions WHERE \
-          \ user_id = ? GROUP BY path" (Only uid)
+    query "SELECT DISTINCT path FROM submissions \
+          \ WHERE user_id = ? ORDER BY path" (Only uid)
+
+querySubmissionUsers :: Codex [UserLogin]
+querySubmissionUsers
+  = query_ "SELECT DISTINCT user_id FROM submissions ORDER BY user_id"

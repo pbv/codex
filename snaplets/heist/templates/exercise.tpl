@@ -46,7 +46,7 @@
       <ol class="submissions">
 	<submissions-list>
 	  <li>
-	    <a href="/report/${submit-id}"><submit-id/></a>&nbsp;<feedback-medium
+	    <a href="/sub/${submit-id}"><submit-id/></a>&nbsp;<feedback-medium
                ><span class="${submit-classify}"><submit-classify/></span><accepted><time-icon/></accepted></feedback-medium>
 	  </li>
 	</submissions-list>

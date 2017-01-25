@@ -20,7 +20,6 @@ import           Snap.Snaplet.Session                        (touchSession)
 import qualified Snap.Snaplet.SqliteSimple                   as S
 import           Snap.Util.FileServe hiding (mimeTypes)
 import           Snap.Util.FileUploads
-import           Heist
 import           Heist.Splices     as I
 import qualified Heist.Interpreted as I
 
@@ -36,7 +35,6 @@ import           Control.Exception.Lifted (catch, SomeException)
 import           Control.Applicative
 
 
-import           Data.Text (Text)
 import qualified Data.Text    as T
 import qualified Data.Text.IO as T
 import qualified Data.Text.Encoding as T
@@ -49,7 +47,6 @@ import           Data.Maybe (fromMaybe,catMaybes)
 import           Data.List (sort, intercalate)
 import           Data.Map.Syntax
 
-import qualified Data.Configurator as Configurator
 
 import           Codex.Types
 import           Codex.Page

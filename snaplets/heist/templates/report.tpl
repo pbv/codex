@@ -28,7 +28,7 @@
   </current-timing>
 </feedback-medium>
 
-<h2>Nova submissão</h2>
+<h2>Editar submissão</h2>
 
 <form id="editform" method="POST" action="/pub/${file-path-url}"
       onsubmit="submitAceEditorText('editform.editor');">

@@ -116,7 +116,7 @@ handlePage = do
       text <- require (getTextPost "editform.editor")
       lang <- require (return $ pageLanguage page)
       sid <- newSubmission uid rqpath (Code lang text)
-      redirect (encodePath $ "/report" </> show sid)
+      redirect (encodePath $ "/sub" </> show sid)
 
 
 -- | serve a markdown document
@@ -210,8 +210,8 @@ queryExerciseLinks page = query extractURL (pageDescription page)
 
 
 -- | handle GET requests for submission reports
-handleReport :: Codex ()
-handleReport = do
+handleSubmitReport :: Codex ()
+handleSubmitReport = do
   usr <- require (with auth currentUser) <|> unauthorized
   let uid = authUserLogin usr
   sid <- require getSubmitId
@@ -280,12 +280,12 @@ routes = [ ("/login",    handleLogin `catch` internalError)
          , ("/logout",   handleLogout `catch` internalError)
          , ("/register", handleRegister `catch` internalError)
          , ("/pub",      handlePage `catch` internalError)
-         , ("/report/:sid", handleReport `catch` internalError)
+         , ("/sub/:sid", handleSubmitReport `catch` internalError)
          , ("/submissions/:sid", handleSubmission `catch` internalError)
          , ("/submissions",  handleSubmissionList `catch` internalError)
          , ("/files",  handleBrowse `catch`  internalError)
          , ("/export", handleExport `catch` internalError)
-         -- , ("/printout", handlePrintout `catch` internalError)
+         , ("/printouts", handlePrintouts `catch` internalError)
          , ("/static",  (getStaticRoot >>= serveDirectory) <|> notFound)
          ]
 

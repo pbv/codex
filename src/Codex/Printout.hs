@@ -3,19 +3,25 @@
    Produce printouts for exams, etc.
 -}
 module Codex.Printout(
-  handlePrintout
+  handlePrintouts
   ) where
 -- import           Prelude hiding (catch)
 import           System.FilePath
--- import           System.Directory
+import           Data.Time.LocalTime
+import           System.Directory
 -- import           System.Process
 -- import           System.IO.Error
 
 
 import qualified Data.Text as T
+import           Control.Monad (unless, forM_)
 import           Control.Monad.Trans
 import           Control.Applicative
-import           Data.Maybe(fromMaybe)
+
+import qualified Data.Configurator as Configurator
+import           Snap.Core(writeText)
+import           Snap.Snaplet
+import           Snap.Snaplet.Auth
 
 import           Codex.Utils
 import           Codex.Types
@@ -27,46 +33,76 @@ import           Codex.Tester.Result
 import           Text.Pandoc
 import           Text.Pandoc.Builder
 
+import           Data.Version                                (showVersion)
+import           Paths_codex                                 (version)
 
-handlePrintout :: Codex ()
-handlePrintout = do
-  rep <- userReport "pedro"
-  liftIO $ writeFile "pedro.md" (writeMarkdown def rep)
 
+
+-- | produce printouts for final submissions
+handlePrintouts :: Codex ()
+handlePrintouts = do
+  -- ensure that a user with admin privileges is logged in
+  usr <- require (with auth currentUser) <|> unauthorized
+  unless (isAdmin usr) unauthorized  
+  -- fetch configuration options
+  conf <- getSnapletUserConfig
+  dir <- liftIO $ Configurator.require conf "printouts.directory"
+  liftIO $ createDirectoryIfMissing True dir
+  templ <- liftIO $ readFile =<< Configurator.require conf "printouts.template"
+  let opts = def { writerStandalone = True
+                 , writerTemplate = templ
+                 , writerHighlight = True
+                 , writerSetextHeaders = True
+                 }  
+  uids <- querySubmissionUsers
+  writeText $ "Generating " <> T.pack (show $ length uids) <> " printouts:"
+  forM_ uids $ \uid -> do
+    writeText ("\t" <> fromLogin uid)
+    rep <- userReport uid
+    let filepath = dir </> T.unpack (fromLogin uid) <.> "md"
+    liftIO $ writeFile filepath (writeMarkdown opts rep)
+  writeText "\nDone!\n"
 
 
 userReport :: UserLogin -> Codex Pandoc
 userReport uid = do
   base <- getDocumentRoot
-  fullname <- maybe (show uid) T.unpack <$> queryFullname uid
-  exs <- allSubmitted uid
+  now <- liftIO getZonedTime
+  let login = T.unpack $ fromLogin uid
+  fullname <- maybe login T.unpack <$> queryFullname uid
+  -- fetch all submitted exercise paths
+  exs <- querySubmissionPaths uid
   list <- mapM (exerciseReport uid base) exs
-  return (doc $
-           header 1 "Relatório de submissão" <>
-           para (text "Nome:" <> text (fullname)) <>
-           para (text "Login:" <> text (show uid)) <>
-           mconcat list)
+  let title = "Codex " ++ showVersion version
+  return (setTitle (text title) $
+          setAuthors [text $ fullname ++ " (" ++ login ++ ")"] $
+          setDate (text $ show now) $
+          doc $ mconcat list
+         )
 
 
 exerciseReport :: UserLogin -> FilePath -> FilePath -> Codex Blocks
-exerciseReport uid base expath = do
-  page <- liftIO $ readMarkdownFile (base </> expath)
-  optSub <- getLast uid expath
-  let title = maybe (text "Untitled") fromList (pageTitle page)
-  return (header 1 title <>
-          maybe (para "Nenhuma solução submetida.") report optSub
-         )
+exerciseReport uid base path = do
+  page <- liftIO $ readMarkdownFile (base </> path)
+  opt <- getFinal uid path
+  let title = maybe (text path) fromList (pageTitle page)
+  return (header 1 title <> maybe mempty report opt)
   where
     report Submission{..}
-      = header 2 "Resultado" <>
-        para (emph $ text $ show $ resultClassify submitResult) <>
-        header 2 (text "Submissão enviada") <>
-        codeBlock (T.unpack $ codeText submitCode) <>
-        header 2 (text "Relatório detalhado") <>
-        codeBlock (T.unpack $ resultMessage submitResult)
+      = let lang = T.unpack $ fromLanguage $ codeLang submitCode
+            submitted = T.unpack $ codeText submitCode
+            classify = show $ resultClassify submitResult
+            msg = T.unpack $ resultMessage submitResult
+        in
+          header 2 (emph $ text classify)  <>
+          codeBlockWith ("", [lang], []) submitted <>
+          codeBlock msg <>
+          horizontalRule
 
 
-getLast uid ex = do
+-- | get last accepted submission (if any), otherwise the last submission
+getFinal :: UserLogin -> FilePath -> Codex (Maybe Submission)
+getFinal uid ex = do
   s1 <- getLastAccepted uid ex
   s2 <- getLastSubmitted uid ex
   return (s1 <|> s2)

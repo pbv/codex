@@ -60,12 +60,12 @@ type ISplices = Splices (I.Splice Codex)
 getDocumentRoot :: Codex FilePath
 getDocumentRoot = do
   conf <- getSnapletUserConfig
-  liftIO (Configurator.require conf "documentRoot")
+  liftIO (Configurator.require conf "system.documentRoot")
 
 getStaticRoot :: Codex FilePath
 getStaticRoot = do
   conf <- getSnapletUserConfig
-  liftIO (Configurator.require conf "staticRoot")
+  liftIO (Configurator.require conf "system.staticRoot")
 
 
 -- | lookup full name for a user login in Db
