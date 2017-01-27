@@ -283,10 +283,8 @@ reevalSubmissions patts@Patterns{..} sorting  = do
   let patts' = normalizePatterns patts
   count <- countSubmissions patts'
   subs  <- filterSubmissions patts' sorting count 0
-  liftIO $ putStrLn "marking submission state"
   sqlite <- S.getSqliteState
   liftIO $ markEvaluating sqlite (map submitId subs)
-  liftIO $ putStrLn "canceling previous pending evaluations"
   cancelPending
   tids <- mapM evaluate subs
   setPending tids

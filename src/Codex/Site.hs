@@ -177,7 +177,8 @@ readPageLinks uid rqpath = do
   -- fetch submisssion count
   submissions <- HM.fromList <$>
                  forM links ( \url -> do
-                     count <- length <$> getPageSubmissions uid (rqdir</>url)
+                     let ex = normalise (rqdir </> url)
+                     count <- length <$> getPageSubmissions uid ex
                      return (url, count))
   -- patch relevant links
   let patch elm@(Link attr@(_, classes, _) inlines target@(url, _))
