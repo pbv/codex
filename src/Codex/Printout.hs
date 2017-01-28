@@ -5,13 +5,10 @@
 module Codex.Printout(
   handlePrintouts
   ) where
--- import           Prelude hiding (catch)
+
 import           System.FilePath
 import           Data.Time.LocalTime
 import           System.Directory
--- import           System.Process
--- import           System.IO.Error
-
 
 import qualified Data.Text as T
 import           Control.Monad (unless, forM_)
@@ -52,7 +49,7 @@ handlePrintouts = do
   let opts = def { writerStandalone = True
                  , writerTemplate = templ
                  , writerHighlight = True
-                 , writerSetextHeaders = True
+                 , writerSetextHeaders = False
                  }  
   uids <- querySubmissionUsers
   writeText $ "Generating " <> T.pack (show $ length uids) <> " printouts:"
@@ -64,6 +61,7 @@ handlePrintouts = do
   writeText "\nDone!\n"
 
 
+-- | report submissions for a single user
 userReport :: UserLogin -> Codex Pandoc
 userReport uid = do
   base <- getDocumentRoot
@@ -81,21 +79,27 @@ userReport uid = do
          )
 
 
+-- | report best submission for a user an exercise
 exerciseReport :: UserLogin -> FilePath -> FilePath -> Codex Blocks
 exerciseReport uid base path = do
   page <- liftIO $ readMarkdownFile (base </> path)
   opt <- getFinal uid path
   let title = maybe (text path) fromList (pageTitle page)
-  return (header 1 title <> maybe mempty report opt)
+  return (maybe mempty (report title) opt)
   where
-    report Submission{..}
+    report title Submission{..}
       = let lang = T.unpack $ fromLanguage $ codeLang submitCode
             submitted = T.unpack $ codeText submitCode
             classify = show $ resultClassify submitResult
             msg = T.unpack $ resultMessage submitResult
         in
-          header 2 (emph $ text classify)  <>
-          codeBlockWith ("", [lang], []) submitted <>
+          header 1 title <>
+          header 2 (strong (text classify) <>
+                    space <>
+                    emph (text $ "(" ++ show submitTiming ++ ")")) <>
+          para (text ( "Submission " ++ show submitId ++
+                       "; " ++ show submitTime)) <>
+          codeBlockWith ("", [lang, "numberLines"], []) submitted <>
           codeBlock msg <>
           horizontalRule
 
