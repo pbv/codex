@@ -10,3 +10,5 @@
 * allows testing single units rather than complete programs (e.g. functions)
 * it can provide automatic feedback (failed test cases)
 * supports Python (using doctests), and Haskell (using QuickCheck); C is also suported using the Haskell FFI
+
+The user guide is available [here](http://rawgit.com/pbv/codex/master/doc/USER-GUIDE.html).
