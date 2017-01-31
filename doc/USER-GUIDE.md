@@ -1,34 +1,36 @@
-
-# Codex User Guide
-
-Pedro Vasconcelos, `pbv@dcc.fc.up.pt`.
-
-Version 0.8, January 2017.
+---
+title: Codex User Guide
+author: Pedro Vasconcelos <pbv@dcc.fc.up.pt>, University of Porto, Portugal. 
+date: January 2017 (version 0.8)
+...
 
 *Codex* is a web system for setting up exercises with automatic
 assessment for programming classes.  Unlike other systems for this
 same purpose, it aims on providing good automatic feedback by using
 [state-of-art](http://www.cse.chalmers.se/~rjmh/QuickCheck/manual.html)
-[automatic testing tools](https://docs.python.org/2/library/doctest.html).
-It is also directed more towards a learning environment
-rather than for programming contests;
-[Mooshak](https://mooshak.dcc.fc.up.pt/) is a better tool
-for the later purpose.
+[automatic testing tools](https://docs.python.org/3.7/library/doctest.html).
+Consequently, it is more directed towards a learning environments rather than
+programming contests; for the later,
+[Mooshak](https://mooshak.dcc.fc.up.pt/) would be a better tool.
 
-Althought *Codex* is stil in early development stage, it is already
+
+Althought Codex is stil in early development stage, it is already
 being used in the Faculty of Science of the University of Porto for
 teaching introductory courses on programming in Python.
 
-This guide explains how to write *Codex* exercise pages.
+This guide describes how to write exercises and test
+specifications for Codex.
 
-## Pages
+# Pages
 
-Codex repositories are organized into *pages*.  A page can contain
-formated text, links, tables, images, mathematics, etc.
-
+Codex exercise repositories are organized into *pages*.
+A page can contain formated text, links, tables, images, mathematics, etc.
 Codex pages are simple text files with the `.md` extension;
-Markdown annotations are used for formating.
-Here is an example page:
+[Markdown](https://en.wikipedia.org/wiki/Markdown) is used for formating.
+
+## Markdown files
+
+Let us start with an example page file:
 
 ~~~~{style="margin: 2em; padding: 1em; width: 50em; border: solid; border-width: 1px;"}
 # This is a header
@@ -36,7 +38,7 @@ Here is an example page:
 ## This is a sub-header
 
 This is the first paragraph. This sentence shows *emphasis*,
-**strong emphasis** and `inline-code style`.
+**strong emphasis** and `monospace text`.
 
 This is another paragraph with an itemized list:
 
@@ -44,7 +46,7 @@ This is another paragraph with an itemized list:
 2. second item;
 3. last item.
 
-~~~{.python}
+~~~python
 # a verbatim code block (with Python highlighting)
 def dist(x, y):
    return sqrt(x*x + y*y)
@@ -57,50 +59,26 @@ inline $h = \sqrt{x^2+y^2}$ or as displayed equations:
 $$ erf(x) = \frac{1}{\sqrt{x}}\int_{-x}^x e^{-t^2} dt\,. $$
 ~~~~
 
-The above could be rendered in HTML as follows:
+The above could be rendered into HTML as follows:
 
-<div style="margin:2em; padding:1em; width:50em; border:solid; border-width:1px;">
-# This is a header
-
-## This is a sub-header
-
-This is the first paragraph. This sentence shows *emphasis*,
-**strong emphasis** and `inline-code style`.
-
-This is another paragraph with an itemized list:
-
-1. first item;
-2. second item;
-3. last item.
+![Example page rendering](example-render-1.png)\
  
-~~~{.python}
-# a verbatim code block (with Python highlighting)
-def dist(x, y):
-  return sqrt(x*x + y*y)
-~~~
-
-This is a link to [Google's home page](http://www.google.com).
-
-You can also include LaTeX mathematics either 
-inline $h = \sqrt{x^2+y^2}$ or as displayed equations:
-$$ erf(x) = \frac{1}{\sqrt{x}}\int_{-x}^x e^{-t^2} dt\,. $$
-</div>
-
 Codex uses the
 [Pandoc library](http://hackage.haskell.org/package/pandoc) for
 reading and rendering Markdown and [MathJaX](http://www.mathjax.org)
 for displaying mathematics.  For details on the Markdown syntax
 accepted, check the
 [Pandoc user manual](http://pandoc.org/MANUAL.html#pandocs-markdown).
-Note, however, that raw HTML markup is *not* accepted (it will simply
-be escaped and rendered as ordinary text).
+Note, however, that raw HTML markup commands will be escaped and
+rendered as ordinary text; this ensures that the generated HTML pages 
+are always well-formed.
 
 
 ## Metadata blocks
 
-Markdown text can also include YAML metadata blocks delimited between 3
-dashes (`---`) and 3 full stops (`...`); here
-is an example:
+Markdown text can also include YAML metadata blocks delimited
+between 3 dashes (`---`) and 3 full stops (`...`); for 
+example:
 
 ~~~~
 ---
@@ -120,36 +98,40 @@ while others (like `exercise` and  `language`) are specific
 to exercise testing in Codex. These are described 
 in detail in a [later section](#metadata-fields).
 
-
 ## Exercise pages
 
 A page marked with metadata `exercise: true` is an
 *exercise page*; this means that users will be able to:
 
 * *submit* solutions for automatic assessment;
-* *view feedback* on their submissions;
-* *view* past submissions and feedback;
+* *get feedback* on their submissions;
+* *view past submissions* and feedback;
 * *edit and re-submit* past submissions.
 
-Any user can submit to any exercise.  Note that exercises are
-identified in the submissions database by the page's *request path*
-relative to the `/pub` handle; e.g. an exercise with URL
-`https://server.domain/pub/foo/bar.md` is identified as `foo/bar.md`.
-This means that if the file name or path are modified, any previous
-submissions will no longer be visible (but will still be recorded in
-the database).
+Users must be logged-in to view and submit solutions; other than that,
+users can submit any number of attempts for any exercise.
+Previous submissions are kept in a persistent disk database; only the
+adminstrator can remove  or re-evaluate submissions.
 
+Note that an exercise is identified by the exercise page's *request
+path* relative to the `/pub` handle; e.g. an exercise at URL
+`https://server.domain/pub/foo/bar.md` is identified as `foo/bar.md`.
+This means that the adminstrator is free to edit the exercise file
+and/or tests even after submissions have started (e.g. to correct
+errors); on the other hand, if the file name is modified, previous
+submissions will still be recorded in the database will no longer be
+associated with the changed exercise.
 
 ## Linking exercise pages
 
-After a successful login, Codex shows an `index.md` page; 
-authors should edit this page to link other pages and exercises.
+After sucessful login, the user is directed the `index.md` page at the
+root public directory; the adminstrator should edit this page to link
+other pages and exercises.
 
-For example, supose you have created
-exercises `work1.md`, `work2.md` and `work3.md`; here is a suitable `index.md`
-page:
+For example, supose you have created 3 exercises `work1.md`, `work2.md`
+and `work3.md`; a minimal `index.md` page could be:
 
-~~~{style="margin: 2em; padding: 1em; width: 50em; border: solid; border-width: 1px;"}
+~~~{style="margin:2em; padding:1em; width:50em; border: solid;border-width:1px;"}
 # Welcome!
 
 Here is a list of available exercises:
@@ -159,38 +141,50 @@ Here is a list of available exercises:
 3. [](work3.md){.ex}
 ~~~
 
-Links for exercises are marked with a special class `.ex`.
-Codex will then automatically fill-in the exercise title for link anchor
-text with and insert a short summary of previous submissions by the
+Exercise links are marked with a special class `.ex`: Codex will
+automatically fill-in the link anchor text with an exercise title
+and insert a short summary of previous submissions done by the
 logged-in user.
 
-Note also that authors can freely modify exercise order,
-or group exercises by using sections or sub-pages.
-It is also possible to include
-explanatory pages, images or links to external resources.
+The adminstrator can editing the index page to freely choose the order
+of exercises, or group exercises using sections and sub-pages.  It is also
+possible to add plain Markdown pages for documentation, or links to
+external resources.
+
+Note that exercise pages can be accessed and submitted even if they
+are not explicitly linked to the index page by simply typing the URL
+directly in the browser (after a login).
+When developing exercises the administrator can use this feature to
+test new exercises before making them visible for users.
 
 
-## Metadata fields {#metadata-fields}
+## Exercise metadata fields {#metadata-fields}
 
 `title`
 
-:      Specify a title for the exercise; if this is field missing,
-       the first header is used instead.
+:      Specify a title for exercise links; if this is field missing,
+the first header in the document is used instead.
+
+`exercise`
+
+:      Mark a page as an exercise (true/false); this should be complemented by
+specifying the language and test cases.
 
 `language`
 
-:      Specify the programming language for this exercise, e.g. `python`, `haskell`, `c`
+:      Specify the programming language for an this exercise,
+e.g. `python`, `haskell`, `c`
 
 `valid`
 
 :      Specify valid submission time interval; the default
 	   is `always` which means submissions are always valid. Some alternatives:
 
-       - `after 08:00 15/02/2017`
+       - `after 08:00 15/02/2017` 
        - `between 08:00 15/02/2017 and 12:00 15/02/2017`
        - `after 16/02/2017`
 
-       Note that dates and times are interpreted relative to the server local timezone.
+      Note that date (DD/MM/YYYY) and times (HH:MM) are interpreted relative to the server local timezone.
 
 
 `feedback`
@@ -216,22 +210,22 @@ explanatory pages, images or links to external resources.
 
 The following fields are specific to programming languages.
 
-### Python fields
+### Python-specific fields
 
 `doctest`
 
-:      Specifies the file path for a doctest script for submission testing;
+:      Specifies the file path for a *doctest* script for testing Python submissions;
 if omitted, this defaults to the file name for exercise page with
 extension replaced by `.tst`, e.g. the doctest for `foo/bar.md` would
 be `foo/bar.tst`.
 
 
-### Haskell and C fields
-
+### Haskell- and C-specific fields
 
 `quickcheck`
 
-:     Specifies the file name for QuickCheck properties for submission testing.
+:     Specifies the file name for a Haskell file containing
+QuickCheck script for submission Haskell or C testing.
 
 
 `maxSuccess`
@@ -252,30 +246,30 @@ be `foo/bar.tst`.
 use to ensure the reproducibility of QuickCheck test cases.
 
 
+# Assement and Feedback 
 
-## Assement and Feedback 
-
-Codex assesses submissions by testing them against a large number of
-test cases (either provided by the author or randomly-generated).  The
-result of testing is a *classification label*, a *timing label* 
-and a *detailed text message*.
-The classification labels are similar to the ones used for 
+Codex assesses submissions by testing them against test cases (either
+provided by the author or randomly-generated).  The result of testing
+is a *classification label*, a *timing label* and a *detailed text
+message*.  Classification labels are similar to the ones used for
 [ICPC programming contests](https://icpc.baylor.edu/worldfinals/rules)
-(e.g. *Accepted*,  *WrongAnswer*, etc.).
+(e.g. *Accepted*, *WrongAnswer*, etc.).
 
 When submission are rejected because of a wrong answer, the text
 message is a human-readable description of a failed test case; this
 can be used by the student as a starting point for aiding debugging.
 
-
-Note that Codex will *always* process submissions regardless
+Note that Codex will *always* evaluate submissions
+(and report feedback if enabled) regardless
 of the timing interval specified an exercise; however:
 
 * the system will not show any feedback for early submissions
-until the start of submission interval;
-* late submissions will be marked as *Overdue*; it is up to
-the exercise author to decide how handle these cases.
+  until the start of submission interval;
+* late submissions will simply be marked as *Overdue*; it is up to
+  the administrator to decide how value these submissions.
 
+
+## Feedback 
 
 ### Classification labels
 
@@ -326,6 +320,112 @@ end-users should never see this.
 
 :    Received after the end of the submission interval.
 
+
+## Specifying test cases
+
+### Python
+
+Test cases for Python submissions are specified
+using the [*doctest* library](https://docs.python.org/3.7/library/doctest.html).
+
+Consider an hypothetical simple exercise: compute rounded-down
+integral square roots.  The exercise file `root.md` could be as
+follows:
+
+~~~~{style="margin:2em; padding:1em; width:50em; border: solid;border-width:1px;"}
+---
+exercise: true
+language: python
+doctest: root.tst
+...
+
+# Compute rounded-down integral square roots
+
+Write a function `root(x)` that computes the square root
+of an integer number rounded-down to the nearest integer
+value.
+
+If the argument `x` is negative the function should
+throw a `ValueError` exception.
+
+Examples:
+
+~~~
+>>> root(4)
+2
+>>> root(5)
+2
+>>> root(10)
+3
+~~~
+~~~~
+
+Note that we illustrate some expected behaviour examples
+mimicking the Python shell interaction.
+
+The metadata field `doctest` specifies a *doctest* script
+with input values and output results;
+this a separate text file `root.tst`:
+
+~~~{style="margin:2em; padding:1em; width:50em; border: solid;border-width:1px;"}
+>>> root(0)
+0
+>>> root(1)
+1
+>>> root(2)
+1
+>>> root(4)
+2
+>>> root(5)
+2
+>>> root(10)
+3
+>>> root(25)
+5
+>>> root(-1)
+Traceback (most recent call last):
+  ...
+ValueError: math domain error
+~~~
+
+For each student submission, the above tests
+will be tried in order;
+testing terminates immediately if any of tests fails (with a wrong
+answer or a runtime exception) and the failed test case is used to
+produce the student report, e.g.:
+
+~~~
+Failed example:
+    root(2)
+Expected:
+    1
+Got:
+    1.4142135623730951
+~~~
+
+Some advices:
+
+* order the test cases such that simplest input values occur first;
+* be aware that *doctest* employs a straight textual matching of outputs
+(e.g. `0` and `0.0` are distinct);
+* make sure you normalize floating-point results
+to avoid precision issues, e.g. use `round`(..., *n-decimals*`)`
+* to discourage students from "fixing" submissions by copy-pasting
+failed tests, it is best to gerate a large number (50-100) of test
+cases (write a Python script);
+* you can test the correct handling of invalid situations by requiring
+that proper exceptions are thrown;
+* you can control the level of feedback using the `feedback` metadata field
+(e.g. omit actual test inputs).
+
+
+### Haskell
+
+TO BE DONE 
+ 
+### C
+
+TO BE DONE 
 
 ----
 
