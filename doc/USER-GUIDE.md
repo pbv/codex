@@ -4,29 +4,39 @@ author: Pedro Vasconcelos <pbv@dcc.fc.up.pt>, University of Porto, Portugal.
 date: January 2017 (version 0.8)
 ...
 
-*Codex* is a web system for setting up exercises with automatic
-assessment for programming classes.  Unlike other systems for this
-same purpose, it aims on providing good automatic feedback by using
-[state-of-art](http://www.cse.chalmers.se/~rjmh/QuickCheck/manual.html)
-[automatic testing tools](https://docs.python.org/3.7/library/doctest.html).
-Consequently, it is more directed towards a learning environments rather than
-programming contests; for the later,
-[Mooshak](https://mooshak.dcc.fc.up.pt/) would be a better tool.
+*Codex* is a web system for setting up programming exercises with
+automatic assessment. 
+Codex is intended for learning environments
+rather than programming contests (for the later,
+[Mooshak](https://mooshak.dcc.fc.up.pt/) is a better tool).
+Its aims are:
+
+* *simple exercise authoring*; seting a new exercise requires
+writing just two text files (a text description and test specification);
+* *allow testing fragments* e.g. functions or classes rather
+than complete programs;
+* *provide good automatic feedback*; rather than
+just run a handful of tests and report an *accept/reject* result,
+Codex uses [state-of-art](http://www.cse.chalmers.se/~rjmh/QuickCheck/manual.html)
+[automatic testing tools](https://docs.python.org/3.7/library/doctest.html)
+to run tens or hundrends of tests; if an error is found,
+it reports a *short failure example*.
 
 
-Althought Codex is stil in early development stage, it is already
-being used in the Faculty of Science of the University of Porto for
-teaching introductory courses on programming in Python.
+Althought Codex is stil in an early development stage, it is already
+in use at the Faculty of Science of the University of Porto for
+teaching introductory courses on Python programming.
 
-This guide describes how to write exercises and test
-specifications for Codex.
+This guide describes how to write exercises and test specifications
+for Codex.
 
 # Pages
 
-Codex exercise repositories are organized into *pages*.
-A page can contain formated text, links, tables, images, mathematics, etc.
-Codex pages are simple text files with the `.md` extension;
-[Markdown](https://en.wikipedia.org/wiki/Markdown) is used for formating.
+Codex exercise repositories are organized into *pages*.  A page can
+contain formated text, links, tables, images, mathematics, etc.  Codex
+pages are simple text files with the `.md` extension;
+[Markdown](https://en.wikipedia.org/wiki/Markdown) is used for
+formating.
 
 ## Markdown files
 
@@ -59,7 +69,7 @@ inline $h = \sqrt{x^2+y^2}$ or as displayed equations:
 $$ erf(x) = \frac{1}{\sqrt{x}}\int_{-x}^x e^{-t^2} dt\,. $$
 ~~~~
 
-The above could be rendered into HTML as follows:
+The above text could be rendered into HTML as follows:
 
 ![Example page rendering](example-render-1.png)\
  
@@ -91,12 +101,12 @@ language: python
 
 Metadata blocks can occur anywhere, but the convention is to put
 them at the beginning of the document.  Several metatata blocks are
-also allowed and equivalent to a single one with all collected fields.
+allowed and equivalent to a single one with all collected fields.
 
-Some fields (like `author` and `title`) are generic,
-while others (like `exercise` and  `language`) are specific
-to exercise testing in Codex. These are described 
-in detail in a [later section](#metadata-fields).
+Some fields (like `author` and `title`) are generic, while others
+(like `exercise` and `language`) are specific to exercise testing in
+Codex. These are described in detail in a
+[later section](#metadata-fields).
 
 ## Exercise pages
 
@@ -108,25 +118,25 @@ A page marked with metadata `exercise: true` is an
 * *view past submissions* and feedback;
 * *edit and re-submit* past submissions.
 
-Users must be logged-in to view and submit solutions; other than that,
-users can submit any number of attempts for any exercise.
+Users must be logged-in to view pages and submit solutions; other than
+that, users can submit any number of attempts for any exercise.
 Previous submissions are kept in a persistent disk database; only the
-adminstrator can remove  or re-evaluate submissions.
+adminstrator can remove or re-evaluate submissions.
 
 Note that an exercise is identified by the exercise page's *request
 path* relative to the `/pub` handle; e.g. an exercise at URL
 `https://server.domain/pub/foo/bar.md` is identified as `foo/bar.md`.
 This means that the adminstrator is free to edit the exercise file
 and/or tests even after submissions have started (e.g. to correct
-errors); on the other hand, if the file name is modified, previous
-submissions will still be recorded in the database will no longer be
-associated with the changed exercise.
+errors); on the other hand, if the file name is modified, any
+previous submissions are still recorder, but will no longer be
+associated with the modified exercise.
 
 ## Linking exercise pages
 
-After sucessful login, the user is directed the `index.md` page at the
-root public directory; the adminstrator should edit this page to link
-other pages and exercises.
+The initial view for users is the `index.md` page at the root public
+directory; the adminstrator should edit this page to link other pages
+and exercises.
 
 For example, supose you have created 3 exercises `work1.md`, `work2.md`
 and `work3.md`; a minimal `index.md` page could be:
@@ -141,20 +151,19 @@ Here is a list of available exercises:
 3. [](work3.md){.ex}
 ~~~
 
-Exercise links are marked with a special class `.ex`: Codex will
-automatically fill-in the link anchor text with an exercise title
-and insert a short summary of previous submissions done by the
-logged-in user.
+Exercise links are marked with a special class `.ex`; this
+the link anchor text is automatically filled with the exercise title;
+a short summary of previous submissions done by the
+logged-in user is also added.
 
-The adminstrator can editing the index page to freely choose the order
+The adminstrator can edit the index page to choose the order
 of exercises, or group exercises using sections and sub-pages.  It is also
 possible to add plain Markdown pages for documentation, or links to
 external resources.
 
 Note that exercise pages can be accessed and submitted even if they
 are not explicitly linked to the index page by simply typing the URL
-directly in the browser (after a login).
-When developing exercises the administrator can use this feature to
+directly in the browser (after a login).  You can use this feature to
 test new exercises before making them visible for users.
 
 
@@ -172,7 +181,7 @@ specifying the language and test cases.
 
 `language`
 
-:      Specify the programming language for an this exercise,
+:      Specify the programming language for an exercise,
 e.g. `python`, `haskell`, `c`
 
 `valid`
@@ -216,8 +225,8 @@ The following fields are specific to programming languages.
 
 :      Specifies the file path for a *doctest* script for testing Python submissions;
 if omitted, this defaults to the file name for exercise page with
-extension replaced by `.tst`, e.g. the doctest for `foo/bar.md` would
-be `foo/bar.tst`.
+extension replaced by `.tst`, e.g. the default doctest for `foo/bar.md` is
+`foo/bar.tst`.
 
 
 ### Haskell- and C-specific fields
@@ -225,7 +234,7 @@ be `foo/bar.tst`.
 `quickcheck`
 
 :     Specifies the file name for a Haskell file containing
-QuickCheck script for submission Haskell or C testing.
+QuickCheck script for Haskell or C submission testing.
 
 
 `maxSuccess`
@@ -234,7 +243,7 @@ QuickCheck script for submission Haskell or C testing.
 
 `maxSize`
 
-:     Maximum size for QuickCheck generated test cases.
+:     Maximum size for QuickCheck generated test data.
 
 `maxDiscardRatio`
 
@@ -242,30 +251,31 @@ QuickCheck script for submission Haskell or C testing.
 
 `randSeed`
 
-:     Integer seed value for pseudo-random test cases generation;
-use to ensure the reproducibility of QuickCheck test cases.
+:     Integer seed value for pseudo-random test data generation;
+use if you want to ensure reproducibility of QuickCheck tests.
 
 
 # Assement and Feedback 
 
 Codex assesses submissions by testing them against test cases (either
-provided by the author or randomly-generated).  The result of testing
-is a *classification label*, a *timing label* and a *detailed text
-message*.  Classification labels are similar to the ones used for
+provided by the author or randomly-generated).  The result 
+is a *classification label*, a *timing label* and a (possibly empty)
+*detail text report*.  Classification labels are similar to the ones used for
 [ICPC programming contests](https://icpc.baylor.edu/worldfinals/rules)
 (e.g. *Accepted*, *WrongAnswer*, etc.).
 
-When submission are rejected because of a wrong answer, the text
-message is a human-readable description of a failed test case; this
-can be used by the student as a starting point for aiding debugging.
+When submission are rejected due to wrong answers, the text
+report includes a human-readable description of a failed test case; this
+is intended for the student to use as a starting point for
+understanding the problem and debugging.
 
-Note that Codex will *always* evaluate submissions
-(and report feedback if enabled) regardless
-of the timing interval specified an exercise; however:
+Note that Codex will *always* evaluate submissions (and report
+feedback if enabled) regardless of the timing interval specified an
+exercise; however:
 
-* the system will not show any feedback for early submissions
+* it will hide feedback for early submissions
   until the start of submission interval;
-* late submissions will simply be marked as *Overdue*; it is up to
+* late submissions will be marked as *Overdue*; it is up to
   the administrator to decide how value these submissions.
 
 
@@ -293,17 +303,17 @@ test case.
 
 *RuntimeLimitExceeded*, *MemoryLimitExceeded*
 
-:     The submission was reject because it tried to use too much computing resources
-(e.g. non-terminating program).
+:     The submission was reject because it tried to use too much computing resources;
+this usually signals an erroneous program (e.g. non-terminating).
 
 *MiscError*
 
-:     Some other error (e.g. incorrect metadata fields, test files, etc.)
+:     Some other error (e.g. incorrect metadata, test files, etc.)
 
 
 *Evaluating*
 
-:     Temporary result while waiting for evaluation;
+:     Temporary label assigned while evaluation is pending;
 end-users should never see this.
 
 ### Timing labels
@@ -339,7 +349,7 @@ language: python
 doctest: root.tst
 ...
 
-# Compute rounded-down integral square roots
+# Compute rounded-down integer square roots
 
 Write a function `root(x)` that computes the square root
 of an integer number rounded-down to the nearest integer
@@ -421,8 +431,64 @@ that proper exceptions are thrown;
 
 ### Haskell
 
-TO BE DONE 
- 
+Haskell submissions can be tested using the
+[QuickCheck library](http://www.cse.chalmers.se/~rjmh/QuickCheck/manual.html).
+A QuickCheck specification consists of a set of *properties* and possibly
+*test data generators*; the QuickCheck library includes
+default generators for basic types, tuples, lists, etc.
+
+Consider the an example exercise: merging elements from two ordered lists;
+the page text file is as follows:
+
+~~~~{style="margin:2em; padding:1em; width:50em; border: solid;border-width:1px;"}
+---
+exercise: true
+language: haskell
+quickcheck: merge.hs
+...
+
+# Merge two ordered lists
+
+Write a function `merge :: Ord a => [a] -> [a] -> [a]`{.haskell}
+that merges two lists in ascending order; the result list
+should preserve the ordering and contain all elements from
+both lists.
+~~~~
+
+The QuickCheck script `merge.hs` is a straightforward translation
+of the above specification:
+
+~~~~{.haskell style="margin:2em; padding:1em; width:50em; border: solid;border-width:1px;"}
+import Test.QuickCheck
+import Data.List ((\\))
+
+-- 1) merge preserves ordering
+prop_ordered :: OrderedList Int -> OrderedList Int -> Bool
+prop_ordered (Ordered xs) (Ordered ys)
+    = ascending (Submit.merge xs ys)
+
+-- 2) merge preserves elements
+prop_elements :: OrderedList Int -> OrderedList Int -> Bool
+prop_elements (Ordered xs) (Ordered ys)
+    = permutation (Submit.merge xs ys) (xs ++ ys)
+
+-- auxiliary definitions
+-- check if a list is in ascending order
+ascending xs = and (zipWith (<=) xs (tail xs))
+-- check if two lists are permutations
+permutation xs ys = null (xs \\ ys) && null (ys \\ xs)
+~~~~
+
+Some remarks:
+
+* the user submission is implicitly imported qualified as a module `Submit`;
+* all properties (e.g. functions starting with `prop_`) will be tested;
+* note that although `merge` is polymorphic, we need to choose
+a monomorphic type for testing (`Int`); 
+* we used the default generators for `Int` and `OrderedList` wrapper 
+defined in the QuickCheck library (no need to define a custom generator);
+
+
 ### C
 
 TO BE DONE 

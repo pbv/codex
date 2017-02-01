@@ -8,7 +8,6 @@
     <script src="/static/ace-builds/src-min-noconflict/ace.js" type="text/javascript" charset="utf-8"></script>
     <script src="/static/ace-builds/src-min-noconflict/ext-modelist.js" type="text/javascript" charset="utf-8"></script>
     <script type="text/javascript" src="/static/js/ace-glue.js"/>
-    <script type="text/javascript" src="/static/js/timer.js"/>
     <evaluating>
       <META HTTP-EQUIV="refresh" CONTENT="5">
     </evaluating>

@@ -60,7 +60,6 @@ evaluateWith tester sub = do
       Nothing ->
         updateSubmission sqlite sid (wrongInterval page) Valid
       Just t -> do
-        putStrLn $ "start evaluation of submission " ++ show sid
         let code = submitCode sub     -- ^ program code
         mayResult <- runTester conf filepath page code tester
                      `catch`
@@ -68,7 +67,6 @@ evaluateWith tester sub = do
                          return (Just $ miscError $ T.pack $ show e))
         let result = fromMaybe (missingTester code) mayResult
         updateSubmission sqlite sid result t
-        putStrLn $ "end evaluation of submission " ++ show sid
 
 
 wrongInterval :: Page -> Result

@@ -311,17 +311,13 @@ cancelPending :: Codex ()
 cancelPending = do
   mv <- gets evalThreads
   tids <- liftIO $ takeMVar mv
-  liftIO $ do
-    putStrLn $ "canceling " ++ show (length tids) ++ " threads"
-    mapM_ killThread tids
+  liftIO $ mapM_ killThread tids
 
 
 setPending :: [ThreadId] -> Codex ()
 setPending tids = do
   mv <- gets evalThreads
-  liftIO $ do
-    putStrLn $ "created " ++ show (length tids) ++ " threads"
-    putMVar mv tids
+  liftIO $ putMVar mv tids
 
 
 
