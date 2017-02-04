@@ -17,14 +17,6 @@ Flag development
 Flag old-base
   default: False
   manual: False
-
-Library
-  hs-source-dirs: src
-  exposed-modules:
-    Test.QuickCheck.C
- Build-depends:
-    base                      >= 4.4,
-    QuickCheck                >= 2.8
     
 Executable codex-server
   hs-source-dirs: src
@@ -90,8 +82,7 @@ Executable codex-server
     base                      >= 4.4,
     lens                      >= 3.7.6,
     process-extras            >= 0.3.3,
-    QuickCheck                >= 2.8,
-    codex
+    QuickCheck                >= 2.8
 
   if flag(development)
     build-depends:
@@ -110,10 +101,6 @@ Executable codex-server
     else
       ghc-options: -threaded -Wall -fwarn-tabs -funbox-strict-fields -O2
                    -fno-warn-orphans
-
-
-                   Executable codex-tester 
-
     
 Executable codex-tester
   hs-source-dirs: src
@@ -156,5 +143,4 @@ Executable codex-tester
     base                      >= 4.4,
     lens                      >= 3.7.6,
     process-extras            >= 0.3.3,
-    QuickCheck                >= 2.8,
-    codex
+    QuickCheck                >= 2.8
