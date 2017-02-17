@@ -106,8 +106,16 @@ class Turtle:
         this.__heading = 0.0
         this.__pendown = True
 
+    def clear(this):
+        this.__cmdlist = []
+
     def commands(this):
-        return this.__cmdlist
+        if this.__cmdlist == []:
+            print("*** No turtle commands ***")
+        else:
+            for cmd in this.__cmdlist:
+                print(cmd)
+
 
     def penup(this):
         this.__cmdlist.append(__penUp__)
@@ -147,6 +155,9 @@ class Turtle:
 __turtle__ = Turtle()
 
 # wrappers for default turtle
+def clear():
+    __turtle__.clear()
+
 def reset():
     __turtle__.reset()
 
