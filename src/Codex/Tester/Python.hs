@@ -28,7 +28,8 @@ pythonTester = language "python" $ \code -> do
       let sf = sf2 `override` sf1
       let tstfile = getDoctest path page
       c <- doesFileExist tstfile
-      if c then
+      if c then do
+          allowAnyRead tstfile 
           withTextTemp "tmp.py" code $ \pyfile ->
                  pythonResult <$>
                  safeExecWith sf python [pytest, scripts, tstfile, pyfile] ""
