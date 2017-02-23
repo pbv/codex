@@ -71,7 +71,7 @@ $$ erf(x) = \frac{1}{\sqrt{x}}\int_{-x}^x e^{-t^2} dt\,. $$
 
 The above text could be rendered into HTML as follows:
 
-![Example page rendering](example-render-1.png)\
+![Example page rendering](example-render-1.png){style="border:solid; border-width:1px"}
  
 Codex uses the
 [Pandoc library](http://hackage.haskell.org/package/pandoc) for
@@ -79,9 +79,9 @@ reading and rendering Markdown and [MathJaX](http://www.mathjax.org)
 for displaying mathematics.  For details on the Markdown syntax
 accepted, check the
 [Pandoc user manual](http://pandoc.org/MANUAL.html#pandocs-markdown).
-Note, however, that raw HTML markup commands will be escaped and
-rendered as ordinary text; this ensures that the generated HTML pages 
-are always well-formed.
+Note that (unlike the usual Markdown behaviour) raw HTML markup
+commands will be escaped and rendered as ordinary text; this ensures
+that the generated HTML pages are always well-formed.
 
 
 ## Metadata blocks
@@ -128,7 +128,7 @@ path* relative to the `/pub` handle; e.g. an exercise at URL
 `https://server.domain/pub/foo/bar.md` is identified as `foo/bar.md`.
 This means that the adminstrator is free to edit the exercise file
 and/or tests even after submissions have started (e.g. to correct
-errors); on the other hand, if the file name is modified, any
+errors); on the other hand, if the path is modified, any
 previous submissions are still recorder, but will no longer be
 associated with the modified exercise.
 
@@ -151,10 +151,10 @@ Here is a list of available exercises:
 3. [](work3.md){.ex}
 ~~~
 
-Exercise links are marked with a special class `.ex`; this
-the link anchor text is automatically filled with the exercise title;
-a short summary of previous submissions done by the
-logged-in user is also added.
+Exercise links should be marked with a special class `.ex`;
+this automatically fills the link anchor text with the exercise
+title.  A short summary of previous submissions done by the logged-in
+user is also added.
 
 The adminstrator can edit the index page to choose the order
 of exercises, or group exercises using sections and sub-pages.  It is also
@@ -191,9 +191,9 @@ e.g. `python`, `haskell`, `c`
 
        - `after 08:00 15/02/2017` 
        - `between 08:00 15/02/2017 and 12:00 15/02/2017`
-       - `after 16/02/2017`
+       - `until 16/02/2017`
 
-      Note that date (DD/MM/YYYY) and times (HH:MM) are interpreted relative to the server local timezone.
+      Note that date (DD/MM/YYYY) and times (HH:MM) are relative to the server local timezone.
 
 
 `feedback`
@@ -223,10 +223,10 @@ The following fields are specific to programming languages.
 
 `doctest`
 
-:      Specifies the file path for a *doctest* script for testing Python submissions;
-if omitted, this defaults to the file name for exercise page with
-extension replaced by `.tst`, e.g. the default doctest for `foo/bar.md` is
-`foo/bar.tst`.
+:     Specifies the file path for a *doctest* script for testing Python
+submissions; if omitted, this defaults to the file name for exercise
+page with extension replaced by `.tst`, e.g. the default doctest for
+`foo/bar.md` is `foo/bar.tst`.
 
 
 ### Haskell- and C-specific fields
@@ -264,19 +264,21 @@ is a *classification label*, a *timing label* and a (possibly empty)
 [ICPC programming contests](https://icpc.baylor.edu/worldfinals/rules)
 (e.g. *Accepted*, *WrongAnswer*, etc.).
 
-When submission are rejected due to wrong answers, the text
+When submissions are rejected because of wrong answers, the text
 report includes a human-readable description of a failed test case; this
 is intended for the student to use as a starting point for
 understanding the problem and debugging.
 
 Note that Codex will *always* evaluate submissions (and report
-feedback if enabled) regardless of the timing interval specified an
+feedback if enabled) regardless of the time interval specified in the
 exercise; however:
 
 * it will hide feedback for early submissions
   until the start of submission interval;
-* late submissions will be marked as *Overdue*; it is up to
-  the administrator to decide how value these submissions.
+* late submissions are assessed as usual but
+  additionally labelled *Overdue*[^1].
+
+[^1]: This behaviour allows both students to retry past exercises and leaves teachers freedom to decide how to rate late submissions. 
 
 
 ## Feedback 

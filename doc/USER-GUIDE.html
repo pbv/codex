@@ -88,8 +88,11 @@ You can also include LaTeX mathematics either
 inline $h = \sqrt{x^2+y^2}$ or as displayed equations:
 $$ erf(x) = \frac{1}{\sqrt{x}}\int_{-x}^x e^{-t^2} dt\,. $$</code></pre>
 <p>The above text could be rendered into HTML as follows:</p>
-<p><img src="example-render-1.png" alt="Example page rendering" /><br />
-Codex uses the <a href="http://hackage.haskell.org/package/pandoc">Pandoc library</a> for reading and rendering Markdown and <a href="http://www.mathjax.org">MathJaX</a> for displaying mathematics. For details on the Markdown syntax accepted, check the <a href="http://pandoc.org/MANUAL.html#pandocs-markdown">Pandoc user manual</a>. Note, however, that raw HTML markup commands will be escaped and rendered as ordinary text; this ensures that the generated HTML pages are always well-formed.</p>
+<div class="figure">
+<img src="example-render-1.png" alt="Example page rendering" style="border:solid; border-width:1px" />
+<p class="caption">Example page rendering</p>
+</div>
+<p>Codex uses the <a href="http://hackage.haskell.org/package/pandoc">Pandoc library</a> for reading and rendering Markdown and <a href="http://www.mathjax.org">MathJaX</a> for displaying mathematics. For details on the Markdown syntax accepted, check the <a href="http://pandoc.org/MANUAL.html#pandocs-markdown">Pandoc user manual</a>. Note that (unlike the usual Markdown behaviour) raw HTML markup commands will be escaped and rendered as ordinary text; this ensures that the generated HTML pages are always well-formed.</p>
 <h2 id="metadata-blocks"><span class="header-section-number">1.2</span> Metadata blocks</h2>
 <p>Markdown text can also include YAML metadata blocks delimited between 3 dashes (<code>---</code>) and 3 full stops (<code>...</code>); for example:</p>
 <pre><code>---
@@ -109,7 +112,7 @@ language: python
 <li><em>edit and re-submit</em> past submissions.</li>
 </ul>
 <p>Users must be logged-in to view pages and submit solutions; other than that, users can submit any number of attempts for any exercise. Previous submissions are kept in a persistent disk database; only the adminstrator can remove or re-evaluate submissions.</p>
-<p>Note that an exercise is identified by the exercise page's <em>request path</em> relative to the <code>/pub</code> handle; e.g. an exercise at URL <code>https://server.domain/pub/foo/bar.md</code> is identified as <code>foo/bar.md</code>. This means that the adminstrator is free to edit the exercise file and/or tests even after submissions have started (e.g. to correct errors); on the other hand, if the file name is modified, any previous submissions are still recorder, but will no longer be associated with the modified exercise.</p>
+<p>Note that an exercise is identified by the exercise page's <em>request path</em> relative to the <code>/pub</code> handle; e.g. an exercise at URL <code>https://server.domain/pub/foo/bar.md</code> is identified as <code>foo/bar.md</code>. This means that the adminstrator is free to edit the exercise file and/or tests even after submissions have started (e.g. to correct errors); on the other hand, if the path is modified, any previous submissions are still recorder, but will no longer be associated with the modified exercise.</p>
 <h2 id="linking-exercise-pages"><span class="header-section-number">1.4</span> Linking exercise pages</h2>
 <p>The initial view for users is the <code>index.md</code> page at the root public directory; the adminstrator should edit this page to link other pages and exercises.</p>
 <p>For example, supose you have created 3 exercises <code>work1.md</code>, <code>work2.md</code> and <code>work3.md</code>; a minimal <code>index.md</code> page could be:</p>
@@ -120,7 +123,7 @@ Here is a list of available exercises:
 1. [](work1.md){.ex}
 2. [](work2.md){.ex}
 3. [](work3.md){.ex}</code></pre>
-<p>Exercise links are marked with a special class <code>.ex</code>; this the link anchor text is automatically filled with the exercise title; a short summary of previous submissions done by the logged-in user is also added.</p>
+<p>Exercise links should be marked with a special class <code>.ex</code>; this automatically fills the link anchor text with the exercise title. A short summary of previous submissions done by the logged-in user is also added.</p>
 <p>The adminstrator can edit the index page to choose the order of exercises, or group exercises using sections and sub-pages. It is also possible to add plain Markdown pages for documentation, or links to external resources.</p>
 <p>Note that exercise pages can be accessed and submitted even if they are not explicitly linked to the index page by simply typing the URL directly in the browser (after a login). You can use this feature to test new exercises before making them visible for users.</p>
 <h2 id="metadata-fields"><span class="header-section-number">1.5</span> Exercise metadata fields</h2>
@@ -139,9 +142,9 @@ Here is a list of available exercises:
 <ul>
 <li><code>after 08:00 15/02/2017</code></li>
 <li><code>between 08:00 15/02/2017 and 12:00 15/02/2017</code></li>
-<li><code>after 16/02/2017</code></li>
+<li><code>until 16/02/2017</code></li>
 </ul>
-<p>Note that date (DD/MM/YYYY) and times (HH:MM) are interpreted relative to the server local timezone.</p>
+<p>Note that date (DD/MM/YYYY) and times (HH:MM) are relative to the server local timezone.</p>
 </dd>
 <dt><code>feedback</code></dt>
 <dd><p>Specify the level of feedback to report (0-100); 0 means no feedback, 50 shows classifications only, 100 shows classifications and failed test cases (default).</p>
@@ -184,11 +187,11 @@ Here is a list of available exercises:
 </dl>
 <h1 id="assement-and-feedback"><span class="header-section-number">2</span> Assement and Feedback</h1>
 <p>Codex assesses submissions by testing them against test cases (either provided by the author or randomly-generated). The result is a <em>classification label</em>, a <em>timing label</em> and a (possibly empty) <em>detail text report</em>. Classification labels are similar to the ones used for <a href="https://icpc.baylor.edu/worldfinals/rules">ICPC programming contests</a> (e.g. <em>Accepted</em>, <em>WrongAnswer</em>, etc.).</p>
-<p>When submission are rejected due to wrong answers, the text report includes a human-readable description of a failed test case; this is intended for the student to use as a starting point for understanding the problem and debugging.</p>
-<p>Note that Codex will <em>always</em> evaluate submissions (and report feedback if enabled) regardless of the timing interval specified an exercise; however:</p>
+<p>When submissions are rejected because of wrong answers, the text report includes a human-readable description of a failed test case; this is intended for the student to use as a starting point for understanding the problem and debugging.</p>
+<p>Note that Codex will <em>always</em> evaluate submissions (and report feedback if enabled) regardless of the time interval specified in the exercise; however:</p>
 <ul>
 <li>it will hide feedback for early submissions until the start of submission interval;</li>
-<li>late submissions will be marked as <em>Overdue</em>; it is up to the administrator to decide how value these submissions.</li>
+<li>late submissions are assessed as usual but additionally labelled <em>Overdue</em><a href="#fn1" class="footnoteRef" id="fnref1"><sup>1</sup></a>.</li>
 </ul>
 <h2 id="feedback"><span class="header-section-number">2.1</span> Feedback</h2>
 <h3 id="classification-labels"><span class="header-section-number">2.1.1</span> Classification labels</h3>
@@ -337,5 +340,11 @@ permutation xs ys <span class="fu">=</span> null (xs \\ ys) <span class="fu">&am
 <p>TO BE DONE</p>
 <hr />
 <p>Pedro Vasconcelos, 2017.</p>
+<div class="footnotes">
+<hr />
+<ol>
+<li id="fn1"><p>This behaviour allows both students to retry past exercises and leaves teachers freedom to decide how to rate late submissions.<a href="#fnref1">↩</a></p></li>
+</ol>
+</div>
 </body>
 </html>
