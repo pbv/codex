@@ -41,6 +41,7 @@ import qualified Snap.Snaplet.SqliteSimple                   as S
 import           Snap.Util.FileServe                         (fileType,
                                                               getSafePath,
                                                               serveDirectory,
+                                                              serveFile,
                                                               serveFileAs)
 
 import           Data.Time.Clock
@@ -288,6 +289,7 @@ routes = [ ("/login",    handleLogin `catch` internalError)
          , ("/export", handleExport `catch` internalError)
          , ("/printouts", handlePrintouts `catch` internalError)
          , ("/static",  (getStaticRoot >>= serveDirectory) <|> notFound)
+         , ("/robots.txt", getStaticRoot >>= \dir -> (serveFile $ dir</>"robots.txt"))
          ]
 
 
