@@ -59,10 +59,16 @@ class Right(TurtleCmd):
 
 ## these two are singletons
 class PenDown(TurtleCmd):
+    def __eq__(this,that):
+        return isinstance(that, PenDown)
+
     def __repr__(this):
         return "pendown()"
         
 class PenUp(TurtleCmd):
+    def __eq__(this,that):
+        return isinstance(that, PenUp)
+    
     def __repr__(this):
         return "penup()"
 
@@ -70,15 +76,8 @@ class PenUp(TurtleCmd):
 class Turtle:
     "Class for turtle programs"
     
-    # create singletons 
-    __penDown__ = PenDown()
-    __penUp__ = PenUp()
-
     def __init__(this):
         this.reset()
-
-    #def __repr__(this):
-    #    return "Turtle(" + repr(this.cmdlist) + ")"
 
     def position(this):
         return (this.__xcoord, this.__ycoord)
@@ -118,12 +117,14 @@ class Turtle:
 
 
     def penup(this):
-        this.__cmdlist.append(__penUp__)
-        this.__pendown = False
+        if this.__pendown:
+            this.__cmdlist.append(PenUp())
+            this.__pendown = False
 
     def pendown(this):
-        this.__cmdlist.append(__penDown__)
-        this.__pendown = True
+        if not this.__pendown:
+            this.__cmdlist.append(PenDown())
+            this.__pendown = True
 
     # rotation command assume degrees
     def left(this, arg):
@@ -192,3 +193,9 @@ def position():
 def goto(x,y):
     __turtle__.goto(x,y)
 
+def penup():
+    __turtle__.penup()
+
+def pendown():
+    __turtle__.pendown()
+    
