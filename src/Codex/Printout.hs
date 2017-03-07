@@ -46,8 +46,8 @@ handlePrintouts = do
   dir <- liftIO $ Configurator.require conf "printouts.directory"
   liftIO $ createDirectoryIfMissing True dir
   templ <- liftIO $ readFile =<< Configurator.require conf "printouts.template"
-  let opts = def { writerStandalone = True
-                 , writerTemplate = templ
+  let opts = def { -- writerStandalone = True
+                   writerTemplate = Just templ
                  , writerHighlight = True
                  , writerSetextHeaders = False
                  }  

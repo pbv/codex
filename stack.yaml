@@ -1,14 +1,12 @@
 flags:
-  generic-deriving:
-    base-4-9: false
   snap-server:
     openssl: true
 
 packages:
 - location: .
-- location:
-     git: https://github.com/pbv/codex-quickcheck.git
-     commit: 988da6dec34ac1255c91ac9287de578dbf403490
+- location: 
+    git: https://github.com/pbv/codex-quickcheck.git
+    commit: 08be6bc5652923ee9c4d95adc264d6f761888913
   extra-dep: true
 
 extra-deps:
@@ -18,9 +16,10 @@ extra-deps:
 - doctemplates-0.1.0.2
 - generic-deriving-1.11.1
 - heist-1.0.1.0
+- map-syntax-0.2.0.2
 - io-streams-haproxy-1.0.0.1
 - mmorph-1.0.9
-- pandoc-1.18
+- pandoc-1.19.2
 - pandoc-types-1.17.0.4
 - snap-1.0.0.1
 - snap-core-1.0.1.0
@@ -31,4 +30,4 @@ extra-deps:
 - zip-archive-0.3.0.5
 - sqlite-simple-0.4.12.0
 
-resolver: lts-6.26
+resolver: lts-8.0

@@ -24,6 +24,7 @@ import           Heist.Splices     as I
 import qualified Heist.Interpreted as I
 
 import qualified Data.Map as Map
+import           Data.Map.Syntax
 import           Data.Time.Clock
 import           Data.Time.LocalTime
 import           System.FilePath
@@ -100,11 +101,11 @@ handleGet root = file <|> directory <|> notFound
       contents <- if B.isPrefixOf "text" mime then
                     liftIO $ T.readFile filepath
                     else return ""
-      let fileSplices = do
-          "file-mime" ## I.textSplice (T.decodeUtf8 mime)
-          "file-contents" ## I.textSplice contents
-          "if-image-file" ## I.ifElseISplice (B.isPrefixOf "image" mime)
-          "if-text-file" ## I.ifElseISplice (B.isPrefixOf "text" mime)
+      let fileSplices =
+            do "file-mime" ## I.textSplice (T.decodeUtf8 mime)
+               "file-contents" ## I.textSplice contents
+               "if-image-file" ## I.ifElseISplice (B.isPrefixOf "image" mime)
+               "if-text-file" ## I.ifElseISplice (B.isPrefixOf "text" mime)
       renderWithSplices "file-edit" (pathSplices rqpath >>
                                      fileSplices >>
                                      inputAceEditorSplices)
