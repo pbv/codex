@@ -16,7 +16,7 @@ import qualified Data.Text as T
 import           Data.HashMap.Strict(HashMap)
 import qualified Data.HashMap.Strict as HM
 
-import           Data.Char (isSpace,toLower)
+import           Data.Char (isAlphaNum,toLower)
 import           Data.Aeson.Types 
 
 import           Data.Time.Clock
@@ -41,30 +41,40 @@ type Attrs = HashMap Text Value
 ldapAuth ::
   IAuthBackend r =>
   r -> LdapConf -> ByteString -> ByteString -> IO (Either AuthFailure AuthUser)
-ldapAuth r ldapConf user passwd 
-    = do entries <- ldapBindSearch ldapConf userStr (B.toString passwd)
+ldapAuth r ldapConf user passwd
+  | checkUser userS 
+    = do entries <- ldapBindSearch ldapConf userS passwdS
          case entries of
            (entry:_) -> let attrs = convertEntry ldapConf entry
-                        in updateUserAttrs r login attrs 
+                        in updateUserAttrs r (T.pack userS) attrs 
            [] -> return (Left (AuthError "LDAP authentication failed"))
+  | otherwise = return (Left (AuthError "Invalid user login"))
 
-  where userStr = sanitize (B.toString user)
-        login = T.pack userStr
-        
--- keep only non space chars and lowercase all letters
+  where userS   = map toLower (B.toString user)
+        passwdS = B.toString passwd
+
+
+checkUser :: String -> Bool
+checkUser = all (\x -> isAlphaNum x || x=='_' || x=='-' || x=='.' || x=='@')
+
+{-        
+-- sanitize the user id string
 sanitize :: String -> String 
-sanitize  = map toLower . filter (not . isSpace)
+sanitize  = map toLower .
+            filter (\x -> isAlphaNum x || x=='_' || x=='-' || x=='.' || x=='@')
+-}
 
+  
 
 
 -- attempt LDAP bind, check user password and search LDAP entries
 ldapBindSearch :: LdapConf -> String -> String -> IO [LDAPEntry]
-ldapBindSearch LdapConf{..} login passwd
+ldapBindSearch LdapConf{..} uid passwd
   = catchLDAP (do con <- ldapInitialize ldapURI
                   ldapSimpleBind con dn passwd
                   search con) (\_ -> return []) 
   where
-      dn = "uid=" ++ login ++ "," ++ ldapBase
+      dn = "uid=" ++ uid ++ "," ++ ldapBase
       search con =
         ldapSearch con (Just dn) LdapScopeSubtree Nothing LDAPAllUserAttrs False
 
