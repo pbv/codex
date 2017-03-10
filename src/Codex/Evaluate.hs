@@ -7,6 +7,7 @@ module Codex.Evaluate(
   evaluateWith 
   ) where
 
+import qualified Data.ByteString.UTF8 as B  
 import qualified Data.Text                                   as T
 import           Data.Monoid
 import           Data.Maybe
@@ -17,6 +18,7 @@ import           Control.Exception  (SomeException)
 import           Control.Exception.Lifted  (catch)
 import           System.FilePath
 
+import           Snap.Core (logError)
 import           Snap.Snaplet
 import qualified Snap.Snaplet.SqliteSimple                   as S
 
@@ -44,6 +46,8 @@ evaluate sub = do
 -- uses a semaphore for "throttling" evaluations 
 evaluateWith :: Tester Result -> Submission -> Codex ThreadId
 evaluateWith tester sub = do
+  logError (B.fromString $
+            "forking evaluation of submission " ++ show (submitId sub))
   sqlite <- S.getSqliteState
   evs <- getEvents
   root <- getDocumentRoot

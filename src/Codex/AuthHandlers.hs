@@ -7,6 +7,8 @@ module Codex.AuthHandlers (
   ) where
 
 import           Data.ByteString.UTF8 (ByteString)
+import qualified Data.ByteString.UTF8 as B
+import           Data.Monoid
 
 import qualified Data.Text as T
 import qualified Data.Text.Encoding as T
@@ -59,12 +61,17 @@ handleLoginSubmit :: Codex ()
 handleLoginSubmit = do
   login <-  require (getParam "login")
   passwd <- require (getParam "password")
+  logError ("Login attempt for " <> login)
   ldap <- getLdap
   r <- with auth $ loginByUsername (T.decodeUtf8 login) (ClearText passwd) False
   case r of
-    Right au -> redirect "/"
+    Right au -> do
+      logError ("Local login sucessful for " <> login)
+      redirect "/"
     Left err -> case ldap of
-      Nothing -> handleLoginForm "login" (Just err)
+      Nothing -> do
+        logError ("Login failed for " <> login)
+        handleLoginForm "login" (Just err)
       Just cfg -> loginLdapUser cfg login passwd
 
 
@@ -73,7 +80,9 @@ loginLdapUser ldapConf login passwd = do
   r <- with auth $ withBackend (\r -> liftIO $ ldapAuth r ldapConf login passwd)
   case r of
     Left err -> handleLoginForm "login" (Just err)
-    Right au -> with auth (forceLogin au) >> redirect "/"
+    Right au -> do with auth (forceLogin au)
+                   logError ("LDAP login sucessful for " <> login)
+                   redirect "/"
 
 
 
@@ -128,6 +137,7 @@ newUser = do
 -- in exam mode procedeed to printout
 handleLogout :: Codex ()
 handleLogout = method GET $ do
-  _ <- require getUserLogin <|> unauthorized
+  uid <- require getUserLogin <|> unauthorized
+  logError (B.fromString $ "Logged out user " ++ show uid)
   with auth logout
   redirect "/"

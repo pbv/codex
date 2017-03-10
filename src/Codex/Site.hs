@@ -20,6 +20,7 @@ import           Control.Exception  (SomeException)
 import           Control.Exception.Lifted  (catch)
 
 import           Data.ByteString.UTF8                        (ByteString)
+import qualified Data.ByteString.UTF8                      as B
 
 import qualified Data.HashMap.Strict                         as HM
 import           Data.Map.Syntax
@@ -319,6 +320,8 @@ newSubmission :: UserLogin -> FilePath -> Code -> Codex SubmitId
 newSubmission uid rqpath code = do
   now <- liftIO getCurrentTime
   sub <- insertSubmission uid rqpath now code evaluating Valid
+  logError (B.fromString $
+             "new submission " ++ show (submitId sub) ++ " for user " ++ show uid)
   evaluate sub
   return (submitId sub)
 
