@@ -14,6 +14,7 @@ import           Data.Maybe
 import           Data.Time.LocalTime
 import           Control.Monad.State
 import           Control.Concurrent(ThreadId, forkIO)
+import qualified Control.Concurrent.MSem as MSem
 import           Control.Exception  (SomeException)
 import           Control.Exception.Lifted  (catch)
 import           System.FilePath
@@ -35,8 +36,7 @@ import           Codex.Interval
 
 -- | default evaluator
 evaluate :: Submission -> Codex ThreadId
-evaluate sub = do
-  -- tester <- gets defaultTester
+evaluate sub =
   evaluateWith allTesters sub
 
 
@@ -46,14 +46,16 @@ evaluate sub = do
 -- uses a semaphore for "throttling" evaluations 
 evaluateWith :: Tester Result -> Submission -> Codex ThreadId
 evaluateWith tester sub = do
+  {-
   logError (B.fromString $
             "forking evaluation of submission " ++ show (submitId sub))
+  -}
   sqlite <- S.getSqliteState
   evs <- getEvents
   root <- getDocumentRoot
   conf <- getSnapletUserConfig
   sem <- gets evalSem
-  liftIO $ forkIO $ withQSem sem $ do
+  liftIO $ forkIO $ MSem.with sem $ do
     tz <- getCurrentTimeZone
     let filepath = root </> submitPath sub
     page <- readMarkdownFile filepath

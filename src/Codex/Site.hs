@@ -13,7 +13,7 @@ module Codex.Site
 
 import           Control.Applicative
 import           Control.Concurrent.MVar
-import           Control.Concurrent.QSem
+import qualified Control.Concurrent.MSem as MSem
 import           Control.Lens
 import           Control.Monad.State
 import           Control.Exception  (SomeException)
@@ -320,8 +320,10 @@ newSubmission :: UserLogin -> FilePath -> Code -> Codex SubmitId
 newSubmission uid rqpath code = do
   now <- liftIO getCurrentTime
   sub <- insertSubmission uid rqpath now code evaluating Valid
+  {-
   logError (B.fromString $
              "new submission " ++ show (submitId sub) ++ " for user " ++ show uid)
+  -}
   evaluate sub
   return (submitId sub)
 
@@ -354,7 +356,7 @@ app =
     addRoutes routes
     -- create a semaphore for throttling concurrent evaluation threads
     conf <- getSnapletUserConfig
-    evSem <- liftIO $ newQSem =<< Conf.require conf "system.workers"
+    evSem <- liftIO $ MSem.new =<< Conf.require conf "system.workers"
     evThs <- liftIO $ newMVar []
     --    langs <- liftIO $ Conf.require conf "system.languages"
     -- case getTesters langs of
