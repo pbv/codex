@@ -13,7 +13,7 @@ module Codex.Site
 
 import           Control.Applicative
 import           Control.Concurrent.MVar
-import qualified Control.Concurrent.MSem as MSem
+import           Control.Concurrent.QSem 
 import           Control.Lens
 import           Control.Monad.State
 import           Control.Exception  (SomeException)
@@ -36,7 +36,6 @@ import           Snap.Snaplet
 import           Snap.Snaplet.Auth
 import           Snap.Snaplet.Auth.Backends.SqliteSimple
 import           Snap.Snaplet.Heist
-import           Snap.Snaplet.Session                        (touchSession)
 import           Snap.Snaplet.Session.Backends.CookieSession
 import qualified Snap.Snaplet.SqliteSimple                   as S
 import           Snap.Util.FileServe                         (fileType,
@@ -82,7 +81,6 @@ import           Text.Pandoc.Walk                            as Pandoc
 handlePage :: Codex ()
 handlePage = do
   uid <- require getUserLogin <|> unauthorized
-  with sess touchSession   -- refresh inactivity time-out
   root <- getDocumentRoot
   rqpath <- getSafePath
   method GET (handleGet uid root rqpath <|>
@@ -320,10 +318,6 @@ newSubmission :: UserLogin -> FilePath -> Code -> Codex SubmitId
 newSubmission uid rqpath code = do
   now <- liftIO getCurrentTime
   sub <- insertSubmission uid rqpath now code evaluating Valid
-  {-
-  logError (B.fromString $
-             "new submission " ++ show (submitId sub) ++ " for user " ++ show uid)
-  -}
   evaluate sub
   return (submitId sub)
 
@@ -356,19 +350,14 @@ app =
     addRoutes routes
     -- create a semaphore for throttling concurrent evaluation threads
     conf <- getSnapletUserConfig
-    evSem <- liftIO $ MSem.new =<< Conf.require conf "system.workers"
-    evThs <- liftIO $ newMVar []
-    --    langs <- liftIO $ Conf.require conf "system.languages"
-    -- case getTesters langs of
-    --  Nothing -> error "invalid languages"
-    --  Just tester -> 
+    semph <- liftIO $ newQSem =<< Conf.require conf "system.workers"
+    tids <- liftIO $ newMVar []
     return App { _heist = h
                , _sess = s
                , _auth = a
                , _db   = d
-               , evalSem = evSem
-               , evalThreads = evThs
-               -- , defaultTester = tester
+               , evalSem = semph
+               , evalThreads = tids
                }
 
 

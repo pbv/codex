@@ -53,14 +53,6 @@ getConfig :: Tester Config
 getConfig = Tester (asks config)
 
 
-{-
-getConfigured :: Configured a => Name -> Tester a
-getConfigured name = do
-  conf <- getConfig
-  opt <- liftIO $ Configurator.lookup conf name
-  maybe empty return opt
--}
-
 -- * run a tester on code only if language matches
 language :: Language -> (Text -> Tester a) -> Tester a
 language lang m = do

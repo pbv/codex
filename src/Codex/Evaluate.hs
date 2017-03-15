@@ -7,19 +7,18 @@ module Codex.Evaluate(
   evaluateWith 
   ) where
 
-import qualified Data.ByteString.UTF8 as B  
+-- import qualified Data.ByteString.UTF8 as B  
 import qualified Data.Text                                   as T
 import           Data.Monoid
 import           Data.Maybe
 import           Data.Time.LocalTime
 import           Control.Monad.State
 import           Control.Concurrent(ThreadId, forkIO)
-import qualified Control.Concurrent.MSem as MSem
 import           Control.Exception  (SomeException)
 import           Control.Exception.Lifted  (catch)
 import           System.FilePath
 
-import           Snap.Core (logError)
+-- import           Snap.Core (logError)
 import           Snap.Snaplet
 import qualified Snap.Snaplet.SqliteSimple                   as S
 
@@ -46,42 +45,39 @@ evaluate sub =
 -- uses a semaphore for "throttling" evaluations 
 evaluateWith :: Tester Result -> Submission -> Codex ThreadId
 evaluateWith tester sub = do
-  {-
-  logError (B.fromString $
-            "forking evaluation of submission " ++ show (submitId sub))
-  -}
   sqlite <- S.getSqliteState
   evs <- getEvents
   root <- getDocumentRoot
   conf <- getSnapletUserConfig
-  sem <- gets evalSem
-  liftIO $ forkIO $ MSem.with sem $ do
+  semph <- gets evalSem
+  let filepath = root </> submitPath sub    -- ^ file path to exercise 
+  let sid = submitId sub                    -- ^ submission number
+  let code = submitCode sub                 -- ^ program code
+  liftIO $ forkIO $ withQSem semph $ do
     tz <- getCurrentTimeZone
-    let filepath = root </> submitPath sub
     page <- readMarkdownFile filepath
-            `catch` (\(_ :: SomeException) -> return emptyPage)
-    let sid = submitId sub        -- ^ submission number
-    let optT = rankTime (submitTime sub) <$> evalI tz evs (submitInterval page)
-    case optT of
+    let opt = rankTime (submitTime sub) <$> evalI tz evs (submitInterval page)
+    case opt of
       Nothing ->
         updateSubmission sqlite sid (wrongInterval page) Valid
-      Just t -> do
-        let code = submitCode sub     -- ^ program code
-        mayResult <- runTester conf filepath page code tester
-                     `catch`
-                     (\(e::SomeException) ->
-                         return (Just $ miscError $ T.pack $ show e))
-        let result = fromMaybe (missingTester code) mayResult
-        updateSubmission sqlite sid result t
+      Just timing -> do
+        result <- runLanguageTester conf filepath page code tester
+                  `catch`
+                  (\(e::SomeException) -> return (miscError $ T.pack $ show e))
+        updateSubmission sqlite sid result timing
 
+
+runLanguageTester config filepath page code tester =
+  fromMaybe (invalidTester code) <$> runTester config filepath page code tester
 
 wrongInterval :: Page -> Result
 wrongInterval page =
   let valid = fromMaybe "" $ lookupFromMeta "valid" (pageMeta page)
   in miscError $ "Invalid submission interval \"" <> valid <> "\""
-  
+ 
 
-missingTester :: Code -> Result
-missingTester code = miscError $
-  "No tester defined for language \"" <> fromLanguage (codeLang code) <> "\""
+invalidTester :: Code -> Result
+invalidTester code = miscError $
+  "Invalid tester for language \"" <> fromLanguage (codeLang code) <> "\""
+
 

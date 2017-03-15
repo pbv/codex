@@ -16,7 +16,6 @@ import           Snap.Core
 import           Snap.Snaplet
 import           Snap.Snaplet.Auth
 import           Snap.Snaplet.Heist
-import           Snap.Snaplet.Session                        (touchSession)
 import qualified Snap.Snaplet.SqliteSimple                   as S
 import           Snap.Util.FileServe hiding (mimeTypes)
 import           Snap.Util.FileUploads
@@ -32,7 +31,7 @@ import           System.Directory
 import           System.IO
 import           Control.Monad
 import           Control.Monad.Trans (liftIO)
-import           Control.Exception.Lifted (catch, SomeException)
+import           Control.Exception.Lifted (catch, IOException)
 import           Control.Applicative
 
 
@@ -68,7 +67,6 @@ handleBrowse = do
   -- ensure that a user with admin privileges is logged in
   usr <- require (with auth currentUser) <|> unauthorized
   unless (isAdmin usr) unauthorized
-  with sess touchSession  -- refresh inactivity timeout
   root <- getDocumentRoot
   handleMethodOverride
     (method GET (handleGet root) <|>
@@ -188,7 +186,7 @@ doUpload dest partinfo (Right src) = do
   let srcName = takeFileName src
   let destName = maybe srcName B.toString (partFileName partinfo)
   (copyFile src (dest</>destName) >> return Nothing) `catch`
-    (\(e::SomeException) -> return (Just $ T.pack $ show e))
+    (\(e::IOException) -> return (Just $ T.pack $ show e))
 
 
 
@@ -219,7 +217,6 @@ handleSubmissionList :: Codex ()
 handleSubmissionList =  handleMethodOverride $ do
   usr <- require (with auth currentUser) <|> unauthorized
   unless (isAdmin usr) unauthorized
-  with sess touchSession  -- refresh inactivity timeout
   patts <- getPatterns
   page <- fromMaybe 1 <$> readParam "page"
   sorting <- fromMaybe Asc <$> readParam "sorting"
@@ -346,7 +343,6 @@ handleSubmission = handleMethodOverride $ do
     report sub = do
       root <- getDocumentRoot
       page <- liftIO $ readMarkdownFile (root </>submitPath sub)
-                       `catch` (\ (_ :: SomeException) -> return emptyPage)
       tz <- liftIO getCurrentTimeZone
       renderWithSplices "submission" $ do
         pageSplices page

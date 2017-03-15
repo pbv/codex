@@ -79,7 +79,6 @@ Executable codex-server
     base,
     lens,
     process-extras,
-    SafeSemaphore,
     QuickCheck
 
   if flag(development)

@@ -9,7 +9,8 @@ import           Control.Exception
 import           Control.Monad(when)
 import           System.IO
 import           System.Directory
-import           System.Posix.Files 
+import           System.Posix.Files
+import           System.Posix.Types (FileMode)
 import           Data.Bits
 
 -- | match a piece of text
@@ -38,9 +39,14 @@ removeFileIfExists f = do b<-doesFileExist f; when b (removeFile f)
 cleanupFiles :: [FilePath] -> IO ()
 cleanupFiles = mapM_ removeFileIfExists
 
--- | allow any user read access
-allowAnyRead :: FilePath -> IO ()
-allowAnyRead f = do
-  mode <- fileMode <$> getFileStatus f
-  setFileMode f (mode .|. ownerReadMode .|. otherReadMode .|. groupReadMode)
-  
+-- | ensure a file is readable by all users
+ensureFileReadable :: FilePath -> IO ()
+ensureFileReadable 
+  = ensureFileMode (ownerReadMode .|.  groupReadMode .|. otherReadMode )
+
+ensureFileMode :: FileMode -> FilePath  -> IO ()
+ensureFileMode flags path = do
+  mode <- fileMode <$> getFileStatus path
+  when (mode .&. flags /= flags) $
+    setFileMode path (mode .|. flags)
+

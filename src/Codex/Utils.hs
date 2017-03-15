@@ -37,6 +37,7 @@ import qualified Text.XmlHtml as X
 import           Control.Monad.State
 import           Control.Exception (SomeException, bracket_)
 import           Control.Concurrent
+import           Control.Concurrent.QSem
 
 import qualified Data.Configurator as Configurator
 
@@ -302,8 +303,8 @@ encodePath rqpath = B.concat (intersperse "/" dirs')
 
 
 -- | aquire and release a quantity semaphore for an I/O action
--- withQSem :: QSem -> IO a -> IO a
--- withQSem qs = bracket_ (waitQSem qs) (signalQSem qs)
+withQSem :: QSem -> IO a -> IO a
+withQSem qs = bracket_ (waitQSem qs) (signalQSem qs)
 
 
 -- | cancel pending evaluations 

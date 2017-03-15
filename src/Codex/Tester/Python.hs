@@ -29,7 +29,7 @@ pythonTester = language "python" $ \code -> do
       let tstfile = getDoctest path page
       c <- doesFileExist tstfile
       if c then do
-          allowAnyRead tstfile 
+          ensureFileReadable tstfile 
           withTextTemp "tmp.py" code $ \pyfile ->
                  pythonResult <$>
                  safeExecWith sf python [pytest, scripts, tstfile, pyfile] ""

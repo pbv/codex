@@ -57,13 +57,13 @@ import           Codex.Tester.Result
 
 -- | a row in the submssion table
 data Submission = Submission {
-  submitId     :: SubmitId,    -- submission DB id
+  submitId     :: SubmitId,     -- submission DB id
   submitUser   :: UserLogin,    -- user login
-  submitPath   :: FilePath,  -- exercise path
+  submitPath   :: FilePath,     -- exercise path
   submitTime   :: UTCTime,      -- submition time
-  submitCode   :: Code,       -- program code
-  submitResult :: Result,   -- accepted/wrong answer/etc
-  submitTiming :: Timing    -- valid, early or overdue?
+  submitCode   :: Code,         -- program code
+  submitResult :: Result,       -- accepted/wrong answer/etc
+  submitTiming :: Timing        -- timing (early, valid, overdue)
   } 
 
 
@@ -96,8 +96,8 @@ instance FromRow Submission where
 
 -- | insert a new submission into the DB
 insertSubmission ::
-  UserLogin -> FilePath ->  UTCTime -> Code -> Result -> Timing
-  -> Codex Submission
+  UserLogin -> FilePath -> UTCTime -> Code ->  Result -> Timing ->
+  Codex Submission
 insertSubmission uid path time code result timing = do
   let (Code lang text) = code
   let (Result classf msg) = result

@@ -16,7 +16,7 @@ import Snap.Snaplet.Session
 import Snap.Snaplet.SqliteSimple
 
 import Control.Concurrent (MVar, ThreadId)
-import Control.Concurrent.MSem (MSem)
+import Control.Concurrent.QSem (QSem)
 
 -- import Codex.Tester.Monad
 -- import Codex.Tester.Result
@@ -27,10 +27,8 @@ data App = App
     , _sess  :: Snaplet SessionManager
     , _auth  :: Snaplet (AuthManager App)
     , _db    :: Snaplet Sqlite
-    -- * local application state follows
-    -- , defaultTester :: Tester Result  -- default tester for exercises
-    , evalThreads   :: MVar [ThreadId]  -- list of pending evaluation threads 
-    , evalSem       :: MSem Int         -- semaphore for "throttling" evaluation
+    , evalThreads   :: MVar [ThreadId]  -- ^ list of pending evaluation threads 
+    , evalSem       :: QSem             -- ^ semaphore for "throttling" evaluations
    }
 
 makeLenses ''App
