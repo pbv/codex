@@ -6,7 +6,7 @@ packages:
 - location: .
 - location: 
     git: https://github.com/pbv/codex-quickcheck.git
-    commit: 08be6bc5652923ee9c4d95adc264d6f761888913
+    commit: master
   extra-dep: true
 
 extra-deps:

@@ -16,8 +16,6 @@ import           Data.Monoid
 
 import           System.FilePath
 import           System.IO
-import           System.Process.Text
-import           System.Exit
 import           Control.Exception
 
 import qualified Data.Configurator as Conf
@@ -30,15 +28,13 @@ import           Codex.Tester.QuickCheck
 
 -- | running and evaluating Haskell submissions
 haskellTester :: Tester Result
-haskellTester = language "haskell" $ \code -> do
-    conf <- getConfig
-    page <- getPage
-    base <-  takeDirectory <$> getFilePath
+haskellTester = withLanguage "haskell" $ \code -> do
+    conf <- testerConfig
+    page <- testerPage
+    base <- takeDirectory <$> testerPath
+    sf <- testerSafeExec "language.haskell"
     liftIO $ do
       ghc <- Conf.require conf "language.haskell.compiler"
-      sf1 <- getSafeExecConf (Conf.subconfig "safeexec" conf)
-      sf2 <- getSafeExecConf (Conf.subconfig "language.haskell.safeexec" conf)
-      let sf = sf2 `override` sf1
       case getQuickcheckPath base page of
         Nothing -> return (miscError "no QuickCheck file specified")
         Just qcpath -> do
@@ -60,24 +56,13 @@ haskellRunner sf ghc qcArgs code props =
        let out_file = dir </> takeBaseName tstfile
        let submit_file = dir </> takeBaseName hs_file
        let cmd:args = words ghc
-       let args' = args ++ ["-i"++dir, "-O0", "-dynamic", tstfile,
-                            "-o", out_file]
+       let args' = args ++ ["-i"++dir, tstfile, "-o", out_file]
        let temps = [out_file, out_file <.> "o", out_file <.> "hi",
                     submit_file <.> "o", submit_file <.> "hi"]
        finally
          (do runCompiler cmd args'
              haskellResult <$> safeExecWith sf out_file [show qcArgs] "")
          (cleanupFiles temps)
-
-
-runCompiler :: FilePath -> [String] -> IO ()
-runCompiler cmd args = do
-  (exitCode, _, err) <- readProcessWithExitCode cmd args ""
-  case exitCode of
-    ExitFailure _ ->
-      throw (compileError err)
-    ExitSuccess ->
-      return ()
 
 
 

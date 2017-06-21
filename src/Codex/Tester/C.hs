@@ -13,7 +13,6 @@ import qualified Data.Text as T
 import qualified Data.Text.IO as T
 
 import           System.FilePath
-import           System.Process.Text
 import           System.Exit
 
 import           Control.Exception
@@ -22,20 +21,17 @@ import qualified Data.Configurator as Conf
 
 import           Codex.Tester.QuickCheck
 import           Codex.Tester
-import           Codex.SafeExec
 
 
 clangTester :: Tester Result
-clangTester = language "c" $ \code -> do
-  conf <- getConfig
-  page <- getPage
-  base <- takeDirectory <$> getFilePath
+clangTester = withLanguage "c" $ \code -> do
+  conf <- testerConfig
+  page <- testerPage
+  base <- takeDirectory <$> testerPath
+  sf <- testerSafeExec "language.c" 
   liftIO $ do
     ghc <- Conf.require conf "language.haskell.compiler"
     gcc <- Conf.require conf "language.c.compiler"
-    sf1 <- getSafeExecConf (Conf.subconfig "safeexec" conf)
-    sf2 <- getSafeExecConf (Conf.subconfig "language.haskell.safeexec" conf)
-    let sf = sf2 `override` sf1
     case getQuickcheckPath base page of
       Nothing -> return (miscError "no QuickCheck file specified")
       Just qcpath -> do
@@ -53,9 +49,8 @@ clangRunner sf gcc_cmd ghc_cmd qcArgs c_code props =
       temps = [c_obj_file, out_file, out_file <.> "o", out_file <.> "hi"]
       gcc:cc_args' = words gcc_cmd
       ghc:hc_args' = words ghc_cmd
-      cc_args = cc_args' ++ ["-fPIC", "-std=c99", "-c", c_file, "-o", c_obj_file]
-      hc_args = hc_args' ++ ["-i"++dir, "-dynamic", "-O0",
-                             c_obj_file, hs_file, "-o", out_file]
+      cc_args = cc_args' ++ ["-c", c_file, "-o", c_obj_file]
+      hc_args = hc_args' ++ ["-i"++dir, c_obj_file, hs_file, "-o", out_file]
   in
    finally
    (do -- compile C code; this should be safe to run without safeExec
@@ -67,15 +62,6 @@ clangRunner sf gcc_cmd ghc_cmd qcArgs c_code props =
    (cleanupFiles temps)
 
 
-
-runCompiler :: FilePath -> [String] -> IO ()
-runCompiler cmd args = do
-  (exitCode, _, err) <- readProcessWithExitCode cmd args ""
-  case exitCode of
-    ExitFailure _ ->
-      throw (compileError err)
-    ExitSuccess ->
-      return ()
 
 
 testScript :: Text -> Text

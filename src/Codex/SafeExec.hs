@@ -3,7 +3,11 @@
 {-
   Run UNIX commands under a "sandbox" limiting memory, cpu time, etc.
 -}
-module Codex.SafeExec where
+module Codex.SafeExec (
+  SafeExecConf(..),
+  safeExecConfig,
+  safeExecWith
+  ) where
 
 import           Data.Text (Text)
 import           Data.Maybe
@@ -13,10 +17,12 @@ import           System.Process.Text (readProcessWithExitCode)
 import           Data.Configurator.Types(Config)
 import qualified Data.Configurator as Configurator
 
-import           Control.Applicative
+import           Data.Monoid
+import           Control.Monad
+
   
 
--- | safeexec configuration parameters
+-- | SafeExec configuration parameters
 data SafeExecConf =
   SafeExecConf { safeExecPath :: Maybe FilePath
                , maxCpuTime :: Maybe Int   -- seconds
@@ -29,8 +35,34 @@ data SafeExecConf =
                } deriving (Eq, Show, Read)
 
 
-getSafeExecConf :: Config -> IO SafeExecConf
-getSafeExecConf conf = do
+instance Monoid SafeExecConf where
+  -- | empty configuration
+  mempty =  SafeExecConf { safeExecPath = Nothing
+                         , maxCpuTime   = Nothing
+                         , maxClockTime = Nothing
+                         , maxMemory    = Nothing
+                         , maxStack     = Nothing
+                         , numProc      = Nothing
+                         , maxFSize     = Nothing
+                         , maxCore      = Nothing
+                         }            
+  -- | combine configurations, overriding rhs with lhs 
+  l `mappend` r = SafeExecConf {
+    safeExecPath = safeExecPath l `mplus` safeExecPath r,
+    maxCpuTime   = maxCpuTime l `mplus` maxCpuTime r,
+    maxClockTime = maxClockTime l `mplus` maxClockTime r,    
+    maxMemory    = maxMemory l `mplus` maxMemory r,
+    maxStack     = maxStack l `mplus` maxStack r,
+    maxFSize     = maxFSize l `mplus` maxFSize r,
+    maxCore      = maxCore l `mplus` maxCore r,
+    numProc      = numProc l `mplus` numProc r
+    }
+
+
+
+-- | lookup a SafeExec configuration from a Config value
+safeExecConfig :: Config -> IO SafeExecConf
+safeExecConfig conf = do
   path <- Configurator.lookup conf "path"
   cpu  <- Configurator.lookup conf "max_cpu"
   clock<- Configurator.lookup conf "max_clock"
@@ -50,24 +82,7 @@ getSafeExecConf conf = do
                       }
 
 
--- | combine two configs, overriding rhs settings with lhs ones
-override :: SafeExecConf -> SafeExecConf -> SafeExecConf
-c1 `override` c2 = SafeExecConf {
-    safeExecPath = safeExecPath c1 <|> safeExecPath c2,
-    maxCpuTime   = maxCpuTime c1 <|> maxCpuTime c2,
-    maxClockTime = maxClockTime c1 <|> maxClockTime c2,    
-    maxMemory    = maxMemory c1 <|> maxMemory c2,
-    maxStack     = maxStack c1 <|> maxStack c2,
-    maxFSize     = maxFSize c1 <|> maxFSize c2,
-    maxCore      = maxCore c1 <|> maxCore c2,
-    numProc      = numProc c1 <|> numProc c2
-    }
-
-
-
-
-
--- | run with optional safeexec
+-- | run a command under SafeExec
 safeExecWith :: SafeExecConf
              -> FilePath   -- ^ command
              -> [String]   -- ^ arguments
@@ -75,20 +90,20 @@ safeExecWith :: SafeExecConf
              -> IO (ExitCode, Text, Text)  -- exitcode, stdout, stderr
 
 safeExecWith SafeExecConf{..} cmd args stdin
-  = let arg opt = maybe [] (\c -> [opt, show c])
-        args0 = arg "--cpu" maxCpuTime
+  = let mkArg opt = maybe [] (\c -> [opt, show c])
+        args0 = mkArg "--cpu" maxCpuTime
                 ++
-                arg "--clock" maxClockTime
+                mkArg "--clock" maxClockTime
                 ++
-                arg "--mem" maxMemory
+                mkArg "--mem" maxMemory
                 ++
-                arg "--stack" maxStack
+                mkArg "--stack" maxStack
                 ++
-                arg "--fsize" maxFSize
+                mkArg "--fsize" maxFSize
                 ++
-                arg "--core" maxCore
+                mkArg "--core" maxCore
                 ++
-                arg "--nproc" numProc
+                mkArg "--nproc" numProc
                 ++
                 ["--exec", cmd]
     in do

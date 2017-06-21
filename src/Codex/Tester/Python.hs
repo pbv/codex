@@ -8,24 +8,27 @@ import           System.Exit
 import           System.Directory (doesFileExist)
 import           Codex.Tester
 import           Codex.Page
-import           Codex.SafeExec
+-- import           Codex.SafeExec
 import           Data.Text(Text)
 import qualified Data.Text as T
 import qualified Data.Configurator as Conf
 
 
 pythonTester :: Tester Result
-pythonTester = language "python" $ \code -> do
-    conf <- getConfig
-    page <- getPage
-    path <- getFilePath
+pythonTester = withLanguage "python" $ \code -> do
+    conf <- testerConfig
+    page <- testerPage
+    path <- testerPath
+    sf <- testerSafeExec "language.python"
     liftIO $ do
       python <- Conf.require conf "language.python.interpreter"
       pytest <-  Conf.require conf "language.python.pytest"
       scripts <- Conf.require conf "language.python.scripts"
+      {-
       sf1 <- getSafeExecConf (Conf.subconfig "safeexec" conf)
       sf2 <- getSafeExecConf (Conf.subconfig "language.python.safeexec" conf)
       let sf = sf2 `override` sf1
+      -}
       let tstfile = getDoctest path page
       c <- doesFileExist tstfile
       if c then do

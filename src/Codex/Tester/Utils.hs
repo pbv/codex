@@ -1,28 +1,34 @@
+{-# LANGUAGE OverloadedStrings #-}
 
 module Codex.Tester.Utils where
+
 
 import           Data.Text(Text)
 import qualified Data.Text as T
 import qualified Data.Text.IO as T
 
 import           Control.Exception
-import           Control.Monad(when)
+import           Control.Monad       (when)
+import           Control.Monad.Trans (liftIO)
 import           System.IO
+import           System.Exit
 import           System.Directory
 import           System.Posix.Files
 import           System.Posix.Types (FileMode)
+import           System.Process.Text
+
 import           Data.Bits
+
+import           Codex.Tester.Result 
 
 -- | match a piece of text
 match :: Text -> Text -> Bool
 match = T.isInfixOf
 
-
 -- | aquire and release temporary files
 withTextTemp :: FilePath -> Text -> (FilePath -> IO a) -> IO a
 withTextTemp name contents cont
   = withTempFile name (\(f,h) -> T.hPutStr h contents >> hClose h >> cont f)
-
 
 
 withTempFile :: FilePath -> ((FilePath, Handle) -> IO a) -> IO a
@@ -49,4 +55,13 @@ ensureFileMode flags path = do
   mode <- fileMode <$> getFileStatus path
   when (mode .&. flags /= flags) $
     setFileMode path (mode .|. flags)
+
+runCompiler :: FilePath -> [String] -> IO ()
+runCompiler cmd args = do
+  (exitCode, _, err) <- readProcessWithExitCode cmd args ""
+  case exitCode of
+    ExitFailure _ ->
+      throw (compileError err)
+    ExitSuccess ->
+      return ()
 
