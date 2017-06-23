@@ -5,13 +5,15 @@
 module Codex.Tester.Monad (
   Tester,
   runTester,
+  configured,
   testerPath,
   testerPage,
   testerCode, 
-  testerConfig,
+  --testerConfig,
+  testerLimits,
   testerSafeExec,
   withLanguage,
-  -- * module re-export
+  -- * modules re-export
   module Control.Monad.Trans,
   module Codex.SafeExec
   ) where
@@ -21,37 +23,41 @@ import           Codex.Page
 import           Codex.SafeExec
 
 import           Data.Configurator.Types
-import qualified Data.Configurator as Configurator
+import qualified Data.Configurator as Conf
 
-import           Data.Monoid
 import           Control.Applicative
-import           Control.Monad (liftM2)
 import           Control.Monad.Trans
 import           Control.Monad.Trans.Maybe
 import           Control.Monad.Trans.Reader
 
 
--- | monadic type for problem testers;
+-- | monad for problem testers;
 -- allows IO, optional passing and access to an environment
 newtype Tester a
   = Tester {unTester :: ReaderT Env (MaybeT IO) a}
   deriving (Functor, Monad, Applicative, Alternative, MonadIO)
 
 data Env = Env { config :: !Config       -- ^ handle for config enviroment
-               , filepath :: !FilePath   -- ^ filepath for the exercise 
+               , filePath :: !FilePath   -- ^ filepath for the exercise 
                , page :: !Page           -- ^ exercise page (pandoc)
                , code :: !Code           -- ^ submitted code
+               , limits :: !Limits       -- ^ safe exec resource limits
+               , safeExecPath :: !FilePath
                } 
 
 
 -- * run a code tester 
 runTester :: Config -> FilePath -> Page -> Code -> Tester a -> IO (Maybe a)
-runTester config filepath page code m
-  = runMaybeT $ runReaderT (unTester m) (Env config filepath page code)
+runTester cfg filepath page code tst = do
+  limits <- getLimits cfg
+  safeExec <- Conf.require cfg "safeexec"
+  let env = Env cfg filepath page code limits safeExec
+  runMaybeT $ runReaderT (unTester tst) env
+
 
 -- * environment access 
 testerPath :: Tester FilePath
-testerPath = Tester (asks filepath)
+testerPath = Tester (asks filePath)
 
 testerPage :: Tester Page
 testerPage = Tester (asks page)
@@ -63,13 +69,27 @@ testerConfig :: Tester Config
 testerConfig = Tester (asks config)
 
 
--- | get SafeExec config for a particular language 
-testerSafeExec :: Text -> Tester SafeExecConf
-testerSafeExec prefix = do
-  conf <- testerConfig
-  liftIO $ liftM2 mappend 
-    (safeExecConfig (Configurator.subconfig (prefix <> ".safeexec") conf))
-    (safeExecConfig (Configurator.subconfig "safeexec" conf))
+testerSafeExec :: Tester FilePath
+testerSafeExec = Tester (asks safeExecPath)
+
+configured :: Configured a => Name -> Tester a
+configured name = do
+  cfg <- testerConfig
+  liftIO $ Conf.require cfg name
+
+
+defaultLimits :: Tester Limits
+defaultLimits = Tester (asks limits)
+
+overrideLimits :: Name -> Limits -> Tester Limits
+overrideLimits prefix limits = do
+  cfg <- testerConfig
+  limits' <- liftIO $ getLimits (Conf.subconfig prefix cfg)
+  return (mappend limits limits')
+
+testerLimits :: Name -> Tester Limits
+testerLimits prefix = defaultLimits >>= overrideLimits prefix
+
 
 
 -- | run continuation only if language matches; argument is submission code

@@ -7,7 +7,7 @@ module Codex.Tester.Haskell (
   haskellTester
   ) where
 
-import           Control.Monad.State
+
 import           Data.Text (Text)
 import qualified Data.Text as T
 import qualified Data.Text.IO as T
@@ -18,33 +18,30 @@ import           System.FilePath
 import           System.IO
 import           Control.Exception
 
-import qualified Data.Configurator as Conf
-
 import           Test.QuickCheck (Args)
 
-import           Codex.SafeExec
 import           Codex.Tester
 import           Codex.Tester.QuickCheck
 
 -- | running and evaluating Haskell submissions
 haskellTester :: Tester Result
-haskellTester = withLanguage "haskell" $ \code -> do
-    conf <- testerConfig
-    page <- testerPage
-    base <- takeDirectory <$> testerPath
-    sf <- testerSafeExec "language.haskell"
-    liftIO $ do
-      ghc <- Conf.require conf "language.haskell.compiler"
+haskellTester
+  = withLanguage "haskell" $ \code -> do
+      page <- testerPage
+      base <- takeDirectory <$> testerPath
       case getQuickcheckPath base page of
-        Nothing -> return (miscError "no QuickCheck file specified")
+        Nothing ->  return (miscError "no QuickCheck file specified")
         Just qcpath -> do
+          props <- liftIO $ T.readFile qcpath
           let args = getQuickcheckArgs page
-          props <- T.readFile qcpath
-          haskellRunner sf ghc args code props `catch` return
+          ghc <- configured "language.haskell.compiler"
+          limits <- testerLimits "language.haskell.limits"
+          safeexec <- testerSafeExec
+          liftIO $ (haskellRunner safeexec limits ghc args code props `catch` return)
 
 
-haskellRunner :: SafeExecConf -> String -> Args -> Text -> Text -> IO Result
-haskellRunner sf ghc qcArgs code props =
+haskellRunner :: FilePath -> Limits -> FilePath -> Args -> Text -> Text -> IO Result
+haskellRunner safeexec limits ghc qcArgs code props =
    withTempFile "Submit.hs" $ \(hs_file, h) ->
    let codemod = T.pack $ takeBaseName hs_file
        dir = takeDirectory hs_file
@@ -61,7 +58,7 @@ haskellRunner sf ghc qcArgs code props =
                     submit_file <.> "o", submit_file <.> "hi"]
        finally
          (do runCompiler cmd args'
-             haskellResult <$> safeExecWith sf out_file [show qcArgs] "")
+             haskellResult <$> safeExecWith safeexec limits out_file [show qcArgs] "")
          (cleanupFiles temps)
 
 

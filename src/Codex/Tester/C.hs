@@ -7,7 +7,6 @@ module Codex.Tester.C (
   clangTester
   ) where
 
-import           Control.Monad.State
 import           Data.Text (Text)
 import qualified Data.Text as T
 import qualified Data.Text.IO as T
@@ -17,30 +16,27 @@ import           System.Exit
 
 import           Control.Exception
 
-import qualified Data.Configurator as Conf
-
 import           Codex.Tester.QuickCheck
 import           Codex.Tester
 
 
 clangTester :: Tester Result
 clangTester = withLanguage "c" $ \code -> do
-  conf <- testerConfig
   page <- testerPage
   base <- takeDirectory <$> testerPath
-  sf <- testerSafeExec "language.c" 
-  liftIO $ do
-    ghc <- Conf.require conf "language.haskell.compiler"
-    gcc <- Conf.require conf "language.c.compiler"
-    case getQuickcheckPath base page of
-      Nothing -> return (miscError "no QuickCheck file specified")
-      Just qcpath -> do
-        let args = getQuickcheckArgs page
-        props <- T.readFile qcpath
-        clangRunner sf gcc ghc args code props `catch` return
+  case getQuickcheckPath base page of
+    Nothing -> return (miscError "no QuickCheck file specified")
+    Just qcpath -> do
+      props <- liftIO $ T.readFile qcpath
+      let args = getQuickcheckArgs page
+      ghc <- configured "language.haskell.compiler"
+      gcc <- configured "language.c.compiler"
+      limits <- testerLimits "language.c.limits"
+      safeexec <- testerSafeExec
+      liftIO $ (clangRunner safeexec limits gcc ghc args code props `catch` return)
 
 
-clangRunner sf gcc_cmd ghc_cmd qcArgs c_code props =
+clangRunner safeexec limits gcc_cmd ghc_cmd qcArgs c_code props =
   withTextTemp "sub.c" c_code $ \c_file ->
   withTextTemp "Main.hs" (testScript props) $ \hs_file ->
   let dir = takeDirectory c_file
@@ -58,7 +54,7 @@ clangRunner sf gcc_cmd ghc_cmd qcArgs c_code props =
        --- compile Haskell test script
        runCompiler ghc hc_args
        -- run compiled script under safe exec
-       haskellResult <$> safeExecWith sf out_file [show qcArgs] "")
+       haskellResult <$> safeExecWith safeexec limits out_file [show qcArgs] "")
    (cleanupFiles temps)
 
 
