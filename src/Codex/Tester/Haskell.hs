@@ -36,12 +36,12 @@ haskellTester
           let args = getQuickcheckArgs page
           ghc <- configured "language.haskell.compiler"
           limits <- testerLimits "language.haskell.limits"
-          safeexec <- testerSafeExec
-          liftIO $ (haskellRunner safeexec limits ghc args code props `catch` return)
+          sf <- testerSafeExecPath
+          liftIO $ (haskellRunner sf limits ghc args code props `catch` return)
 
 
 haskellRunner :: FilePath -> Limits -> FilePath -> Args -> Text -> Text -> IO Result
-haskellRunner safeexec limits ghc qcArgs code props =
+haskellRunner sf limits ghc qcArgs code props =
    withTempFile "Submit.hs" $ \(hs_file, h) ->
    let codemod = T.pack $ takeBaseName hs_file
        dir = takeDirectory hs_file
@@ -58,7 +58,7 @@ haskellRunner safeexec limits ghc qcArgs code props =
                     submit_file <.> "o", submit_file <.> "hi"]
        finally
          (do runCompiler cmd args'
-             haskellResult <$> safeExecWith safeexec limits out_file [show qcArgs] "")
+             haskellResult <$> safeExecWith sf limits out_file [show qcArgs] "")
          (cleanupFiles temps)
 
 

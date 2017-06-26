@@ -18,7 +18,7 @@ pythonTester = withLanguage "python" $ \code -> do
   pytest <- configured "language.python.pytest"
   scripts<- configured "language.python.scripts"
   limits <- testerLimits "language.python.limits"
-  safeexec <- testerSafeExec
+  sf <- testerSafeExecPath
   page <- testerPage
   path <- testerPath
   let tstfile = guessDoctest path page
@@ -28,7 +28,7 @@ pythonTester = withLanguage "python" $ \code -> do
       ensureFileReadable tstfile 
       withTextTemp "tmp.py" code $ \pyfile ->
         pythonResult <$>
-        safeExecWith safeexec limits python [pytest, scripts, tstfile, pyfile] ""
+        safeExecWith sf limits python [pytest, scripts, tstfile, pyfile] ""
       else return (miscError $ T.pack $ "missing doctest file: " ++ tstfile)
 
 

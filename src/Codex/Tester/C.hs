@@ -32,11 +32,11 @@ clangTester = withLanguage "c" $ \code -> do
       ghc <- configured "language.haskell.compiler"
       gcc <- configured "language.c.compiler"
       limits <- testerLimits "language.c.limits"
-      safeexec <- testerSafeExec
-      liftIO $ (clangRunner safeexec limits gcc ghc args code props `catch` return)
+      sf <- testerSafeExecPath
+      liftIO $ (clangRunner sf limits gcc ghc args code props `catch` return)
 
 
-clangRunner safeexec limits gcc_cmd ghc_cmd qcArgs c_code props =
+clangRunner sf limits gcc_cmd ghc_cmd qcArgs c_code props =
   withTextTemp "sub.c" c_code $ \c_file ->
   withTextTemp "Main.hs" (testScript props) $ \hs_file ->
   let dir = takeDirectory c_file
@@ -54,7 +54,7 @@ clangRunner safeexec limits gcc_cmd ghc_cmd qcArgs c_code props =
        --- compile Haskell test script
        runCompiler ghc hc_args
        -- run compiled script under safe exec
-       haskellResult <$> safeExecWith safeexec limits out_file [show qcArgs] "")
+       haskellResult <$> safeExecWith sf limits out_file [show qcArgs] "")
    (cleanupFiles temps)
 
 

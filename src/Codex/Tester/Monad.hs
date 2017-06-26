@@ -9,9 +9,8 @@ module Codex.Tester.Monad (
   testerPath,
   testerPage,
   testerCode, 
-  --testerConfig,
   testerLimits,
-  testerSafeExec,
+  testerSafeExecPath,
   withLanguage,
   -- * modules re-export
   module Control.Monad.Trans,
@@ -49,7 +48,7 @@ data Env = Env { config :: !Config       -- ^ handle for config enviroment
 -- * run a code tester 
 runTester :: Config -> FilePath -> Page -> Code -> Tester a -> IO (Maybe a)
 runTester cfg filepath page code tst = do
-  limits <- getLimits cfg
+  limits <- getLimits (Conf.subconfig "limits" cfg)
   safeExec <- Conf.require cfg "safeexec"
   let env = Env cfg filepath page code limits safeExec
   runMaybeT $ runReaderT (unTester tst) env
@@ -68,15 +67,16 @@ testerCode = Tester (asks code)
 testerConfig :: Tester Config
 testerConfig = Tester (asks config)
 
-
-testerSafeExec :: Tester FilePath
-testerSafeExec = Tester (asks safeExecPath)
+testerSafeExecPath :: Tester FilePath
+testerSafeExecPath = Tester (asks safeExecPath)
 
 configured :: Configured a => Name -> Tester a
 configured name = do
   cfg <- testerConfig
   liftIO $ Conf.require cfg name
 
+testerLimits :: Name -> Tester Limits
+testerLimits prefix = defaultLimits >>= overrideLimits prefix
 
 defaultLimits :: Tester Limits
 defaultLimits = Tester (asks limits)
@@ -85,12 +85,7 @@ overrideLimits :: Name -> Limits -> Tester Limits
 overrideLimits prefix limits = do
   cfg <- testerConfig
   limits' <- liftIO $ getLimits (Conf.subconfig prefix cfg)
-  return (mappend limits limits')
-
-testerLimits :: Name -> Tester Limits
-testerLimits prefix = defaultLimits >>= overrideLimits prefix
-
-
+  return (mappend limits' limits)
 
 -- | run continuation only if language matches; argument is submission code
 withLanguage :: Language -> (Text -> Tester a) -> Tester a
