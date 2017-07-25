@@ -61,16 +61,16 @@ handleLoginSubmit :: Codex ()
 handleLoginSubmit = do
   login <-  require (getParam "login")
   passwd <- require (getParam "password")
-  logError ("Login attempt for " <> login)
+  -- logError ("Login attempt for " <> login)
   ldap <- getLdap
   r <- with auth $ loginByUsername (T.decodeUtf8 login) (ClearText passwd) False
   case r of
     Right au -> do
-      logError ("Local login sucessful for " <> login)
+      -- logError ("Local login sucessful for " <> login)
       redirect "/"
     Left err -> case ldap of
       Nothing -> do
-        logError ("Login failed for " <> login)
+        -- logError ("Login failed for " <> login)
         handleLoginForm "login" (Just err)
       Just cfg -> loginLdapUser cfg login passwd
 
@@ -81,7 +81,7 @@ loginLdapUser ldapConf login passwd = do
   case r of
     Left err -> handleLoginForm "login" (Just err)
     Right au -> do with auth (forceLogin au)
-                   logError ("LDAP login sucessful for " <> login)
+                   -- logError ("LDAP login sucessful for " <> login)
                    redirect "/"
 
 

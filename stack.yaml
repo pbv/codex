@@ -4,13 +4,13 @@ flags:
 
 packages:
 - location: .
-- location: 
+- location:
     git: https://github.com/pbv/codex-quickcheck.git
     commit: master
   extra-dep: true
 
 extra-deps:
-- LDAP-0.6.10
+- ldap-client-0.2.0
 - aeson-1.0.2.1
 - bytestring-builder-0.10.8.1.0
 - doctemplates-0.1.0.2
