@@ -1,15 +1,17 @@
 flags:
   snap-server:
     openssl: true
+  snap-core:
+    debug: true
 
 packages:
-- location: .
-- location:
-    git: https://github.com/pbv/codex-quickcheck.git
-    commit: master
-  extra-dep: true
+- '.'
+- codex-quickcheck
 
 extra-deps:
+- io-streams-1.5.0.1
+- io-streams-haproxy-1.0.0.2
+- openssl-streams-1.2.1.2
 - ldap-client-0.2.0
 - aeson-1.0.2.1
 - bytestring-builder-0.10.8.1.0
@@ -17,15 +19,14 @@ extra-deps:
 - generic-deriving-1.11.1
 - heist-1.0.1.0
 - map-syntax-0.2.0.2
-- io-streams-haproxy-1.0.0.1
 - mmorph-1.0.9
 - pandoc-1.19.2
 - pandoc-types-1.17.0.4
 - snap-1.0.0.2
-- snap-core-1.0.3.0
+- snap-core-1.0.3.1
 - snap-loader-static-1.0.0.0
 - snap-loader-dynamic-1.0.0.0
-- snap-server-1.0.3.0
+- snap-server-1.0.3.1
 - snaplet-sqlite-simple-1.0.0.2
 - zip-archive-0.3.0.5
 - sqlite-simple-0.4.12.0

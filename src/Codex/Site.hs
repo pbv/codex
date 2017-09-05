@@ -330,7 +330,7 @@ app =
   makeSnaplet "codex" "Web server for programming exercises." Nothing $ do
     h <- nestSnaplet "" heist $ heistInit "templates"
     s <- nestSnaplet "sess" sess $
-           initCookieSessionManager "site_key.txt" "sess" Nothing (Just 3600)
+           initCookieSessionManager "site_key.txt" "sess" Nothing (Just 36000)
     d <- nestSnaplet "db" db S.sqliteInit
     a <- nestSnaplet "auth" auth $ initSqliteAuth sess d
     addAuthSplices h auth
