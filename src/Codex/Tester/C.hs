@@ -7,6 +7,7 @@ module Codex.Tester.C (
   clangTester
   ) where
 
+import           Data.Maybe (fromMaybe)
 import           Data.Text (Text)
 import qualified Data.Text as T
 import qualified Data.Text.IO as T
@@ -16,6 +17,7 @@ import           System.Exit
 
 import           Control.Exception
 
+import           Codex.Page
 import           Codex.Tester.QuickCheck
 import           Codex.Tester
 
@@ -29,11 +31,15 @@ clangTester = withLanguage "c" $ \code -> do
     Just qcpath -> do
       props <- liftIO $ T.readFile qcpath
       let args = getQuickcheckArgs page
+      -- add optional header to user code
+      let code' = case getHeader page of
+                    Nothing -> code
+                    Just header -> header `T.append` code
       ghc <- configured "language.haskell.compiler"
       gcc <- configured "language.c.compiler"
       limits <- testerLimits "language.c.limits"
       sf <- testerSafeExecPath
-      liftIO $ (clangRunner sf limits gcc ghc args code props `catch` return)
+      liftIO (clangRunner sf limits gcc ghc args code' props `catch` return)
 
 
 clangRunner sf limits gcc_cmd ghc_cmd qcArgs c_code props =
@@ -86,4 +92,11 @@ haskellResult (_, stdout, stderr)
   | match "Failed" stdout       = wrongAnswer stdout
   | match "Command terminated by signal" stderr  = runtimeError stderr
   | match "Command exited with non-zero status" stderr = runtimeError stderr
-  | otherwise     = accepted stdout
+  | match "OK, passed" stdout   = accepted stdout
+  | otherwise     = miscError (stdout `T.append` stderr)
+
+
+-- get optional C declarations from a page
+getHeader :: Page -> Maybe Text
+getHeader = lookupFromMeta "header" . pageMeta
+
