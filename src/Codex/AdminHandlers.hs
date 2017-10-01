@@ -12,11 +12,13 @@ module Codex.AdminHandlers(
   handleExport
   ) where
 
+ 
 import           Snap.Core
 import           Snap.Snaplet
 import           Snap.Snaplet.Auth
 import           Snap.Snaplet.Heist
 import qualified Snap.Snaplet.SqliteSimple                   as S
+import           Snap.Snaplet.Router
 import           Snap.Util.FileServe hiding (mimeTypes)
 import           Snap.Util.FileUploads
 import           Heist.Splices     as I
@@ -62,49 +64,50 @@ import           Codex.Config
 --
 -- | Handle file browsing requests
 --
-handleBrowse :: Codex ()
-handleBrowse = do
+handleBrowse :: FilePath -> Codex ()
+handleBrowse rqpath = do
   -- ensure that a user with admin privileges is logged in
   usr <- require (with auth currentUser) <|> unauthorized
   unless (isAdmin usr) unauthorized
-  root <- getDocumentRoot
+  -- root <- getDocumentRoot
   handleMethodOverride
-    (method GET (handleGet root) <|>
-     method POST (handleUpload root) <|>
-     method PUT (handleEdit root) <|>
-     method DELETE (handleDelete root) <|>
-     method PATCH (handleRename root))
+    (method GET (handleGet rqpath) ) -- <|>
+     -- method POST (handleUpload rqpath) <|>
+     -- method PUT (handleEdit rqpath) <|>
+     -- method DELETE (handleDelete rqpath) <|>
+     -- method PATCH (handleRename rqpath))
 
 
 handleGet :: FilePath -> Codex ()
-handleGet root = file <|> directory <|> notFound
+handleGet rqpath = file <|> directory <|> notFound
   where
     directory = do
-      rqpath <- getSafePath
+      root <- getDocumentRoot
       let filepath = root </> rqpath
-      c <- liftIO $ doesDirectoryExist filepath
+      c <- liftIO (doesDirectoryExist filepath)
       unless c pass
-      entries <- liftIO $ listDir filepath
+      entries <- liftIO (listDir filepath)
       tz <- liftIO getCurrentTimeZone
       renderWithSplices "file-list" $ do
-        pathSplices rqpath
+        fileUrlSplices rqpath
         listingSplices tz rqpath entries
         messageSplices []
     file = do
-      rqpath <- getSafePath
+      root <- getDocumentRoot
       let filepath = root </> rqpath
-      c <- liftIO $ doesFileExist filepath
+      c <- liftIO (doesFileExist filepath)
       unless c pass
       let mime = fileType mimeTypes rqpath
       contents <- if B.isPrefixOf "text" mime then
-                    liftIO $ T.readFile filepath
+                    liftIO (T.readFile filepath)
                     else return ""
       let fileSplices =
             do "file-mime" ## I.textSplice (T.decodeUtf8 mime)
                "file-contents" ## I.textSplice contents
                "if-image-file" ## I.ifElseISplice (B.isPrefixOf "image" mime)
                "if-text-file" ## I.ifElseISplice (B.isPrefixOf "text" mime)
-      renderWithSplices "file-edit" (pathSplices rqpath >>
+      renderWithSplices "file-edit" (fileUrlSplices rqpath >>
+                                     pageUrlSplices rqpath >>
                                      fileSplices >>
                                      inputAceEditorSplices)
 
@@ -113,7 +116,7 @@ handleGet root = file <|> directory <|> notFound
 listingSplices tz path list =
   "file-list" ## I.mapSplices (I.runChildrenWith . splices) list
   where splices (name, mime, time) = do
-          pathSplices (path </> name)
+          fileUrlSplices (path </> name)
           "file-name" ## I.textSplice (T.pack name)
           "file-type" ## I.textSplice (T.decodeUtf8 mime)
           "file-modified" ## utcTimeSplice tz time
@@ -173,7 +176,7 @@ handleUpload dest = do
     (doUpload (dest </> rqpath))
   entries <- liftIO $ listDir (dest</>rqpath)
   tz <- liftIO getCurrentTimeZone
-  renderWithSplices "file-list" (pathSplices rqpath >>
+  renderWithSplices "file-list" ( -- pathSplices rqpath >>
                                  listingSplices tz rqpath entries >>
                                  messageSplices (catMaybes msgs))
 
@@ -219,26 +222,23 @@ handleSubmissionList =  handleMethodOverride $ do
   unless (isAdmin usr) unauthorized
   patts <- getPatterns
   page <- fromMaybe 1 <$> readParam "page"
-  sorting <- fromMaybe Asc <$> readParam "sorting"
-  methods [GET,POST] (listSubmissions patts sorting page)
+  order <- fromMaybe Ascending <$> readParam "order"
+  methods [GET,POST] (listSubmissions patts order page)
     <|>
-   method PATCH (reevalSubmissions patts sorting >>
-                 listSubmissions patts sorting page)
+   method PATCH (reevalSubmissions patts order >>
+                 listSubmissions patts order page)
     <|>
     method (Method "CANCEL") (cancelPending >>
                               setPending [] >>
-                              listSubmissions patts sorting page)
+                              listSubmissions patts order page)
   
             
 
 
-  
-
 -- | List submissions
-listSubmissions :: Patterns -> Sorting -> Int -> Codex ()
-listSubmissions patts@Patterns{..} sorting page = do
-  let patts' = normalizePatterns patts
-  count <- countSubmissions patts'
+listSubmissions :: Patterns -> Codex.Submission.Ordering -> Int -> Codex ()
+listSubmissions patts order page = do
+  count <- countSubmissions patts
   let entries = 50   -- # entries per page
   let npages
         | count>0 = ceiling (fromIntegral count / fromIntegral entries :: Double)
@@ -246,24 +246,24 @@ listSubmissions patts@Patterns{..} sorting page = do
   -- restrict to visible pages
   let page' = 1 `max` page `min` npages
   let offset = (page' - 1) * entries  
-  subs <- filterSubmissions patts' sorting entries offset
+  subs <- filterSubmissions patts order entries offset
   tz <- liftIO getCurrentTimeZone
   renderWithSplices "submission-list" $ do
-    "id_pat" ## I.textSplice idPat
-    "uid_pat" ## I.textSplice userPat
-    "path_pat" ## I.textSplice pathPat
-    "lang_pat" ## I.textSplice langPat
-    "class_pat" ## I.textSplice classPat
-    "timing_pat" ## I.textSplice timingPat
+    patternSplices patts
     "page" ## I.textSplice (T.pack $ show page')
-    "sorting" ## I.textSplice (T.pack $ show sorting)
+    "order" ## I.textSplice (T.pack $ show order)
     "submissions-count" ## I.textSplice (T.pack $ show count)
-    "if-ascending" ## I.ifElseISplice (sorting == Asc)
+    "if-ascending" ## I.ifElseISplice (order == Ascending)
     "if-submissions" ## I.ifElseISplice (count > 0)
     "page-count" ## I.textSplice (T.pack $ show npages)
-    "prev-page" ## I.textSplice (T.pack $ show $ max 1 (page'-1))
-    "next-page" ## I.textSplice (T.pack $ show $ min npages (page'+1))
+    -- "prev-page" ## I.textSplice (T.pack $ show $ max 1 (page'-1))
+    -- "next-page" ## I.textSplice (T.pack $ show $ min npages (page'+1))
     "submissions" ## I.mapSplices (I.runChildrenWith . submitSplices tz) subs
+    "submissions-url" ## 
+        urlParamsSplice Submissions (("page", Just $ T.pack $ show page') : patts)
+    -- "submissions-prev-url" ## submissionUrl (max 1 (page'-1))
+    -- "submissions-next-url" ## submissionUrl (min npages (page'+1))
+    {-
     let qs = Map.fromList $ map (\(k,v) -> (k,[T.encodeUtf8 v])) $
              [("id_pat", idPat),
               ("uid_pat", userPat),
@@ -273,14 +273,13 @@ listSubmissions patts@Patterns{..} sorting page = do
               ("timing_pat", timingPat)
              ]
     "patterns" ## I.textSplice (T.decodeUtf8 $ printUrlEncoded qs)
-
+-}
 
 -- | Re-evaluate selected submissions 
-reevalSubmissions :: Patterns -> Sorting -> Codex ()
-reevalSubmissions patts@Patterns{..} sorting  = do
-  let patts' = normalizePatterns patts
-  count <- countSubmissions patts'
-  subs  <- filterSubmissions patts' sorting count 0
+reevalSubmissions :: Patterns -> Codex.Submission.Ordering -> Codex ()
+reevalSubmissions patts order  = do
+  count <- countSubmissions patts
+  subs  <- filterSubmissions patts order count 0
   sqlite <- S.getSqliteState
   liftIO $ markEvaluating sqlite (map submitId subs)
   cancelPending

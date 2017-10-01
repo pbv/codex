@@ -7,14 +7,14 @@
 module Codex.Submission (
   Submission(..),
   Patterns(..),
-  Sorting(..),
+  Ordering(..),
   insertSubmission,
   updateSubmission,
   markEvaluating,
   getSubmission,
   deleteSubmission,
   getPatterns,
-  normalizePatterns,
+  patternSplices,
   withSubmissions,
   withFilterSubmissions,
   filterSubmissions,
@@ -27,6 +27,7 @@ module Codex.Submission (
   querySubmissionUsers
   ) where
 
+import           Prelude hiding (Ordering)
 
 import           Data.Map.Syntax
 import           Data.Time.Clock
@@ -35,16 +36,22 @@ import           Data.Time.LocalTime
 import qualified Data.Text          as T
 import qualified Data.Text.Encoding as T
 
-import           Data.Maybe(listToMaybe)
+import           Data.Monoid
+import           Data.List (intersperse)
+import           Data.Maybe(listToMaybe, fromMaybe)
 
+import           Snap.Core
 import           Snap.Snaplet.SqliteSimple
+import           Snap.Snaplet.Router
 import qualified Database.SQLite.Simple as S
+import           Database.SQLite.Simple (NamedParam(..))
 import           Database.SQLite.Simple.FromField
 import           Database.SQLite.Simple.ToField
 import           Heist.Splices     as I
 import qualified Heist.Interpreted as I
 
 import           Control.Concurrent.MVar
+import           Control.Monad.State (liftIO)
 
 import           Codex.Application
 
@@ -148,8 +155,8 @@ deleteSubmission sid =
 
 -------------------------------------------------------------------------
 -- patterns for filtering submissions
-type Pattern = Text
 
+{-
 data Patterns = Patterns {
   idPat :: Pattern,
   userPat :: Pattern,
@@ -158,56 +165,77 @@ data Patterns = Patterns {
   classPat :: Pattern,
   timingPat :: Pattern
   } deriving Show
+-}
 
 
-data Sorting = Asc | Desc deriving (Eq, Show, Read)
+type Patterns = [(Text, Maybe Text)]  -- SQL column, optional string
+
+data Ordering
+  = Ascending
+  | Descending deriving (Eq, Show, Read)
+
+-- | build a SQL query condition from patterns
+queryPatterns :: Patterns -> Text
+queryPatterns [] = ""
+queryPatterns patts
+  | T.null cond = ""
+  | otherwise = " WHERE " <> cond
+  where cond = T.concat $
+               intersperse " AND " $
+               [col <> " LIKE " <> escape col | (col, Just _) <- patts]
+
+namedParams :: Patterns -> [NamedParam]
+namedParams patts = [ escape col := pat | (col, Just pat) <- patts ]
+
+escape :: Text -> Text
+escape = ("@"<>)
 
 
 countSubmissions :: Patterns -> Codex Int
-countSubmissions Patterns{..} = do
-  r <- query "SELECT COUNT(*) FROM submissions WHERE \
-        \ id LIKE ? AND user_id LIKE ? AND path LIKE ? \
-        \ AND language LIKE ? AND class LIKE ? AND timing LIKE ?"
-        (idPat, userPat, pathPat, langPat, classPat, timingPat)
+countSubmissions patts = withSqlite $ \conn -> do
+  let sql = "SELECT COUNT(*) FROM submissions " <> queryPatterns patts
+  r <- S.queryNamed conn (S.Query sql) (namedParams patts)
   case r of
      [Only c] -> return c
-     _ -> error "countSubmissions failed"
+     _ -> return 0 -- error!!!
 
 
-filterSubmissions :: Patterns -> Sorting -> Int -> Int -> Codex [Submission]
-filterSubmissions Patterns{..} sort limit offset = 
+filterSubmissions :: Patterns -> Ordering -> Int -> Int -> Codex [Submission]
+filterSubmissions patts sort limit offset = 
   let
-    patts = (idPat, userPat, pathPat, langPat, classPat, timingPat, limit, offset)
-    sql = case sort of
-        Asc -> "SELECT * FROM submissions WHERE \
-        \ id LIKE ? AND user_id LIKE ? AND path LIKE ? \
-        \ AND language LIKE ? AND class LIKE ? AND timing LIKE ? \
-        \ ORDER BY received ASC LIMIT ? OFFSET ?"
-        Desc -> "SELECT * FROM submissions WHERE \
-        \ id LIKE ? AND user_id LIKE ? AND path LIKE ? \
-        \ AND language LIKE ? AND class LIKE ? AND timing LIKE ? \
-        \ ORDER BY received DESC LIMIT ? OFFSET ?"
-    in query sql patts
-
+    ord = case sort of
+      Ascending -> "ASC"
+      Descending -> "DESC"
+    sql = ("SELECT * FROM submissions "
+            <> queryPatterns patts
+            <> " ORDER BY received " <> ord
+            <> " LIMIT " <> escape "limit"
+            <> " OFFSET " <> escape "offset")
+  in do
+    liftIO $ print sql
+    liftIO $ print patts
+    withSqlite $ \conn ->
+      S.queryNamed conn (S.Query sql) ([escape "limit" := limit,
+                                        escape "offset" := offset]
+                                       ++ namedParams patts)
+  
 
 
 -- | process submissions with a filter
 withFilterSubmissions :: Patterns -> a -> (a -> Submission -> IO a) -> Codex a
-withFilterSubmissions Patterns{..} a f = 
-  let patts = (idPat, userPat, pathPat, langPat, classPat, timingPat)
-      q = "SELECT * FROM submissions WHERE \
-        \ id LIKE ? AND user_id LIKE ? AND path LIKE ? \
-        \ AND language LIKE ? AND class LIKE ? AND timing LIKE ? \
-        \ ORDER BY received ASC"
-  in withSqlite (\conn -> S.fold conn q patts a f)
+withFilterSubmissions patts a f = 
+  let sql = "SELECT * FROM submissions "
+            <> queryPatterns patts
+            <> " ORDER  BY received ASC"
+  in withSqlite (\conn -> S.foldNamed conn (S.Query sql) (namedParams patts) a f)
 
 -- | process all submissions
 withSubmissions :: a -> (a -> Submission -> IO a) -> Codex a
 withSubmissions a f = do
-  let q = "SELECT * FROM submissions ORDER BY id ASC"
-  withSqlite (\conn -> S.fold_ conn q a f)
+  let sql = "SELECT * FROM submissions ORDER BY id ASC"
+  withSqlite (\conn -> S.fold_ conn sql a f)
 
-
+{-
 -- | Helper function to decode patterns from an http request parameters
 getPatterns :: Codex Patterns
 getPatterns = do
@@ -220,10 +248,41 @@ getPatterns = do
   return Patterns { idPat = id_pat, userPat = uid_pat,
                     pathPat = path_pat, langPat = lang_pat,
                     classPat = class_pat, timingPat = timing_pat }
+-}
+
+-- | Helper function to decode patterns from an http request parameters
+getPatterns :: Codex Patterns
+getPatterns = do
+  sequence [ do pat <- getParam field 
+                return (T.decodeUtf8 field, fmap T.decodeUtf8 pat)
+           | field <- ["id", "user_id", "path", "language", "class", "timing"]
+           ]
+
+patternSplices :: Patterns -> ISplices
+patternSplices patts
+  = sequence_ [ field ## I.textSplice (fromMaybe "" pat)
+              | (field, pat) <- patts]
+
+{-
+patternSplices :: Patterns -> ISplices
+patternSplices patts = do
+  let id = fromMaybe "" (lookup "id" patts)
+  let user = fromMaybe "" (lookup "user_id" patts)
+  let lang = fromMaybe "" (lookup "language" patts)
+  let path = fromMaybe "" (lookup "path" patts)
+  let clss = fromMaybe "" (lookup "class" patts)
+  let timing = fromMaybe "" (lookup "timing" patts)
+  "id_pat" ## I.textSplice id
+  "uid_pat" ## I.textSplice user
+  "path_pat" ## I.textSplice path
+  "lang_pat" ## I.textSplice lang
+  "class_pat" ## I.textSplice clss
+  "timing_pat" ## I.textSplice timing
+-}
 
 
--- | normalize patterns
--- remove whitespace and replace empty strings with SQL wilcards `%'
+
+{-
 normalizePatterns :: Patterns -> Patterns
 normalizePatterns Patterns{..}
   = Patterns { idPat = normal idPat,
@@ -235,7 +294,7 @@ normalizePatterns Patterns{..}
              }
   where normal :: Pattern -> Pattern
         normal pat = let pat'=T.strip pat in if T.null pat' then "%" else pat'
-
+-}
 
 
 
@@ -244,6 +303,7 @@ normalizePatterns Patterns{..}
 submitSplices :: TimeZone -> Submission -> ISplices
 submitSplices tz Submission{..} = do
   "submit-id" ##  I.textSplice (toText submitId)
+  "submit-url" ## urlSplice (Report submitId)
   "submit-user-id" ## I.textSplice (toText submitUser)
   "submit-path" ## I.textSplice (T.decodeUtf8 $ encodePath submitPath)
   "submit-time" ## utcTimeSplice tz submitTime

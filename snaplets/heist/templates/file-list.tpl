@@ -15,7 +15,7 @@
 	<if-dir><icon-folder/></if-dir>
       </td>
       <td class="filename">
-	  <a href="/files/${file-path-url}"><file-name/></a>
+	  <a href="${file-url}"><file-name/></a>
       </td>
       <td class="filetype"><file-type/></td>
       <td class="filemodified"><file-modified/></td>
@@ -25,7 +25,7 @@
 <hr/>
 
 
-<form action="/files/${file-path}"
+<form action="${file-url}"
       enctype="multipart/form-data" method="POST">
 <input type="hidden" name="_method" value="POST"/>
 <input type="file" name="datafile" required="required"/>

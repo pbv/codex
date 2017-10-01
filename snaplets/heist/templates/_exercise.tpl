@@ -46,7 +46,7 @@
       <ol class="submissions">
 	<submissions-list>
 	  <li>
-	    <a href="/sub/${submit-id}"><submit-id/></a>&nbsp;<feedback-medium
+	    <a href="${submit-url}"><submit-id/></a>&nbsp;<feedback-medium
                ><span class="${submit-classify}"><submit-classify/></span><accepted><time-icon/></accepted></feedback-medium>
 	  </li>
 	</submissions-list>
@@ -57,17 +57,17 @@
 
 <h2>Nova submissão</h2>
 
-<form id="editform" method="POST" action="/pub/${file-path-url}"
+<form id="editform" method="POST" action="${page-url}"
       onsubmit="submitAceEditorText('editform.editor');">
   <p><inputAceEditor id='editform.editor' mode='ace/mode/${language-mode}'><code-text/></inputAceEditor>
 </p>
 <p>
   <input type="submit" value="Submeter"/>  &nbsp;
-  <a href="/pub/${file-path-url}/.." class="button">Voltar à folha de exercícios</a>
+  <a href="${parent-url}" class="button">Voltar à folha de exercícios</a>
 </form>
 </apply>
 
 
 <apply template="_browse">
-  <li><a title="Editar a página de exercício" href="/files/${file-path-url}">Editar</a></li>
+  <li><a title="Editar a página de exercício" href="${file-url}">Editar</a></li>
 </apply>

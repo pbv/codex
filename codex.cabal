@@ -64,6 +64,8 @@ Executable codex-server
     snap-core,
     snap-server,
     snap-loader-static,
+    snap-web-routes,
+    web-routes,
     snaplet-sqlite-simple,
     sqlite-simple,
     text,
@@ -96,46 +98,46 @@ Executable codex-server
     ghc-options: -threaded -Wall -fwarn-tabs -funbox-strict-fields -O2
                  -fno-warn-orphans -fno-warn-unused-do-bind -rtsopts
     
-Executable codex-tester
-  hs-source-dirs: src
-  main-is: RunTester.hs
-  default-language: Haskell2010
-  other-modules:
-    Codex.Config
-    Codex.Interval
-    Codex.Tester
-    Codex.Tester.Monad
-    Codex.Tester.Result
-    Codex.Tester.Utils
-    Codex.Tester.Python
-    Codex.Tester.QuickCheck
-    Codex.Tester.Haskell
-    Codex.Tester.C
-    Codex.Testers            
-    Codex.Evaluate
-    Codex.Page
-    Codex.SafeExec
-    Codex.Types
-  build-depends:
-    filepath,
-    directory,
-    old-locale,
-    process,
-    unix,
-    transformers,
-    mtl,
-    bytestring,
-    utf8-string,
-    xmlhtml,
-    sqlite-simple,
-    text,
-    time,
-    pandoc-types,
-    pandoc,
-    unordered-containers,
-    containers,
-    configurator,
-    base,
-    lens,
-    process-extras,
-    QuickCheck
+-- Executable codex-tester
+--   hs-source-dirs: src
+--   main-is: RunTester.hs
+--   default-language: Haskell2010
+--   other-modules:
+--     Codex.Config
+--     Codex.Interval
+--     Codex.Tester
+--     Codex.Tester.Monad
+--     Codex.Tester.Result
+--     Codex.Tester.Utils
+--     Codex.Tester.Python
+--     Codex.Tester.QuickCheck
+--     Codex.Tester.Haskell
+--     Codex.Tester.C
+--     Codex.Testers            
+--     Codex.Evaluate
+--     Codex.Page
+--     Codex.SafeExec
+--     Codex.Types
+--   build-depends:
+--     filepath,
+--     directory,
+--     old-locale,
+--     process,
+--     unix,
+--     transformers,
+--     mtl,
+--     bytestring,
+--     utf8-string,
+--     xmlhtml,
+--     sqlite-simple,
+--     text,
+--     time,
+--     pandoc-types,
+--     pandoc,
+--     unordered-containers,
+--     containers,
+--     configurator,
+--     base,
+--     lens,
+--     process-extras,
+--     QuickCheck

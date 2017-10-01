@@ -22,6 +22,7 @@ import           Snap.Snaplet
 import           Snap.Snaplet.Heist
 import           Snap.Snaplet.Auth
 import           Snap.Snaplet.SqliteSimple
+import           Snap.Snaplet.Router
 
 
 import           Data.Aeson.Types
@@ -204,10 +205,28 @@ pageSplices page = do
   "page-description" ## return (pageToHtml page)
   "if-exercise" ## I.ifElseISplice (pageIsExercise page)
 
+{-
 pathSplices :: Monad m => FilePath -> Splices (I.Splice m)
 pathSplices filepath = do
   "file-path" ## I.textSplice (T.pack filepath)
   "file-path-url" ## I.textSplice (T.decodeUtf8 $ encodePath filepath)
+-}
+
+pageUrlSplices :: FilePath -> ISplices
+pageUrlSplices rqpath = do
+  let path = splitDirectories rqpath
+  let parent= if null path then [] else init path ++ ["index.md"]
+  "page-url" ## urlSplice (Page path)
+  "page-parent-url" ## urlSplice (Page parent)
+
+fileUrlSplices :: FilePath -> ISplices
+fileUrlSplices rqpath = do
+  let path = splitDirectories rqpath
+  let parent = if null path then [] else init path
+  "file-path" ## I.textSplice (T.pack rqpath)
+  "file-url" ## urlSplice (Files path)
+  "file-parent-url" ## urlSplice (Files parent)
+
 
 
 -- list of messages

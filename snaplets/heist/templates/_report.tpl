@@ -30,17 +30,17 @@
 
 <h2>Editar submissão</h2>
 
-<form id="editform" method="POST" action="/pub/${file-path-url}"
-      onsubmit="submitAceEditorText('editform.editor');">
+<form id="editform" method="POST" action="${page-url}"
+      onSubmit="submitAceEditorText('editform.editor');">
 <p><inputAceEditor id="editform.editor" mode="ace/mode/${language-mode}"><code-text/></inputAceEditor></p>
 <p><input type="submit" value="Re-enviar"/>
-&nbsp;<a class="button" href="/pub/${file-path-url}">Voltar ao exercício</a>
-&nbsp;<a class="button" href="/pub/${file-path-url}/..">Voltar à folha de exercícios</a>
+&nbsp;<a class="button" href="${page-url}">Voltar ao exercício</a>
+&nbsp;<a class="button" href="${page-parent-url}">Voltar à folha de exercícios</a>
 </form>
 </evaluating>
 </apply>
 
 <apply template="_browse">
   <li><a title="Editar folha de exercício"
-     href="/files/${file-path-url}">Editar</a><li>
+     href="${file-url}">Editar</a><li>
 </apply>

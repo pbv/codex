@@ -2,16 +2,16 @@
   <h1>/<file-path/></h1>
   <p>Mime-type: <file-mime/></p>
   <if-image-file>
-    <img src="/pub/${file-path-url}"/>
+    <img src="${page-url}"/>
   </if-image-file>
   <if-text-file>
-    <form id="editform" method="POST" action="/files/${file-path-url}"
+    <form id="editform" method="POST" action="${file-url}"
 	  onSubmit="submitAceEditorText('editform.editor');">
       <input type="hidden" name="_method" value="PUT"/>
-      <input type="hidden" id="editform.path" value="${file-path-url}"/>
+      <input type="hidden" id="editform.path" value="${file-path}"/>
       <inputAceEditor id="editform.editor" mode="ace/mode/text"><file-contents/></inputAceEditor>
       <p><input type="submit" value="Gravar alterações"/> &nbsp;
-	<a class="button" title="Voltar ao diretório anterior" href="/files/${file-path-url}/..">Cancelar</a>
+	<a class="button" title="Voltar ao diretório anterior" href="${file-parent-url}">Cancelar</a>
       </p>
     </form>
     <script type="text/javascript">
@@ -20,7 +20,7 @@
   </if-text-file>
 
   <div>
-    <form id="deleteform" method="POST" action="/files/${file-path-url}"
+    <form id="deleteform" method="POST" action="${file-url}"
        style="display:inline-block;">
       <input type="hidden" name="_method" value="DELETE"/>
       <input type="button" value="Apagar"
@@ -35,7 +35,7 @@
       }
       }
     </script>
-  <form method="POST" action="/files/${file-path-url}"
+  <form method="POST" action="${file-url}"
 	style="display:inline;">
     <span>
       <input type="hidden" name="_method" value="PATCH"/>
@@ -47,5 +47,5 @@
 </apply>
 
 <apply template="_browse">
-  <li><a title="Ver página formatada" href="/pub/${file-path-url}">Visualizar</a></li>
+  <li><a title="Ver página formatada" href="${page-url}">Visualizar</a></li>
 </apply>

@@ -1,12 +1,18 @@
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE DeriveDataTypeable #-}
+{-# LANGUAGE DeriveGeneric     #-} -- Needed to derive Generic
+
 {-
   Types for various entities
 -}
 
 module Codex.Types
   ( -- * types
-    UserLogin(..), SubmitId(..),  Language(..), Code(..),
+    UserLogin(..),
+    Password(..),
+    SubmitId(..),
+    Language(..),
+    Code(..),
     -- * typeclass
     Text, toText
   ) where
@@ -18,6 +24,7 @@ import           Data.Text (Text)
 import qualified Data.Text as T
 
 import           Data.Int(Int64)
+import           Data.ByteString.UTF8 (ByteString)
 
 import           Database.SQLite.Simple.ToField
 import           Database.SQLite.Simple.FromField
@@ -26,15 +33,19 @@ import           Database.SQLite.Simple.FromRow
 import           Data.Configurator.Types
 import           Data.Configurator ()
 
+import           Web.Routes.PathInfo
+
+
 -- | a user login; should uniquely identify the user
 newtype UserLogin
   = UserLogin {fromLogin :: Text} deriving (Eq, Ord)
 
+newtype Password
+  = Password {fromPassword :: ByteString} deriving (Eq,Ord)
 
 -- | submission identifier
 newtype SubmitId
-  = SubmitId {fromSid :: Int64} deriving (Eq, Ord)
-
+  = SubmitId {fromSubmitId :: Int64} deriving (Eq, Ord)
 
 -- | conversion to strings
 instance Show UserLogin where
@@ -42,6 +53,14 @@ instance Show UserLogin where
 
 instance Show SubmitId where
   showsPrec prec (SubmitId sid) = showsPrec prec sid
+
+instance Read SubmitId where
+  readsPrec p s = [(SubmitId n, s' ) | (n,s')<-readsPrec p s]
+
+instance PathInfo SubmitId where
+  toPathSegments (SubmitId sid) = toPathSegments sid
+  fromPathSegments = SubmitId <$> fromPathSegments
+
 
 -- | language identifier
 newtype Language
@@ -70,7 +89,7 @@ instance ToText UserLogin where
   toText = fromLogin
 
 instance ToText SubmitId where
-  toText = T.pack . show . fromSid
+  toText = T.pack . show . fromSubmitId
 
 instance ToText Language where
   toText = fromLanguage
@@ -91,7 +110,7 @@ instance FromField UserLogin where
   fromField f = UserLogin <$> fromField f
 
 instance ToField SubmitId where
-  toField = toField . fromSid
+  toField = toField . fromSubmitId
 
 instance FromField SubmitId where
   fromField f = SubmitId <$> fromField f

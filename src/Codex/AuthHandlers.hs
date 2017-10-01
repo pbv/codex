@@ -25,6 +25,7 @@ import           Snap.Core
 import           Snap.Snaplet
 import           Snap.Snaplet.Auth
 import           Snap.Snaplet.Heist
+import           Snap.Snaplet.Router
 
 import qualified Heist.Interpreted as I
 
@@ -38,7 +39,7 @@ import           Codex.LdapAuth
 -- | Handle login requests
 handleLogin :: Codex ()
 handleLogin =
-  method GET (handleLoginForm "login" Nothing) <|>
+  method GET (handleLoginForm "_login" Nothing) <|>
   method POST handleLoginSubmit
 
 
@@ -61,17 +62,14 @@ handleLoginSubmit :: Codex ()
 handleLoginSubmit = do
   login <-  require (getParam "login")
   passwd <- require (getParam "password")
-  -- logError ("Login attempt for " <> login)
   ldap <- getLdap
   r <- with auth $ loginByUsername (T.decodeUtf8 login) (ClearText passwd) False
   case r of
-    Right au -> do
-      -- logError ("Local login sucessful for " <> login)
-      redirect "/"
+    Right au ->
+      redirectURL (Page ["index.md"])
     Left err -> case ldap of
       Nothing -> do
-        -- logError ("Login failed for " <> login)
-        handleLoginForm "login" (Just err)
+        handleLoginForm "_login" (Just err)
       Just cfg -> loginLdapUser cfg login passwd
 
 

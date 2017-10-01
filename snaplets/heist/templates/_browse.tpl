@@ -7,9 +7,9 @@
        <li><a href="/pub"
         title="Voltar ao ínício">Início</a></li>
     <ifAdmin>
-       <li><a href="/files"
+       <li><a href="${file-parent-url}"
 	 title="Ver ficheiros">Ficheiros</a></li>
-      <li><a href="/submissions"
+      <li><a href="${submissions-url}"
 	 title="Ver submissões">Submissões</a></li>
       <apply-content/>
     </ifAdmin>

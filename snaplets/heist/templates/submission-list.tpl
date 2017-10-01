@@ -16,8 +16,8 @@
 	    <option value="Desc" selected>descendente</option>
 	  </if-ascending>
 	</select> &nbsp;
-	<a class="button" href="/submissions?page=${prev-page}&sorting=${sorting}&${patterns}">&lt;</a> &nbsp;
-	<a class="button" href="/submissions?page=${next-page}&sorting=${sorting}&${patterns}">&gt;</a> &nbsp;
+	<a class="button" href="${submissions-prev-url}">&lt;</a> &nbsp;
+	<a class="button" href="${submissions-next-url}">&gt;</a> &nbsp;
 	<input type="submit" value="Filtrar"/>
       </td>
       <td colspan="1">
@@ -35,18 +35,18 @@
       <th>received</th>
     </tr>
     <tr>
-      <th><input type="text" name="id_pat" size="4" value="${id_pat}"/></th>
-      <th><input type="text" name="uid_pat" size="8" value="${uid_pat}"/></th>
-      <th><input type="text" name="path_pat" size="20" value="${path_pat}"/></th>
-      <th><input type="text" name="lang_pat" size="8" value="${lang_pat}"/></th>
-      <th><input type="text" name="class_pat" size="20" value="${class_pat}"/></th>
-      <th><input type="text" name="timing_pat" size="6" value="${timing_pat}"/></th>
+      <th><input type="text" name="id" size="4" value="${id}"/></th>
+      <th><input type="text" name="user_id" size="8" value="${user_id}"/></th>
+      <th><input type="text" name="path" size="20" value="${path}"/></th>
+      <th><input type="text" name="language" size="8" value="${language}"/></th>
+      <th><input type="text" name="class" size="20" value="${class}"/></th>
+      <th><input type="text" name="timing" size="6" value="${timing}"/></th>
       <th/>
     </tr>
     <if-submissions>
       <submissions>
 	<tr>
-	  <td class="submitid"><a href="/submissions/${submit-id}"><submit-id/></a></td>
+	  <td class="submitid"><a href="${submit-url}"><submit-id/></a></td>
 	  <td class="userid"><submit-user-id/></td>
 	  <td class="path"><a href="/pub/${submit-path}"><submit-path/></a></td>
 	  <td class="lang"><code-lang/></td>

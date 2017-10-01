@@ -38,11 +38,13 @@ import           Snap.Snaplet.Auth.Backends.SqliteSimple
 import           Snap.Snaplet.Heist
 import           Snap.Snaplet.Session.Backends.CookieSession
 import qualified Snap.Snaplet.SqliteSimple                   as S
+import           Snap.Snaplet.Router
 import           Snap.Util.FileServe                         (fileType,
                                                               getSafePath,
                                                               serveDirectory,
                                                               serveFile,
                                                               serveFileAs)
+
 
 import           Data.Time.Clock
 import           Data.Time.LocalTime
@@ -76,39 +78,41 @@ import           Text.Pandoc                                 hiding (Code)
 import           Text.Pandoc.Walk                            as Pandoc
 
 
-
 -- | handle page requests
-handlePage :: Codex ()
-handlePage = do
+handlePage :: FilePath -> Codex ()
+handlePage rqpath = do
   uid <- require getUserLogin <|> unauthorized
   root <- getDocumentRoot
-  rqpath <- getSafePath
-  method GET (handleGet uid root rqpath <|>
-               handleRedir root rqpath) <|>
-   method POST (handlePost uid root rqpath)
-  where
-    handleGet uid root rqpath =  do
-      let filepath = root </> rqpath
-      c <- liftIO (doesFileExist filepath)
-      unless c pass
-      -- serve according to mime type
-      let mime = fileType mimeTypes rqpath
-      if mime == "text/markdown" then
-        servePage uid rqpath
-        else
-        serveFileAs mime filepath
+  let filepath = root </> rqpath
+  c <- liftIO (doesFileExist filepath)
+  unless c notFound
+  let mime = fileType mimeTypes rqpath
+        -- ensure the request is for an exercise page
+  let handlePost = do
+        page <- liftIO (readMarkdownFile filepath)
+        unless (pageIsExercise page) badRequest
+        text <- require (getTextPost "editform.editor")
+        lang <- require (return $ pageLanguage page)
+        sid <- newSubmission uid rqpath (Code lang text)
+        redirectURL (Report sid)
+    
+  case mime of
+    "text/markdown" -> (method GET (servePage uid rqpath) <|>
+                        method POST handlePost)
+    _ -> method GET (serveFileAs mime filepath)
 
-    handleRedir root rqpath = do
+{-
+  where
+   handleRedir root rqpath = do
         let filepath = root </> rqpath </> "index.md"
         c <- liftIO (doesFileExist filepath)
         if c then
           redirect (encodePath ("/pub" </> rqpath </> "index.md"))
           else
           notFound
-
     handlePost uid root rqpath = do
       let filepath = root </> rqpath
-      c <- liftIO $ doesFileExist filepath
+      c <- liftIO (doesFileExist filepath)
       guard (c && fileType mimeTypes rqpath == "text/markdown")
       page <- liftIO (readMarkdownFile $ root </> rqpath)
       -- ensure the request is for an exercise page
@@ -116,7 +120,8 @@ handlePage = do
       text <- require (getTextPost "editform.editor")
       lang <- require (return $ pageLanguage page)
       sid <- newSubmission uid rqpath (Code lang text)
-      redirect (encodePath $ "/sub" </> show sid)
+      redirectURL (Submit sid)
+-}
 
 
 -- | serve a markdown document
@@ -126,16 +131,18 @@ servePage uid rqpath = do
   if pageIsExercise page then
     renderExercise rqpath page =<< getPageSubmissions uid rqpath
     else
-    renderWithSplices "page" (pathSplices rqpath >>
-                              pageSplices page)
+    renderWithSplices "_page" (pageUrlSplices rqpath >>
+                               fileUrlSplices rqpath >>
+                               pageSplices page)
 
 --  render an exercise page
 renderExercise :: FilePath -> Page -> [Submission] -> Codex ()
 renderExercise rqpath page subs = do
   tz <- liftIO getCurrentTimeZone
   timeSplices <- timingSplices page
-  renderWithSplices "exercise" $ do
-    pathSplices rqpath
+  renderWithSplices "_exercise" $ do
+    pageUrlSplices rqpath
+    fileUrlSplices rqpath
     pageSplices page
     exerciseSplices page
     timeSplices
@@ -148,13 +155,14 @@ renderReport :: FilePath -> Page -> Submission -> Codex ()
 renderReport rqpath page sub = do
   tz <- liftIO getCurrentTimeZone
   timeSplices <- timingSplices page
-  renderWithSplices "report" $ do
-    pathSplices rqpath
+  renderWithSplices "_report" $ do
+    pageUrlSplices rqpath
     pageSplices page
     exerciseSplices page
     timeSplices
     submitSplices tz sub
     inputAceEditorSplices
+
 
 
 
@@ -211,17 +219,16 @@ queryExerciseLinks page = query extractURL (pageDescription page)
 
 
 -- | handle GET requests for submission reports
-handleSubmitReport :: Codex ()
-handleSubmitReport = do
+handleReport :: SubmitId -> Codex ()
+handleReport sid = do
   usr <- require (with auth currentUser) <|> unauthorized
   let uid = authUserLogin usr
-  sid <- require getSubmitId
   sub <- require (getSubmission sid) <|> notFound
   unless (isAdmin usr || submitUser sub == uid)
       unauthorized
   root <- getDocumentRoot
+  let rqpath = submitPath sub
   method GET $ do
-    let rqpath = submitPath sub
     page <- liftIO $ readMarkdownFile (root </> rqpath)
     renderReport rqpath page sub
 
@@ -275,8 +282,13 @@ submissionListSplices tz list = do
 
 ------------------------------------------------------------------------------
 -- | The application's routes.
-
 routes :: [(ByteString, Codex ())]
+routes =
+  [ ("",        routeWith routeAppUrl)
+  , ("/static", (getStaticRoot >>= serveDirectory) <|> notFound)
+  ]
+
+{-
 routes = [ ("/login",    handleLogin `catch` internalError)
          , ("/logout",   handleLogout `catch` internalError)
          , ("/register", handleRegister `catch` internalError)
@@ -290,6 +302,18 @@ routes = [ ("/login",    handleLogin `catch` internalError)
          , ("/static",  (getStaticRoot >>= serveDirectory) <|> notFound)
          , ("/robots.txt", getStaticRoot >>= \dir -> (serveFile $ dir</>"robots.txt"))
          ]
+-}
+
+routeAppUrl :: AppUrl -> Codex ()
+routeAppUrl appUrl =
+  case appUrl of
+    Login  -> handleLogin
+    Logout -> handleLogout
+    Page path -> handlePage (joinPath path)
+    Report sid -> handleReport sid
+    Files path -> handleBrowse (joinPath path)
+    Submissions -> handleSubmissionList
+
 
 
 -- | current logged in full user name
@@ -329,6 +353,7 @@ app :: SnapletInit App App
 app =
   makeSnaplet "codex" "Web server for programming exercises." Nothing $ do
     h <- nestSnaplet "" heist $ heistInit "templates"
+    r <- nestSnaplet "router" router $ initRouter ""
     s <- nestSnaplet "sess" sess $
            initCookieSessionManager "site_key.txt" "sess" Nothing (Just 3600)
     d <- nestSnaplet "db" db S.sqliteInit
@@ -353,6 +378,7 @@ app =
     semph <- liftIO $ newQSem =<< Conf.require conf "system.workers"
     tids <- liftIO $ newMVar []
     return App { _heist = h
+               , _router = r
                , _sess = s
                , _auth = a
                , _db   = d
@@ -362,16 +388,3 @@ app =
 
 
 
-
-{-
--- initialize EKG server (if configured)
-initEkg :: Config -> IO (Maybe Server)
-initEkg conf = do
-  enabled <- Configurator.require conf "ekg.enabled"
-  if enabled then do
-    host <- Configurator.require conf "ekg.host"
-    port <- Configurator.require conf "ekg.port"
-    Just <$> forkServer host port
-    else
-    return Nothing
-  -}
