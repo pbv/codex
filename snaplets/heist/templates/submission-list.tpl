@@ -7,13 +7,13 @@
 	<span class="info">
 	  <submissions-count/> submissões (página <page/> de <page-count/>)
 	</span> &nbsp;
-	<select name="sorting" onChange="this.form.submit()">
+	<select name="order" onChange="this.form.submit()">
 	  <if-ascending>
-	    <option value="Asc" selected>ascendente</option>
-	    <option value="Desc">descendente</option>
+	    <option value="Ascending" selected>ascendente</option>
+	    <option value="Descending">descendente</option>
 	    <else/>
-	    <option value="Asc">ascendente</option>
-	    <option value="Desc" selected>descendente</option>
+	    <option value="Ascending">ascendente</option>
+	    <option value="Descending" selected>descendente</option>
 	  </if-ascending>
 	</select> &nbsp;
 	<a class="button" href="${submissions-prev-url}">&lt;</a> &nbsp;
@@ -46,9 +46,9 @@
     <if-submissions>
       <submissions>
 	<tr>
-	  <td class="submitid"><a href="${submit-url}"><submit-id/></a></td>
+	  <td class="submitid"><a href="${report-url}"><submit-id/></a></td>
 	  <td class="userid"><submit-user-id/></td>
-	  <td class="path"><a href="/pub/${submit-path}"><submit-path/></a></td>
+	  <td class="path"><a href="${page-url}"><submit-path/></a></td>
 	  <td class="lang"><code-lang/></td>
 	  <td class="classify ${submit-classify}"><submit-classify/></td>
 	  <td class="timing"><submit-timing/></td>

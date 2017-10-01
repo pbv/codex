@@ -5,5 +5,5 @@
 </apply>
 
 <apply template="_browse">
-  <li><a title="Editar página" href="/files/${file-path-url}">Editar</a></li>
+  <li><a title="Editar página" href="${file-url}">Editar</a></li>
 </apply>

@@ -237,43 +237,34 @@ handleSubmissionList =  handleMethodOverride $ do
 
 -- | List submissions
 listSubmissions :: Patterns -> Codex.Submission.Ordering -> Int -> Codex ()
-listSubmissions patts order page = do
+listSubmissions patts order reqpage = do
   count <- countSubmissions patts
   let entries = 50   -- # entries per page
   let npages
         | count>0 = ceiling (fromIntegral count / fromIntegral entries :: Double)
         | otherwise = 1
   -- restrict to visible pages
-  let page' = 1 `max` page `min` npages
-  let offset = (page' - 1) * entries  
+  let page = 1 `max` reqpage `min` npages
+  let offset = (page - 1) * entries  
   subs <- filterSubmissions patts order entries offset
   tz <- liftIO getCurrentTimeZone
   renderWithSplices "submission-list" $ do
     patternSplices patts
-    "page" ## I.textSplice (T.pack $ show page')
+    "page" ## I.textSplice (T.pack $ show page)
     "order" ## I.textSplice (T.pack $ show order)
     "submissions-count" ## I.textSplice (T.pack $ show count)
     "if-ascending" ## I.ifElseISplice (order == Ascending)
     "if-submissions" ## I.ifElseISplice (count > 0)
     "page-count" ## I.textSplice (T.pack $ show npages)
-    -- "prev-page" ## I.textSplice (T.pack $ show $ max 1 (page'-1))
-    -- "next-page" ## I.textSplice (T.pack $ show $ min npages (page'+1))
     "submissions" ## I.mapSplices (I.runChildrenWith . submitSplices tz) subs
-    "submissions-url" ## 
-        urlParamsSplice Submissions (("page", Just $ T.pack $ show page') : patts)
-    -- "submissions-prev-url" ## submissionUrl (max 1 (page'-1))
-    -- "submissions-next-url" ## submissionUrl (min npages (page'+1))
-    {-
-    let qs = Map.fromList $ map (\(k,v) -> (k,[T.encodeUtf8 v])) $
-             [("id_pat", idPat),
-              ("uid_pat", userPat),
-              ("path_pat", pathPat),
-              ("lang_pat", langPat),
-              ("class_pat", classPat),
-              ("timing_pat", timingPat)
-             ]
-    "patterns" ## I.textSplice (T.decodeUtf8 $ printUrlEncoded qs)
--}
+    "submissions-prev-url" ## urlParamsSplice Submissions
+                               (("page", Just (T.pack $ show $ page-1)) :
+                                ("order", Just (T.pack $ show order)) :
+                                 patts)
+    "submissions-next-url" ## urlParamsSplice Submissions
+                               (("page", Just (T.pack $ show $ page+1)) :
+                                 ("order", Just (T.pack $ show order)) :
+                                patts)
 
 -- | Re-evaluate selected submissions 
 reevalSubmissions :: Patterns -> Codex.Submission.Ordering -> Codex ()

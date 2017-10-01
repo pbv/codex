@@ -46,7 +46,7 @@
       <ol class="submissions">
 	<submissions-list>
 	  <li>
-	    <a href="${submit-url}"><submit-id/></a>&nbsp;<feedback-medium
+	    <a href="${report-url}"><submit-id/></a>&nbsp;<feedback-medium
                ><span class="${submit-classify}"><submit-classify/></span><accepted><time-icon/></accepted></feedback-medium>
 	  </li>
 	</submissions-list>
@@ -63,7 +63,7 @@
 </p>
 <p>
   <input type="submit" value="Submeter"/>  &nbsp;
-  <a href="${parent-url}" class="button">Voltar à folha de exercícios</a>
+  <a href="${page-parent-url}" class="button">Voltar à folha de exercícios</a>
 </form>
 </apply>
 

@@ -51,7 +51,9 @@ import           Heist.Splices     as I
 import qualified Heist.Interpreted as I
 
 import           Control.Concurrent.MVar
-import           Control.Monad.State (liftIO)
+import           Control.Monad (mfilter)
+
+import           System.FilePath (splitDirectories)
 
 import           Codex.Application
 
@@ -155,19 +157,6 @@ deleteSubmission sid =
 
 -------------------------------------------------------------------------
 -- patterns for filtering submissions
-
-{-
-data Patterns = Patterns {
-  idPat :: Pattern,
-  userPat :: Pattern,
-  pathPat :: Pattern,
-  langPat :: Pattern,
-  classPat :: Pattern,
-  timingPat :: Pattern
-  } deriving Show
--}
-
-
 type Patterns = [(Text, Maybe Text)]  -- SQL column, optional string
 
 data Ordering
@@ -211,10 +200,7 @@ filterSubmissions patts sort limit offset =
             <> " ORDER BY received " <> ord
             <> " LIMIT " <> escape "limit"
             <> " OFFSET " <> escape "offset")
-  in do
-    liftIO $ print sql
-    liftIO $ print patts
-    withSqlite $ \conn ->
+  in withSqlite $ \conn ->
       S.queryNamed conn (S.Query sql) ([escape "limit" := limit,
                                         escape "offset" := offset]
                                        ++ namedParams patts)
@@ -235,67 +221,20 @@ withSubmissions a f = do
   let sql = "SELECT * FROM submissions ORDER BY id ASC"
   withSqlite (\conn -> S.fold_ conn sql a f)
 
-{-
--- | Helper function to decode patterns from an http request parameters
-getPatterns :: Codex Patterns
-getPatterns = do
-  id_pat <-   T.decodeUtf8 <$> getParamDef "id_pat" ""
-  uid_pat <-  T.decodeUtf8 <$> getParamDef "uid_pat" ""
-  path_pat<-  T.decodeUtf8 <$> getParamDef "path_pat" ""
-  lang_pat<-  T.decodeUtf8 <$> getParamDef "lang_pat" ""
-  class_pat<- T.decodeUtf8 <$> getParamDef "class_pat" ""
-  timing_pat<- T.decodeUtf8 <$> getParamDef "timing_pat" ""
-  return Patterns { idPat = id_pat, userPat = uid_pat,
-                    pathPat = path_pat, langPat = lang_pat,
-                    classPat = class_pat, timingPat = timing_pat }
--}
 
 -- | Helper function to decode patterns from an http request parameters
 getPatterns :: Codex Patterns
 getPatterns = do
-  sequence [ do pat <- getParam field 
-                return (T.decodeUtf8 field, fmap T.decodeUtf8 pat)
-           | field <- ["id", "user_id", "path", "language", "class", "timing"]
-           ]
+  txts <- sequence [ do pat <- fmap (T.strip . T.decodeUtf8) <$> getParam field
+                        return (mfilter (not . T.null) pat)
+                   | field <- fields
+                   ]
+  return (zip (map T.decodeUtf8 fields) txts)
+  where fields = ["id", "user_id", "path", "language", "class", "timing"]
 
 patternSplices :: Patterns -> ISplices
 patternSplices patts
-  = sequence_ [ field ## I.textSplice (fromMaybe "" pat)
-              | (field, pat) <- patts]
-
-{-
-patternSplices :: Patterns -> ISplices
-patternSplices patts = do
-  let id = fromMaybe "" (lookup "id" patts)
-  let user = fromMaybe "" (lookup "user_id" patts)
-  let lang = fromMaybe "" (lookup "language" patts)
-  let path = fromMaybe "" (lookup "path" patts)
-  let clss = fromMaybe "" (lookup "class" patts)
-  let timing = fromMaybe "" (lookup "timing" patts)
-  "id_pat" ## I.textSplice id
-  "uid_pat" ## I.textSplice user
-  "path_pat" ## I.textSplice path
-  "lang_pat" ## I.textSplice lang
-  "class_pat" ## I.textSplice clss
-  "timing_pat" ## I.textSplice timing
--}
-
-
-
-{-
-normalizePatterns :: Patterns -> Patterns
-normalizePatterns Patterns{..}
-  = Patterns { idPat = normal idPat,
-               userPat = normal userPat,
-               pathPat =normal pathPat,
-               langPat = normal langPat,
-               classPat = normal classPat,
-               timingPat = normal timingPat
-             }
-  where normal :: Pattern -> Pattern
-        normal pat = let pat'=T.strip pat in if T.null pat' then "%" else pat'
--}
-
+  = sequence_ [ field ## I.textSplice (fromMaybe "" pat) | (field, pat) <- patts]
 
 
 
@@ -303,9 +242,11 @@ normalizePatterns Patterns{..}
 submitSplices :: TimeZone -> Submission -> ISplices
 submitSplices tz Submission{..} = do
   "submit-id" ##  I.textSplice (toText submitId)
-  "submit-url" ## urlSplice (Report submitId)
+  "report-url" ## urlSplice (Report submitId)
+  "page-url" ## urlSplice (Page $ splitDirectories submitPath)
+  "file-url" ## urlSplice (Files $ splitDirectories submitPath)
+  "submit-path" ## I.textSplice (T.pack submitPath)
   "submit-user-id" ## I.textSplice (toText submitUser)
-  "submit-path" ## I.textSplice (T.decodeUtf8 $ encodePath submitPath)
   "submit-time" ## utcTimeSplice tz submitTime
   "code-lang" ## I.textSplice (toText $ codeLang submitCode)
   "code-text" ##  I.textSplice (codeText submitCode)

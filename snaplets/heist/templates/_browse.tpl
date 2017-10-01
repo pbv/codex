@@ -4,12 +4,12 @@
   </ifLoggedOut>
   <ifLoggedIn>
     <ul class="menubar">
-       <li><a href="/pub"
+       <li><a href="/page/index.md"
         title="Voltar ao ínício">Início</a></li>
     <ifAdmin>
-       <li><a href="${file-parent-url}"
+       <li><a href="/files"
 	 title="Ver ficheiros">Ficheiros</a></li>
-      <li><a href="${submissions-url}"
+      <li><a href="/submissions"
 	 title="Ver submissões">Submissões</a></li>
       <apply-content/>
     </ifAdmin>
