@@ -2,7 +2,7 @@ Name:                codex
 Version:             0.8
 Synopsis:            A web server for programming exercises
 Description:         A web server for programming exercises
-License:             AllRightsReserved
+License:             MIT
 Author:              Pedro Vasconcelos
 Maintainer:          pbv@dcc.fc.up.pt
 Stability:           Experimental
@@ -55,7 +55,6 @@ Executable codex-server
     utf8-string,
     heist,
     map-syntax,
-    HsOpenSSL,
     lifted-base,                
     monad-control,
     mtl,

@@ -36,11 +36,11 @@ import           Paths_codex                                 (version)
 
 
 -- | produce printouts for final submissions
-handlePrintouts :: Codex ()
-handlePrintouts = do
   -- ensure that a user with admin privileges is logged in
-  usr <- require (with auth currentUser) <|> unauthorized
-  unless (isAdmin usr) unauthorized  
+handlePrintouts :: Codex ()
+handlePrintouts = withAdmin $ do
+  -- usr <- require (with auth currentUser) <|> unauthorized
+  -- unless (isAdmin usr) unauthorized  
   -- fetch configuration options
   conf <- getSnapletUserConfig
   dir <- liftIO $ Configurator.require conf "printouts.directory"

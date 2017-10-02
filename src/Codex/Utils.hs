@@ -6,12 +6,12 @@ module Codex.Utils where
 
 import           Data.ByteString.UTF8 (ByteString)
 import qualified Data.ByteString.UTF8 as B
-import qualified Data.ByteString      as B
+
 import           Data.Char(toUpper)
 import qualified Data.Text as T
 import qualified Data.Text.Encoding as T
 import qualified Data.Text.Encoding.Error as T
-import           Data.List (intersperse)
+
 import           Data.Maybe (fromMaybe, listToMaybe, maybeToList)
 import           Data.Aeson
 import qualified Data.HashMap.Strict as HM
@@ -24,9 +24,6 @@ import           Snap.Snaplet.Auth
 import           Snap.Snaplet.SqliteSimple
 import           Snap.Snaplet.Router
 
-
-import           Data.Aeson.Types
-
 import           Heist
 import qualified Heist.Splices as I
 import qualified Heist.Interpreted as I
@@ -38,7 +35,6 @@ import qualified Text.XmlHtml as X
 import           Control.Monad.State
 import           Control.Exception (SomeException, bracket_)
 import           Control.Concurrent
-import           Control.Concurrent.QSem
 
 import qualified Data.Configurator as Configurator
 
@@ -112,6 +108,15 @@ getUserRoles = do
 
 isAdmin :: AuthUser -> Bool
 isAdmin au = Role "admin" `elem` userRoles au
+
+-- | run a handle only under administrative login
+withAdmin :: Codex a -> Codex a
+withAdmin action = do
+  optlist <- getUserRoles
+  case optlist of
+    Nothing -> unauthorized
+    Just roles -> if Role "admin" `elem` roles then action
+                    else unauthorized
 
 
 -- | get all events 
@@ -205,12 +210,6 @@ pageSplices page = do
   "page-description" ## return (pageToHtml page)
   "if-exercise" ## I.ifElseISplice (pageIsExercise page)
 
-{-
-pathSplices :: Monad m => FilePath -> Splices (I.Splice m)
-pathSplices filepath = do
-  "file-path" ## I.textSplice (T.pack filepath)
-  "file-path-url" ## I.textSplice (T.decodeUtf8 $ encodePath filepath)
--}
 
 pageUrlSplices :: FilePath -> ISplices
 pageUrlSplices rqpath = do
@@ -311,14 +310,6 @@ methodOverride param r
        "PATCH"   -> Just PATCH
        ""        -> Nothing
        _         -> Just (Method meth)
-
-
-
--- | encode a file path as a URL
-encodePath :: FilePath -> ByteString
-encodePath rqpath = B.concat (intersperse "/" dirs')
-  where dirs = map (urlEncode . B.fromString) (splitDirectories rqpath)
-        dirs'= if isAbsolute rqpath then "":tail dirs else dirs
 
 
 -- | aquire and release a quantity semaphore for an I/O action

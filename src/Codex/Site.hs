@@ -233,6 +233,7 @@ handleReport sid = do
     renderReport rqpath page sub
 
 
+
 -- | splices related to exercises
 exerciseSplices :: Page -> ISplices
 exerciseSplices page = do
@@ -359,15 +360,7 @@ app =
     d <- nestSnaplet "db" db S.sqliteInit
     a <- nestSnaplet "auth" auth $ initSqliteAuth sess d
     addAuthSplices h auth
-    let sc = do
-          "version" ## versionSplice
-          "timeNow" ## nowSplice
-          "evaluating" ## return []
-          "loggedInName" ## loggedInName auth
-          "ifAdmin" ## do
-            mbAu <- lift (withTop auth currentUser)
-            I.ifElseISplice (maybe False isAdmin mbAu)
-    addConfig h (mempty & scInterpretedSplices .~ sc)
+    addConfig h (mempty & scInterpretedSplices .~ staticSplices)
     -- Grab the DB connection pool from the sqlite snaplet and call
     -- into the Model to create all the DB tables if necessary.
     let c = S.sqliteConn $ d ^# snapletValue
@@ -388,3 +381,12 @@ app =
 
 
 
+staticSplices :: ISplices
+staticSplices = do
+  "version" ## versionSplice
+  "timeNow" ## nowSplice
+  "evaluating" ## return []
+  "loggedInName" ## loggedInName auth
+  "ifAdmin" ## do mbAu <- lift (withTop auth currentUser)
+                  I.ifElseISplice (maybe False isAdmin mbAu)
+  

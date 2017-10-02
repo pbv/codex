@@ -24,8 +24,6 @@ import           Snap.Util.FileUploads
 import           Heist.Splices     as I
 import qualified Heist.Interpreted as I
 
-import qualified Data.Map as Map
-import           Data.Map.Syntax
 import           Data.Time.Clock
 import           Data.Time.LocalTime
 import           System.FilePath
@@ -63,19 +61,16 @@ import           Codex.Config
 
 --
 -- | Handle file browsing requests
+-- ensure that a user with admin privileges is logged in
 --
 handleBrowse :: FilePath -> Codex ()
-handleBrowse rqpath = do
-  -- ensure that a user with admin privileges is logged in
-  usr <- require (with auth currentUser) <|> unauthorized
-  unless (isAdmin usr) unauthorized
-  -- root <- getDocumentRoot
+handleBrowse rqpath = withAdmin $ do
   handleMethodOverride
-    (method GET (handleGet rqpath) ) -- <|>
-     -- method POST (handleUpload rqpath) <|>
-     -- method PUT (handleEdit rqpath) <|>
-     -- method DELETE (handleDelete rqpath) <|>
-     -- method PATCH (handleRename rqpath))
+    (method GET (handleGet rqpath)  <|>
+     method POST (handleUpload rqpath) <|>
+     method PUT (handleEdit rqpath) <|>
+     method DELETE (handleDelete rqpath) <|>
+     method PATCH (handleRename rqpath))
 
 
 handleGet :: FilePath -> Codex ()
@@ -140,11 +135,11 @@ listDir root = do
 
 
 handleEdit :: FilePath -> Codex ()
-handleEdit root = do
-  rqpath <- getSafePath
+handleEdit rqpath = do
+  root <- getDocumentRoot
   contents <- require (getTextPost "editform.editor")
   liftIO $ T.writeFile (root</>rqpath) contents
-  redirect (encodePath ("/files" </> rqpath))
+  redirectURL (Files $ splitDirectories rqpath)
 
 {-
 -- create files;  not yet enabled
@@ -166,15 +161,16 @@ handleCreate base = do
 -}
 
 handleUpload :: FilePath -> Codex ()
-handleUpload dest = do
-  rqpath <- getSafePath
-  c <- liftIO $ doesDirectoryExist (dest</>rqpath)
+handleUpload rqpath = do
+  root <- getDocumentRoot
+  let filepath = root </> rqpath
+  c <- liftIO $ doesDirectoryExist filepath
   unless c pass
   tmpdir <- liftIO getTemporaryDirectory
   msgs <- handleFileUploads tmpdir defaultUploadPolicy
     (const $ allowWithMaximumSize (getMaximumFormInputSize defaultUploadPolicy))
-    (doUpload (dest </> rqpath))
-  entries <- liftIO $ listDir (dest</>rqpath)
+    (doUpload filepath)
+  entries <- liftIO (listDir filepath)
   tz <- liftIO getCurrentTimeZone
   renderWithSplices "file-list" ( -- pathSplices rqpath >>
                                  listingSplices tz rqpath entries >>
@@ -194,22 +190,23 @@ doUpload dest partinfo (Right src) = do
 
 
 handleDelete :: FilePath -> Codex ()
-handleDelete base = do
-  rqpath <- getSafePath
-  liftIO $ removeFile (base </> rqpath)
+handleDelete rqpath = do
+  root <- getDocumentRoot
+  let filepath = root </> rqpath
+  liftIO (removeFile filepath)
   let rqdir = takeDirectory rqpath
-  redirect (encodePath ("/files" </> rqdir))
+  redirectURL (Files $ splitDirectories rqdir)
 
 
 handleRename :: FilePath -> Codex ()
-handleRename base = do
-  rqpath <- getSafePath
+handleRename rqpath = do
+  root <- getDocumentRoot
   let rqdir = takeDirectory rqpath
   dest <- B.toString <$> require (getParam "destname")
-  let srcfile = base </> rqpath
-  let destfile = base </> rqdir </> dest
+  let srcfile = root </> rqpath
+  let destfile = root </> rqdir </> dest
   liftIO $ renameFile srcfile destfile
-  redirect (encodePath ("/files" </> rqdir))
+  redirectURL (Files $ splitDirectories rqdir)
 
 
 
@@ -217,9 +214,9 @@ handleRename base = do
 --  | Handle requests for submission listing
 --
 handleSubmissionList :: Codex ()
-handleSubmissionList =  handleMethodOverride $ do
-  usr <- require (with auth currentUser) <|> unauthorized
-  unless (isAdmin usr) unauthorized
+handleSubmissionList =  withAdmin $ handleMethodOverride $ do
+  -- usr <- require (with auth currentUser) <|> unauthorized
+  -- unless (isAdmin usr) unauthorized
   patts <- getPatterns
   page <- fromMaybe 1 <$> readParam "page"
   order <- fromMaybe Ascending <$> readParam "order"
@@ -281,9 +278,9 @@ reevalSubmissions patts order  = do
 
 -- | Export all submissions
 handleExport :: Codex ()
-handleExport = method POST $ do
-  au <- require (with auth currentUser) <|> unauthorized
-  unless (isAdmin au) unauthorized
+handleExport = withAdmin $ method POST $ do
+  --au <- require (with auth currentUser) <|> unauthorized
+  -- unless (isAdmin au) unauthorized
   sep <- B.toString <$> require (getParam "sep")
   serveFile =<< exportSubmissions "export.txt" sep
 
@@ -320,9 +317,9 @@ exportSubmissions filetpl sep  = do
 
 -- | Handle admin requests for a single submission
 handleSubmission :: Codex ()
-handleSubmission = handleMethodOverride $ do
-    usr <- require (with auth currentUser) <|> unauthorized
-    unless (isAdmin usr) unauthorized
+handleSubmission = withAdmin $ handleMethodOverride $ do
+    -- usr <- require (with auth currentUser) <|> unauthorized
+    -- unless (isAdmin usr) unauthorized
     sid <- require getSubmitId
     sub <- require (getSubmission sid) <|> notFound
     method GET (report sub) <|>
@@ -341,7 +338,7 @@ handleSubmission = handleMethodOverride $ do
     -- delete a submission
     delete sub = do
       deleteSubmission (submitId sub)
-      redirect (encodePath ("/pub" </> submitPath sub))
+      redirectURL (Page $ splitDirectories $ submitPath sub)
 
     -- revaluate a single submission
     reevaluate sub = do
@@ -349,6 +346,6 @@ handleSubmission = handleMethodOverride $ do
       sqlite <- S.getSqliteState
       liftIO $ markEvaluating sqlite [sid]
       evaluate sub
-      redirect (encodePath ("/submissions" </> show sid))
+      redirectURL (Report sid)
 
 
