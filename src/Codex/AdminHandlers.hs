@@ -12,9 +12,9 @@ module Codex.AdminHandlers(
   ) where
 
  
-import           Snap.Core
-import           Snap.Snaplet
-import           Snap.Snaplet.Auth
+import           Snap.Core hiding (path)
+-- import           Snap.Snaplet
+-- import           Snap.Snaplet.Auth
 import           Snap.Snaplet.Heist
 import qualified Snap.Snaplet.SqliteSimple                   as S
 import           Snap.Snaplet.Router
@@ -107,7 +107,8 @@ handleGet rqpath = file <|> directory <|> notFound
                                      inputAceEditorSplices)
 
 
-
+listingSplices ::
+  TimeZone -> FilePath -> [(FilePath, ByteString, UTCTime)] -> ISplices
 listingSplices tz path list =
   "file-list" ## I.mapSplices (I.runChildrenWith . splices) list
   where splices (name, mime, time) = do
@@ -229,7 +230,7 @@ handleSubmissionList =  withAdmin $ handleMethodOverride $ do
     <|>
     method (Method "EXPORT") (exportSubmissions patts order)
     <|>
-    method (Method "PRINT") (handlePrintouts patts order)
+    method (Method "PRINT") (generatePrintouts patts order)
             
 
 -- | List submissions

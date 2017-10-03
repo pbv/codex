@@ -12,7 +12,6 @@ module Codex.Application where
 
 ------------------------------------------------------------------------------
 import Control.Lens
-import Control.Monad.State
 
 import Snap.Snaplet
 import Snap.Snaplet.Heist

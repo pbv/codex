@@ -17,7 +17,7 @@ import           Data.Aeson
 import qualified Data.HashMap.Strict as HM
 import           Data.Map.Syntax
 
-import           Snap.Core
+import           Snap.Core hiding (path)
 import           Snap.Snaplet
 import           Snap.Snaplet.Heist
 import           Snap.Snaplet.Auth

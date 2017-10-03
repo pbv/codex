@@ -6,7 +6,7 @@
 
 module Codex.Submission (
   Submission(..),
-  Patterns(..),
+  Patterns,
   Ordering(..),
   insertSubmission,
   updateSubmission,
@@ -20,11 +20,7 @@ module Codex.Submission (
   filterSubmissions,
   countSubmissions,
   getPageSubmissions,
-  submitSplices,
-  getLastAccepted,
-  getLastSubmitted,
-  querySubmissionPaths,
-  querySubmissionUsers
+  submitSplices
   ) where
 
 import           Prelude hiding (Ordering)
@@ -40,7 +36,7 @@ import           Data.Monoid
 import           Data.List (intersperse)
 import           Data.Maybe(listToMaybe, fromMaybe)
 
-import           Snap.Core
+import           Snap.Core hiding (path)
 import           Snap.Snaplet.SqliteSimple
 import           Snap.Snaplet.Router
 import qualified Database.SQLite.Simple as S
@@ -264,7 +260,7 @@ submitSplices tz Submission{..} = do
                                       
 
 
-
+{-
 getLastAccepted :: UserLogin -> FilePath -> Codex (Maybe Submission)
 getLastAccepted uid path 
   = listToMaybe <$>
@@ -289,3 +285,4 @@ querySubmissionPaths uid
 querySubmissionUsers :: Codex [UserLogin]
 querySubmissionUsers
   = query_ "SELECT DISTINCT user_id FROM submissions ORDER BY user_id"
+-}

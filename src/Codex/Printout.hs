@@ -3,7 +3,7 @@
    Produce printouts for exams, etc.
 -}
 module Codex.Printout(
-  handlePrintouts
+  generatePrintouts
   ) where
 
 import           System.FilePath
@@ -11,14 +11,12 @@ import           Data.Time.LocalTime
 import           System.Directory
 
 import qualified Data.Text as T
-import           Control.Monad (unless, forM_)
+import           Control.Monad (forM_)
 import           Control.Monad.Trans
-import           Control.Applicative
 
 import qualified Data.Configurator as Configurator
 import           Snap.Core(writeText)
 import           Snap.Snaplet
-import           Snap.Snaplet.Auth
 
 import           Codex.Utils
 import           Codex.Types
@@ -34,8 +32,8 @@ import           Data.Map.Strict (Map)
 import qualified Data.Map.Strict as M
 
 
-import           Data.Version                                (showVersion)
-import           Paths_codex                                 (version)
+-- import           Data.Version                                (showVersion)
+-- import           Paths_codex                                 (version)
 
 
 
@@ -115,9 +113,9 @@ getFinal uid ex = do
   return (s1 <|> s2)
 -}
 
--- | produce printouts for submissions
-handlePrintouts :: Patterns -> Codex.Submission.Ordering -> Codex ()
-handlePrintouts patts order = do
+-- | generate Markdown printouts for best submissions
+generatePrintouts :: Patterns -> Codex.Submission.Ordering -> Codex ()
+generatePrintouts patts order = do
   conf <- getSnapletUserConfig
   dir <- liftIO $ Configurator.require conf "printouts.directory"
   liftIO $ createDirectoryIfMissing True dir
@@ -133,6 +131,7 @@ handlePrintouts patts order = do
 -- | cummulative summary of submissions
 -- for each user, for each exercise (path)
 type Summary = Map UserLogin (Map FilePath Submission)
+
 
 -- | best of two submissions
 best :: Submission -> Submission -> Submission
@@ -181,7 +180,7 @@ userReport uid submissions = do
   let exercises = [ submissionReport sub | (_,sub) <- submissions ]
   let blocks = [ header 1 title <> report | (title,report) <- zip titles exercises]
   return (setTitle (text "Report") $
-          setAuthors [text $ fullname ++ "(" ++ login ++ ")"] $
+          setAuthors [text $ fullname ++ " (" ++ login ++ ")"] $
           setDate (text $ show now) $
           doc $ mconcat blocks)
 
