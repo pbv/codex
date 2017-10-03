@@ -33,7 +33,6 @@ pageMeta (Pandoc meta _) = meta
 pageDescription :: Page -> [Block]
 pageDescription (Pandoc _ blocks) = blocks
 
-
 pageTitle :: Page -> Maybe [Inline]
 pageTitle p
   = let t = docTitle (pageMeta p)

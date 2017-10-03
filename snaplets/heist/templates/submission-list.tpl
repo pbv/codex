@@ -18,6 +18,12 @@ function listsubmissions() {
   param.value = "EXPORT";
   form.submit();
 }
+function printsubmissions() {
+  var form = document.getElementById("listform");
+  var param = document.getElementById("_method");
+  param.value = "PRINT";
+  form.submit();
+}
 </script>
 <h1>Submissões</h1>
 <form id="listform" action="/submissions" method="POST">
@@ -86,6 +92,7 @@ function listsubmissions() {
     <option value=";">ponto-e-vírgula (;)</option>
     <option value="&#9">tabulação</option>
   </select>
+<input type="button" onClick="printsubmissions()" title="Gerar impressões" value="Gerar impressões"/>
 <hr/>
 <input id="page" type="hidden" name="page" value="${page}"/>
 <input id="_method" type="hidden" name="_method" value="GET"/>

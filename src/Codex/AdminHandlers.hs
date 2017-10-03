@@ -56,6 +56,7 @@ import           Codex.Evaluate
 import           Codex.AceEditor
 import           Codex.Utils
 import           Codex.Config
+import           Codex.Printout
 
 
 --
@@ -227,6 +228,8 @@ handleSubmissionList =  withAdmin $ handleMethodOverride $ do
                               listSubmissions patts order page)
     <|>
     method (Method "EXPORT") (exportSubmissions patts order)
+    <|>
+    method (Method "PRINT") (handlePrintouts patts order)
             
 
 -- | List submissions
