@@ -1,4 +1,24 @@
 <apply template="_base">
+<script>
+function reevaluate() {
+  var form = document.getElementById("listform");
+  var param = document.getElementById("_method");
+  param.value = "PATCH";
+  form.submit();
+}
+function cancel() {
+  var form = document.getElementById("listform");
+  var param = document.getElementById("_method");
+  param.value = "CANCEL";
+  form.submit();
+}
+function listsubmissions() {
+  var form = document.getElementById("listform");
+  var param = document.getElementById("_method");
+  param.value = "EXPORT";
+  form.submit();
+}
+</script>
 <h1>Submissões</h1>
 <form id="listform" action="/submissions" method="POST">
   <table class="submissions">
@@ -59,36 +79,17 @@
       <tr><td colspan="7" align="center">(No submissions)</td></tr>
     </if-submissions>
   </table>
-  <input id="page" type="hidden" name="page" value="${page}"/>
-  <input id="_method" type="hidden" name="_method" value="GET"/>
-</form>
-<script>
-function reevaluate() {
-  var form = document.getElementById("listform");
-  var param = document.getElementById("_method");
-  param.value = "PATCH";
-  form.submit();
-}
-function cancel() {
-  var form = document.getElementById("listform");
-  var param = document.getElementById("_method");
-  param.value = "CANCEL";
-  form.submit();
-}
-</script>
-
 <hr/>
-
-<form action="/export" method="POST" style="display:inline;">
- <input type="submit" title="Exportar como texto" value="Exportar"/> separador:
+ <input type="button" onClick="listsubmissions()" title="Exportar como texto" value="Exportar"/> separador:
  <select name="sep">
     <option value=",">vírgula (,)</option>
     <option value=";">ponto-e-vírgula (;)</option>
     <option value="&#9">tabulação</option>
   </select>
+<hr/>
+<input id="page" type="hidden" name="page" value="${page}"/>
+<input id="_method" type="hidden" name="_method" value="GET"/>
 </form>
-
 </apply>
-
 <apply template="_browse">
 </apply>

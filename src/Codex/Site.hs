@@ -20,8 +20,6 @@ import           Control.Exception  (SomeException)
 import           Control.Exception.Lifted  (catch)
 
 import           Data.ByteString.UTF8                        (ByteString)
-import qualified Data.ByteString.UTF8                      as B
-
 import qualified Data.HashMap.Strict                         as HM
 import           Data.Map.Syntax
 
@@ -31,7 +29,7 @@ import           Data.Maybe(isJust)
 import           Heist
 import qualified Heist.Interpreted                           as I
 import           Heist.Splices                               as I
-import           Snap.Core
+import           Snap.Core hiding (path)
 import           Snap.Snaplet
 import           Snap.Snaplet.Auth
 import           Snap.Snaplet.Auth.Backends.SqliteSimple
@@ -40,9 +38,7 @@ import           Snap.Snaplet.Session.Backends.CookieSession
 import qualified Snap.Snaplet.SqliteSimple                   as S
 import           Snap.Snaplet.Router
 import           Snap.Util.FileServe                         (fileType,
-                                                              getSafePath,
                                                               serveDirectory,
-                                                              serveFile,
                                                               serveFileAs)
 
 
@@ -68,7 +64,7 @@ import           Codex.Types
 import           Codex.Utils
 import           Codex.Evaluate
 import           Codex.Tester.Result
-import           Codex.Printout
+-- import           Codex.Printout
 
 import           Data.Version                                (showVersion)
 import           Paths_codex                                 (version)

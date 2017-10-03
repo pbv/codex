@@ -164,14 +164,14 @@ data Ordering
   | Descending deriving (Eq, Show, Read)
 
 -- | build a SQL query condition from patterns
-queryPatterns :: Patterns -> Text
-queryPatterns [] = ""
-queryPatterns patts
-  | T.null cond = ""
-  | otherwise = " WHERE " <> cond
-  where cond = T.concat $
-               intersperse " AND " $
-               [col <> " LIKE " <> escape col | (col, Just _) <- patts]
+sqlPatterns :: Patterns -> Text
+sqlPatterns [] = ""
+sqlPatterns patts
+  | T.null sql = ""
+  | otherwise = " WHERE " <> sql
+  where sql = T.concat $
+              intersperse " AND " $
+              [col <> " LIKE " <> escape col | (col, Just _) <- patts]
 
 namedParams :: Patterns -> [NamedParam]
 namedParams patts = [ escape col := pat | (col, Just pat) <- patts ]
@@ -180,24 +180,25 @@ escape :: Text -> Text
 escape = ("@"<>)
 
 
+sqlOrdering :: Ordering -> Text
+sqlOrdering Ascending  = "ASC"
+sqlOrdering Descending = "DESC"
+
 countSubmissions :: Patterns -> Codex Int
 countSubmissions patts = withSqlite $ \conn -> do
-  let sql = "SELECT COUNT(*) FROM submissions " <> queryPatterns patts
+  let sql = "SELECT COUNT(*) FROM submissions " <> sqlPatterns patts
   r <- S.queryNamed conn (S.Query sql) (namedParams patts)
   case r of
      [Only c] -> return c
-     _ -> return 0 -- error!!!
+     _ -> error "countSubmissions: invalid result from database"
 
 
 filterSubmissions :: Patterns -> Ordering -> Int -> Int -> Codex [Submission]
-filterSubmissions patts sort limit offset = 
+filterSubmissions patts ord limit offset = 
   let
-    ord = case sort of
-      Ascending -> "ASC"
-      Descending -> "DESC"
     sql = ("SELECT * FROM submissions "
-            <> queryPatterns patts
-            <> " ORDER BY received " <> ord
+            <> sqlPatterns patts
+            <> " ORDER BY received " <> sqlOrdering ord
             <> " LIMIT " <> escape "limit"
             <> " OFFSET " <> escape "offset")
   in withSqlite $ \conn ->
@@ -206,13 +207,14 @@ filterSubmissions patts sort limit offset =
                                        ++ namedParams patts)
   
 
-
 -- | process submissions with a filter
-withFilterSubmissions :: Patterns -> a -> (a -> Submission -> IO a) -> Codex a
-withFilterSubmissions patts a f = 
+withFilterSubmissions ::
+  Patterns -> Ordering -> a -> (a -> Submission -> IO a) -> Codex a
+withFilterSubmissions patts ord a f = 
   let sql = "SELECT * FROM submissions "
-            <> queryPatterns patts
-            <> " ORDER  BY received ASC"
+            <> sqlPatterns patts
+            <> " ORDER BY received "
+            <> sqlOrdering ord
   in withSqlite (\conn -> S.foldNamed conn (S.Query sql) (namedParams patts) a f)
 
 -- | process all submissions
@@ -222,7 +224,7 @@ withSubmissions a f = do
   withSqlite (\conn -> S.fold_ conn sql a f)
 
 
--- | Helper function to decode patterns from an http request parameters
+-- | Helper function to decode patterns from http request parameters
 getPatterns :: Codex Patterns
 getPatterns = do
   txts <- sequence [ do pat <- fmap (T.strip . T.decodeUtf8) <$> getParam field

@@ -7,9 +7,8 @@
 
 module Codex.AdminHandlers(
   handleBrowse,
-  handleSubmission,
-  handleSubmissionList,
-  handleExport
+  --  handleSubmission,
+  handleSubmissionList
   ) where
 
  
@@ -215,8 +214,6 @@ handleRename rqpath = do
 --
 handleSubmissionList :: Codex ()
 handleSubmissionList =  withAdmin $ handleMethodOverride $ do
-  -- usr <- require (with auth currentUser) <|> unauthorized
-  -- unless (isAdmin usr) unauthorized
   patts <- getPatterns
   page <- fromMaybe 1 <$> readParam "page"
   order <- fromMaybe Ascending <$> readParam "order"
@@ -228,9 +225,9 @@ handleSubmissionList =  withAdmin $ handleMethodOverride $ do
     method (Method "CANCEL") (cancelPending >>
                               setPending [] >>
                               listSubmissions patts order page)
-  
+    <|>
+    method (Method "EXPORT") (exportSubmissions patts order)
             
-
 
 -- | List submissions
 listSubmissions :: Patterns -> Codex.Submission.Ordering -> Int -> Codex ()
@@ -276,25 +273,22 @@ reevalSubmissions patts order  = do
 
 
 
--- | Export all submissions
-handleExport :: Codex ()
-handleExport = withAdmin $ method POST $ do
-  --au <- require (with auth currentUser) <|> unauthorized
-  -- unless (isAdmin au) unauthorized
+-- | Export listed submissions
+exportSubmissions :: Patterns -> Codex.Submission.Ordering -> Codex ()
+exportSubmissions patts ord = do
   sep <- B.toString <$> require (getParam "sep")
-  serveFile =<< exportSubmissions "export.txt" sep
-
-
+  serveFile =<< exportSubmissions' patts ord "export.txt" sep
 
 -- | Create a CSV text file with submission listsing
--- NB: the caller should remove the temporary file
-exportSubmissions :: FilePath -> String -> Codex FilePath
-exportSubmissions filetpl sep  = do
+-- TODO: the temporary file is *not* removed
+exportSubmissions' ::
+  Patterns -> Codex.Submission.Ordering -> FilePath -> String -> Codex FilePath
+exportSubmissions' patts ord filetpl sep  = do
   tmpDir <- liftIO getTemporaryDirectory
   (tmpPath, handle) <-
     liftIO $ openTempFileWithDefaultPermissions tmpDir filetpl
   liftIO (hPutStrLn handle header)
-  withSubmissions () (output handle)
+  withFilterSubmissions patts ord () (output handle)
   liftIO (hClose handle)
   return tmpPath
   where
