@@ -352,7 +352,7 @@ app =
     h <- nestSnaplet "" heist $ heistInit "templates"
     r <- nestSnaplet "router" router $ initRouter ""
     s <- nestSnaplet "sess" sess $
-           initCookieSessionManager "site_key.txt" "sess" Nothing (Just 3600)
+           initCookieSessionManager "site_key.txt" "sess" Nothing (Just 36000)
     d <- nestSnaplet "db" db S.sqliteInit
     a <- nestSnaplet "auth" auth $ initSqliteAuth sess d
     addAuthSplices h auth

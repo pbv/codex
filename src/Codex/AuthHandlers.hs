@@ -8,7 +8,6 @@ module Codex.AuthHandlers (
 
 import           Data.ByteString.UTF8 (ByteString)
 import qualified Data.ByteString.UTF8 as B
--- import           Data.Monoid
 
 import qualified Data.Text as T
 import qualified Data.Text.Encoding as T
@@ -66,7 +65,7 @@ handleLoginSubmit = do
   r <- with auth $ loginByUsername (T.decodeUtf8 login) (ClearText passwd) False
   case r of
     Right au ->
-      redirectURL (Page ["index.md"])
+      redirectURL home
     Left err -> case ldap of
       Nothing -> do
         handleLoginForm "_login" (Just err)
@@ -79,8 +78,7 @@ loginLdapUser ldapConf login passwd = do
   case r of
     Left err -> handleLoginForm "login" (Just err)
     Right au -> do with auth (forceLogin au)
-                   -- logError ("LDAP login sucessful for " <> login)
-                   redirect "/"
+                   redirectURL home
 
 
 
@@ -99,7 +97,7 @@ handleRegister = do
       r <- with auth newUser
       case r of
         Left err -> handleLoginForm "register" (Just err)
-        Right au -> with auth (forceLogin au) >> redirect "/pub/index.md"
+        Right au -> with auth (forceLogin au) >> redirectURL home
 
 
 ------------------------------------------------------------------------------
@@ -136,6 +134,9 @@ newUser = do
 handleLogout :: Codex ()
 handleLogout = method GET $ do
   uid <- require getUserLogin <|> unauthorized
-  logError (B.fromString $ "Logged out user " ++ show uid)
   with auth logout
-  redirect "/"
+  redirectURL Login
+
+
+home :: AppUrl
+home = Page ["index.md"]
