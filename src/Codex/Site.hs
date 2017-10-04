@@ -307,10 +307,10 @@ routeAppUrl appUrl =
     Login  -> handleLogin
     Logout -> handleLogout
     Page path -> handlePage (joinPath path)
-    Report sid -> handleReport sid
+    Report sid -> handleReport sid 
     Files path -> handleBrowse (joinPath path)
-    Submissions -> handleSubmissionList
-
+    SubmissionAdmin sid -> handleSubmissionAdmin sid
+    SubmissionList-> handleSubmissionList
 
 
 -- | current logged in full user name
@@ -364,25 +364,28 @@ app =
     addRoutes routes
     -- create a semaphore for throttling concurrent evaluation threads
     conf <- getSnapletUserConfig
-    semph <- liftIO $ newQSem =<< Conf.require conf "system.workers"
     tids <- liftIO $ newMVar []
+    qs <- liftIO $ newQSem =<< Conf.require conf "system.workers"
     return App { _heist = h
                , _router = r
                , _sess = s
                , _auth = a
                , _db   = d
-               , evalSem = semph
-               , evalThreads = tids
+               , evthids = tids
+               , evqs    = qs
                }
-
 
 
 staticSplices :: ISplices
 staticSplices = do
+  "login" ## urlSplice Login
+  "logout" ## urlSplice Logout
+  "home" ## urlSplice (Page ["index.md"])
+  "files" ## urlSplice (Files [])
+  "submissionList" ## urlSplice SubmissionList
   "version" ## versionSplice
   "timeNow" ## nowSplice
   "evaluating" ## return []
   "loggedInName" ## loggedInName auth
   "ifAdmin" ## do mbAu <- lift (withTop auth currentUser)
                   I.ifElseISplice (maybe False isAdmin mbAu)
-  

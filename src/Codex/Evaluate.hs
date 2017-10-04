@@ -49,11 +49,11 @@ evaluateWith tester sub = do
   evs <- getEvents
   root <- getDocumentRoot
   conf <- getSnapletUserConfig
-  semph <- gets evalSem
+  qs <- gets evqs
   let filepath = root </> submitPath sub    -- ^ file path to exercise 
   let sid = submitId sub                    -- ^ submission number
   let code = submitCode sub                 -- ^ program code
-  liftIO $ forkIO $ withQSem semph $ do
+  liftIO $ forkIO $ withQSem qs $ do
     tz <- getCurrentTimeZone
     page <- readMarkdownFile filepath
     let opt = rankTime (submitTime sub) <$> evalI tz evs (submitInterval page)

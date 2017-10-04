@@ -21,18 +21,27 @@
   <code-text/>
 </pre> 
 <hr/>
-<form method="POST" action="/submissions/${submit-id}" style="display:inline;">
+<script type="text/javascript">
+  function confirmDelete() {
+  var r = confirm("Remover submissão (esta operação não é reversível)?");
+  if (r) {
+  var form = document.getElementById("deleteform");
+  form.submit();
+  }
+  }
+</script>
+<form id="deleteform" method="POST" 
+      action="${submission-admin-url}" style="display:inline;">
     <input type="hidden" name="_method" value="DELETE"/>
-    <input type="submit" title="Apagar a submissão" value="Apagar"/>
+    <input type="button" onClick="confirmDelete()" 
+	   title="Apagar a submissão" value="Apagar"/>
 </form>
-<form method="POST" action="/submissions/${submit-id}" style="display:inline;">
+<form method="POST" action="${submission-admin-url}" style="display:inline;">
   <input type="hidden" name="_method" value="PATCH"/>
   <input type="submit" title="Re-avaliar a submissão" value="Re-avaliar"/>
 </form>
 </evaluating>
 </apply>
-
 <apply template="_browse">
-  <li><a title="Editar folha de exercício"
-     href="/files/${file-path-url}">Editar</a><li>
+  <li><a title="Editar folha de exercício"   href="${file-url}">Editar</a><li>
 </apply>

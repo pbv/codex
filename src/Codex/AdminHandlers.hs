@@ -7,14 +7,12 @@
 
 module Codex.AdminHandlers(
   handleBrowse,
-  --  handleSubmission,
+  handleSubmissionAdmin,
   handleSubmissionList
   ) where
 
  
 import           Snap.Core hiding (path)
--- import           Snap.Snaplet
--- import           Snap.Snaplet.Auth
 import           Snap.Snaplet.Heist
 import qualified Snap.Snaplet.SqliteSimple                   as S
 import           Snap.Snaplet.Router
@@ -83,7 +81,7 @@ handleGet rqpath = file <|> directory <|> notFound
       unless c pass
       entries <- liftIO (listDir filepath)
       tz <- liftIO getCurrentTimeZone
-      renderWithSplices "file-list" $ do
+      renderWithSplices "_file-list" $ do
         fileUrlSplices rqpath
         listingSplices tz rqpath entries
         messageSplices []
@@ -101,10 +99,10 @@ handleGet rqpath = file <|> directory <|> notFound
                "file-contents" ## I.textSplice contents
                "if-image-file" ## I.ifElseISplice (B.isPrefixOf "image" mime)
                "if-text-file" ## I.ifElseISplice (B.isPrefixOf "text" mime)
-      renderWithSplices "file-edit" (fileUrlSplices rqpath >>
-                                     pageUrlSplices rqpath >>
-                                     fileSplices >>
-                                     inputAceEditorSplices)
+      renderWithSplices "_file-edit" (fileUrlSplices rqpath >>
+                                      pageUrlSplices rqpath >>
+                                      fileSplices >>
+                                      inputAceEditorSplices)
 
 
 listingSplices ::
@@ -246,7 +244,7 @@ listSubmissions patts order reqpage = do
   let offset = (page - 1) * entries  
   subs <- filterSubmissions patts order entries offset
   tz <- liftIO getCurrentTimeZone
-  renderWithSplices "submission-list" $ do
+  renderWithSplices "_submission-list" $ do
     patternSplices patts
     "page" ## I.textSplice (T.pack $ show page)
     "order" ## I.textSplice (T.pack $ show order)
@@ -255,11 +253,11 @@ listSubmissions patts order reqpage = do
     "if-submissions" ## I.ifElseISplice (count > 0)
     "page-count" ## I.textSplice (T.pack $ show npages)
     "submissions" ## I.mapSplices (I.runChildrenWith . submitSplices tz) subs
-    "submissions-prev-url" ## urlParamsSplice Submissions
+    "submissions-prev-url" ## urlParamsSplice SubmissionList
                                (("page", Just (T.pack $ show $ page-1)) :
                                 ("order", Just (T.pack $ show order)) :
                                  patts)
-    "submissions-next-url" ## urlParamsSplice Submissions
+    "submissions-next-url" ## urlParamsSplice SubmissionList
                                (("page", Just (T.pack $ show $ page+1)) :
                                  ("order", Just (T.pack $ show order)) :
                                 patts)
@@ -314,11 +312,8 @@ exportSubmissions' patts ord filetpl sep  = do
 
 
 -- | Handle admin requests for a single submission
-handleSubmission :: Codex ()
-handleSubmission = withAdmin $ handleMethodOverride $ do
-    -- usr <- require (with auth currentUser) <|> unauthorized
-    -- unless (isAdmin usr) unauthorized
-    sid <- require getSubmitId
+handleSubmissionAdmin :: SubmitId -> Codex ()
+handleSubmissionAdmin sid = withAdmin $ handleMethodOverride $ do
     sub <- require (getSubmission sid) <|> notFound
     method GET (report sub) <|>
       method PATCH (reevaluate sub) <|>
@@ -329,14 +324,14 @@ handleSubmission = withAdmin $ handleMethodOverride $ do
       root <- getDocumentRoot
       page <- liftIO $ readMarkdownFile (root </>submitPath sub)
       tz <- liftIO getCurrentTimeZone
-      renderWithSplices "submission" $ do
+      renderWithSplices "_submission-admin" $ do
         pageSplices page
         submitSplices tz sub
 
     -- delete a submission
     delete sub = do
       deleteSubmission (submitId sub)
-      redirectURL (Page $ splitDirectories $ submitPath sub)
+      redirectURL SubmissionList
 
     -- revaluate a single submission
     reevaluate sub = do
@@ -344,6 +339,6 @@ handleSubmission = withAdmin $ handleMethodOverride $ do
       sqlite <- S.getSqliteState
       liftIO $ markEvaluating sqlite [sid]
       evaluate sub
-      redirectURL (Report sid)
+      redirectURL (SubmissionAdmin sid)
 
 

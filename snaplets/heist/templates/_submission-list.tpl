@@ -26,7 +26,7 @@ function printsubmissions() {
 }
 </script>
 <h1>Submissões</h1>
-<form id="listform" action="/submissions" method="POST">
+<form id="listform" action="${submissionList}" method="POST">
   <table class="submissions">
     <tr>
       <td colspan="6">
@@ -72,7 +72,7 @@ function printsubmissions() {
     <if-submissions>
       <submissions>
 	<tr>
-	  <td class="submitid"><a href="${report-url}"><submit-id/></a></td>
+	  <td class="submitid"><a href="${submission-admin-url}"><submit-id/></a></td>
 	  <td class="userid"><submit-user-id/></td>
 	  <td class="path"><a href="${page-url}"><submit-path/></a></td>
 	  <td class="lang"><code-lang/></td>

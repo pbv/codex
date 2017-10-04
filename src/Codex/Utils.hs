@@ -317,18 +317,18 @@ withQSem :: QSem -> IO a -> IO a
 withQSem qs = bracket_ (waitQSem qs) (signalQSem qs)
 
 
--- | cancel pending evaluations 
+-- | cancel all pending evaluations 
 cancelPending :: Codex ()
 cancelPending = do
-  mv <- gets evalThreads
+  mv <- gets evthids
   tids <- liftIO $ takeMVar mv
-  liftIO $ mapM_ killThread tids
+  liftIO (mapM_ killThread tids)
 
 
 setPending :: [ThreadId] -> Codex ()
 setPending tids = do
-  mv <- gets evalThreads
-  liftIO $ putMVar mv tids
+  mv <- gets evthids
+  liftIO (putMVar mv tids)
 
 
 

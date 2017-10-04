@@ -27,25 +27,29 @@ import Control.Concurrent.QSem (QSem)
 
 import Codex.Types
 
+-- | URLs for our application
 data AppUrl =
-    Login
+    Login              -- ^ session login / logout
   | Logout
-  | Page  [FilePath]
-  | Report SubmitId
-  | Files [FilePath]
-  | Submissions
+  | Page  [FilePath]   -- ^ exercise page or other file
+  | Report SubmitId    -- ^ report for previously submitted exercise
+  -- following are for adminstrator only
+  | Files [FilePath]          -- ^ file browser 
+  | SubmissionList            -- ^ submissions list
+  | SubmissionAdmin SubmitId  -- ^ a single submission 
     deriving (Eq, Show, Read, Generic)
 
 instance PathInfo AppUrl
-------------------------------------------------------------------------------
+
+
 data App = App
-    { _heist :: Snaplet (Heist App)
-    , _router :: Snaplet RouterState
-    , _sess  :: Snaplet SessionManager
-    , _auth  :: Snaplet (AuthManager App)
-    , _db    :: Snaplet Sqlite
-    , evalThreads   :: MVar [ThreadId]  -- ^ list of pending evaluation threads 
-    , evalSem       :: QSem             -- ^ semaphore for "throttling" evaluations
+    { _heist   :: Snaplet (Heist App)
+    , _router  :: Snaplet RouterState
+    , _sess    :: Snaplet SessionManager
+    , _auth    :: Snaplet (AuthManager App)
+    , _db      :: Snaplet Sqlite
+    , evthids :: MVar [ThreadId]  -- ^ list of (re)evaluation thread ids
+    , evqs    :: QSem             -- ^ semaphore for (re)evaluation scheduling
    }
 
 makeLenses ''App

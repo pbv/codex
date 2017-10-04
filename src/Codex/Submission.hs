@@ -241,6 +241,7 @@ submitSplices :: TimeZone -> Submission -> ISplices
 submitSplices tz Submission{..} = do
   "submit-id" ##  I.textSplice (toText submitId)
   "report-url" ## urlSplice (Report submitId)
+  "submission-admin-url" ## urlSplice (SubmissionAdmin submitId)
   "page-url" ## urlSplice (Page $ splitDirectories submitPath)
   "file-url" ## urlSplice (Files $ splitDirectories submitPath)
   "submit-path" ## I.textSplice (T.pack submitPath)
@@ -260,29 +261,3 @@ submitSplices tz Submission{..} = do
                                       
 
 
-{-
-getLastAccepted :: UserLogin -> FilePath -> Codex (Maybe Submission)
-getLastAccepted uid path 
-  = listToMaybe <$>
-    query "SELECT * FROM submissions WHERE \
-          \ user_id = ? AND path = ? AND class='Accepted' \
-          \ ORDER BY id DESC LIMIT 1" (uid, path)
-
-getLastSubmitted :: UserLogin -> FilePath -> Codex (Maybe Submission)
-getLastSubmitted uid path 
-  = listToMaybe <$>
-    query "SELECT * FROM submissions WHERE \
-          \ user_id = ? AND path = ? \
-          \ ORDER BY id DESC LIMIT 1" (uid, path)
-  
-
-querySubmissionPaths :: UserLogin -> Codex [FilePath]
-querySubmissionPaths uid
-  = map T.unpack <$>
-    query "SELECT DISTINCT path FROM submissions \
-          \ WHERE user_id = ? ORDER BY path" (Only uid)
-
-querySubmissionUsers :: Codex [UserLogin]
-querySubmissionUsers
-  = query_ "SELECT DISTINCT user_id FROM submissions ORDER BY user_id"
--}
