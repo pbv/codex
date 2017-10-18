@@ -76,7 +76,7 @@ loginLdapUser :: LdapConf -> ByteString -> ByteString -> Codex ()
 loginLdapUser ldapConf login passwd = do
   r <- with auth $ withBackend (\r -> liftIO $ ldapAuth r ldapConf login passwd)
   case r of
-    Left err -> handleLoginForm "login" (Just err)
+    Left err -> handleLoginForm "_login" (Just err)
     Right au -> do with auth (forceLogin au)
                    redirectURL home
 
