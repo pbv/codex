@@ -78,7 +78,7 @@ testScript props
       props,
       "",
       "return []",
-      "main = do qcArgs<-fmap (read.head) getArgs; $forAllProperties (quickCheckWithResult qcArgs) >>= \\c -> if c then exitSuccess else exitFailure"
+      "main = do qcArgs<-fmap (makeQCArgs.read.head) getArgs; $forAllProperties (quickCheckWithResult qcArgs) >>= \\c -> if c then exitSuccess else exitFailure"
     ]
 
 

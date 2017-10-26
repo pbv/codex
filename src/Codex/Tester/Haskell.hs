@@ -18,10 +18,11 @@ import           System.FilePath
 import           System.IO
 import           Control.Exception
 
-import           Test.QuickCheck (Args)
+-- import qualified Test.QuickCheck as QC
 
 import           Codex.Tester
 import           Codex.Tester.QuickCheck
+import           Codex.QuickCheck.Args
 
 -- | running and evaluating Haskell submissions
 haskellTester :: Tester Result
@@ -40,7 +41,7 @@ haskellTester
           liftIO $ (haskellRunner sf limits ghc args code props `catch` return)
 
 
-haskellRunner :: FilePath -> Limits -> FilePath -> Args -> Text -> Text -> IO Result
+haskellRunner :: FilePath -> Limits -> FilePath -> CodexArgs -> Text -> Text -> IO Result
 haskellRunner sf limits ghc qcArgs code props =
    withTempFile "Submit.hs" $ \(hs_file, h) ->
    let codemod = T.pack $ takeBaseName hs_file
@@ -76,7 +77,7 @@ testScript codemod props
       props,
       "",
       "return []",
-      "main = do qcArgs<-fmap (read.head) getArgs; $forAllProperties (quickCheckWithResult qcArgs) >>= \\c -> if c then exitSuccess else exitFailure"
+      "main = do qcArgs<-fmap (makeQCArgs.read.head) getArgs; $forAllProperties (quickCheckWithResult qcArgs) >>= \\c -> if c then exitSuccess else exitFailure"
     ]
 
 
