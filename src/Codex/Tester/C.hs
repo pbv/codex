@@ -7,7 +7,6 @@ module Codex.Tester.C (
   clangTester
   ) where
 
-import           Data.Maybe (fromMaybe)
 import           Data.Text (Text)
 import qualified Data.Text as T
 import qualified Data.Text.IO as T
@@ -26,11 +25,11 @@ clangTester :: Tester Result
 clangTester = withLanguage "c" $ \code -> do
   page <- testerPage
   base <- takeDirectory <$> testerPath
-  case getQuickcheckPath base page of
+  case getQuickCheckPath base page of
     Nothing -> return (miscError "no QuickCheck file specified")
     Just qcpath -> do
       props <- liftIO $ T.readFile qcpath
-      let args = getQuickcheckArgs page
+      let qcArgs = getQuickCheckArgs page
       -- add optional header to user code
       let code' = case getHeader page of
                     Nothing -> code
@@ -39,12 +38,14 @@ clangTester = withLanguage "c" $ \code -> do
       gcc <- configured "language.c.compiler"
       limits <- testerLimits "language.c.limits"
       sf <- testerSafeExecPath
-      liftIO (clangRunner sf limits gcc ghc args code' props `catch` return)
+      liftIO (clangRunner sf limits gcc ghc qcArgs code' props `catch` return)
 
+clangRunner :: FilePath -> Limits -> String -> String-> [String]
+            -> Text -> Text -> IO Result
 
 clangRunner sf limits gcc_cmd ghc_cmd qcArgs c_code props =
   withTextTemp "sub.c" c_code $ \c_file ->
-  withTextTemp "Main.hs" (testScript props) $ \hs_file ->
+  withTextTemp "Main.hs" props $ \hs_file ->
   let dir = takeDirectory c_file
       c_obj_file = dir </> takeBaseName c_file <.> "o"
       out_file = dir </> takeBaseName hs_file
@@ -60,26 +61,8 @@ clangRunner sf limits gcc_cmd ghc_cmd qcArgs c_code props =
        --- compile Haskell test script
        runCompiler ghc hc_args
        -- run compiled script under safe exec
-       haskellResult <$> safeExecWith sf limits out_file [show qcArgs] "")
+       haskellResult <$> safeExecWith sf limits out_file qcArgs "")
    (cleanupFiles temps)
-
-
-
-
-testScript :: Text -> Text
-testScript props
-  = T.unlines
-    [ "{-# LANGUAGE TemplateHaskell #-}",
-      "module Main where",
-      "import System.Exit",
-      "import System.Environment(getArgs)",
-      "import Codex.QuickCheck",
-      "",
-      props,
-      "",
-      "return []",
-      "main = do qcArgs<-fmap (makeQCArgs.read.head) getArgs; $forAllProperties (quickCheckWithResult qcArgs) >>= \\c -> if c then exitSuccess else exitFailure"
-    ]
 
 
 haskellResult :: (ExitCode, Text,Text) -> Result
@@ -92,8 +75,8 @@ haskellResult (_, stdout, stderr)
   | match "Failed" stdout       = wrongAnswer stdout
   | match "Command terminated by signal" stderr  = runtimeError stderr
   | match "Command exited with non-zero status" stderr = runtimeError stderr
-  | match "OK, passed" stdout   = accepted stdout
-  | otherwise     = miscError (stdout `T.append` stderr)
+  | match "OK" stdout           = accepted stdout
+  | otherwise                  = miscError (stdout `T.append` stderr)
 
 
 -- get optional C declarations from a page

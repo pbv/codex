@@ -20,9 +20,7 @@
     <default>
       <h3>Resultado: <em><submit-classify/></em><overdue>&nbsp;(enviada fora do tempo)</overdue></h3>
       <feedback-high>
-	<pre>
-          <submit-message/>
-	</pre>
+	<pre><submit-message/></pre>
       </feedback-high>
    </default>
   </current-timing>

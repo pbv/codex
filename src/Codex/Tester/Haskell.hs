@@ -15,14 +15,13 @@ import qualified Data.Text.IO as T
 import           Data.Monoid
 
 import           System.FilePath
-import           System.IO
+import           System.IO.Temp
 import           Control.Exception
-
--- import qualified Test.QuickCheck as QC
 
 import           Codex.Tester
 import           Codex.Tester.QuickCheck
-import           Codex.QuickCheck.Args
+
+
 
 -- | running and evaluating Haskell submissions
 haskellTester :: Tester Result
@@ -30,60 +29,47 @@ haskellTester
   = withLanguage "haskell" $ \code -> do
       page <- testerPage
       base <- takeDirectory <$> testerPath
-      case getQuickcheckPath base page of
+      case getQuickCheckPath base page of
         Nothing ->  return (miscError "no QuickCheck file specified")
         Just qcpath -> do
           props <- liftIO $ T.readFile qcpath
-          let args = getQuickcheckArgs page
+          let qcArgs = getQuickCheckArgs page
           ghc <- configured "language.haskell.compiler"
           limits <- testerLimits "language.haskell.limits"
           sf <- testerSafeExecPath
-          liftIO $ (haskellRunner sf limits ghc args code props `catch` return)
+          liftIO (haskellRunner sf limits ghc qcArgs code props `catch` return)
 
 
-haskellRunner :: FilePath -> Limits -> FilePath -> CodexArgs -> Text -> Text -> IO Result
+haskellRunner ::
+  FilePath -> Limits -> FilePath -> [String] -> Text -> Text -> IO Result
 haskellRunner sf limits ghc qcArgs code props =
-   withTempFile "Submit.hs" $ \(hs_file, h) ->
-   let codemod = T.pack $ takeBaseName hs_file
-       dir = takeDirectory hs_file
-   in do
-     T.hPutStrLn h (moduleHeader codemod)
-     T.hPutStrLn h code
-     hClose h
-     withTextTemp "Main.hs" (testScript codemod props) $ \tstfile -> do
-       let out_file = dir </> takeBaseName tstfile
-       let submit_file = dir </> takeBaseName hs_file
-       let cmd:args = words ghc
-       let args' = args ++ ["-i"++dir, tstfile, "-o", out_file]
-       let temps = [out_file, out_file <.> "o", out_file <.> "hi",
-                    submit_file <.> "o", submit_file <.> "hi"]
-       finally
-         (do runCompiler cmd args'
-             haskellResult <$> safeExecWith sf limits out_file [show qcArgs] "")
-         (cleanupFiles temps)
+   withSystemTempDirectory "codex" $ \dir -> do
+   let hs_file   = dir </> "Submission.hs"
+   let main_file = dir </> "Main.hs"
+   let out_file = dir </> "Main"
+   let temps = [ hs_file, main_file, out_file,
+                 replaceExtension hs_file ".hi",
+                 replaceExtension hs_file ".o",
+                 replaceExtension main_file ".o",
+                 replaceExtension main_file ".hi"
+               ]
+   let cmd:args = words ghc
+   let args' = args ++ ["-i"++dir, main_file, "-o", out_file]
+   finally
+     (do ensureFileExecutable dir
+         T.writeFile hs_file (modHeader code)
+         T.writeFile main_file props
+         runCompiler cmd args'
+         haskellResult <$> safeExecWith sf limits out_file qcArgs ""
+     ) (cleanupFiles temps)
 
 
+modHeader :: Text -> Text
+modHeader txt = if match "module " txt then txt else header <> txt
 
-testScript :: Text -> Text -> Text
-testScript codemod props
-  = T.unlines
-    [ "{-# LANGUAGE TemplateHaskell #-}",
-      "module Main where",
-      "import System.Exit",
-      "import System.Environment (getArgs)",
-      "import Codex.QuickCheck",
-      "import qualified " <> codemod <> " as Submit",
-      "",
-      props,
-      "",
-      "return []",
-      "main = do qcArgs<-fmap (makeQCArgs.read.head) getArgs; $forAllProperties (quickCheckWithResult qcArgs) >>= \\c -> if c then exitSuccess else exitFailure"
-    ]
+header :: Text
+header = "module Submission where\n"
 
-
-moduleHeader :: Text -> Text
-moduleHeader name
-  = T.unlines ["{-# LANGUAGE Safe #-}", "module " <> name <> " where"]
 
 haskellResult (exitCode, stdout, stderr)
   | match "Not in scope" stderr ||
@@ -93,4 +79,6 @@ haskellResult (exitCode, stdout, stderr)
   | match "Memory Limit" stderr = memoryLimitExceeded stderr
   | match "Failed" stdout       = wrongAnswer stdout
   | match "Command exited with non-zero status" stderr = miscError stderr
-  | otherwise = accepted stdout
+  | match "OK" stdout = accepted stdout
+  | otherwise  = miscError (stdout `T.append` stderr)
+

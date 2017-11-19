@@ -82,7 +82,8 @@ Executable codex-server
     lens,
     process-extras,
     QuickCheck,
-    codex-quickcheck            
+    codex-quickcheck,
+    temporary
 
   if flag(development)
     build-depends:

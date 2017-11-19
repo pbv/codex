@@ -11,6 +11,7 @@ import           Control.Exception
 import           Control.Monad       (when)
 import           Control.Monad.Trans (liftIO)
 import           System.IO
+import           System.IO.Temp
 import           System.Exit
 import           System.Directory
 import           System.Posix.Files
@@ -27,16 +28,16 @@ match = T.isInfixOf
 
 -- | aquire and release temporary files
 withTextTemp :: FilePath -> Text -> (FilePath -> IO a) -> IO a
-withTextTemp name contents cont
-  = withTempFile name (\(f,h) -> T.hPutStr h contents >> hClose h >> cont f)
+withTextTemp name contents k
+  = withSystemTempFile name (\f h -> T.hPutStr h contents >> hClose h >> k f)
 
-
+{-
 withTempFile :: FilePath -> ((FilePath, Handle) -> IO a) -> IO a
 withTempFile name = bracket create (\(f,_) -> removeFile f)
   where create = do
           tmpDir <- getTemporaryDirectory
           openTempFileWithDefaultPermissions tmpDir name
-
+-}
 
 -- | remove files if they exist, silently ignore otherwise
 removeFileIfExists :: FilePath -> IO ()
@@ -49,6 +50,10 @@ cleanupFiles = mapM_ removeFileIfExists
 ensureFileReadable :: FilePath -> IO ()
 ensureFileReadable 
   = ensureFileMode (ownerReadMode .|.  groupReadMode .|. otherReadMode )
+
+ensureFileExecutable :: FilePath -> IO ()
+ensureFileExecutable 
+  = ensureFileMode (ownerExecuteMode .|. groupExecuteMode .|. otherExecuteMode)
 
 ensureFileMode :: FileMode -> FilePath  -> IO ()
 ensureFileMode flags path = do
