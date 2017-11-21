@@ -6,6 +6,8 @@ module Codex.Tester.Python (
 import           System.FilePath
 import           System.Exit
 import           System.Directory (doesFileExist)
+import           Control.Exception (throwIO)
+import           Control.Monad(unless)
 import           Codex.Tester
 import           Codex.Page
 import           Data.Text(Text)
@@ -24,12 +26,12 @@ pythonTester = withLanguage "python" $ \code -> do
   let tstfile = guessDoctest path page
   liftIO $ do
     c <- doesFileExist tstfile
-    if c then do
+    unless c $
+      throwIO (miscError $ T.pack $ "missing doctest file: " ++ tstfile)
+    withTextTemp "tmp.py" code $ \pyfile -> do
       ensureFileReadable tstfile 
-      withTextTemp "tmp.py" code $ \pyfile ->
-        pythonResult <$>
-        safeExecWith sf limits python [pytest, scripts, tstfile, pyfile] ""
-      else return (miscError $ T.pack $ "missing doctest file: " ++ tstfile)
+      ensureFileReadable pyfile
+      pythonResult <$> safeExecWith sf limits python [pytest, scripts, tstfile, pyfile] ""
 
 
 
