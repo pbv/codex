@@ -72,9 +72,10 @@ haskellResult (_, stdout, stderr)
     match "Couldn't match" stderr  = compileError stderr
   | match "Time Limit" stderr   = timeLimitExceeded stderr
   | match "Memory Limit" stderr = memoryLimitExceeded stderr
-  | match "Failed" stdout       = wrongAnswer stdout
-  | match "Command terminated by signal" stderr  = runtimeError stderr
-  | match "Command exited with non-zero status" stderr = runtimeError stderr
+  | match "Command terminated by signal" stderr  || 
+    match "Command exited with non-zero status" stderr
+                                = runtimeError (stdout `T.append` stderr)
+  | match "Failed" stdout       = wrongAnswer stdout 
   | match "OK" stdout           = accepted stdout
   | otherwise                  = miscError (stdout `T.append` stderr)
 
