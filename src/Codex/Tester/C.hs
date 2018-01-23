@@ -65,19 +65,21 @@ clangRunner sf limits gcc_cmd ghc_cmd qcArgs c_code props =
    (cleanupFiles temps)
 
 
-haskellResult :: (ExitCode, Text,Text) -> Result
+haskellResult :: (ExitCode, Text, Text) -> Result
 haskellResult (_, stdout, stderr)
   | match "Not in scope" stderr ||
     match "parse error" stderr  ||
     match "Couldn't match" stderr  = compileError stderr
-  | match "Time Limit" stderr   = timeLimitExceeded stderr
-  | match "Memory Limit" stderr = memoryLimitExceeded stderr
-  | match "Command terminated by signal" stderr  || 
-    match "Command exited with non-zero status" stderr
-                                = runtimeError (stdout `T.append` stderr)
+  | match "Time Limit" stderr   = timeLimitExceeded stdouterr
+  | match "Memory Limit" stderr = memoryLimitExceeded stdouterr
+  | match "Command terminated by signal" stderr
+                                = runtimeError stdouterr
   | match "Failed" stdout       = wrongAnswer stdout 
+  | match "Command exited with non-zero status" stderr
+                                = runtimeError stdouterr
   | match "OK" stdout           = accepted stdout
-  | otherwise                  = miscError (stdout `T.append` stderr)
+  | otherwise                  = miscError stdouterr
+  where stdouterr = stdout `T.append` stderr
 
 
 -- get optional C declarations from a page
