@@ -55,15 +55,18 @@
   </current-timing>
 </if-submitted>
 
-<h2>Nova submissão</h2>
+<h2>Nova submissão </h2>
+
 
 <form id="editform" method="POST" action="${page-url}"
-      onsubmit="submitAceEditorText('editform.editor');">
-  <p><inputAceEditor id='editform.editor' mode='ace/mode/${language-mode}'><code-text/></inputAceEditor>
-</p>
-<p>
-  <input type="submit" value="Submeter"/>  &nbsp;
-  <a href="${page-parent-url}" class="button">Voltar à folha de exercícios</a>
+      onsubmit="submitAceEditorText('submission');">
+<p><input type="file" id="filebrowser" accept="${language-ext}"
+	   onchange="readFile('filebrowser','submission');"/></p>
+  <p><inputAceEditor id="submission" path="${language-ext}"><code-text/></inputAceEditor>
+  </p>
+  <p><input type="submit" value="Submeter"/>  &nbsp;
+    <a href="${page-parent-url}" class="button">Voltar à folha de exercícios</a>
+  </p>
 </form>
 </apply>
 

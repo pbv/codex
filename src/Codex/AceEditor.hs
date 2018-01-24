@@ -4,7 +4,8 @@
 {-# LANGUAGE OverloadedStrings #-}
 module Codex.AceEditor
        ( inputAceEditorSplices
-       , languageMode
+       -- , languageMode
+       , languageExtension
        ) where
 
 
@@ -16,6 +17,8 @@ import           Heist
 import           Heist.Interpreted
 import qualified Text.XmlHtml          as X
 import           Text.Printf(printf)
+import qualified Data.Map.Strict as M
+import           Data.Map.Strict (Map)
 
 import           Codex.Types
 import           Codex.Utils (javascript)
@@ -34,21 +37,34 @@ inputAceEditor = do
     let attrs = X.elementAttrs node
     return $ fromMaybe [X.TextNode "inputAceEditor?"] $
       do id <- lookup "id" attrs
-         mode <- lookup "mode" attrs
+         let path = fromMaybe "untitled.txt" (lookup "path" attrs)
          return [
            element "textarea" children [("name",id)],
            element "div" children [("id", id), ("style", "display:none")],
            javascript $ T.pack $
-           printf "startAceEditor('%s','%s');\n"  (T.unpack id) (T.unpack mode)
+             printf "startAceEditor('%s','%s');\n" (T.unpack id) (T.unpack path)
            ]
-
 
 inputAceEditorSplices :: (Functor m, Monad m) => Splices (Splice m)
 inputAceEditorSplices = "inputAceEditor" ## inputAceEditor
 
-
+{-
 languageMode :: Language -> Text
 languageMode (Language l) = case l of
   "c"   -> "c_cpp"
   "cpp" -> "c_cpp"
   l -> l
+-}
+
+languageExtension :: Language -> Maybe Text
+languageExtension l = M.lookup l extensions
+
+extensions :: Map Language Text
+extensions
+  = M.fromList [ ("c", ".c")
+               , ("cpp", ".cpp")
+               , ("haskell", ".hs")
+               , ("python", ".py")
+               , ("java", ".java")
+               , ("javascript", ".js")                
+               ]

@@ -28,9 +28,9 @@
 <h2>Editar submissão</h2>
 
 <form id="editform" method="POST" action="${page-url}"
-      onSubmit="submitAceEditorText('editform.editor');">
-<p><inputAceEditor id="editform.editor" mode="ace/mode/${language-mode}"><code-text/></inputAceEditor></p>
-<p><input type="submit" value="Re-enviar"/>
+      onSubmit="submitAceEditorText('submission');">
+<p><inputAceEditor id="submission" path="${language-ext}"><code-text/></inputAceEditor></p>
+<p><input type="submit" value="Submeter novamente"/>
 &nbsp;<a class="button" href="${page-url}">Voltar ao exercício</a>
 &nbsp;<a class="button" href="${page-parent-url}">Voltar à folha de exercícios</a>
 </form>

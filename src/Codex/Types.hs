@@ -64,7 +64,7 @@ instance PathInfo SubmitId where
 
 -- | language identifier
 newtype Language
-  = Language {fromLanguage :: Text} deriving (Eq, Typeable) --, Read, Show)
+  = Language {fromLanguage :: Text} deriving (Eq, Ord, Typeable) 
 
 -- | program code tagged with language identifier
 data Code = Code { codeLang :: !Language
@@ -128,13 +128,3 @@ instance FromRow Text where
   fromRow = field
 
 
-{-
--- | Printout configuration
-data PrintConf = PrintConf { printEnabled :: Bool
-                           , printHeader :: Text
-                           , printOptions :: [String]
-                           }
-                deriving Show
-
-
--}

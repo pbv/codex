@@ -7,8 +7,6 @@ module Codex.AuthHandlers (
   ) where
 
 import           Data.ByteString.UTF8 (ByteString)
-import qualified Data.ByteString.UTF8 as B
-
 import qualified Data.Text as T
 import qualified Data.Text.Encoding as T
 import           Data.Map.Syntax
