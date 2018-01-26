@@ -306,6 +306,7 @@ routeAppUrl appUrl =
   case appUrl of
     Login  -> handleLogin
     Logout -> handleLogout
+    Register -> handleRegister
     Page path -> handlePage (joinPath path)
     Report sid -> handleReport sid 
     Files path -> handleBrowse (joinPath path)
@@ -380,6 +381,7 @@ staticSplices :: ISplices
 staticSplices = do
   "login" ## urlSplice Login
   "logout" ## urlSplice Logout
+  "register" ## urlSplice Register
   "home" ## urlSplice (Page ["index.md"])
   "files" ## urlSplice (Files [])
   "submissionList" ## urlSplice SubmissionList

@@ -1,7 +1,7 @@
 <apply template="_base">
 <h1>Registar novo utilizador</h1>
 
-<form method="POST" action="/register">
+<form method="POST" action="${register}">
   <table>
     <tr>
       <td>Nome completo:</td> <td><input type="text" name="fullname" size=40/></td>

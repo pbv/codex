@@ -5,9 +5,9 @@
 resolução de exercícios de programação com correção automática.</p>
 
 <p>Por favor autentique-se para iniciar a sessão
- ou  <a href="/register">registe</a>  uma nova conta de utilizador.</p>
+ ou  <a href="${register}">registe</a>  uma nova conta de utilizador.</p>
 
-<form method="POST" action="/login">
+<form method="POST" action="${login}">
   <table>
     <tr>
       <td>Login:</td><td><input type="text" name="login" size="20" /></td>

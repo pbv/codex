@@ -31,6 +31,7 @@ import Codex.Types
 data AppUrl =
     Login              -- ^ session login / logout
   | Logout
+  | Register
   | Page  [FilePath]   -- ^ exercise page or other file
   | Report SubmitId    -- ^ report for previously submitted exercise
   -- following are for adminstrator only

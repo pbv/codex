@@ -38,13 +38,13 @@ import           Codex.LdapAuth
 -- | Handle login requests
 handleLogin :: Codex ()
 handleLogin =
-  method GET (handleLoginForm "_login" Nothing) <|>
+  method GET (loginForm "_login" Nothing) <|>
   method POST handleLoginSubmit
 
 
--- | Render login and signup forms
-handleLoginForm ::  ByteString -> Maybe AuthFailure -> Codex ()
-handleLoginForm file authFail = heistLocal (I.bindSplices errs) $ render file
+-- | Render login and register form
+loginForm :: ByteString -> Maybe AuthFailure -> Codex ()
+loginForm form authFail = heistLocal (I.bindSplices errs) $ render form
   where
     errs = "loginError" ## maybe (return []) (I.textSplice . T.pack .show) authFail
 
@@ -67,8 +67,7 @@ handleLoginSubmit = do
     Right au ->
       redirectURL home
     Left err -> case ldap of
-      Nothing -> do
-        handleLoginForm "_login" (Just err)
+      Nothing ->  loginForm "_login" (Just err)
       Just cfg -> loginLdapUser cfg login passwd
 
 
@@ -76,7 +75,7 @@ loginLdapUser :: LdapConf -> ByteString -> ByteString -> Codex ()
 loginLdapUser ldapConf login passwd = do
   r <- with auth $ withBackend (\r -> liftIO $ ldapAuth r ldapConf login passwd)
   case r of
-    Left err -> handleLoginForm "_login" (Just err)
+    Left err -> loginForm "_login" (Just err)
     Right au -> do with auth (forceLogin au)
                    redirectURL home
 
@@ -90,13 +89,13 @@ handleRegister = do
   conf <- getSnapletUserConfig
   c <- liftIO $ Configurator.require conf "users.register"
   unless c unauthorized
-  method GET (handleLoginForm "register" Nothing) <|>
+  method GET (loginForm "_register" Nothing) <|>
     method POST handleSubmit
   where
     handleSubmit = do
       r <- with auth newUser
       case r of
-        Left err -> handleLoginForm "register" (Just err)
+        Left err -> loginForm "_register" (Just err)
         Right au -> with auth (forceLogin au) >> redirectURL home
 
 
