@@ -21,18 +21,18 @@ import           Control.Monad (mplus)
   
 
 -- | SafeExec limits 
-data Limits =  Limits { maxCpuTime :: Maybe Int   -- seconds
-                      , maxClockTime :: Maybe Int -- seconds
-                      , maxMemory :: Maybe Int    -- KB
-                      , maxStack :: Maybe Int     -- KB
-                      , maxFSize :: Maybe Int     -- KB
-                      , maxCore :: Maybe Int      -- KB
-                      , numProc :: Maybe Int
+data Limits =  Limits { maxCpuTime :: !(Maybe Int)   -- seconds
+                      , maxClockTime :: !(Maybe Int) -- seconds
+                      , maxMemory :: !(Maybe Int)    -- KB
+                      , maxStack :: !(Maybe Int)     -- KB
+                      , maxFSize :: !(Maybe Int)     -- KB
+                      , maxCore :: !(Maybe Int)      -- KB
+                      , numProc :: !(Maybe Int)
                       } deriving (Eq, Show, Read)
 
 
 instance Monoid Limits where
-  -- | empty element => no limits
+  -- | empty element; no limits set
   mempty =  Limits { maxCpuTime   = Nothing
                    , maxClockTime = Nothing
                    , maxMemory    = Nothing

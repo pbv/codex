@@ -34,7 +34,6 @@ Executable codex-server
     Codex.Tester.QuickCheck
     Codex.Tester.Haskell
     Codex.Tester.C
-    Codex.Testers            
     Codex.Evaluate
     Codex.LdapAuth
     Codex.Page

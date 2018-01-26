@@ -25,12 +25,22 @@ import           Snap.Core
 import           System.IO
 import           Codex.Site
 
+-- specific testers
+import           Codex.Tester.Monad
+import           Codex.Tester.Python
+import           Codex.Tester.Haskell
+import           Codex.Tester.C
+
 #ifdef DEVELOPMENT
 import           Snap.Loader.Dynamic
 #else
 import           Snap.Loader.Static
 #endif
 
+
+app = codexInit $ testers [ pythonTester
+                          , haskellTester
+                          , clangTester ]
 
 ------------------------------------------------------------------------------
 -- | This is the entry point for this web server application. It supports

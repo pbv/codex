@@ -3,10 +3,10 @@
 
 ------------------------------------------------------------------------------
 -- | This module is where all the routes and handlers are defined for your
--- site. The 'app' function is the initializer that combines everything
+-- site. The 'codexInit' function is the initializer that combines everything
 -- together and is exported by this module.
 module Codex.Site
-  ( app
+  ( codexInit
   ) where
 
 ------------------------------------------------------------------------------
@@ -63,7 +63,7 @@ import           Codex.Submission
 import           Codex.Types
 import           Codex.Utils
 import           Codex.Evaluate
-import           Codex.Tester.Result
+import           Codex.Tester
 -- import           Codex.Printout
 
 import           Data.Version                                (showVersion)
@@ -97,27 +97,6 @@ handlePage rqpath = do
                         method POST handlePost)
     _ -> method GET (serveFileAs mime filepath)
 
-{-
-  where
-   handleRedir root rqpath = do
-        let filepath = root </> rqpath </> "index.md"
-        c <- liftIO (doesFileExist filepath)
-        if c then
-          redirect (encodePath ("/pub" </> rqpath </> "index.md"))
-          else
-          notFound
-    handlePost uid root rqpath = do
-      let filepath = root </> rqpath
-      c <- liftIO (doesFileExist filepath)
-      guard (c && fileType mimeTypes rqpath == "text/markdown")
-      page <- liftIO (readMarkdownFile $ root </> rqpath)
-      -- ensure the request is for an exercise page
-      guard (pageIsExercise page)
-      text <- require (getTextPost "editform.editor")
-      lang <- require (return $ pageLanguage page)
-      sid <- newSubmission uid rqpath (Code lang text)
-      redirectURL (Submit sid)
--}
 
 
 -- | serve a markdown document
@@ -237,10 +216,6 @@ exerciseSplices page = do
   "language" ##
     maybe (return []) (I.textSplice . fromLanguage) (pageLanguage page)
   "language-ext" ## I.textSplice $ fromMaybe "" (languageExtension =<< pageLanguage page)
-    {-
-  "language-mode" ## return []
-    maybe (return []) (I.textSplice . languageMode) (pageLanguage page)
-     -}
   "code-text" ##
     maybe (return []) I.textSplice (pageCodeText page)
   "feedback-low" ## I.ifElseISplice (fb >= 25)
@@ -288,21 +263,6 @@ routes =
   , ("/static", (getStaticRoot >>= serveDirectory) <|> notFound)
   ]
 
-{-
-routes = [ ("/login",    handleLogin `catch` internalError)
-         , ("/logout",   handleLogout `catch` internalError)
-         , ("/register", handleRegister `catch` internalError)
-         , ("/pub",      handlePage `catch` internalError)
-         , ("/sub/:sid", handleSubmitReport `catch` internalError)
-         , ("/submissions/:sid", handleSubmission `catch` internalError)
-         , ("/submissions",  handleSubmissionList `catch` internalError)
-         , ("/files",  handleBrowse `catch`  internalError)
-         , ("/export", handleExport `catch` internalError)
-         , ("/printouts", handlePrintouts `catch` internalError)
-         , ("/static",  (getStaticRoot >>= serveDirectory) <|> notFound)
-         , ("/robots.txt", getStaticRoot >>= \dir -> (serveFile $ dir</>"robots.txt"))
-         ]
--}
 
 routeAppUrl :: AppUrl -> Codex ()
 routeAppUrl appUrl =
@@ -350,8 +310,8 @@ newSubmission uid rqpath code = do
 
 ------------------------------------------------------------------------------
 -- | The application initializer.
-app :: SnapletInit App App
-app =
+codexInit :: Tester Result -> SnapletInit App App
+codexInit tst =
   makeSnaplet "codex" "Web server for programming exercises." Nothing $ do
     h <- nestSnaplet "" heist $ heistInit "templates"
     r <- nestSnaplet "router" router $ initRouter ""
@@ -375,8 +335,9 @@ app =
                , _sess = s
                , _auth = a
                , _db   = d
-               , evthids = tids
-               , evqs    = qs
+               , _tester = tst
+               , _evthids = tids
+               , _evqs    = qs
                }
 
 

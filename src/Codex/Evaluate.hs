@@ -28,28 +28,29 @@ import           Codex.Utils
 import           Codex.Page
 import           Codex.Submission
 import           Codex.Tester
-import           Codex.Testers
+-- import           Codex.Testers
 import           Codex.Interval
 
 
 
 -- | default evaluator
 evaluate :: Submission -> Codex ThreadId
-evaluate sub =
-  evaluateWith allTesters sub
+evaluate sub = do
+  tester <- gets _tester
+  evaluateWith tester sub
 
 
--- evaluate a submission  with a specific tester
+-- | evaluate a submission  with a specific tester
 -- (1st time or re-evaluation);
 -- runs code tester in separate thread
--- uses a semaphore for "throttling" evaluations 
+-- uses a semaphore for limitting concurrency 
 evaluateWith :: Tester Result -> Submission -> Codex ThreadId
 evaluateWith tester sub = do
   sqlite <- S.getSqliteState
   evs <- getEvents
   root <- getDocumentRoot
   conf <- getSnapletUserConfig
-  qs <- gets evqs
+  qs <- gets _evqs
   let filepath = root </> submitPath sub    -- ^ file path to exercise 
   let sid = submitId sub                    -- ^ submission number
   let code = submitCode sub                 -- ^ program code
@@ -68,7 +69,7 @@ evaluateWith tester sub = do
 
 
 runLanguageTester config filepath page code tester =
-  fromMaybe (invalidTester code) <$> runTester config filepath page code tester
+  fromMaybe (invalidTester code) <$> runTest config filepath page (tester code)
 
 wrongInterval :: Page -> Result
 wrongInterval page =
@@ -77,7 +78,7 @@ wrongInterval page =
  
 
 invalidTester :: Code -> Result
-invalidTester code = miscError $
-  "Invalid tester for language \"" <> fromLanguage (codeLang code) <> "\""
+invalidTester (Code lang _)
+  = miscError $ "No tester for language: " <> fromLanguage lang 
 
 

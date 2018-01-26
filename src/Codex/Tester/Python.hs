@@ -7,31 +7,31 @@ import           System.FilePath
 import           System.Exit
 import           System.Directory (doesFileExist)
 import           Control.Exception (throwIO)
-import           Control.Monad(unless)
+import           Codex.Types
 import           Codex.Tester
 import           Codex.Page
 import           Data.Text(Text)
 import qualified Data.Text as T
 
 
-pythonTester :: Tester Result
-pythonTester = withLanguage "python" $ \code -> do
-  python <- configured "language.python.interpreter"
-  pytest <- configured "language.python.pytest"
-  scripts<- configured "language.python.scripts"
-  limits <- testerLimits "language.python.limits"
-  sf <- testerSafeExecPath
-  page <- testerPage
-  path <- testerPath
+pythonTester :: Code -> Test Result
+pythonTester (Code language code) = do
+  guard (language == "python")
+  python <- testConfig "language.python.interpreter"
+  pytest <- testConfig "language.python.pytest"
+  scripts<- testConfig "language.python.scripts"
+  page <- testPage
+  path <- testPath
+  safeExec <- testSafeExec ["language.python.limits", "limits"]
   let tstfile = guessDoctest path page
   liftIO $ do
     c <- doesFileExist tstfile
     unless c $
       throwIO (miscError $ T.pack $ "missing doctest file: " ++ tstfile)
-    withTextTemp "tmp.py" code $ \pyfile -> do
+    withTextTemp "sub.py" code $ \pyfile -> do
       ensureFileReadable tstfile 
       ensureFileReadable pyfile
-      pythonResult <$> safeExecWith sf limits python [pytest, scripts, tstfile, pyfile] ""
+      pythonResult <$> safeExec python [pytest, scripts, tstfile, pyfile] ""
 
 
 

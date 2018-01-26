@@ -26,6 +26,9 @@ import Control.Concurrent (MVar, ThreadId)
 import Control.Concurrent.QSem (QSem)
 
 import Codex.Types
+import Codex.Tester.Monad
+import Codex.Tester.Result
+
 
 -- | URLs for our application
 data AppUrl =
@@ -49,8 +52,9 @@ data App = App
     , _sess    :: Snaplet SessionManager
     , _auth    :: Snaplet (AuthManager App)
     , _db      :: Snaplet Sqlite
-    , evthids :: MVar [ThreadId]  -- ^ list of (re)evaluation thread ids
-    , evqs    :: QSem             -- ^ semaphore for (re)evaluation scheduling
+    , _tester  :: Tester Result    -- ^ exercise tester to use
+    , _evthids :: MVar [ThreadId]  -- ^ list of (re)evaluation thread ids
+    , _evqs    :: QSem             -- ^ semaphore for (re)evaluation scheduling
    }
 
 makeLenses ''App

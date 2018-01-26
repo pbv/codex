@@ -251,7 +251,7 @@ caseSplice v = tagCaseSplice (T.pack $ show v)
 
 
 --------------------------------------------------------------
-
+ {-
 -- | make a checkbox input for a tag filter
 checkboxInput :: Text -> Bool -> Bool -> [X.Node]
 checkboxInput value checked disabled
@@ -264,7 +264,11 @@ checkboxInput value checked disabled
                   ("onclick", "this.form.submit();")
                 ]
         attrs' = [ ("class","disabled") | disabled ]
+-}
 
+checkboxInput :: [(Text,Text)] -> [X.Node] -> X.Node
+checkboxInput attrs contents = X.Element "input" attrs' contents
+  where attrs' = ("type","checkbox") : attrs
 
 
 jsTimer :: String -> NominalDiffTime -> [X.Node]
@@ -320,14 +324,14 @@ withQSem qs = bracket_ (waitQSem qs) (signalQSem qs)
 -- | cancel all pending evaluations 
 cancelPending :: Codex ()
 cancelPending = do
-  mv <- gets evthids
+  mv <- gets _evthids
   tids <- liftIO $ takeMVar mv
   liftIO (mapM_ killThread tids)
 
 
 setPending :: [ThreadId] -> Codex ()
 setPending tids = do
-  mv <- gets evthids
+  mv <- gets _evthids
   liftIO (putMVar mv tids)
 
 
