@@ -24,7 +24,7 @@ import qualified Data.HashMap.Strict                         as HM
 import           Data.Map.Syntax
 
 import qualified Data.Text                                   as T
-import           Data.Maybe(isJust)
+import           Data.Maybe(isJust, fromMaybe)
 
 import           Heist
 import qualified Heist.Interpreted                           as I
@@ -87,7 +87,7 @@ handlePage rqpath = do
   let handlePost = do
         page <- liftIO (readMarkdownFile filepath)
         unless (pageIsExercise page) badRequest
-        text <- require (getTextPost "editform.editor")
+        text <- require (getTextPost "submission")
         lang <- require (return $ pageLanguage page)
         sid <- newSubmission uid rqpath (Code lang text)
         redirectURL (Report sid)
@@ -236,8 +236,11 @@ exerciseSplices page = do
   let fb = submitFeedback page
   "language" ##
     maybe (return []) (I.textSplice . fromLanguage) (pageLanguage page)
-  "language-mode" ##
+  "language-ext" ## I.textSplice $ fromMaybe "" (languageExtension =<< pageLanguage page)
+    {-
+  "language-mode" ## return []
     maybe (return []) (I.textSplice . languageMode) (pageLanguage page)
+     -}
   "code-text" ##
     maybe (return []) I.textSplice (pageCodeText page)
   "feedback-low" ## I.ifElseISplice (fb >= 25)

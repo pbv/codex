@@ -9,13 +9,13 @@
 	  onSubmit="submitAceEditorText('editform.editor');">
       <input type="hidden" name="_method" value="PUT"/>
       <input type="hidden" id="editform.path" value="${file-path}"/>
-      <inputAceEditor id="editform.editor" mode="ace/mode/text"><file-contents/></inputAceEditor>
+      <inputAceEditor id="editform.editor" path="${file-path}"><file-contents/></inputAceEditor>
       <p><input type="submit" value="Gravar alterações"/> &nbsp;
 	<a class="button" title="Voltar ao diretório anterior" href="${file-parent-url}">Cancelar</a>
       </p>
     </form>
     <script type="text/javascript">
-      setAceEditorModeExt('editform.editor', 'editform.path');
+      setAceEditorModeExt('editform.editor', document.getElementById('editform.path').value);
     </script>
   </if-text-file>
 
