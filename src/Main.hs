@@ -24,9 +24,10 @@ import           Snap.Snaplet.Config
 import           Snap.Core
 import           System.IO
 import           Codex.Site
+import           Codex.Application
 
 -- specific testers
-import           Codex.Tester.Monad
+import           Codex.Tester
 import           Codex.Tester.Python
 import           Codex.Tester.Haskell
 import           Codex.Tester.C
@@ -38,6 +39,7 @@ import           Snap.Loader.Static
 #endif
 
 
+app :: SnapletInit App App
 app = codexInit $ testers [ pythonTester
                           , haskellTester
                           , clangTester ]

@@ -310,7 +310,7 @@ newSubmission uid rqpath code = do
 
 ------------------------------------------------------------------------------
 -- | The application initializer.
-codexInit :: Tester Result -> SnapletInit App App
+codexInit :: Tester -> SnapletInit App App
 codexInit tst =
   makeSnaplet "codex" "Web server for programming exercises." Nothing $ do
     h <- nestSnaplet "" heist $ heistInit "templates"

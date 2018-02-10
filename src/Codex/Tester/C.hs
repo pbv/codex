@@ -22,7 +22,7 @@ import           Codex.Tester.QuickCheck
 import           Codex.Tester
 
 
-clangTester :: Tester Result
+clangTester :: Code -> Test Result
 clangTester (Code lang code) = do
   guard (lang == "c")
   page <- testPage

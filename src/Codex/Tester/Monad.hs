@@ -4,10 +4,8 @@
 
 module Codex.Tester.Monad (
   Test,
-  Tester,
   SafeExec,
   runTest,
-  testers,
   testConfig,
   testPath,
   testPage,
@@ -44,8 +42,6 @@ data TestEnv = TestEnv
                , _testPage :: !Page       -- ^ exercise page (pandoc document)
                } 
 
--- | type synonym for an exercise tester
-type Tester a = Code -> Test a
 
 -- | run a test
 --
@@ -58,10 +54,6 @@ runTest cfg path page test = do
   runMaybeT $ runReaderT (unTest test) env
 
 
--- | combine a list of testers in sequence
-testers :: [Tester a] -> Tester a
-testers []     _    = empty
-testers (t:ts) code = t code <|> testers ts code
 
 -- | environment access 
 testPath :: Test FilePath

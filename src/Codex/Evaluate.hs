@@ -7,7 +7,6 @@ module Codex.Evaluate(
   evaluateWith 
   ) where
 
--- import qualified Data.ByteString.UTF8 as B  
 import qualified Data.Text                                   as T
 import           Data.Monoid
 import           Data.Maybe
@@ -18,7 +17,6 @@ import           Control.Exception  (SomeException)
 import           Control.Exception.Lifted  (catch)
 import           System.FilePath
 
--- import           Snap.Core (logError)
 import           Snap.Snaplet
 import qualified Snap.Snaplet.SqliteSimple                   as S
 
@@ -28,7 +26,6 @@ import           Codex.Utils
 import           Codex.Page
 import           Codex.Submission
 import           Codex.Tester
--- import           Codex.Testers
 import           Codex.Interval
 
 
@@ -44,7 +41,7 @@ evaluate sub = do
 -- (1st time or re-evaluation);
 -- runs code tester in separate thread
 -- uses a semaphore for limitting concurrency 
-evaluateWith :: Tester Result -> Submission -> Codex ThreadId
+evaluateWith :: Tester -> Submission -> Codex ThreadId
 evaluateWith tester sub = do
   sqlite <- S.getSqliteState
   evs <- getEvents
