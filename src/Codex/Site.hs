@@ -49,6 +49,7 @@ import           System.Directory                            (doesFileExist)
 import           System.FilePath
 
 import qualified Data.Configurator as Conf
+import           Data.Configurator.Types (Config)
 
 ------------------------------------------------------------------------------
 import           Codex.AceEditor
@@ -320,16 +321,17 @@ codexInit tst =
     d <- nestSnaplet "db" db S.sqliteInit
     a <- nestSnaplet "auth" auth $ initSqliteAuth sess d
     addAuthSplices h auth
-    addConfig h (mempty & scInterpretedSplices .~ staticSplices)
+    conf <- getSnapletUserConfig
+    js <- liftIO $ configSplices conf
+    addConfig h (mempty & scInterpretedSplices .~ (staticSplices `mappend` js))
     -- Grab the DB connection pool from the sqlite snaplet and call
     -- into the Model to create all the DB tables if necessary.
     let c = S.sqliteConn $ d ^# snapletValue
     liftIO $ withMVar c $ \conn -> Db.createTables conn
     addRoutes routes
     -- create a semaphore for throttling concurrent evaluation threads
-    conf <- getSnapletUserConfig
     tids <- liftIO $ newMVar []
-    qs <- liftIO $ newQSem =<< Conf.require conf "system.workers"
+    qs <- liftIO $ newQSem =<< Conf.require conf "system.max_concurrent"
     return App { _heist = h
                , _router = r
                , _sess = s
@@ -340,6 +342,12 @@ codexInit tst =
                , _evqs    = qs
                }
 
+
+configSplices :: Config -> IO ISplices
+configSplices conf = do
+  urls <- Conf.require conf "js_libraries"
+  return $ do
+    "js-libraries" ## return (map javascriptSrc urls)
 
 staticSplices :: ISplices
 staticSplices = do

@@ -52,18 +52,16 @@ import           System.FilePath
 -- interpreted splices for handlers
 type ISplices = Splices (I.Splice Codex)
 
- 
-
 -- | fetch document root directory from config file
 getDocumentRoot :: Codex FilePath
 getDocumentRoot = do
   conf <- getSnapletUserConfig
-  liftIO (Configurator.require conf "system.documentRoot")
+  liftIO (Configurator.require conf "system.document_root")
 
 getStaticRoot :: Codex FilePath
 getStaticRoot = do
   conf <- getSnapletUserConfig
-  liftIO (Configurator.require conf "system.staticRoot")
+  liftIO (Configurator.require conf "system.static_root")
 
 
 -- | lookup full name for a user login in Db
@@ -279,7 +277,12 @@ jsTimer id secs
      "start_countdown(" ++ show id ++ "," ++ show (floor secs :: Int) ++ ");"]
 
 javascript :: Text -> X.Node
-javascript txt = X.Element "script" [("type","text/javascript")] [X.TextNode txt]
+javascript txt
+  = X.Element "script" [("type","text/javascript")] [X.TextNode txt]
+
+javascriptSrc :: Text -> X.Node
+javascriptSrc  url
+  = X.Element "script" [("type","text/javascript"), ("src",url)] []
 
 -------------------------------------------------------------------------------
 

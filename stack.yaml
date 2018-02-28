@@ -1,6 +1,5 @@
 packages:
 - location: .
-- location: ../codex-quickcheck
 
 extra-deps:
 - io-streams-1.5.0.1
