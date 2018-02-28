@@ -80,8 +80,6 @@ Executable codex-server
     base,
     lens,
     process-extras,
-    QuickCheck,
-    codex-quickcheck,
     temporary
 
   if flag(development)
@@ -97,47 +95,8 @@ Executable codex-server
   else
     ghc-options: -threaded -Wall -fwarn-tabs -funbox-strict-fields -O2
                  -fno-warn-orphans -fno-warn-unused-do-bind -rtsopts
-    
--- Executable codex-tester
---   hs-source-dirs: src
---   main-is: RunTester.hs
---   default-language: Haskell2010
---   other-modules:
---     Codex.Config
---     Codex.Interval
---     Codex.Tester
---     Codex.Tester.Monad
---     Codex.Tester.Result
---     Codex.Tester.Utils
---     Codex.Tester.Python
---     Codex.Tester.QuickCheck
---     Codex.Tester.Haskell
---     Codex.Tester.C
---     Codex.Testers            
---     Codex.Evaluate
---     Codex.Page
---     Codex.SafeExec
---     Codex.Types
---   build-depends:
---     filepath,
---     directory,
---     old-locale,
---     process,
---     unix,
---     transformers,
---     mtl,
---     bytestring,
---     utf8-string,
---     xmlhtml,
---     sqlite-simple,
---     text,
---     time,
---     pandoc-types,
---     pandoc,
---     unordered-containers,
---     containers,
---     configurator,
---     base,
---     lens,
---     process-extras,
---     QuickCheck
+
+
+--  ghc-options: -optl-fuse-ld=gold
+--  ld-options:  -fuse-ld=gold
+
