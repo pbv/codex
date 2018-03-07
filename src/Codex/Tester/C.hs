@@ -4,7 +4,7 @@
 {-# LANGUAGE OverloadedStrings #-}
 
 module Codex.Tester.C (
-  clangTester
+  clangQCTester
   ) where
 
 import           Data.Text (Text)
@@ -18,32 +18,31 @@ import           Control.Exception
 
 import           Codex.Page
 import           Codex.Types
-import           Codex.Tester.QuickCheck
 import           Codex.Tester
+import           Codex.Tester.QuickCheck
 
 
-clangTester :: Code -> Test Result
-clangTester (Code lang code) = do
+clangQCTester :: FilePath -> Page -> Code -> Test Result
+clangQCTester path page (Code lang src) = do
   guard (lang == "c")
-  page <- testPage
-  base <- takeDirectory <$> testPath
+  let base = takeDirectory path
   case getQuickCheckPath base page of
     Nothing -> return (miscError "no QuickCheck file specified")
     Just qcpath -> do
       props <- liftIO $ T.readFile qcpath
       let qcArgs = getQuickCheckArgs page
-      -- add optional header to user code
-      let code' = case getHeader page of
-                    Nothing -> code
-                    Just header -> header `T.append` code
-      ghc <- testConfig "language.haskell.compiler"
-      gcc <- testConfig "language.c.compiler"
-      sf <- testSafeExec ["language.haskell.limits", "limits"]
-      liftIO (clangRunner sf gcc ghc qcArgs code' props `catch` return)
+      -- add optional header to user submission
+      let code = case getHeader page of
+                    Nothing -> src
+                    Just header -> header `T.append` src
+      ghc <- configured "language.haskell.compiler"
+      gcc <- configured "language.c.compiler"
+      limits <- getLimits "language.haskell.limits"
+      liftIO (clangRunner limits gcc ghc qcArgs code props `catch` return)
 
-clangRunner :: SafeExec -> String -> String -> [String] -> Text -> Text
-            -> IO Result
-clangRunner safeExec gcc_cmd ghc_cmd qcArgs c_code props =
+clangRunner ::
+  Limits -> String -> String -> [String] -> Text -> Text -> IO Result
+clangRunner limits gcc_cmd ghc_cmd qcArgs c_code props =
   withTextTemp "sub.c" c_code $ \c_file ->
   withTextTemp "Main.hs" props $ \hs_file ->
   let dir = takeDirectory c_file
@@ -61,7 +60,7 @@ clangRunner safeExec gcc_cmd ghc_cmd qcArgs c_code props =
        --- compile Haskell test script
        runCompiler ghc hc_args
        -- run compiled script under safe exec
-       haskellResult <$> safeExec out_file qcArgs "")
+       haskellResult <$> safeExecIO limits out_file qcArgs "")
    (cleanupFiles temps)
 
 

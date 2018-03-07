@@ -268,9 +268,9 @@ routes =
 routeAppUrl :: AppUrl -> Codex ()
 routeAppUrl appUrl =
   case appUrl of
-    Login  -> handleLogin
+    Login  -> handleLogin 
     Logout -> handleLogout
-    Register -> handleRegister
+    Register -> handleRegister 
     Page path -> handlePage (joinPath path)
     Report sid -> handleReport sid 
     Files path -> handleBrowse (joinPath path)

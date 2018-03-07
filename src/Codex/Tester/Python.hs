@@ -1,6 +1,6 @@
 {-# LANGUAGE OverloadedStrings #-}
 module Codex.Tester.Python (
-  pythonTester
+  pythonDoctester
   ) where
 
 import           System.FilePath
@@ -14,24 +14,21 @@ import           Data.Text(Text)
 import qualified Data.Text as T
 
 
-pythonTester :: Code -> Test Result
-pythonTester (Code language code) = do
+pythonDoctester :: FilePath -> Page -> Code -> Test Result
+pythonDoctester path page (Code language src) = do
   guard (language == "python")
-  python <- testConfig "language.python.interpreter"
-  pytest <- testConfig "language.python.pytest"
-  scripts<- testConfig "language.python.scripts"
-  page <- testPage
-  path <- testPath
-  safeExec <- testSafeExec ["language.python.limits", "limits"]
-  let tstfile = guessDoctest path page
+  python  <- configured "language.python.interpreter"
+  pytest  <- configured "language.python.pytest"
+  scripts <- configured "language.python.scripts"
+  limits <- getLimits "language.python.limits"
+  let doctestPath = guessDoctest path page
   liftIO $ do
-    c <- doesFileExist tstfile
-    unless c $
-      throwIO (miscError $ T.pack $ "missing doctest file: " ++ tstfile)
-    withTextTemp "sub.py" code $ \pyfile -> do
-      ensureFileReadable tstfile 
+    c <- doesFileExist doctestPath
+    withTextTemp "tmp.py" src $ \pyfile -> do
+      ensureFileReadable doctestPath
       ensureFileReadable pyfile
-      pythonResult <$> safeExec python [pytest, scripts, tstfile, pyfile] ""
+      pythonResult <$>
+        safeExecIO limits python [pytest, scripts, doctestPath, pyfile] ""
 
 
 

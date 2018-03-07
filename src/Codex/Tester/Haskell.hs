@@ -4,7 +4,7 @@
 {-# LANGUAGE OverloadedStrings #-}
 
 module Codex.Tester.Haskell (
-  haskellTester
+  haskellQCTester
   ) where
 
 
@@ -18,30 +18,30 @@ import           System.FilePath
 import           System.IO.Temp
 import           Control.Exception
 
-import           Codex.Types
+import           Codex.Types (Code(..))
+import           Codex.Page (Page)
 import           Codex.Tester
 import           Codex.Tester.QuickCheck
 
 
 
 -- | running and evaluating Haskell submissions
-haskellTester :: Code -> Test Result
-haskellTester (Code language code) = do
+haskellQCTester :: FilePath -> Page -> Code -> Test Result
+haskellQCTester path page (Code language src) = do
   guard (language == "haskell")
-  page <- testPage
-  base <- takeDirectory <$> testPath
+  let base = takeDirectory  path
   case getQuickCheckPath base page of
     Nothing ->  return (miscError "no QuickCheck file specified")
     Just qcpath -> do
       props <- liftIO $ T.readFile qcpath
       let qcArgs = getQuickCheckArgs page
-      ghc <- testConfig "language.haskell.compiler"
-      safeExec <- testSafeExec ["language.haskell.limits", "limits"]
-      liftIO (haskellRunner safeExec ghc qcArgs code props `catch` return)
+      ghc <- configured "language.haskell.compiler"
+      limits <- getLimits "language.haskell.limits"
+      liftIO (haskellRunner limits ghc qcArgs src props `catch` return)
 
 
-haskellRunner :: SafeExec -> FilePath -> [String] -> Text -> Text -> IO Result
-haskellRunner safeExec ghc qcArgs code props =
+haskellRunner :: Limits -> FilePath -> [String] -> Text -> Text -> IO Result
+haskellRunner limits ghc qcArgs code props =
    withSystemTempDirectory "codex" $ \dir -> do
    let hs_file   = dir </> "Submission.hs"
    let main_file = dir </> "Main.hs"
@@ -59,7 +59,7 @@ haskellRunner safeExec ghc qcArgs code props =
          T.writeFile hs_file (modHeader code)
          T.writeFile main_file props
          runCompiler cmd args'
-         haskellResult <$> safeExec out_file qcArgs ""
+         haskellResult <$> safeExecIO limits out_file qcArgs ""
      ) (cleanupFiles temps)
 
 

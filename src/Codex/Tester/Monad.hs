@@ -1,23 +1,24 @@
 {-# LANGUAGE DeriveFunctor #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE RecordWildCards #-}
 
 module Codex.Tester.Monad (
   Test,
-  SafeExec,
   runTest,
-  testConfig,
-  testPath,
-  testPage,
-  testSafeExec,
+  configured,
+  maybeConfigured,
+  currentLimits,
+  getLimits,
+  safeExec,
+  safeExecIO,
   -- * modules re-export
   module Control.Monad.Trans
   ) where
 
-import           Codex.Types
-import           Codex.Page
-import           Codex.SafeExec
-import           System.Exit (ExitCode)
+
+import           Data.Text(Text)
+import qualified Data.Text as T
 
 import           Data.Configurator.Types
 import qualified Data.Configurator as Conf
@@ -26,84 +27,85 @@ import           Control.Applicative
 import           Control.Monad.Trans
 import           Control.Monad.Trans.Maybe
 import           Control.Monad.Trans.Reader
+import           Control.Monad.Trans.State.Strict
 
+import           Codex.Tester.Limits
 
--- | a monad for testing;
+import           System.Exit(ExitCode)
+import           System.Process.Text (readProcessWithExitCode)
+
+-- | a monad for testing scripts
 -- allows IO, access to a configuration environment and failure 
 newtype Test a
-  = Test { unTest :: ReaderT TestEnv (MaybeT IO) a }
+  = Test { unTest :: ReaderT Config (StateT Limits (MaybeT IO)) a }
   deriving (Functor, Monad, Applicative, Alternative, MonadIO)
-
--- | the test environment
---
-data TestEnv = TestEnv
-               { _testConfig :: !Config   -- ^ handle for config environment
-               , _testPath :: !FilePath   -- ^ filepath for the exercise 
-               , _testPage :: !Page       -- ^ exercise page (pandoc document)
-               } 
 
 
 -- | run a test
 --
-runTest :: Config -> FilePath -> Page -> Test a -> IO (Maybe a)
-runTest cfg path page test = do
-  let env = TestEnv { _testConfig = cfg
-                    , _testPath = path
-                    , _testPage = page
-                    }
-  runMaybeT $ runReaderT (unTest test) env
-
-
-
--- | environment access 
-testPath :: Test FilePath
-testPath = Test (asks _testPath)
-
-testPage :: Test Page
-testPage = Test (asks _testPage)
+runTest :: Config -> Limits -> Test a -> IO (Maybe a)
+runTest cfg limits action = do
+  runMaybeT $ evalStateT (runReaderT (unTest action) cfg) limits
 
 -- | fetch a configuration value
-testConfig :: Configured a => Name -> Test a
-testConfig name = do
-  cfg <- Test (asks _testConfig)
-  liftIO $ Conf.require cfg name
+maybeConfigured :: Configured a => Name -> Test (Maybe a)
+maybeConfigured name = do
+  cfg <- Test ask
+  liftIO $ Conf.lookup cfg name 
 
-testLimits :: Name -> Test Limits
-testLimits prefix = do
-  cfg <- Test (asks _testConfig)
-  liftIO $ getLimits (Conf.subconfig prefix cfg)
-
-
--- | a safe exec IO action
--- command, arguments, stdin -> (exitcode, stdout, stderr)
-type SafeExec = FilePath -> [String] -> Text -> IO (ExitCode, Text, Text)
-
--- | fetch safe exec command
--- prefixes for limits are listed most specific to most general
-testSafeExec :: [Name] -> Test SafeExec
-testSafeExec prefixes = do
-  cmd <- testConfig "safeexec" -- safe exec command path
-  limits <- mconcat <$> mapM testLimits prefixes
-  return (safeExecWith cmd limits)
+-- | fetch a configuration value
+-- throws an exception if the key is not present
+configured :: Configured a => Name -> Test a
+configured name = do
+  cfg <- Test ask
+  liftIO $ Conf.require cfg name 
 
 
-{-
-testerLimits :: Name -> Tester Limits
-testerLimits prefix = defaultLimits >>= overrideLimits prefix
-
-defaultLimits :: Tester Limits
-defaultLimits = Tester (asks limits)
-
-overrideLimits :: Name -> Limits -> Tester Limits
-overrideLimits prefix limits = do
-  cfg <- testerConfig
-  limits' <- liftIO $ getLimits (Conf.subconfig prefix cfg)
-  return (mappend limits' limits)
-
--- | run continuation only if language matches; argument is submission code
-withLanguage :: Language -> (Text -> Tester a) -> Tester a
-withLanguage lang k = do
-  c <- testerCode
-  if codeLang c == lang then k (codeText c) else empty
--}
+getLimits :: Name -> Test Limits
+getLimits prefix = do
+  cfg <- Test ask
+  limits <- liftIO $ configLimits (Conf.subconfig prefix cfg)
+  Test (lift $ modify (limits`mappend`))
+  currentLimits
+                  
+currentLimits :: Test Limits
+currentLimits = Test (lift get)
   
+-- | run a command under SafeExec
+safeExec ::  FilePath            -- ^ command
+           -> [String]           -- ^ arguments
+           -> Text               -- ^ stdin
+           -> Test (ExitCode, Text, Text) -- ^ code, stdout, stderr
+safeExec cmd args stdin = do
+  limits <- currentLimits
+  liftIO $ safeExecIO limits cmd args stdin
+
+
+safeExecIO :: Limits            -- ^ resource limits
+           -> FilePath          -- ^ command
+           -> [String]          -- ^ arguments
+           -> Text              -- ^ stdin
+           -> IO (ExitCode, Text, Text)  -- ^ code, stdout, stderr
+safeExecIO Limits{..} cmd args stdin
+  = let mkArg opt = maybe [] (\c -> [opt, show c])
+        args' = mkArg "--cpu" maxCpuTime
+                ++
+                mkArg "--clock" maxClockTime
+                ++
+                mkArg "--mem" maxMemory
+                ++
+                mkArg "--stack" maxStack
+                ++
+                mkArg "--fsize" maxFSize
+                ++
+                mkArg "--core" maxCore
+                ++
+                mkArg "--nproc" numProc
+                ++
+                ["--exec", cmd] ++
+                args
+    in
+      readProcessWithExitCode "safeexec" args' stdin
+
+
+

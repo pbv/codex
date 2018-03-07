@@ -7,7 +7,7 @@ module Codex.Evaluate(
   evaluateWith 
   ) where
 
-import qualified Data.Text                                   as T
+import qualified Data.Text as T
 import           Data.Monoid
 import           Data.Maybe
 import           Data.Time.LocalTime
@@ -18,7 +18,9 @@ import           Control.Exception.Lifted  (catch)
 import           System.FilePath
 
 import           Snap.Snaplet
-import qualified Snap.Snaplet.SqliteSimple                   as S
+import qualified Snap.Snaplet.SqliteSimple as S
+
+import qualified Data.Configurator as Conf
 
 import           Codex.Application
 import           Codex.Types
@@ -64,9 +66,11 @@ evaluateWith tester sub = do
                   (\(e::SomeException) -> return (miscError $ T.pack $ show e))
         updateSubmission sqlite sid result timing
 
-
-runLanguageTester config filepath page code tester =
-  fromMaybe (invalidTester code) <$> runTest config filepath page (tester code)
+-- | set default limits and run a tester
+runLanguageTester cfg filepath page code tester = do
+  limits <- configLimits (Conf.subconfig "limits" cfg)
+  fromMaybe (invalidTester code) <$>
+    runTest cfg limits (tester filepath page code)
 
 wrongInterval :: Page -> Result
 wrongInterval page =
