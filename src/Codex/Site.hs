@@ -16,7 +16,7 @@ import           Control.Concurrent.MVar
 import           Control.Concurrent.QSem 
 import           Control.Lens
 import           Control.Monad.State
-import           Control.Exception  (SomeException)
+import           Control.Exception  (IOException)
 import           Control.Exception.Lifted  (catch)
 
 import           Data.ByteString.UTF8                        (ByteString)
@@ -149,48 +149,62 @@ readPageLinks :: UserLogin -> FilePath -> Codex Page
 readPageLinks uid rqpath = do
   root <- getDocumentRoot
   page <- liftIO $ readMarkdownFile (root </> rqpath)
-  let links = queryExerciseLinks page
   let rqdir = takeDirectory rqpath
-  -- fetch linked titles; catch and ignore exceptions
-  optTitles <- liftIO $
-               forM links $ \url ->
-               (pageTitle <$> readMarkdownFile (root </> rqdir </> url))
-               `catch` (\(_ :: SomeException) -> return Nothing)
-
-  let titles = HM.fromList [(url,title) | (url, Just title)<-zip links optTitles]
-  -- fetch submisssion count
-  submissions <- HM.fromList <$>
-                 forM links ( \url -> do
-                     let ex = normalise (rqdir </> url)
-                     count <- length <$> getPageSubmissions uid ex
-                     return (url, count))
-  -- patch relevant links
-  let patch elm@(Link attr@(_, classes, _) inlines target@(url, _))
-        | "ex" `elem` classes =
-             let title = if null inlines then HM.lookupDefault [] url titles
-                         else inlines
-                 count =  HM.lookupDefault 0 url submissions
-             in Span nullAttr
-                     [Link attr title target,
-                      LineBreak,
-                      Span ("",["info"],[])
-                      [Str "(", Str (show count), Space,
-                       Str "submissões", Str ")"]
-                     ]
-        | otherwise = elm
-      patch elm = elm
-  --
-  return (walk patch page)
-
-
-
+  let exs =  queryExerciseLinks page
+  summary <-  getSummary rqdir uid exs
+  titles <- liftIO $ readTitles root rqdir uid exs
+  return (patchSummary page summary titles)
 
 -- | collect all exercise links from a page
 queryExerciseLinks :: Page -> [String]
-queryExerciseLinks page = query extractURL (pageDescription page)
+queryExerciseLinks page = query extract (pageDescription page)
   where
-    extractURL (Link (_,classes,_) _ (url,_)) = [url | "ex" `elem` classes]
-    extractURL _                              = []
+    extract (Link (_,classes,_) _ (url,_)) = [url | "ex" `elem` classes]
+    extract _                              = []
+
+-- | fetch submission counts
+getSummary rqdir uid exs = do
+  counts <- forM exs
+            (\url -> length <$>
+                     getPageSubmissions uid (normalise $ rqdir</>url))
+  return $ HM.fromList (zip exs counts)
+
+-- | fetch sub-titles
+readTitles root rqdir uid exs = do
+   mbTitles <- forM exs $ \url ->
+     (pageTitle <$>
+       readMarkdownFile (root </> rqdir </> url))
+     `catch` (\(_ :: IOException) -> return Nothing)
+   return $ HM.fromList [(url,title) | (url,Just title) <- zip exs mbTitles]
+
+-- patch page links with summary info
+patchSummary :: Page
+             -> HM.HashMap String Int
+             -> HM.HashMap String [Inline]
+             -> Page
+patchSummary page summary titles = walk patch page
+  where
+    patch elm@(Link attr@(_, classes, _) inlines target@(url, _))
+        | "ex" `elem` classes =
+             let title = if null inlines
+                         then HM.lookupDefault notFound url titles
+                         else inlines
+                 count =  HM.lookupDefault 0 url summary
+             in formatCount attr title target count
+        | otherwise = elm
+    patch elm = elm
+    notFound = [Emph [Str "Untitled"]]
+
+formatCount attr title target count 
+  = Span nullAttr
+    [Link attr title target,
+      LineBreak,
+      Span ("",["info"],[])
+      [Str "(", Str (show count), Space,
+       Str "submissões", Str ")"]
+    ]
+  
+
 
 
 
