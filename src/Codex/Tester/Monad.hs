@@ -16,9 +16,8 @@ module Codex.Tester.Monad (
   module Control.Monad.Trans
   ) where
 
-
 import           Data.Text(Text)
-import qualified Data.Text as T
+
 
 import           Data.Configurator.Types
 import qualified Data.Configurator as Conf

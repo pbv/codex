@@ -20,7 +20,6 @@ import           Control.Exception  (IOException)
 import           Control.Exception.Lifted  (catch)
 
 import           Data.ByteString.UTF8                        (ByteString)
-import qualified Data.HashMap.Strict                         as HM
 import           Data.Map.Syntax
 
 import qualified Data.Text                                   as T
@@ -65,14 +64,16 @@ import           Codex.Types
 import           Codex.Utils
 import           Codex.Evaluate
 import           Codex.Tester
--- import           Codex.Printout
 
 import           Data.Version                                (showVersion)
 import           Paths_codex                                 (version)
 
 
 import           Text.Pandoc                                 hiding (Code)
+import qualified Text.Pandoc as Pandoc 
 import           Text.Pandoc.Walk                            as Pandoc
+import           Data.Monoid
+import           Data.String
 
 
 -- | handle page requests
@@ -103,7 +104,7 @@ handlePage rqpath = do
 -- | serve a markdown document
 servePage :: UserLogin -> FilePath -> Codex ()
 servePage uid rqpath = do
-  page <- readPageLinks uid rqpath
+  page <- readPage uid rqpath
   if pageIsExercise page then
     renderExercise rqpath page =<< getPageSubmissions uid rqpath
     else
@@ -140,71 +141,45 @@ renderReport rqpath page sub = do
     inputAceEditorSplices
 
 
-
-
-
 -- | read a page, collect exercise links
 --  and patch titles of linked pages
-readPageLinks :: UserLogin -> FilePath -> Codex Page
-readPageLinks uid rqpath = do
+readPage :: UserLogin -> FilePath -> Codex Page
+readPage uid rqpath = do
   root <- getDocumentRoot
   page <- liftIO $ readMarkdownFile (root </> rqpath)
   let rqdir = takeDirectory rqpath
-  let exs =  queryExerciseLinks page
-  summary <-  getSummary rqdir uid exs
-  titles <- liftIO $ readTitles root rqdir uid exs
-  return (patchSummary page summary titles)
+  walkM (patchLink uid root rqdir) page
 
--- | collect all exercise links from a page
-queryExerciseLinks :: Page -> [String]
-queryExerciseLinks page = query extract (pageDescription page)
-  where
-    extract (Link (_,classes,_) _ (url,_)) = [url | "ex" `elem` classes]
-    extract _                              = []
-
--- | fetch submission counts
-getSummary rqdir uid exs = do
-  counts <- forM exs
-            (\url -> length <$>
-                     getPageSubmissions uid (normalise $ rqdir</>url))
-  return $ HM.fromList (zip exs counts)
-
--- | fetch sub-titles
-readTitles root rqdir uid exs = do
-   mbTitles <- forM exs $ \url ->
-     (pageTitle <$>
-       readMarkdownFile (root </> rqdir </> url))
-     `catch` (\(_ :: IOException) -> return Nothing)
-   return $ HM.fromList [(url,title) | (url,Just title) <- zip exs mbTitles]
-
--- patch page links with summary info
-patchSummary :: Page
-             -> HM.HashMap String Int
-             -> HM.HashMap String [Inline]
-             -> Page
-patchSummary page summary titles = walk patch page
-  where
-    patch elm@(Link attr@(_, classes, _) inlines target@(url, _))
-        | "ex" `elem` classes =
-             let title = if null inlines
-                         then HM.lookupDefault notFound url titles
-                         else inlines
-                 count =  HM.lookupDefault 0 url summary
-             in formatCount attr title target count
-        | otherwise = elm
-    patch elm = elm
-    notFound = [Emph [Str "Untitled"]]
-
-formatCount attr title target count 
+-- | fetch title and submissions count for exercise links
+patchLink uid root rqdir
+  elm@(Link attr@(_, classes,_) inlines target@(url,_))
+  | "ex" `elem` classes = do
+      title <- liftIO $ readPageTitle (root </> rqdir </> url)
+      count <- pageSubmissions uid (rqdir </> url)
+      return (formatLink attr title target count)
+patchLink uid root rqdir elm = 
+  return elm
+    
+formatLink attr title target count 
   = Span nullAttr
     [Link attr title target,
-      LineBreak,
-      Span ("",["info"],[])
-      [Str "(", Str (show count), Space,
-       Str "submissões", Str ")"]
+     LineBreak,
+      Span ("", ["info"], [])
+      [Str "(",
+        Str (show count), Space, Str "submissões",
+        Str ")"]
     ]
-  
 
+readPageTitle :: FilePath -> IO [Inline]
+readPageTitle path
+  = fromMaybe [Pandoc.Code nullAttr path] <$> readTitle
+  where
+    readTitle = (pageTitle <$> readMarkdownFile path)
+                `catch` (\(_ :: IOException) -> return Nothing)
+
+pageSubmissions :: UserLogin -> FilePath -> Codex Int
+pageSubmissions uid path
+  = length <$> getPageSubmissions uid path
 
 
 

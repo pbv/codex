@@ -35,8 +35,9 @@ pageDescription (Pandoc _ blocks) = blocks
 
 pageTitle :: Page -> Maybe [Inline]
 pageTitle p
-  = let t = docTitle (pageMeta p)
-    in if null t then firstHeader (pageDescription p) else Just t
+  = case docTitle (pageMeta p) of
+      [] -> firstHeader (pageDescription p)
+      t -> Just t
 
 firstHeader :: [Block] -> Maybe [Inline]
 firstHeader blocks = listToMaybe [h | Header _ _ h <- blocks]
@@ -152,8 +153,6 @@ metaText (MetaList l) =
 metaText (MetaMap m) =
   T.concat $
   intersperse ","  [T.concat [T.pack k, ":", metaText v] | (k,v)<- Map.assocs m]
-
-
 
 
 -- | render a page as a list of HTML nodes

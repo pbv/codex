@@ -7,8 +7,6 @@ module Codex.Tester.Limits (
   configLimits,
   ) where
 
-import           Data.Text (Text)
-import qualified Data.Text as T
 
 import           Data.Configurator.Types(Config)
 import qualified Data.Configurator as Configurator

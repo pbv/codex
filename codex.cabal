@@ -93,7 +93,7 @@ Executable codex-server
     -- warnings allows quicker workflow.
     ghc-options: -fdefer-type-errors -threaded -rtsopts
   else
-    ghc-options: -threaded -fwarn-tabs -funbox-strict-fields -O2 -fno-warn-orphans -fno-warn-unused-do-bind -rtsopts
+    ghc-options: -threaded -Wall -fwarn-tabs -funbox-strict-fields -O2 -fno-warn-orphans -fno-warn-unused-do-bind -rtsopts
 
 
 --  ghc-options: -optl-fuse-ld=gold
