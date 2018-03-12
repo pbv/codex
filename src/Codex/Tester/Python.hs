@@ -24,6 +24,8 @@ pythonDoctester path page (Code language src) = do
   let doctestPath = guessDoctest path page
   liftIO $ do
     c <- doesFileExist doctestPath
+    unless c $
+      throwIO (miscError $ T.pack $ "missing doctest file: " ++ doctestPath)
     withTextTemp "tmp.py" src $ \pyfile -> do
       ensureFileReadable doctestPath
       ensureFileReadable pyfile
