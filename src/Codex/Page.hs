@@ -37,7 +37,7 @@ pageTitle :: Page -> Maybe [Inline]
 pageTitle p
   = case docTitle (pageMeta p) of
       [] -> firstHeader (pageDescription p)
-      t -> Just t
+      inlines -> Just inlines
 
 firstHeader :: [Block] -> Maybe [Inline]
 firstHeader blocks = listToMaybe [h | Header _ _ h <- blocks]

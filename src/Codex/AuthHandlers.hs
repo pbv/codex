@@ -7,6 +7,7 @@ module Codex.AuthHandlers (
   ) where
 
 import           Data.ByteString.UTF8 (ByteString)
+import qualified Data.ByteString.UTF8 as B
 import qualified Data.Text as T
 import qualified Data.Text.Encoding as T
 import           Data.Map.Syntax
@@ -18,6 +19,8 @@ import           Control.Monad
 import           Control.Monad.Trans
 import           Control.Monad.Trans.Except
 
+import           Data.Monoid
+
 import           Snap.Core
 import           Snap.Snaplet
 import           Snap.Snaplet.Auth
@@ -28,6 +31,7 @@ import qualified Heist.Interpreted as I
 
 import qualified Data.Configurator as Configurator
 
+import           Codex.Types
 import           Codex.Utils
 import           Codex.Application
 import           Codex.LdapAuth
@@ -57,25 +61,31 @@ getLdap = do
 -- first try local user DB, then LDAP (if enabled)
 handleLoginSubmit :: Codex ()
 handleLoginSubmit = do
-  login <-  require (getParam "login")
+  user  <-  require (getParam "login")
   passwd <- require (getParam "password")
   ldap <- getLdap
-  r <- with auth $ loginByUsername (T.decodeUtf8 login) (ClearText passwd) False
+  r <- with auth $ loginByUsername (T.decodeUtf8 user) (ClearText passwd) False
   case r of
-    Right au ->
+    Right au -> do
+      addr <- getsRequest rqClientAddr
+      logMsg (user <> " logged in from " <> addr)
       redirectURL home
     Left err -> case ldap of
       Nothing ->  loginForm "_login" (Just err)
-      Just cfg -> loginLdapUser cfg login passwd
+      Just cfg -> loginLdapUser cfg user passwd
 
 
 loginLdapUser :: LdapConf -> ByteString -> ByteString -> Codex ()
-loginLdapUser ldapConf login passwd = do
-  r <- with auth $ withBackend (\r -> liftIO $ ldapAuth r ldapConf login passwd)
+loginLdapUser ldapConf user passwd = do
+  r <- with auth $  withBackend (\r -> liftIO $ ldapAuth r ldapConf user passwd)
   case r of
-    Left err -> loginForm "_login" (Just err)
-    Right au -> do with auth (forceLogin au)
-                   redirectURL home
+    Left err -> 
+      loginForm "_login" (Just err)
+    Right au -> do
+      addr <- getsRequest rqClientAddr
+      logMsg (user <> " logged in from " <> addr)
+      with auth (forceLogin au)
+      redirectURL home
 
 
 
@@ -127,11 +137,13 @@ newUser = do
 
 ------------------------------------------------------------------------------
 -- | Logs out and redirects the user to the site index.
--- in exam mode procedeed to printout
 handleLogout :: Codex ()
 handleLogout = method GET $ do
   uid <- require getUserLogin <|> unauthorized
   with auth logout
+  let user = B.fromString $ T.unpack $ fromLogin uid
+  addr <- getsRequest rqClientAddr
+  logMsg (user <> " logged out from " <> addr)
   redirectURL Login
 
 

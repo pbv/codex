@@ -48,6 +48,7 @@ import           Data.Time.LocalTime
 import           Data.Time.Format
 
 import           System.FilePath
+import qualified System.FastLogger as FastLogger
 
 -- interpreted splices for handlers
 type ISplices = Splices (I.Splice Codex)
@@ -338,8 +339,10 @@ setPending tids = do
   liftIO (putMVar mv tids)
 
 
-
-  
-
+-- | log an authentication message
+logMsg :: ByteString -> Codex ()
+logMsg msg = do
+  logger <- gets _logger
+  liftIO $ FastLogger.logMsg logger =<< FastLogger.timestampedLogEntry msg
 
 

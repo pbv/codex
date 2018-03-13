@@ -47,6 +47,8 @@ import           Data.Time.LocalTime
 import           System.Directory                            (doesFileExist)
 import           System.FilePath
 
+import           System.FastLogger                    (newLogger, stopLogger)
+
 import qualified Data.Configurator as Conf
 import           Data.Configurator.Types (Config)
 
@@ -72,8 +74,6 @@ import           Paths_codex                                 (version)
 import           Text.Pandoc                                 hiding (Code)
 import qualified Text.Pandoc as Pandoc 
 import           Text.Pandoc.Walk                            as Pandoc
-import           Data.Monoid
-import           Data.String
 
 
 -- | handle page requests
@@ -85,23 +85,24 @@ handlePage rqpath = do
   c <- liftIO (doesFileExist filepath)
   unless c notFound
   let mime = fileType mimeTypes rqpath
-        -- ensure the request is for an exercise page
-  let handlePost = do
-        page <- liftIO (readMarkdownFile filepath)
-        unless (pageIsExercise page) badRequest
-        text <- require (getTextPost "submission")
-        lang <- require (return $ pageLanguage page)
-        sid <- newSubmission uid rqpath (Code lang text)
-        redirectURL (Report sid)
-    
   case mime of
     "text/markdown" -> (method GET (servePage uid rqpath) <|>
-                        method POST handlePost)
+                        method POST (handlePost uid rqpath filepath))
     _ -> method GET (serveFileAs mime filepath)
 
 
+-- | handle a post request
+handlePost :: UserLogin -> FilePath -> FilePath -> Codex ()
+handlePost uid rqpath filepath = do
+  page <- liftIO (readMarkdownFile filepath)
+  unless (pageIsExercise page) badRequest
+  text <- require (getTextPost "submission")
+  lang <- require (return $ pageLanguage page)
+  sid <- newSubmission uid rqpath (Code lang text)
+  redirectURL (Report sid)
 
--- | serve a markdown document
+
+-- | serve a markdown page
 servePage :: UserLogin -> FilePath -> Codex ()
 servePage uid rqpath = do
   page <- readPage uid rqpath
@@ -141,24 +142,23 @@ renderReport rqpath page sub = do
     inputAceEditorSplices
 
 
--- | read a page, collect exercise links
---  and patch titles of linked pages
+-- | read a page and patch exercise links
 readPage :: UserLogin -> FilePath -> Codex Page
 readPage uid rqpath = do
   root <- getDocumentRoot
   page <- liftIO $ readMarkdownFile (root </> rqpath)
   let rqdir = takeDirectory rqpath
-  walkM (patchLink uid root rqdir) page
+  walkM (fetchLink uid root rqdir) page
 
 -- | fetch title and submissions count for exercise links
-patchLink uid root rqdir
+fetchLink uid root rqdir
   elm@(Link attr@(_, classes,_) inlines target@(url,_))
   | "ex" `elem` classes = do
       title <- liftIO $ readPageTitle (root </> rqdir </> url)
-      count <- pageSubmissions uid (rqdir </> url)
+      count <- countPageSubmissions uid (rqdir </> url)
       return (formatLink attr title target count)
-patchLink uid root rqdir elm = 
-  return elm
+fetchLink uid root rqdir elm
+  = return elm
     
 formatLink attr title target count 
   = Span nullAttr
@@ -177,11 +177,11 @@ readPageTitle path
     readTitle = (pageTitle <$> readMarkdownFile path)
                 `catch` (\(_ :: IOException) -> return Nothing)
 
+{-
 pageSubmissions :: UserLogin -> FilePath -> Codex Int
 pageSubmissions uid path
   = length <$> getPageSubmissions uid path
-
-
+-}
 
 -- | handle GET requests for submission reports
 handleReport :: SubmitId -> Codex ()
@@ -220,8 +220,7 @@ timingSplices page = do
   now <- liftIO getCurrentTime
   events <- getEvents
   let interval = evalI tz events (submitInterval page)
-  unless (isJust interval) $ 
-    logError ("WARNING: invalid submission interval")
+  let timeLeft = fmap (\t -> diffUTCTime t now) (higher =<< interval)
   return $ do
     "valid-from" ##
       I.textSplice $ maybe "N/A" (showTime tz) (lower =<< interval)
@@ -229,6 +228,8 @@ timingSplices page = do
       I.textSplice $ maybe "N/A" (showTime tz) (higher =<< interval)
     "current-timing" ##
       maybe (return []) (caseSplice . rankTime now) interval
+    "time-left" ##
+      I.textSplice $ maybe "N/A" (T.pack . formatNominalDiffTime) timeLeft
  
 
 
@@ -313,6 +314,9 @@ codexInit tst =
     conf <- getSnapletUserConfig
     js <- liftIO $ configSplices conf
     addConfig h (mempty & scInterpretedSplices .~ (staticSplices `mappend` js))
+    -- create a logger for user authentication
+    logger <- liftIO $ newLogger "log/auth.log"
+    onUnload (stopLogger logger)
     -- Grab the DB connection pool from the sqlite snaplet and call
     -- into the Model to create all the DB tables if necessary.
     let c = S.sqliteConn $ d ^# snapletValue
@@ -329,6 +333,7 @@ codexInit tst =
                , _tester = tst
                , _evthids = tids
                , _evqs    = qs
+               , _logger  = logger
                }
 
 

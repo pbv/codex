@@ -20,6 +20,8 @@ import Snap.Snaplet.Session
 import Snap.Snaplet.SqliteSimple
 import Snap.Snaplet.Router.Types
 
+import System.FastLogger (Logger)
+
 import Control.Monad.State (get)
 
 import Control.Concurrent (MVar, ThreadId)
@@ -54,6 +56,7 @@ data App = App
     , _tester  :: Tester           -- ^ exercise testers to use
     , _evthids :: MVar [ThreadId]  -- ^ list of (re)evaluation thread ids
     , _evqs    :: QSem             -- ^ semaphore for (re)evaluation scheduling
+    , _logger  :: Logger
    }
 
 makeLenses ''App

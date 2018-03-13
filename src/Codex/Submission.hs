@@ -13,13 +13,14 @@ module Codex.Submission (
   markEvaluating,
   getSubmission,
   deleteSubmission,
+  getPageSubmissions,
+  countPageSubmissions,
   getPatterns,
   patternSplices,
   withSubmissions,
   withFilterSubmissions,
   filterSubmissions,
   countSubmissions,
-  getPageSubmissions,
   submitSplices
   ) where
 
@@ -145,6 +146,17 @@ getPageSubmissions :: UserLogin -> FilePath -> Codex [Submission]
 getPageSubmissions uid path =
   query "SELECT * FROM submissions \
        \ WHERE user_id = ? AND path = ? ORDER BY id" (uid, path)
+
+
+-- | count user submissions to an exercise page
+countPageSubmissions :: UserLogin -> FilePath -> Codex Int
+countPageSubmissions uid path = do
+  r <- query "SELECT COUNT(*) FROM submissions \
+            \ WHERE user_id = ?  AND path = ?" (uid,path)
+  case r of
+    [Only c] -> return c
+    _  -> error "countPageSubmissions: invalid result from database"
+
 
 -- | delete a single submission
 deleteSubmission :: SubmitId -> Codex ()

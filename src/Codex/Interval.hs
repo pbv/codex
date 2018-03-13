@@ -12,7 +12,8 @@ module Codex.Interval(
     evalT,
     evalI,
     evalI',
-    showTime
+    showTime,
+    formatNominalDiffTime
     ) where
 
 import           Data.Char
@@ -203,10 +204,10 @@ showTime tz = T.pack . formatTime defaultTimeLocale "%c"  . utcToLocalTime tz
 formatNominalDiffTime :: NominalDiffTime -> String
 formatNominalDiffTime secs
   | secs>=0  = unwords $
-               [show d ++ "d" | d>0] ++
-               [show (h`rem`24) ++ "h" | h>0] ++
-               [show (m`rem`60) ++ "m" | m>0] ++
-               ["<1m" | secs<60]
+               [show d ++ " dias" | d>0] ++
+               [show (h`rem`24) ++ " horas" | h>0] ++
+               [show (m`rem`60) ++ " mins" | m>0] ++
+               ["<1 min" | secs<60]
   | otherwise = "--/--"
   where m = floor (secs / 60) :: Int
         h = m `div` 60
