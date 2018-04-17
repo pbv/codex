@@ -13,7 +13,7 @@ import           Data.Maybe
 import           Data.Time.LocalTime
 import           Control.Monad.State
 import           Control.Concurrent(ThreadId, forkIO)
-import           Control.Exception  (SomeException)
+import           Control.Exception  (IOException)
 import           Control.Exception.Lifted  (catch)
 import           System.FilePath
 
@@ -63,7 +63,7 @@ evaluateWith tester sub = do
       Just timing -> do
         result <- runLanguageTester conf filepath page code tester
                   `catch`
-                  (\(e::SomeException) -> return (miscError $ T.pack $ show e))
+                  (\(e::IOException) -> return (miscError $ T.pack $ show e))
         updateSubmission sqlite sid result timing
 
 -- | set default limits and run a tester
