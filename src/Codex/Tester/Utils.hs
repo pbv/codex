@@ -58,7 +58,7 @@ runCompiler cmd args = do
   (exitCode, _, err) <- readProcessWithExitCode cmd args ""
   case exitCode of
     ExitFailure _ ->
-      throw (compileError err)
+      throwIO (compileError err)
     ExitSuccess ->
       return ()
 
