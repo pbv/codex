@@ -161,6 +161,7 @@ handleCreate base = do
 
 handleUpload :: FilePath -> Codex ()
 handleUpload rqpath = do
+  liftIO $ putStrLn ("handleUpload " ++ show rqpath)
   root <- getDocumentRoot
   let filepath = root </> rqpath
   c <- liftIO $ doesDirectoryExist filepath
@@ -171,9 +172,8 @@ handleUpload rqpath = do
     (doUpload filepath)
   entries <- liftIO (listDir filepath)
   tz <- liftIO getCurrentTimeZone
-  renderWithSplices "file-list" ( -- pathSplices rqpath >>
-                                 listingSplices tz rqpath entries >>
-                                 messageSplices (catMaybes msgs))
+  renderWithSplices "_file-list" (listingSplices tz rqpath entries >>
+                                  messageSplices (catMaybes msgs))
 
 
 doUpload :: FilePath -> PartInfo ->
