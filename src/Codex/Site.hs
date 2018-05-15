@@ -76,6 +76,7 @@ import qualified Text.Pandoc as Pandoc
 import           Text.Pandoc.Walk                            as Pandoc
 
 
+
 -- | handle page requests
 handlePage :: FilePath -> Codex ()
 handlePage rqpath = do
@@ -304,14 +305,15 @@ newSubmission uid rqpath code = do
 codexInit :: Tester -> SnapletInit App App
 codexInit tst =
   makeSnaplet "codex" "Web server for programming exercises." Nothing $ do
+    conf <- getSnapletUserConfig
+    prefix <- liftIO $ Conf.require conf "prefix"
     h <- nestSnaplet "" heist $ heistInit "templates"
-    r <- nestSnaplet "router" router $ initRouter ""
+    r <- nestSnaplet "router" router (initRouter prefix)
     s <- nestSnaplet "sess" sess $
            initCookieSessionManager "site_key.txt" "sess" Nothing (Just 36000)
     d <- nestSnaplet "db" db S.sqliteInit
     a <- nestSnaplet "auth" auth $ initSqliteAuth sess d
     addAuthSplices h auth
-    conf <- getSnapletUserConfig
     js <- liftIO $ configSplices conf
     addConfig h (mempty & scInterpretedSplices .~ (staticSplices `mappend` js))
     -- create a logger for user authentication
@@ -357,3 +359,5 @@ staticSplices = do
   "loggedInName" ## loggedInName auth
   "ifAdmin" ## do mbAu <- lift (withTop auth currentUser)
                   I.ifElseISplice (maybe False isAdmin mbAu)
+
+
