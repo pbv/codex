@@ -18,23 +18,21 @@ import           System.FilePath
 import           System.IO.Temp
 import           Control.Exception
 
-import           Codex.Types (Code(..))
-import           Codex.Page (Page)
-import           Codex.Tester
+import           Codex.Tester 
 import           Codex.Tester.QuickCheck
 
 
 
 -- | running and evaluating Haskell submissions
-haskellQCTester :: FilePath -> Page -> Code -> Test Result
-haskellQCTester path page (Code language src) = do
+haskellQCTester :: FilePath -> Meta -> Code -> Test Result
+haskellQCTester path meta (Code language src) = do
   guard (language == "haskell")
   let base = takeDirectory  path
-  case getQuickCheckPath base page of
+  case getQuickCheckPath base meta of
     Nothing ->  return (miscError "no QuickCheck file specified")
     Just qcpath -> do
       props <- liftIO $ T.readFile qcpath
-      let qcArgs = getQuickCheckArgs page
+      let qcArgs = getQuickCheckArgs meta
       ghc <- configured "language.haskell.compiler"
       limits <- getLimits "language.haskell.limits"
       liftIO (haskellRunner limits ghc qcArgs src props `catch` return)
@@ -70,7 +68,8 @@ header :: Text
 header = "module Submission where\n"
 
 
-haskellResult (exitCode, stdout, stderr)
+haskellResult :: (ExitCode, Text, Text) -> Result
+haskellResult (_, stdout, stderr)
   | match "Not in scope" stderr ||
     match "parse error" stderr  ||
     match "Couldn't match" stderr  = compileError stderr

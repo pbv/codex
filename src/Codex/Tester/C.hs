@@ -16,23 +16,21 @@ import           System.Exit
 
 import           Control.Exception
 
-import           Codex.Page
-import           Codex.Types
 import           Codex.Tester
 import           Codex.Tester.QuickCheck
 
 
-clangQCTester :: FilePath -> Page -> Code -> Test Result
-clangQCTester path page (Code lang src) = do
+clangQCTester :: FilePath -> Meta -> Code -> Test Result
+clangQCTester path meta (Code lang src) = do
   guard (lang == "c")
   let base = takeDirectory path
-  case getQuickCheckPath base page of
+  case getQuickCheckPath base meta of
     Nothing -> return (miscError "no QuickCheck file specified")
     Just qcpath -> do
       props <- liftIO $ T.readFile qcpath
-      let qcArgs = getQuickCheckArgs page
+      let qcArgs = getQuickCheckArgs meta
       -- add optional header to user submission
-      let code = case getHeader page of
+      let code = case getHeader meta of
                     Nothing -> src
                     Just header -> header `T.append` src
       ghc <- configured "language.haskell.compiler"
@@ -82,6 +80,6 @@ haskellResult (_, stdout, stderr)
 
 
 -- get optional C declarations from a page
-getHeader :: Page -> Maybe Text
-getHeader = lookupFromMeta "header" . pageMeta
+getHeader :: Meta -> Maybe Text
+getHeader = lookupFromMeta "header" 
 

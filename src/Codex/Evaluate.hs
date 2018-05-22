@@ -49,11 +49,11 @@ evaluateWith tester sub = do
   evs <- getEvents
   root <- getDocumentRoot
   conf <- getSnapletUserConfig
-  qs <- gets _evqs
+  semph <- gets _evqs
   let filepath = root </> submitPath sub    -- ^ file path to exercise 
   let sid = submitId sub                    -- ^ submission number
   let code = submitCode sub                 -- ^ program code
-  liftIO $ forkIO $ withQSem qs $ do
+  liftIO $ forkIO $ withQSem semph $ do     -- ^ grab the evaluation semphore 
     tz <- getCurrentTimeZone
     page <- readMarkdownFile filepath
     let opt = rankTime (submitTime sub) <$> evalI tz evs (submitInterval page)
@@ -61,7 +61,7 @@ evaluateWith tester sub = do
       Nothing ->
         updateSubmission sqlite sid (wrongInterval page) Valid
       Just timing -> do
-        result <- runLanguageTester conf filepath page code tester
+        result <- runLanguageTester conf filepath (pageMeta page) code tester
                   `catch`
                   (\(e::SomeException) -> return (miscError $ T.pack $ show e))
         updateSubmission sqlite sid result timing

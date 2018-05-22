@@ -6,19 +6,18 @@
 module Codex.Tester.QuickCheck where
 
 import           Data.Maybe(catMaybes)
-import           Codex.Page
-
+import           Codex.Tester
 import           System.FilePath
 
 -- relative filepath to Quickcheck properties
-getQuickCheckPath :: FilePath -> Page -> Maybe FilePath
-getQuickCheckPath base page
-  = (base </>) <$> lookupFromMeta "quickcheck" (pageMeta page)
+getQuickCheckPath :: FilePath -> Meta -> Maybe FilePath
+getQuickCheckPath base meta
+  = (base </>) <$> lookupFromMeta "quickcheck" meta
 
 
 -- get QuickCheck runner command line arguments
-getQuickCheckArgs :: Page -> [String]
-getQuickCheckArgs page
+getQuickCheckArgs :: Meta -> [String]
+getQuickCheckArgs meta
   = catMaybes
     [ lookupArg "maxSuccess"
     , lookupArg "maxSize"
@@ -27,7 +26,7 @@ getQuickCheckArgs page
     ]
   where
     lookupArg key
-      = fmap (\val -> "--" ++ key ++ "=" ++ val) (lookupFromMeta key (pageMeta page))
+      = fmap (\val -> "--" ++ key ++ "=" ++ val) (lookupFromMeta key meta)
 
 
 

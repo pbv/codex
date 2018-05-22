@@ -1,8 +1,10 @@
 
 module Codex.Tester (
-  Tester,
+  Tester, 
   testers,
   -- * module re-exports
+  Meta, Code(..),
+  lookupFromMeta,
   module Codex.Tester.Monad,
   module Codex.Tester.Result,
   module Codex.Tester.Utils,
@@ -11,8 +13,9 @@ module Codex.Tester (
   module Control.Monad
   ) where
 
-import           Codex.Types(Code)
-import           Codex.Page (Page)
+import           Codex.Types(Code(..))
+import           Codex.Page (lookupFromMeta)
+import           Text.Pandoc (Meta)
 import           Codex.Tester.Monad
 import           Codex.Tester.Limits
 import           Codex.Tester.Result
@@ -22,9 +25,9 @@ import           Control.Monad
 
 
 -- | type synonym for an exercise tester
-type Tester = FilePath -> Page -> Code -> Test Result
+type Tester = FilePath -> Meta -> Code -> Test Result
 
 -- | combine a list of testers in sequence
 testers :: [Tester] -> Tester
-testers list path page code 
-  = foldr (\t r -> t path page code <|> r) empty list
+testers list path meta code 
+  = foldr (\t r -> t path meta code <|> r) empty list

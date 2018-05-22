@@ -13,6 +13,7 @@ module Codex.Tester.Monad (
   safeExec,
   safeExecIO,
   -- * modules re-export
+  ExitCode,
   module Control.Monad.Trans
   ) where
 

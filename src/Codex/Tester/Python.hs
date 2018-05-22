@@ -9,19 +9,18 @@ import           System.Directory (doesFileExist)
 import           Control.Exception (throwIO)
 import           Codex.Types
 import           Codex.Tester
-import           Codex.Page
 import           Data.Text(Text)
 import qualified Data.Text as T
 
 
-pythonDoctester :: FilePath -> Page -> Code -> Test Result
-pythonDoctester path page (Code language src) = do
+pythonDoctester :: FilePath -> Meta -> Code -> Test Result
+pythonDoctester path meta (Code language src) = do
   guard (language == "python")
   python  <- configured "language.python.interpreter"
   pytest  <- configured "language.python.pytest"
   scripts <- configured "language.python.scripts"
   limits <- getLimits "language.python.limits"
-  let doctestPath = guessDoctest path page
+  let doctestPath = guessDoctest path meta
   liftIO $ do
     c <- doesFileExist doctestPath
     unless c $
@@ -47,11 +46,11 @@ pythonResult (_, stdout, stderr)
 
 
 -- | guess the doctest path from page metadata or filename
-guessDoctest :: FilePath -> Page -> FilePath
-guessDoctest filepath page
+guessDoctest :: FilePath -> Meta -> FilePath
+guessDoctest filepath meta
   = maybe
        (replaceExtension filepath ".tst")
        (takeDirectory filepath </>)
-       (lookupFromMeta "doctest" $ pageMeta page)
+       (lookupFromMeta "doctest" meta)
 
   
