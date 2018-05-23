@@ -55,31 +55,26 @@ evaluateWith tester sub = do
   let code = submitCode sub                 -- ^ program code
   liftIO $ forkIO $ withQSem semph $ do     -- ^ grab the evaluation semphore 
     tz <- getCurrentTimeZone
-    page <- readMarkdownFile filepath
-    let opt = rankTime (submitTime sub) <$> evalI tz evs (submitInterval page)
+    meta <- pageMeta <$> readMarkdownFile filepath
+    let info = PageInfo filepath meta
+    let opt = rankTime (submitTime sub) <$> evalI tz evs (submitInterval' meta)
     case opt of
       Nothing ->
-        updateSubmission sqlite sid (wrongInterval page) Valid
+        updateSubmission sqlite sid wrongInterval Valid
       Just timing -> do
-        result <- runLanguageTester conf filepath (pageMeta page) code tester
+        result <- runLanguageTester conf (PageInfo filepath meta) code tester
                   `catch`
                   (\(e::SomeException) -> return (miscError $ T.pack $ show e))
         updateSubmission sqlite sid result timing
 
 -- | set default limits and run a tester
-runLanguageTester cfg filepath page code tester = do
-  limits <- configLimits (Conf.subconfig "limits" cfg)
-  fromMaybe (invalidTester code) <$>
-    runTest cfg limits (tester filepath page code)
+runLanguageTester cfg info code tester
+  =  fromMaybe invalidTester <$> runTest cfg (tester info code)
 
-wrongInterval :: Page -> Result
-wrongInterval page =
-  let valid = fromMaybe "" $ lookupFromMeta "valid" (pageMeta page)
-  in miscError $ "Invalid submission interval \"" <> valid <> "\""
+wrongInterval :: Result
+wrongInterval = miscError "invalid submission interval"
  
-
-invalidTester :: Code -> Result
-invalidTester (Code lang _)
-  = miscError $ "No tester for language: " <> fromLanguage lang 
+invalidTester :: Result
+invalidTester = miscError "no tester for submission"
 
 

@@ -1,5 +1,5 @@
 Name:                codex
-Version:             0.8
+Version:             0.9
 Synopsis:            A web server for programming exercises
 Description:         A web server for programming exercises
 License:             MIT
@@ -32,9 +32,9 @@ Executable codex-server
     Codex.Tester.Result
     Codex.Tester.Utils
     Codex.Tester.Python
-    Codex.Tester.QuickCheck
-    Codex.Tester.Haskell
+    Codex.Tester.Haskell                
     Codex.Tester.C
+    Codex.Tester.InputOutput
     Codex.Evaluate
     Codex.LdapAuth
     Codex.Page

@@ -31,14 +31,16 @@ import           Codex.Tester
 import           Codex.Tester.Python
 import           Codex.Tester.Haskell
 import           Codex.Tester.C
+import           Codex.Tester.InputOutput
 import           Snap.Loader.Static
 
 
 app :: SnapletInit App App
-app = codexInit $ testers [ pythonDoctester
-                          , haskellQCTester
-                          , clangQCTester
-                          ]
+app = codexInit $ oneof [ pythonDoctester
+                        , haskellQCTester
+                        , clangQCTester
+                        , clangIOTester
+                        ]
 
 ------------------------------------------------------------------------------
 -- | This is the entry point for this web server application. It supports

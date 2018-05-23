@@ -10,39 +10,34 @@ module Codex.Tester.C (
 import           Data.Text (Text)
 import qualified Data.Text as T
 import qualified Data.Text.IO as T
+import           Data.Maybe (fromMaybe)
 
-import           System.FilePath
-import           System.Exit
-
-import           Control.Exception
-
+import           Control.Exception (catch, finally)
 import           Codex.Tester
-import           Codex.Tester.QuickCheck
 
 
-clangQCTester :: FilePath -> Meta -> Code -> Test Result
-clangQCTester path meta (Code lang src) = do
+clangQCTester :: PageInfo -> Code -> Test Result
+clangQCTester (PageInfo path meta) (Code lang src) = do
   guard (lang == "c")
-  let base = takeDirectory path
-  case getQuickCheckPath base meta of
-    Nothing -> return (miscError "no QuickCheck file specified")
-    Just qcpath -> do
-      props <- liftIO $ T.readFile qcpath
-      let qcArgs = getQuickCheckArgs meta
-      -- add optional header to user submission
-      let code = case getHeader meta of
-                    Nothing -> src
-                    Just header -> header `T.append` src
-      ghc <- configured "language.haskell.compiler"
-      gcc <- configured "language.c.compiler"
-      limits <- getLimits "language.haskell.limits"
-      liftIO (clangRunner limits gcc ghc qcArgs code props `catch` return)
+  guard (tester meta == Just "quickcheck")
+  ----
+  let qcpath = replaceExtension path ".hs"
+  assert (fileExists qcpath)
+    ("quickcheck file not found: " <> show qcpath)
+  props <- liftIO (T.readFile qcpath)
+  ghc <- configured "language.haskell.compiler"
+  gcc <- configured "language.c.compiler"
+  limits <- getLimits "language.haskell.limits"
+  let qcArgs = getQuickCheckArgs meta
+  -- optional code header 
+  let code = fromMaybe "" (getHeader meta) <> src
+  liftIO (clangRunner limits gcc ghc qcArgs code props `catch` return)
 
 clangRunner ::
   Limits -> String -> String -> [String] -> Text -> Text -> IO Result
 clangRunner limits gcc_cmd ghc_cmd qcArgs c_code props =
-  withTextTemp "sub.c" c_code $ \c_file ->
-  withTextTemp "Main.hs" props $ \hs_file ->
+  withTemp "submit.c" c_code $ \c_file ->
+  withTemp "Main.hs" props $ \hs_file ->
   let dir = takeDirectory c_file
       c_obj_file = dir </> takeBaseName c_file <.> "o"
       out_file = dir </> takeBaseName hs_file
@@ -58,12 +53,12 @@ clangRunner limits gcc_cmd ghc_cmd qcArgs c_code props =
        --- compile Haskell test script
        runCompiler ghc hc_args
        -- run compiled script under safe exec
-       haskellResult <$> safeExecIO limits out_file qcArgs "")
+       classify <$> safeExec limits out_file qcArgs "")
    (cleanupFiles temps)
 
 
-haskellResult :: (ExitCode, Text, Text) -> Result
-haskellResult (_, stdout, stderr)
+classify :: (ExitCode, Text, Text) -> Result
+classify (_, stdout, stderr)
   | match "Not in scope" stderr ||
     match "parse error" stderr  ||
     match "Couldn't match" stderr  = compileError stderr
@@ -76,7 +71,7 @@ haskellResult (_, stdout, stderr)
                                 = runtimeError stdouterr
   | match "OK" stdout           = accepted stdout
   | otherwise                  = miscError stdouterr
-  where stdouterr = stdout `T.append` stderr
+  where stdouterr = stdout <> stderr
 
 
 -- get optional C declarations from a page

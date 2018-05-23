@@ -1,7 +1,9 @@
 
 module Codex.Tester (
-  Tester, 
-  testers,
+  Tester, PageInfo(..),
+  language,
+  tester,
+  oneof,
   -- * module re-exports
   Meta, Code(..),
   lookupFromMeta,
@@ -10,10 +12,13 @@ module Codex.Tester (
   module Codex.Tester.Utils,
   module Codex.Tester.Limits,
   -- * generic stuff
-  module Control.Monad
+  module Control.Monad,
+  module System.FilePath,
+  module System.Exit,
+  module Data.Monoid
   ) where
 
-import           Codex.Types(Code(..))
+import           Codex.Types
 import           Codex.Page (lookupFromMeta)
 import           Text.Pandoc (Meta)
 import           Codex.Tester.Monad
@@ -23,11 +28,28 @@ import           Codex.Tester.Utils
 import           Control.Applicative
 import           Control.Monad 
 
+import           System.FilePath
+import           System.Exit
+import           Data.Monoid
 
--- | type synonym for an exercise tester
-type Tester = FilePath -> Meta -> Code -> Test Result
+import           Data.Text (Text)
+
+-- | an exercise tester 
+type Tester = PageInfo -> Code -> Test Result
+
+data PageInfo
+  = PageInfo { infoPath :: FilePath
+             , infoMeta :: Meta
+             } deriving Show
+
+language :: Meta -> Maybe Language
+language = lookupFromMeta "language"
+
+tester :: Meta -> Maybe Text
+tester = lookupFromMeta "tester"
 
 -- | combine a list of testers in sequence
-testers :: [Tester] -> Tester
-testers list path meta code 
-  = foldr (\t r -> t path meta code <|> r) empty list
+oneof :: [Tester] -> Tester
+oneof list info code 
+  = foldr (\t r -> t info code <|> r) empty list
+

@@ -157,9 +157,9 @@ type Events = Text -> Maybe UTCTime
 
 -- | semantics of a time expression
 evalT :: TimeZone -> Events -> TimeExpr -> Maybe UTCTime
-evalT tz events (TimeEvent ev)
+evalT _ events (TimeEvent ev)
    = events ev -- lookup ev events
-evalT tz events (TimeConst t)
+evalT tz _ (TimeConst t)
    = return (localTimeToUTC tz t)
 evalT tz events (TimeAdd d e)
   = addUTCTime d <$> evalT tz events e

@@ -8,16 +8,12 @@ module Codex.Tester.Monad (
   runTest,
   configured,
   maybeConfigured,
-  currentLimits,
   getLimits,
-  safeExec,
-  safeExecIO,
   -- * modules re-export
   ExitCode,
   module Control.Monad.Trans
   ) where
 
-import           Data.Text(Text)
 
 
 import           Data.Configurator.Types
@@ -27,25 +23,23 @@ import           Control.Applicative
 import           Control.Monad.Trans
 import           Control.Monad.Trans.Maybe
 import           Control.Monad.Trans.Reader
-import           Control.Monad.Trans.State.Strict
 
 import           Codex.Tester.Limits
 
 import           System.Exit(ExitCode)
-import           System.Process.Text (readProcessWithExitCode)
 
 -- | a monad for testing scripts
 -- allows IO, access to a configuration environment and failure 
 newtype Test a
-  = Test { unTest :: ReaderT Config (StateT Limits (MaybeT IO)) a }
+  = Test { unTest :: ReaderT Config (MaybeT IO) a }
   deriving (Functor, Monad, Applicative, Alternative, MonadIO)
 
 
 -- | run a test
 --
-runTest :: Config -> Limits -> Test a -> IO (Maybe a)
-runTest cfg limits action = do
-  runMaybeT $ evalStateT (runReaderT (unTest action) cfg) limits
+runTest :: Config -> Test a -> IO (Maybe a)
+runTest cfg action
+  = runMaybeT $ runReaderT (unTest action) cfg
 
 -- | fetch a configuration value
 maybeConfigured :: Configured a => Name -> Test (Maybe a)
@@ -64,48 +58,9 @@ configured name = do
 getLimits :: Name -> Test Limits
 getLimits prefix = do
   cfg <- Test ask
-  limits <- liftIO $ configLimits (Conf.subconfig prefix cfg)
-  Test (lift $ modify (limits`mappend`))
-  currentLimits
+  liftIO $ configLimits (Conf.subconfig prefix cfg)
                   
-currentLimits :: Test Limits
-currentLimits = Test (lift get)
-  
--- | run a command under SafeExec
-safeExec ::  FilePath            -- ^ command
-           -> [String]           -- ^ arguments
-           -> Text               -- ^ stdin
-           -> Test (ExitCode, Text, Text) -- ^ code, stdout, stderr
-safeExec cmd args stdin = do
-  limits <- currentLimits
-  liftIO $ safeExecIO limits cmd args stdin
 
-
-safeExecIO :: Limits            -- ^ resource limits
-           -> FilePath          -- ^ command
-           -> [String]          -- ^ arguments
-           -> Text              -- ^ stdin
-           -> IO (ExitCode, Text, Text)  -- ^ code, stdout, stderr
-safeExecIO Limits{..} cmd args stdin
-  = let mkArg opt = maybe [] (\c -> [opt, show c])
-        args' = mkArg "--cpu" maxCpuTime
-                ++
-                mkArg "--clock" maxClockTime
-                ++
-                mkArg "--mem" maxMemory
-                ++
-                mkArg "--stack" maxStack
-                ++
-                mkArg "--fsize" maxFSize
-                ++
-                mkArg "--core" maxCore
-                ++
-                mkArg "--nproc" numProc
-                ++
-                ["--exec", cmd] ++
-                args
-    in
-      readProcessWithExitCode "safeexec" args' stdin
 
 
 

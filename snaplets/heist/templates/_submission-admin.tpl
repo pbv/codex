@@ -13,9 +13,7 @@
       use o botão "reload" do "browser".</p>
 <else/>
 <h3>Resultado: <em><submit-classify/></em> (<em><submit-timing/></em>)</h3>
-<pre>
-  <submit-message/>
-</pre>
+<pre><submit-message/></pre>
 <h3>Código</h3>
 <pre>
   <code-text/>

@@ -102,7 +102,7 @@ instance FromRow Submission where
 
 -- | insert a new submission into the DB
 insertSubmission ::
-  UserLogin -> FilePath -> UTCTime -> Code ->  Result -> Timing ->
+  UserLogin -> FilePath -> UTCTime -> Code -> Result -> Timing ->
   Codex Submission
 insertSubmission uid path time code result timing = do
   let (Code lang text) = code

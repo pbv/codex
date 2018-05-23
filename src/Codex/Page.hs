@@ -42,7 +42,6 @@ pageTitle p
 firstHeader :: [Block] -> Maybe [Inline]
 firstHeader blocks = listToMaybe [h | Header _ _ h <- blocks]
 
-
 pageLanguage :: Page -> Maybe Language
 pageLanguage = lookupFromMeta "language" . pageMeta
 
@@ -60,9 +59,12 @@ pageIsExercise p
 
 -- | time interval for valid submissions
 submitInterval :: Page -> Interval TimeExpr
-submitInterval p
+submitInterval = submitInterval' . pageMeta
+
+submitInterval' :: Meta -> Interval TimeExpr
+submitInterval' meta
   = fromMaybe (Interval Nothing Nothing) $
-    lookupFromMeta "valid" (pageMeta p) >>= parseInterval
+    (lookupFromMeta "valid" meta >>= parseInterval)
 
 -- | feedback level for submissions
 submitFeedback :: Page -> Int

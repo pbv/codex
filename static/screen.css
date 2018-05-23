@@ -226,12 +226,12 @@ table.submissions td.received {
   font-weight: bold;
 } 
 
-.WrongAnswer { 
+.WrongAnswer  { 
   color: red;
-} 
+}
 
-.CompileError, .RuntimeError, .MiscError, 
-.MemoryLimitExceeded, .TimeLimitExceeded  {
+
+.PresentationError, .CompileError, .RuntimeError, .MiscError,  .MemoryLimitExceeded, .TimeLimitExceeded  {
     color: black;
 }
 
