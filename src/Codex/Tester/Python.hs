@@ -1,5 +1,7 @@
 {-# LANGUAGE OverloadedStrings #-}
-
+{-
+-- Test Python code using a doctest script
+-}
 module Codex.Tester.Python (
   pythonDoctester
   ) where
@@ -40,8 +42,8 @@ classify (_, stdout, stderr)
 
 
 
--- | guess the doctest path from page metadata or filename
 {-
+-- | guess the doctest path from page metadata or filename
 guessDoctest :: FilePath -> Meta -> FilePath
 guessDoctest filepath meta
   = maybe

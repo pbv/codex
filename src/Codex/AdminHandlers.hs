@@ -223,7 +223,6 @@ handleSubmissionList =  withAdmin $ handleMethodOverride $ do
                  listSubmissions patts order page)
     <|>
     method (Method "CANCEL") (cancelPending >>
-                              setPending [] >>
                               listSubmissions patts order page)
     <|>
     method (Method "EXPORT") (exportSubmissions patts order)
@@ -269,9 +268,7 @@ reevalSubmissions patts order  = do
   subs  <- filterSubmissions patts order count 0
   sqlite <- S.getSqliteState
   liftIO $ markEvaluating sqlite (map submitId subs)
-  cancelPending
-  tids <- mapM evaluate subs
-  setPending tids
+  reevaluate subs
 
 
 

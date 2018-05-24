@@ -24,9 +24,10 @@ import System.FastLogger (Logger)
 
 import Control.Monad.State (get)
 
-import Control.Concurrent (MVar, ThreadId)
+-- import Control.Concurrent (MVar, ThreadId)
 import Control.Concurrent.QSem (QSem)
 
+import Codex.Tasks
 import Codex.Types
 import Codex.Tester
 
@@ -36,7 +37,7 @@ data AppUrl =
     Login              -- ^ session login / logout
   | Logout
   | Register
-  | Page  [FilePath]   -- ^ exercise page or other file
+  | Page [FilePath]    -- ^ exercise page or other file
   | Report SubmitId    -- ^ report for previously submitted exercise
   -- following are for adminstrator only
   | Files [FilePath]          -- ^ file browser 
@@ -54,8 +55,8 @@ data App = App
     , _auth    :: Snaplet (AuthManager App)
     , _db      :: Snaplet Sqlite
     , _tester  :: Tester           -- ^ exercise testers to use
-    , _evthids :: MVar [ThreadId]  -- ^ list of (re)evaluation thread ids
-    , _evqs    :: QSem             -- ^ semaphore for (re)evaluation scheduling
+    , _tasks   :: Tasks            -- ^ list of evaluation thread ids
+    , _semph   :: QSem             -- ^ semaphore for evaluation scheduling
     , _logger  :: Logger
    }
 

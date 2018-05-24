@@ -33,8 +33,7 @@ import qualified Text.XmlHtml as X
 
 
 import           Control.Monad.State
-import           Control.Exception (SomeException, bracket_)
-import           Control.Concurrent
+import           Control.Exception (SomeException)
 
 import qualified Data.Configurator as Configurator
 
@@ -319,24 +318,6 @@ methodOverride param r
        ""        -> Nothing
        _         -> Just (Method meth)
 
-
--- | aquire and release a quantity semaphore for an I/O action
-withQSem :: QSem -> IO a -> IO a
-withQSem qs = bracket_ (waitQSem qs) (signalQSem qs)
-
-
--- | cancel all pending evaluations 
-cancelPending :: Codex ()
-cancelPending = do
-  mv <- gets _evthids
-  tids <- liftIO $ takeMVar mv
-  liftIO (mapM_ killThread tids)
-
-
-setPending :: [ThreadId] -> Codex ()
-setPending tids = do
-  mv <- gets _evthids
-  liftIO (putMVar mv tids)
 
 
 -- | log an authentication message

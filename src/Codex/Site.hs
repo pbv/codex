@@ -13,7 +13,7 @@ module Codex.Site
 
 import           Control.Applicative
 import           Control.Concurrent.MVar
-import           Control.Concurrent.QSem 
+-- import           Control.Concurrent.QSem 
 import           Control.Lens
 import           Control.Monad.State
 import           Control.Exception  (IOException)
@@ -23,7 +23,7 @@ import           Data.ByteString.UTF8                        (ByteString)
 import           Data.Map.Syntax
 
 import qualified Data.Text                                   as T
-import           Data.Maybe(isJust, fromMaybe)
+import           Data.Maybe(fromMaybe)
 
 import           Heist
 import qualified Heist.Interpreted                           as I
@@ -66,6 +66,7 @@ import           Codex.Types
 import           Codex.Utils
 import           Codex.Evaluate
 import           Codex.Tester
+import           Codex.Tasks
 
 import           Data.Version                                (showVersion)
 import           Paths_codex                                 (version)
@@ -325,16 +326,16 @@ codexInit tst =
     liftIO $ withMVar c $ \conn -> Db.createTables conn
     addRoutes routes
     -- create a semaphore for throttling concurrent evaluation threads
-    tids <- liftIO $ newMVar []
-    qs <- liftIO $ newQSem =<< Conf.require conf "system.max_concurrent"
+    ntasks <- liftIO $ Conf.require conf "system.max_concurrent"
+    (semph, tasks) <- liftIO (makeTasks ntasks)
     return App { _heist = h
                , _router = r
                , _sess = s
                , _auth = a
                , _db   = d
                , _tester = tst
-               , _evthids = tids
-               , _evqs    = qs
+               , _tasks = tasks
+               , _semph = semph
                , _logger  = logger
                }
 

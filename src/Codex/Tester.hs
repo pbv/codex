@@ -13,9 +13,10 @@ module Codex.Tester (
   module Codex.Tester.Limits,
   -- * generic stuff
   module Control.Monad,
+  module Control.Monad.Trans,
   module System.FilePath,
   module System.Exit,
-  module Data.Monoid
+  module Data.Monoid,
   ) where
 
 import           Codex.Types
@@ -27,6 +28,7 @@ import           Codex.Tester.Result
 import           Codex.Tester.Utils
 import           Control.Applicative
 import           Control.Monad 
+import           Control.Monad.Trans
 
 import           System.FilePath
 import           System.Exit

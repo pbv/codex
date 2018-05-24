@@ -4,7 +4,8 @@
 module Codex.Evaluate(
   -- * evaluate a single submission
   evaluate,
-  evaluateWith 
+  reevaluate,
+  cancelPending
   ) where
 
 import qualified Data.Text as T
@@ -12,17 +13,17 @@ import           Data.Monoid
 import           Data.Maybe
 import           Data.Time.LocalTime
 import           Control.Monad.State
-import           Control.Concurrent(ThreadId, forkIO)
-import           Control.Exception  (SomeException)
-import           Control.Exception.Lifted  (catch)
+import           Control.Concurrent(ThreadId) 
+import           Control.Exception  (SomeException, catch)
 import           System.FilePath
 
 import           Snap.Snaplet
 import qualified Snap.Snaplet.SqliteSimple as S
 
-import qualified Data.Configurator as Conf
+import           Data.Configurator.Types(Config)
 
 import           Codex.Application
+import           Codex.Tasks
 import           Codex.Types
 import           Codex.Utils
 import           Codex.Page
@@ -32,28 +33,42 @@ import           Codex.Interval
 
 
 
--- | default evaluator
+-- | evaluate a single submissions
 evaluate :: Submission -> Codex ThreadId
 evaluate sub = do
   tester <- gets _tester
-  evaluateWith tester sub
+  semph <- gets _semph
+  action <- evaluatorWith tester sub
+  liftIO $ forkSingle semph action
+
+-- | re-evaluate a list of submissions
+reevaluate :: [Submission] -> Codex ()
+reevaluate subs = do
+  tester <- gets _tester
+  semph <- gets _semph
+  tasks <- gets _tasks
+  actions <- mapM (evaluatorWith tester) subs
+  liftIO $ forkMany semph tasks actions
+
+-- | cancel pending evaluations
+cancelPending :: Codex ()
+cancelPending = reevaluate []
 
 
 -- | evaluate a submission  with a specific tester
 -- (1st time or re-evaluation);
 -- runs code tester in separate thread
 -- uses a semaphore for limitting concurrency 
-evaluateWith :: Tester -> Submission -> Codex ThreadId
-evaluateWith tester sub = do
+evaluatorWith :: Tester -> Submission -> Codex (IO ())
+evaluatorWith tst sub = do
   sqlite <- S.getSqliteState
   evs <- getEvents
   root <- getDocumentRoot
   conf <- getSnapletUserConfig
-  semph <- gets _evqs
-  let filepath = root </> submitPath sub    -- ^ file path to exercise 
-  let sid = submitId sub                    -- ^ submission number
-  let code = submitCode sub                 -- ^ program code
-  liftIO $ forkIO $ withQSem semph $ do     -- ^ grab the evaluation semphore 
+  let filepath = root </> submitPath sub  -- ^ file path to exercise 
+  let sid = submitId sub                  -- ^ submission number
+  let code = submitCode sub               -- ^ program code
+  return $ do                             -- ^ return evaluation IO action
     tz <- getCurrentTimeZone
     meta <- pageMeta <$> readMarkdownFile filepath
     let info = PageInfo filepath meta
@@ -62,19 +77,19 @@ evaluateWith tester sub = do
       Nothing ->
         updateSubmission sqlite sid wrongInterval Valid
       Just timing -> do
-        result <- runLanguageTester conf (PageInfo filepath meta) code tester
+        result <- runTester conf (tst info code)
                   `catch`
                   (\(e::SomeException) -> return (miscError $ T.pack $ show e))
         updateSubmission sqlite sid result timing
 
 -- | set default limits and run a tester
-runLanguageTester cfg info code tester
-  =  fromMaybe invalidTester <$> runTest cfg (tester info code)
+runTester :: Config -> Test Result -> IO Result
+runTester cfg tst = fromMaybe invalidTester <$> runTest cfg tst 
 
 wrongInterval :: Result
 wrongInterval = miscError "invalid submission interval"
  
 invalidTester :: Result
-invalidTester = miscError "no tester for submission"
+invalidTester = miscError "no acceptable tester configured"
 
 

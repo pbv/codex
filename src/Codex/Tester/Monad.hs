@@ -9,9 +9,6 @@ module Codex.Tester.Monad (
   configured,
   maybeConfigured,
   getLimits,
-  -- * modules re-export
-  ExitCode,
-  module Control.Monad.Trans
   ) where
 
 
@@ -26,7 +23,7 @@ import           Control.Monad.Trans.Reader
 
 import           Codex.Tester.Limits
 
-import           System.Exit(ExitCode)
+-- import           System.Exit(ExitCode)
 
 -- | a monad for testing scripts
 -- allows IO, access to a configuration environment and failure 
@@ -55,10 +52,11 @@ configured name = do
   liftIO $ Conf.require cfg name 
 
 
+-- | get configured limits from the test environment
 getLimits :: Name -> Test Limits
 getLimits prefix = do
   cfg <- Test ask
-  liftIO $ configLimits (Conf.subconfig prefix cfg)
+  liftIO $ lookupLimits (Conf.subconfig prefix cfg)
                   
 
 

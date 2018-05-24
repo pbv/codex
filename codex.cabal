@@ -43,6 +43,7 @@ Executable codex-server
     Codex.Types
     Codex.Utils
     Codex.Printout            
+    Codex.Tasks
   build-depends:
     filepath,
     directory,
