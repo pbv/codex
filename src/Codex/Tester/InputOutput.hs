@@ -7,6 +7,8 @@ module Codex.Tester.InputOutput (
   clangIOTester
   ) where
 
+import           Codex.Tester
+
 import           Data.Text (Text)
 import qualified Data.Text as T
 import qualified Data.Text.IO as T
@@ -15,8 +17,7 @@ import           Data.Function(on)
 import           Data.List(maximumBy)
 
 import           Control.Exception (catch)
-
-import           Codex.Tester
+import           System.Directory.Glob
 
 
 clangIOTester :: PageInfo -> Code -> Test Result
@@ -25,12 +26,14 @@ clangIOTester (PageInfo path meta) (Code lang src) = do
   guard (tester meta == Just "stdio")
   ----
   let dir = takeDirectory path
-  let inputs  = map (dir</>) $ fromMaybe [] (lookupFromMeta "inputs" meta) 
-  let outputs = map (dir</>) $ fromMaybe [] (lookupFromMeta "outputs" meta)
-  assert (pure $ length inputs > 0 && length outputs > 0)
-    "inputs or output lists undefined"
+  let inpatts  = map (dir</>) $ fromMaybe [] (lookupFromMeta "inputs" meta) 
+  let outpatts = map (dir</>) $ fromMaybe [] (lookupFromMeta "outputs" meta)
+  assert (pure $ not (null inpatts)) "no inputs defined"
+  assert (pure $ not (null outpatts)) "no outputs defined"
+  inputs <- liftIO $ globMany globDefaults inpatts
+  outputs <- liftIO $ globMany globDefaults outpatts
   assert (pure $ length inputs == length outputs)
-    "input and output lists should have equal length"
+    "different number of inputs and outputs"
   gcc <- configured "language.c.compiler"
   limits <- getLimits "language.c.limits"
   liftIO (ioRunner limits gcc src inputs outputs `catch` return)

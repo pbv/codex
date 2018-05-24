@@ -25,25 +25,25 @@ Executable codex-server
     Codex.AuthHandlers
     Codex.Config
     Codex.Db
-    Codex.Interval
-    Codex.Tester
-    Codex.Tester.Monad
-    Codex.Tester.Limits
-    Codex.Tester.Result
-    Codex.Tester.Utils
-    Codex.Tester.Python
-    Codex.Tester.Haskell                
-    Codex.Tester.C
-    Codex.Tester.InputOutput
     Codex.Evaluate
+    Codex.Interval
     Codex.LdapAuth
     Codex.Page
+    Codex.Printout            
     Codex.Site
     Codex.Submission
+    Codex.Tasks
+    Codex.Tester
+    Codex.Tester.C
+    Codex.Tester.Haskell                
+    Codex.Tester.InputOutput
+    Codex.Tester.Limits
+    Codex.Tester.Monad
+    Codex.Tester.Python
+    Codex.Tester.Result
+    Codex.Tester.Utils
     Codex.Types
     Codex.Utils
-    Codex.Printout            
-    Codex.Tasks
   build-depends:
     filepath,
     directory,
@@ -81,8 +81,8 @@ Executable codex-server
     base,
     lens,
     process-extras,
-    temporary
-
+    temporary,
+    glob-posix
   if flag(development)
     -- build-depends:
     --  snap-loader-dynamic
