@@ -5,6 +5,7 @@ module Codex.Tester.SqlSelect (
 
 import           Codex.Tester
 import           Data.Text(Text)
+import qualified Data.Text as T
 
 
 sqlSelectTester :: PageInfo -> Code -> Test Result
@@ -13,6 +14,7 @@ sqlSelectTester (PageInfo path meta) (Code lang src) = do
   guard (tester meta == Just "select")
   ---
   evaluator <- configured "language.sql.select.evaluator"
+  limits  <- getLimits "language.sql.select.limits"
   let answerFilePath = getAnswerFilePath (PageInfo path meta)
   assert (fileExists answerFilePath)
       ("doctest file not found: " <> show answerFilePath)
@@ -20,17 +22,17 @@ sqlSelectTester (PageInfo path meta) (Code lang src) = do
   withTemp "submit.sql" src $ \submittedFilePath -> do
     chmod readable submittedFilePath
     classify <$>
-      unsafeExec evaluator [answerFilePath, submittedFilePath] ""
+      safeExec limits evaluator [answerFilePath, submittedFilePath] ""
 
 classify :: (ExitCode, Text, Text) -> Result
-classify (code, stdout, stderr)
-  | code == ExitSuccess                 = accepted ""
-  | match "Time Limit Exceed" stderr    = timeLimitExceeded stdout
-  | match "Memory Limit Exceed" stderr  = memoryLimitExceeded stdout
-  | match "Runtime Error" stderr        = runtimeError stdout
-  | match "Syntax Error" stderr         = compileError stdout
-  | match "Wrong Answer" stderr         = wrongAnswer stdout
-  | otherwise                           = miscError (stdout <> stderr)
+classify (_, stdout, stderr)
+  | T.null stdout && match "OK" stderr = accepted stderr
+  | match "Time Limit" stderr          = timeLimitExceeded stderr
+  | match "Memory Limit" stderr        = memoryLimitExceeded stderr
+  | match "Exception Raised" stdout    = runtimeError stdout
+  | match "SyntaxError" stderr         = compileError stderr
+  | match "Failed" stdout              = wrongAnswer stdout
+  | otherwise                          = miscError (stdout <> stderr)
 
 -- | guess the test path from page metadata or filename
 getAnswerFilePath :: PageInfo -> FilePath

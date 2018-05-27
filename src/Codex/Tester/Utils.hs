@@ -117,8 +117,6 @@ safeExec Limits{..} cmd args stdin
     in
       readProcessWithExitCode "safeexec" args' stdin
 
-unsafeExec = readProcessWithExitCode
-
 -- get QuickCheck runner command line arguments
 getQuickCheckArgs :: Meta -> [String]
 getQuickCheckArgs meta
