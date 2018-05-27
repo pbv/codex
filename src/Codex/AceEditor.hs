@@ -66,5 +66,6 @@ extensions
                , ("haskell", ".hs")
                , ("python", ".py")
                , ("java", ".java")
-               , ("javascript", ".js")                
+               , ("javascript", ".js")
+               , ("sql", ".sql")
                ]
