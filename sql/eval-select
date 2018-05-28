@@ -14,21 +14,31 @@ def wrong_answer_msg(msg):
 
 
 def runtime_error_msg(e: MySQLdb.Error):
+    scope = (" [on: answer]" if e.scope == "answer" else "") if hasattr(e, 'scope') else " [on: system]"
     print("Runtime Error", file=sys.stderr)
-    print("%s (error %d)" % (e.args[1], e.args[0]))
+    print("%s (error %d)%s" % (e.args[1], e.args[0], scope))
 
 
 def compile_error_msg(e: MySQLdb.Error):
+    scope = (" [on: answer]" if e.scope == "answer" else "") if hasattr(e, 'scope') else " [on: system]"
     print("Compile Error", file=sys.stderr)
-    print("%s (error %d)" % (e.args[1], e.args[0]))
+    print("%s (error %d)%s" % (e.args[1], e.args[0], scope))
 
 
 def eval_queries(conn, q1, q2):
     c1 = conn.cursor()
     c2 = conn.cursor()
 
-    c2.execute(q2)
-    c1.execute(q1)
+    try:
+        c2.execute(q2)
+    except MySQLdb.Error as e:
+        e.scope = "submission"
+        raise e
+    try:
+        c1.execute(q1)
+    except MySQLdb.Error as e:
+        e.scope = "answer"
+        raise e
 
     if len(c1.description) != len(c2.description):
         wrong_answer_msg("Expecting %d columns, got %d." % (len(c1.description), len(c2.description)))
@@ -54,13 +64,13 @@ def eval_queries(conn, q1, q2):
     c2.close()
 
 
-def main(host, port, user, passwd, db, q1, q2, file_q1=False, file_q2=False):
+def main(host, port, user, passwd, db, q1, q2, q1_is_file=False, q2_is_file=False):
     try:
-        conn = MySQLdb.connect(host=host, port=port, user=user, passwd=passwd, db=db)
-        if file_q1:
+        conn = MySQLdb.connect(host=host, port=port, user=user, passwd=passwd, db=db, connect_timeout=1)
+        if q1_is_file:
             with open(q1, "r") as f:
                 q1 = f.read()
-        if file_q2:
+        if q2_is_file:
             with open(q2, "r") as f:
                 q2 = f.read()
         eval_queries(conn, q1, q2)
@@ -81,10 +91,11 @@ if __name__ == "__main__":
     parser.add_argument('--user', dest='user', type=str, default="")
     parser.add_argument('--passwd', dest='passwd', type=str, default="")
     parser.add_argument('--db', dest='db', type=str, default="")
-    parser.add_argument('--query1-file', dest='file_q1', action='store_true', default=False, help="Query 1 is a file.")
-    parser.add_argument('--query2-file', dest='file_q2', action='store_true', default=False, help="Query 2 is a file.")
+    parser.add_argument('--query1-is-file', dest='q1_is_file', action='store_true', default=False)
+    parser.add_argument('--query2-is-file', dest='q2_is_file', action='store_true', default=False)
     parser.add_argument('query1', type=str)
     parser.add_argument('query2', type=str)
     args = parser.parse_args()
 
-    main(args.host, args.port, args.user, args.passwd, args.db, args.query1, args.query2, args.file_q1, args.file_q2)
+    main(args.host, args.port, args.user, args.passwd, args.db, args.query1, args.query2, args.q1_is_file,
+         args.q2_is_file)

@@ -117,6 +117,12 @@ safeExec Limits{..} cmd args stdin
     in
       readProcessWithExitCode "safeexec" args' stdin
 
+unsafeExec :: FilePath                 -- ^ command
+          -> [String]                  -- ^ arguments
+          -> Text                      -- ^ stdin
+          -> IO (ExitCode, Text, Text) -- ^ code, stdout, stderr
+unsafeExec = readProcessWithExitCode
+
 -- get QuickCheck runner command line arguments
 getQuickCheckArgs :: Meta -> [String]
 getQuickCheckArgs meta
