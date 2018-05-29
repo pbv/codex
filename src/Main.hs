@@ -32,6 +32,7 @@ import           Codex.Tester.Python
 import           Codex.Tester.Haskell
 import           Codex.Tester.C
 import           Codex.Tester.InputOutput
+import           Codex.Tester.SqlSelect
 import           Snap.Loader.Static
 
 
@@ -40,6 +41,7 @@ app = codexInit $ oneof [ pythonDoctester
                         , haskellQCTester
                         , clangQCTester
                         , clangIOTester
+                        , sqlSelectTester
                         ]
 
 ------------------------------------------------------------------------------
