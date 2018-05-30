@@ -23,7 +23,6 @@ import           Control.Monad.Trans.Reader
 
 import           Codex.Tester.Limits
 
--- import           System.Exit(ExitCode)
 
 -- | a monad for testing scripts
 -- allows IO, access to a configuration environment and failure 

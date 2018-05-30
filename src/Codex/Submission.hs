@@ -21,7 +21,8 @@ module Codex.Submission (
   withFilterSubmissions,
   filterSubmissions,
   countSubmissions,
-  submitSplices
+  submitSplices,
+  submitLang
   ) where
 
 import           Prelude hiding (Ordering)
@@ -65,12 +66,16 @@ import           Codex.Tester.Result
 data Submission = Submission {
   submitId     :: SubmitId,     -- submission DB id
   submitUser   :: UserLogin,    -- user login
-  submitPath   :: FilePath,     -- exercise path
-  submitTime   :: UTCTime,      -- submition time
-  submitCode   :: Code,         -- program code
+  submitPath   :: FilePath,     -- exercise request path 
+  submitTime   :: UTCTime,      -- submission time
+  submitCode   :: Code,         -- submitted code
   submitResult :: Result,       -- accepted/wrong answer/etc
   submitTiming :: Timing        -- timing (early, valid, overdue)
   } 
+
+
+submitLang :: Submission -> Language
+submitLang = codeLang . submitCode
 
 
 instance ToField Timing where
@@ -259,8 +264,8 @@ submitSplices tz Submission{..} = do
   "submit-path" ## I.textSplice (T.pack submitPath)
   "submit-user-id" ## I.textSplice (toText submitUser)
   "submit-time" ## utcTimeSplice tz submitTime
-  "code-lang" ## I.textSplice (toText $ codeLang submitCode)
-  "code-text" ##  I.textSplice (codeText submitCode)
+  "submit-lang" ## I.textSplice (toText $ codeLang submitCode)
+  "submit-text" ##  I.textSplice (codeText submitCode)
   let classify = T.pack $ show $ resultClassify submitResult
   "submit-classify" ##  I.textSplice classify
   "submit-message" ## I.textSplice (resultMessage submitResult)

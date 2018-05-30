@@ -1,6 +1,7 @@
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE DeriveDataTypeable #-}
 {-# LANGUAGE DeriveGeneric     #-} -- Needed to derive Generic
+{-# LANGUAGE GeneralizedNewtypeDeriving #-}
 
 {-
   Types for various entities
@@ -18,6 +19,7 @@ module Codex.Types
   ) where
 
 import           Data.Typeable
+import           Data.Hashable
 
 import           Data.String (IsString(..))
 import           Data.Text (Text)
@@ -64,7 +66,7 @@ instance PathInfo SubmitId where
 
 -- | language identifier
 newtype Language
-  = Language {fromLanguage :: Text} deriving (Eq, Ord, Typeable) 
+  = Language {fromLanguage :: Text} deriving (Eq, Ord, Hashable, Typeable) 
 
 -- | program code tagged with language identifier
 data Code = Code { codeLang :: !Language

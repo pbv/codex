@@ -12,7 +12,7 @@
   <p class="info">
     <feedback-high>
       Exercício com "<em>feedback</em>" de resultados e testes.
-    <else/>
+      <else/>
     <feedback-medium>
       Exercício com "<em>feedback</em>" só de resultados.
       <else/>
@@ -20,19 +20,19 @@
     </feedback-medium>
   </feedback-high>
   </p>
-  
-<p class="info">
-  <current-timing>
-    <Early>
-      Submissões visíveis após <valid-from/>.
-    </Early>
-    <Valid>
-      Submissões terminam em <valid-until/> (<time-left/>).
+  <p class="info">Linguagens: <page-languages/>.</p>  
+  <p class="info">
+    <current-timing>
+      <Early>
+	Submissões visíveis após <valid-from/>.
+      </Early>
+      <Valid>
+	Submissões terminam em <valid-until/> (<time-left/>).
     </Valid>
-    <Overdue>
-      Submissões terminaram em <valid-until/>.
-    </Overdue>
-  </current-timing>
+      <Overdue>
+	Submissões terminaram em <valid-until/>.
+      </Overdue>
+    </current-timing>
 </p>
 
 <if-submitted>
@@ -57,19 +57,38 @@
 
 <h2>Nova submissão </h2>
 
-
-<form id="editform" method="POST" action="${page-url}"
-      onsubmit="submitAceEditorText('submission');">
-<p><input type="file" id="filebrowser" accept="${language-ext}"
-	   onchange="readFile('filebrowser','submission');"/></p>
-  <p><inputAceEditor id="submission" path="${language-ext}"><code-text/></inputAceEditor>
+<form id="codeform" method="POST" action="${page-url}">
+  <p>
+    <input type="file" id="fileselect"
+	   accept="${language-extensions}"/> &nbsp;
+    <input-language-selector id="langselect" name="language" form="codeform"/>
   </p>
-  <p><input type="submit" value="Submeter"/>  &nbsp;
-    <a href="${page-parent-url}" class="button">Voltar à folha de exercícios</a>
+  <p><textarea id="code" name="code" style="display:none;"/></p>
+  <div id="editor"><default-text/></div>
+  <p>
+    <input type="submit" value="Submeter"/> &nbsp;
+    <a href="${page-parent-url}"
+       class="button">Voltar à página de índice</a>
   </p>
 </form>
 </apply>
 
+
+<script type="text/javascript">
+  var editor = startAceEditor('editor');
+
+  document.getElementById('codeform').addEventListener('submit',
+    function() { submitListener(editor,'code'); });
+
+  document.getElementById('fileselect').addEventListener('change',
+    function() { fileListener(editor, 'fileselect', 'langselect'); });
+					      
+  document.getElementById('langselect').addEventListener('change',
+    function() { editor.session.setMode(languageModes[this.selectedIndex]); } );
+</script>
+
+<js-language-constants/>
+<js-default-language/>
 
 <apply template="_browse">
   <li><a title="Editar a página de exercício" href="${file-url}">Editar</a></li>

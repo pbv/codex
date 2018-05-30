@@ -12,22 +12,22 @@ import           Database.SQLite.Simple.FromField
 import           Database.SQLite.Simple.ToField
 
 -- submission results
-data Result = Result { resultClassify :: !Classify
-                     , resultMessage :: !Text
+data Result = Result { resultClassify :: Classify
+                     , resultMessage :: Text
                      }
               deriving (Eq, Read, Show, Typeable)
 
 -- classification outcomes; ordered by severity
-data Classify = Received
-              | Accepted
-              | PresentationError
-              | WrongAnswer
+data Classify = Evaluating
+              | MiscError
+              | CompileError
+              | RuntimeError
               | TimeLimitExceeded
               | MemoryLimitExceeded
-              | RuntimeError
-              | CompileError
-              | MiscError
-              | Evaluating
+              | PresentationError
+              | WrongAnswer
+              | Received
+              | Accepted
               deriving (Eq, Ord, Read, Show, Typeable)
 
 -- | convertions to/from SQL

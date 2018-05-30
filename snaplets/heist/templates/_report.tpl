@@ -27,15 +27,46 @@
 
 <h2>Editar submissão</h2>
 
-<form id="editform" method="POST" action="${page-url}"
-      onSubmit="submitAceEditorText('submission');">
-<p><inputAceEditor id="submission" path="${language-ext}"><code-text/></inputAceEditor></p>
-<p><input type="submit" value="Submeter novamente"/>
-&nbsp;<a class="button" href="${page-url}">Voltar ao exercício</a>
-&nbsp;<a class="button" href="${page-parent-url}">Voltar à folha de exercícios</a>
+<form id="codeform" method="POST" action="${page-url}">
+  <p>
+    <input type="file" id="fileselect"
+	   accept="${language-extensions}"/> &nbsp;
+    <input-language-selector
+      id="langselect"  name="language"
+      form="codeform"  selected="${submit-lang}"/>
+  </p>
+  <p><textarea id="code" name="code" style="display:none;"/></p>
+  <div id="editor"><submit-text/></div>
+  <p>
+    <input type="submit" value="Re-submeter"/> &nbsp;
+    <a class="button"
+       href="${page-url}">Voltar ao exercício</a> &nbsp;
+    <a class="button"
+       href="${page-parent-url}">Voltar à página de índice</a>
+  </p>
 </form>
+
+<script type="text/javascript">
+  var editor = startAceEditor('editor');
+  
+  document.getElementById('codeform').addEventListener('submit',
+    function() { submitListener(editor,'code'); });
+
+  document.getElementById('fileselect').addEventListener('change',
+    function() { fileListener(editor, 'fileselect', 'langselect'); });
+					      
+  document.getElementById('langselect').addEventListener('change',
+    function() { editor.session.setMode(languageModes[this.selectedIndex]); } );
+</script>
+
+<js-language-constants/>
+<js-default-language/>
+
 </evaluating>
 </apply>
+
+
+
 
 <apply template="_browse">
   <li><a title="Editar folha de exercício"

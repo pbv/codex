@@ -75,7 +75,7 @@ function printsubmissions() {
 	  <td class="submitid"><a href="${submission-admin-url}"><submit-id/></a></td>
 	  <td class="userid"><submit-user-id/></td>
 	  <td class="path"><a href="${page-url}"><submit-path/></a></td>
-	  <td class="lang"><code-lang/></td>
+	  <td class="lang"><submit-lang/></td>
 	  <td class="classify ${submit-classify}"><submit-classify/></td>
 	  <td class="timing"><submit-timing/></td>
 	  <td class="received"><submit-time/></td>

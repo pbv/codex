@@ -15,60 +15,71 @@ import           Data.Maybe
 import qualified Data.Text as T
 import qualified Data.Map as Map
 import           Data.Monoid
+import           Control.Applicative
 
 import           Data.List (intersperse)
+import           Data.Char (isAlphaNum)
 
 import           Codex.Types
 import           Codex.Interval
 
--- | a document page; either a single exercise or an index
+
+--
+-- a Page is a synonym for a Pandoc document 
+-- either an active exercise or a passive document (e.g. an index)
+--
 type Page = Pandoc
 
 emptyPage :: Page
 emptyPage = Pandoc nullMeta []
 
+-- extract metadata 
 pageMeta :: Page -> Meta
 pageMeta (Pandoc meta _) = meta
 
+-- extract document description (blocks)
 pageDescription :: Page -> [Block]
 pageDescription (Pandoc _ blocks) = blocks
 
+-- lookup title either as metadata or in the first header
 pageTitle :: Page -> Maybe [Inline]
 pageTitle p
   = case docTitle (pageMeta p) of
       [] -> firstHeader (pageDescription p)
       inlines -> Just inlines
-
-firstHeader :: [Block] -> Maybe [Inline]
-firstHeader blocks = listToMaybe [h | Header _ _ h <- blocks]
-
-pageLanguage :: Page -> Maybe Language
-pageLanguage = lookupFromMeta "language" . pageMeta
-
-pageCodeText :: Page -> Maybe Text
-pageCodeText = lookupFromMeta "code" . pageMeta
-
-pageCode :: Page -> Maybe Code
-pageCode p = Code <$> pageLanguage p <*> pageCodeText p
+  where
+    firstHeader :: [Block] -> Maybe [Inline]
+    firstHeader blocks = listToMaybe [h | Header _ _ h <- blocks]
 
 
--- | is this an exercise page?
+-- list of accepted languages for an exercise
+pageLanguages :: Page -> [Language]
+pageLanguages (Pandoc meta _)
+  = fromMaybe [] (lookupFromMeta "languages" meta)
+
+
+-- text for submission filled in by default
+pageDefaultText :: Page -> Maybe Text
+pageDefaultText = lookupFromMeta "code" . pageMeta
+
+
+-- is this an exercise page?
 pageIsExercise :: Page -> Bool
 pageIsExercise p
   = fromMaybe False $ lookupFromMeta "exercise" (pageMeta p)
 
--- | time interval for valid submissions
-submitInterval :: Page -> Interval TimeExpr
-submitInterval = submitInterval' . pageMeta
+-- time interval for valid submissions
+pageInterval :: Page -> Interval TimeExpr
+pageInterval = metaInterval . pageMeta
 
-submitInterval' :: Meta -> Interval TimeExpr
-submitInterval' meta
+metaInterval :: Meta -> Interval TimeExpr
+metaInterval meta
   = fromMaybe (Interval Nothing Nothing) $
     (lookupFromMeta "valid" meta >>= parseInterval)
 
--- | feedback level for submissions
-submitFeedback :: Page -> Int
-submitFeedback p = fromMaybe 100 (lookupFromMeta "feedback" (pageMeta p))
+-- feedback level for submissions
+pageFeedback :: Page -> Int
+pageFeedback p = fromMaybe 100 (lookupFromMeta "feedback" (pageMeta p))
 
 
 

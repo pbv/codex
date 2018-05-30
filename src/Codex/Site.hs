@@ -24,6 +24,8 @@ import           Data.Map.Syntax
 
 import qualified Data.Text                                   as T
 import           Data.Maybe(fromMaybe)
+import           Data.List (intersperse) 
+
 
 import           Heist
 import qualified Heist.Interpreted                           as I
@@ -93,13 +95,15 @@ handlePage rqpath = do
     _ -> method GET (serveFileAs mime filepath)
 
 
--- | handle a post request
+-- | handle post request for an exercise submission
+--
 handlePost :: UserLogin -> FilePath -> FilePath -> Codex ()
 handlePost uid rqpath filepath = do
   page <- liftIO (readMarkdownFile filepath)
   unless (pageIsExercise page) badRequest
-  text <- require (getTextPost "submission")
-  lang <- require (return $ pageLanguage page)
+  text <- require (getTextPost "code")
+  lang <- Language <$> require (getTextPost "language")
+  unless (lang `elem` pageLanguages page) badRequest
   sid <- newSubmission uid rqpath (Code lang text)
   redirectURL (Report sid)
 
@@ -127,7 +131,8 @@ renderExercise rqpath page subs = do
     exerciseSplices page
     timeSplices
     submissionListSplices tz subs
-    inputAceEditorSplices
+    textEditorSplice
+    languageSplices (pageLanguages page) Nothing
     
 
 -- render report for a single submission
@@ -141,7 +146,8 @@ renderReport rqpath page sub = do
     exerciseSplices page
     timeSplices
     submitSplices tz sub
-    inputAceEditorSplices
+    textEditorSplice
+    languageSplices (pageLanguages page) (Just $ submitLang sub)
 
 
 -- | read a page and patch exercise links
@@ -204,12 +210,12 @@ handleReport sid = do
 -- | splices related to exercises
 exerciseSplices :: Page -> ISplices
 exerciseSplices page = do
-  let fb = submitFeedback page
-  "language" ##
-    maybe (return []) (I.textSplice . fromLanguage) (pageLanguage page)
-  "language-ext" ## I.textSplice $ fromMaybe "" (languageExtension =<< pageLanguage page)
-  "code-text" ##
-    maybe (return []) I.textSplice (pageCodeText page)
+  let fb = pageFeedback page
+  "page-languages" ##
+    I.textSplice $ T.intercalate "," $ map fromLanguage $ pageLanguages page
+  "language-extensions" ##
+   I.textSplice $ languageExtensions $ pageLanguages page
+  "default-text" ## maybe (return []) I.textSplice (pageDefaultText page)
   "feedback-low" ## I.ifElseISplice (fb >= 25)
   "feedback-medium" ## I.ifElseISplice (fb >= 50)
   "feedback-high" ## I.ifElseISplice (fb >= 75)
@@ -221,7 +227,7 @@ timingSplices page = do
   tz  <- liftIO getCurrentTimeZone
   now <- liftIO getCurrentTime
   events <- getEvents
-  let interval = evalI tz events (submitInterval page)
+  let interval = evalI tz events (pageInterval page)
   let timeLeft = fmap (\t -> diffUTCTime t now) (higher =<< interval)
   return $ do
     "valid-from" ##

@@ -5,17 +5,20 @@
     <img src="${page-url}"/>
   </if-image-file>
   <if-text-file>
-    <form id="editform" method="POST" action="${file-url}"
-	  onSubmit="submitAceEditorText('editform.editor');">
+    <form id="editform" method="POST" action="${file-url}">
       <input type="hidden" name="_method" value="PUT"/>
       <input type="hidden" id="editform.path" value="${file-path}"/>
-      <inputAceEditor id="editform.editor" path="${file-path}"><file-contents/></inputAceEditor>
+      <textarea name="editform.text" id="editform.text" style="display:none;"/>
+      <div id="editform.editor"><file-contents/></div>
       <p><input type="submit" value="Gravar alterações"/> &nbsp;
 	<a class="button" title="Voltar ao diretório anterior" href="${file-parent-url}">Cancelar</a>
       </p>
     </form>
     <script type="text/javascript">
-      setAceEditorModeExt('editform.editor', document.getElementById('editform.path').value);
+      var editor = startAceEditor('editform.editor');
+      setAceEditorModeExt(editor, document.getElementById('editform.path').value);
+      document.getElementById('editform').addEventListener('submit',
+      function() { submitListener(editor, 'editform.text'); });
     </script>
   </if-text-file>
 

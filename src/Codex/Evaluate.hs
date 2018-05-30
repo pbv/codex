@@ -72,7 +72,7 @@ evaluatorWith tst sub = do
     tz <- getCurrentTimeZone
     meta <- pageMeta <$> readMarkdownFile filepath
     let info = PageInfo filepath meta
-    let opt = rankTime (submitTime sub) <$> evalI tz evs (submitInterval' meta)
+    let opt = rankTime (submitTime sub) <$> evalI tz evs (metaInterval meta)
     case opt of
       Nothing ->
         updateSubmission sqlite sid wrongInterval Valid

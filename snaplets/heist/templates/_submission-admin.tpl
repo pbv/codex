@@ -15,9 +15,7 @@
 <h3>Resultado: <em><submit-classify/></em> (<em><submit-timing/></em>)</h3>
 <pre><submit-message/></pre>
 <h3>Código</h3>
-<pre>
-  <code-text/>
-</pre> 
+<pre><submit-text/></pre> 
 <hr/>
 <script type="text/javascript">
   function confirmDelete() {

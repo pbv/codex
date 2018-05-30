@@ -2,23 +2,24 @@
 -- | Heist splice for Ace Editor
 --------------------------------------------------------------------------------
 {-# LANGUAGE OverloadedStrings #-}
+
 module Codex.AceEditor
-       ( inputAceEditorSplices
-       -- , languageMode
-       , languageExtension
+       ( textEditorSplice
+       , languageSplices
+       -- , languageExtension
+       , languageExtensions
        ) where
 
 
 import qualified Data.Text             as T
-
 import           Data.Maybe(fromMaybe)
 import           Data.Map.Syntax
 import           Heist
 import           Heist.Interpreted
 import qualified Text.XmlHtml          as X
 import           Text.Printf(printf)
-import qualified Data.Map.Strict as M
-import           Data.Map.Strict (Map)
+import qualified Data.HashMap.Strict as HM
+import           Data.HashMap.Strict (HashMap)
 
 import           Codex.Types
 import           Codex.Utils (javascript)
@@ -28,43 +29,149 @@ element :: Text -> [X.Node] -> [(Text,Text)] -> X.Node
 element tag = flip (X.Element tag)
 
 
--- | Splice for a textarea/Ace editor form input
+-- | Splice for an Ace text editor form input
 -- NB: requires some js "glue" to setup and submit text
-inputAceEditor :: (Functor m, Monad m) => Splice m
-inputAceEditor = do
+textEditor :: (Monad m) => Splice m
+textEditor = do
     node <- getParamNode
     let children = X.elementChildren node
     let attrs = X.elementAttrs node
-    return $ fromMaybe [X.TextNode "inputAceEditor?"] $
-      do id <- lookup "id" attrs
-         let path = fromMaybe "untitled.txt" (lookup "path" attrs)
-         return [
-           element "textarea" children [("name",id)],
-           element "div" children [("id", id), ("style", "display:none")],
-           javascript $ T.pack $
-             printf "startAceEditor('%s','%s');\n" (T.unpack id) (T.unpack path)
-           ]
+    -- let id = fromMaybe "editor" $ lookup "id" attrs
+    return [ element "div" children attrs ]
+    {-
+    return [
+      element "textarea" [] [("name",id), ("style", "display:none")],
+      element "div" children [("id", id)]
+       javascript $
+        T.unlines [
+          T.pack $
+           printf "var editor = ace.edit(\"%s\");" (T.unpack id)
+          , "editor.setFontSize(16);"
+          ]
+]
+-}
+  
 
-inputAceEditorSplices :: (Functor m, Monad m) => Splices (Splice m)
-inputAceEditorSplices = "inputAceEditor" ## inputAceEditor
+
+-- | splice pulldown selector for the submission language
+languageSelector :: Monad m => [Language] -> Splice m
+languageSelector langs = do
+  node <- getParamNode
+  let attrs = X.elementAttrs node
+  let selected = lookup "selected" attrs
+  return [ element "select" (map (option selected . fromLanguage) langs) attrs ]
+  where option selected l
+          = element "option"  [ X.TextNode l ] ([ ("value", l) ] ++
+                              [ ("selected","true") | Just l == selected])
+            
+
+
+languageConstants :: Monad m => [Language] -> Splice m
+languageConstants langs =
+  return [ javascript $ T.unlines
+           [ T.pack  ("var languageModes = " 
+                      ++  show (map languageMode langs) ++ ";")
+           , T.pack ("var languageExtensions = "
+                     ++ show (map languageExtension langs) ++ ";")
+           ]
+         ]
+
 
 {-
-languageMode :: Language -> Text
-languageMode (Language l) = case l of
-  "c"   -> "c_cpp"
-  "cpp" -> "c_cpp"
-  l -> l
+  let attrs = X.elementAttrs node ++
+        [ ("onchange", "editor.session.setMode(languageModes[this.selectedIndex])")
+        ]
+
+, javascript $  T.unlines [
+             
+             , T.pack $ "var languageExtensions = " ++
+               show (map languageExtension langs) ++ ";"
+             ]
 -}
+  
 
-languageExtension :: Language -> Maybe Text
-languageExtension l = M.lookup l extensions
+textEditorSplice :: (Monad m) => Splices (Splice m)
+textEditorSplice = do
+  "input-text-editor" ## textEditor
 
-extensions :: Map Language Text
-extensions
-  = M.fromList [ ("c", ".c")
-               , ("cpp", ".cpp")
-               , ("haskell", ".hs")
-               , ("python", ".py")
-               , ("java", ".java")
-               , ("javascript", ".js")                
-               ]
+languageSplices :: Monad m =>
+  [Language] -> Maybe Language -> Splices (Splice m)
+languageSplices langs optSelected = do
+  "input-language-selector" ##  languageSelector langs
+  "js-language-constants" ## languageConstants langs
+  "js-default-language" ## return [
+    javascript $ T.pack $
+    printf "editor.session.setMode(%s);"
+    (maybe "languageModes[0]" (show.languageMode) optSelected)
+    ]
+
+
+
+
+-- extensions for HTML form fields 
+languageExtensions :: [Language] ->  Text
+languageExtensions langs
+  = T.intercalate "," $
+    map (\lang -> HM.lookupDefault "" lang fileExtension) langs
+
+languageExtension :: Language -> Text
+languageExtension l
+  = HM.lookupDefault (T.cons '.' $ fromLanguage l) l fileExtension
+
+fileExtension :: HashMap Language Text
+fileExtension
+  = HM.fromList
+    [
+      ("c", ".c")
+    , ("bash", ".sh")
+    , ("cpp", ".cpp")
+    , ("csharp", ".cs")
+    , ("fsharp", ".fs")
+    , ("haskell", ".hs")
+    , ("html", ".html")
+    , ("java", ".java")
+    , ("javascript", ".js")
+    , ("json", ".json")
+    , ("latex", ".tex")
+    , ("ocaml", ".ml")
+    , ("prolog", ".pl")
+    , ("python", ".py")
+    , ("ruby", ".rb")
+    , ("pascal", ".pas")
+    , ("rust", ".rs")
+    , ("scala", ".scala")
+    , ("sql", ".sql")
+    , ("tcl", ".tcl")
+    , ("tex", ".tex")
+    , ("xml", ".xml")
+    , ("markdown", ".md")
+    ]
+
+
+languageMode :: Language -> Text
+languageMode l 
+  = HM.lookupDefault (T.append "ace/mode/" (fromLanguage l)) l editorMode
+
+editorMode :: HashMap Language Text
+editorMode
+  = HM.fromList
+    [ ("c", "ace/mode/c_cpp")
+    , ("cpp", "ace/mode/c_cpp")
+    , ("java", "ace/mode/java")
+    , ("haskell", "ace/mode/haskell")
+    , ("python", "ace/mode/python")
+    , ("ruby", "ace/mode/ruby")
+    , ("pascal", "ace/mode/pascal")
+    , ("ocaml", "ace/mode/ocaml")
+    , ("scala", "ace/mode/scala")
+    , ("rust", "ace/mode/rust")
+    , ("prolog", "ace/mode/prolog")
+    , ("bash", "ace/mode/bash")
+    , ("tcl", "ace/mode/tcl")
+    , ("sql", "ace/mode/sql")
+    , ("tex", "ace/mode/tex")
+    , ("latex", "ace/mode/latex")
+    , ("html", "ace/mode/html")
+    , ("json", "ace/mode/json")
+    , ("markdown", "ace/mode/markdown")
+    ]

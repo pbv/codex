@@ -102,7 +102,7 @@ handleGet rqpath = file <|> directory <|> notFound
       renderWithSplices "_file-edit" (fileUrlSplices rqpath >>
                                       pageUrlSplices rqpath >>
                                       fileSplices >>
-                                      inputAceEditorSplices)
+                                      textEditorSplice)
 
 
 listingSplices ::
@@ -136,7 +136,7 @@ listDir root = do
 handleEdit :: FilePath -> Codex ()
 handleEdit rqpath = do
   root <- getDocumentRoot
-  contents <- require (getTextPost "editform.editor")
+  contents <- require (getTextPost "editform.text")
   liftIO $ T.writeFile (root</>rqpath) contents
   redirectURL (Files $ splitDirectories rqpath)
 

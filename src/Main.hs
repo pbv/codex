@@ -36,11 +36,17 @@ import           Snap.Loader.Static
 
 
 app :: SnapletInit App App
-app = codexInit $ oneof [ pythonDoctester
-                        , haskellQCTester
-                        , clangQCTester
-                        , clangIOTester
-                        ]
+app = codexInit $
+      oneof [ pythonDoctester
+            , haskellQCTester
+            , clangQCTester
+            -- , clangIOTester
+            , \info code -> clangBuild >>= stdioTester info code "c" 
+            , \info code -> pythonBuild >>= stdioTester info code "python"
+            , \info code -> javaBuild info >>= stdioTester info code "java" 
+            , \info code -> haskellBuild info >>=
+                            stdioTester info code "haskell"
+            ]
 
 ------------------------------------------------------------------------------
 -- | This is the entry point for this web server application. It supports
