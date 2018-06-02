@@ -1,0 +1,129 @@
+#! /usr/bin/python3
+
+from utils import *
+import argparse
+import mysql.connector
+
+
+def compare_databases_data(conn, answer_db_name, submission_db_name):
+    cursor = conn.cursor()
+    cursor.execute(
+        "SELECT `table_name`, `column_name` FROM `information_schema`.`columns` WHERE `table_schema` LIKE '%s'" % (
+            answer_db_name))
+    tables = {}
+    for (t, c) in cursor.fetchall():
+        if t not in tables:
+            tables[t] = []
+        tables[t].append(c)
+
+    for table, cols in tables.items():
+        cursor.execute("""
+            SELECT * 
+            FROM   ((SELECT *
+                     FROM   `%s`.`%s`) 
+                    UNION ALL 
+                    (SELECT *
+                     FROM   `%s`.`%s`)) AS `t`
+            GROUP BY %s
+            HAVING COUNT(*) = 1
+            LIMIT 1;
+            """ % (answer_db_name, table, submission_db_name, table, ",".join(map(lambda c: '`%s`' % c, cols))))
+        if len(cursor.fetchall()) > 0:
+            wrong_answer_msg("Wrong values on table \"%s\"." % table)
+            break
+    else:
+        accepted_msg()
+
+    cursor.close()
+
+
+def main(host, port, schema_user, schema_passwd, edit_user, edit_passwd, db_prefix, init_sql, init_file, answer_sql,
+         submission_sql, answer_file,
+         submission_file):
+    conn_admin = None
+    conn_edit = None
+    submission_db_name = None
+    answer_db_name = None
+    try:
+        if init_file is not None:
+            with open(init_file, "r") as f:
+                init_sql = f.read()
+        if answer_file is not None:
+            with open(answer_file, "r") as f:
+                answer_sql = f.read()
+        if submission_file is not None:
+            with open(submission_file, "r") as f:
+                submission_sql = f.read()
+
+        if submission_sql == "":
+            wrong_answer_msg("Empty query.")
+            return
+        elif answer_sql == "":
+            system_error_msg("Empty answer provided.")
+            return
+
+        conn_admin = mysql.connector.connect(host=host, port=port, user=schema_user, passwd=schema_passwd,
+                                             connect_timeout=10)
+        conn_edit = mysql.connector.connect(host=host, port=port, user=edit_user, passwd=edit_passwd, connect_timeout=10)
+
+        # exec first the student submission, it will probably fail :)
+        submission_db_name = create_random_database(conn_admin, db_prefix)
+        exec_multi_query(conn_admin, submission_db_name, init_sql)
+        try:
+            exec_multi_query(conn_edit, submission_db_name, submission_sql)
+        except mysql.connector.Error as e:
+            e.scope = "submission"
+            raise e
+
+        answer_db_name = create_random_database(conn_admin, db_prefix)
+        exec_multi_query(conn_admin, answer_db_name, init_sql)
+        try:
+            exec_multi_query(conn_edit, answer_db_name, answer_sql)
+        except mysql.connector.Error as e:
+            e.scope = "answer"
+            raise e
+
+        compare_databases_data(conn_admin, answer_db_name, submission_db_name)
+    except mysql.connector.Error as e:
+        mysql_error_handler(e, e.scope if hasattr(e, "scope") else "system")
+    finally:
+        try:
+            if submission_db_name is not None:
+                delete_database(conn_admin, submission_db_name)
+                if answer_db_name is not None:
+                    delete_database(conn_admin, answer_db_name)
+            if conn_edit is not None:
+                conn_edit.close()
+            if conn_admin is not None:
+                conn_admin.close()
+        except Exception:
+            pass
+
+
+if __name__ == "__main__":
+    parser = argparse.ArgumentParser(description="""Evaluate a SQL edition query (INSERT/UPDATE/DELETE) against an answer.
+    
+    ./eval-edit -H db-exam -su schema -sp passwd -eu edit -ep passwd -I init.sql -a \\
+        "DELETE FROM TABLE t1 WHERE 1=1" -s "DELETE FROM TABLE t2 WHERE 1=1"
+    """, formatter_class=argparse.RawTextHelpFormatter)
+    parser.add_argument('-H', '--host', dest='host', type=str, default="localhost")
+    parser.add_argument('-P', '--port', dest='port', type=int, default=3306)
+    parser.add_argument('-uS', '--user-schema', dest='schema_user', type=str, default="")
+    parser.add_argument('-pS', '--passwd-schema', dest='schema_passwd', type=str, default="")
+    parser.add_argument('-uE', '--user-edit', dest='edit_user', type=str, default="")
+    parser.add_argument('-pE', '--passwd-edit', dest='edit_passwd', type=str, default="")
+    parser.add_argument('-D', '--db-prefix', dest='db_prefix', type=str, default="")
+    group = parser.add_mutually_exclusive_group()
+    group.add_argument('-i', '--init-sql', dest='init_sql', type=str, default=None)
+    group.add_argument('-I', '--init-file', dest='init_file', type=str, default=None)
+    group = parser.add_mutually_exclusive_group(required=True)
+    group.add_argument('-a', '--answer-sql', dest='answer_sql', type=str, default=None)
+    group.add_argument('-A', '--answer-file', dest='answer_file', type=str, default=None)
+    group = parser.add_mutually_exclusive_group(required=True)
+    group.add_argument('-s', '--submission-sql', dest='submission_sql', type=str, default=None)
+    group.add_argument('-S', '--submission-file', dest='submission_file', type=str, default=None)
+    args = parser.parse_args()
+
+    main(args.host, args.port, args.schema_user, args.schema_passwd, args.edit_user, args.edit_passwd, args.db_prefix,
+         args.init_sql, args.init_file, args.answer_sql,
+         args.submission_sql, args.answer_file, args.submission_file)
