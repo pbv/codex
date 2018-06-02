@@ -1,14 +1,4 @@
 -------------------------------------------------------------------------------
-Improve DB creation/destruction speed (in eval_edit and eval_schema)
--------------------------------------------------------------------------------
- - use only the subset of the database needed to the question;
- - data is not needed in eval_schema;
- - use MEMORY tables when possible (no TEXT, BLOB, FK...), minimize disc write
-   access (HUGE impact);
- - fill tables with data from another database;
-
-
--------------------------------------------------------------------------------
 Privileges for "eval_select" (select evaluator)
 -------------------------------------------------------------------------------
 Create an user with permissions to do SELECT on the desired database.
@@ -18,7 +8,7 @@ GRANT SELECT ON `exam-db`.* TO 'eval_select'@'%';
 
 
 -------------------------------------------------------------------------------
-Privileges for "eval_edit" (schema evaluator)
+Privileges for "eval_edit" (insert/update/delete evaluator)
 -------------------------------------------------------------------------------
 Create an user with all permissions to edit some database name prefix.
 The evaluator will need an extra user (eval_schema) to create and destroy
@@ -45,3 +35,12 @@ https://mariadb.com/kb/en/library/server-system-variables/#max_statement_time
 
 max_statement_time=1.0
 
+
+-------------------------------------------------------------------------------
+Improve DB creation/destruction speed (in eval_edit and eval_schema)
+-------------------------------------------------------------------------------
+ - use only the subset of the database needed to the question;
+ - data is not needed in eval_schema;
+ - use MEMORY tables when possible (no TEXT, BLOB, FK...), minimize disc write
+   access (HUGE impact);
+ - fill tables with data from another database;
