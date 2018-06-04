@@ -80,7 +80,7 @@ def mysql_time_limit_exceeded_msg(e, scope):
 def mysql_error_handler(exception, scope):
     if exception.sqlstate is not None and exception.sqlstate == "42000":
         mysql_compile_error_msg(exception, scope)
-    elif exception.sqlstate is not None and exception.sqlstate[:2] in ("22", "42"):
+    elif exception.sqlstate is not None and exception.sqlstate[:2] in ("22", "23", "42"):
         mysql_runtime_error_msg(exception, scope)
     elif exception.msg is not None and "max_statement_time" in exception.msg:
         mysql_time_limit_exceeded_msg(exception, scope)

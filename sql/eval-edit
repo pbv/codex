@@ -88,12 +88,12 @@ def main(host, port, schema_user, schema_passwd, edit_user, edit_passwd, db_pref
         mysql_error_handler(e, e.scope if hasattr(e, "scope") else "system")
     finally:
         try:
+            if conn_edit is not None:
+                conn_edit.close()
             if submission_db_name is not None:
                 delete_database(conn_admin, submission_db_name)
                 if answer_db_name is not None:
                     delete_database(conn_admin, answer_db_name)
-            if conn_edit is not None:
-                conn_edit.close()
             if conn_admin is not None:
                 conn_admin.close()
         except Exception:
