@@ -34,6 +34,7 @@ import           Codex.Tester.C
 import           Codex.Tester.InputOutput
 import           Codex.Tester.SqlSelect
 import           Codex.Tester.SqlEdit
+import           Codex.Tester.SqlSchema
 import           Snap.Loader.Static
 
 app :: SnapletInit App App
@@ -49,6 +50,7 @@ app = codexInit $
                             stdioTester info code "haskell"
             , sqlSelectTester
             , sqlEditTester
+            , sqlSchemaTester
             ]
 
 ------------------------------------------------------------------------------
