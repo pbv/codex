@@ -1,28 +1,31 @@
 {-# LANGUAGE OverloadedStrings #-}
-module Codex.Tester.SqlSelect (
-  sqlSelectTester
+module Codex.Tester.SqlSchema (
+  sqlSchemaTester
   ) where
 
 import           Codex.Tester
 import           Data.Text(Text)
 
 
-sqlSelectTester :: PageInfo -> Code -> Test Result
-sqlSelectTester (PageInfo _ meta) (Code lang src) = do
+sqlSchemaTester :: PageInfo -> Code -> Test Result
+sqlSchemaTester (PageInfo _ meta) (Code lang src) = do
   guard (lang == "sql")
-  guard (tester meta == Just "select")
+  guard (tester meta == Just "schema")
   ---
-  evaluator <- configured "language.sql.select.evaluator"
+  evaluator <- configured "language.sql.schema.evaluator"
   let db_host = maybe [] (\x -> ["-H", x]) (lookupFromMeta "db-host" meta)
   let db_port = maybe [] (\x -> ["-P", x]) (lookupFromMeta "db-port" meta)
   let db_user = maybe [] (\x -> ["-u", x]) (lookupFromMeta "db-user" meta)
   let db_passwd = maybe [] (\x -> ["-p", x]) (lookupFromMeta "db-pass" meta)
-  let db_name = maybe [] (\x -> ["-d", x]) (lookupFromMeta "db-name" meta)
+  let db_prefix = maybe [] (\x -> ["-D", x]) (lookupFromMeta "db-prefix" meta)
+  let init_sql = maybe [] (\x -> ["-i", x]) (lookupFromMeta "db-init-sql" meta)
+  let inti_file = maybe [] (\x -> ["-I", x]) (lookupFromMeta "db-init-file" meta)
   let answer_sql = maybe "" id $ lookupFromMeta "answer-sql" meta
   withTemp "submit.sql" src $ \submittedFilePath -> do
     chmod readable submittedFilePath
     classify <$> unsafeExec evaluator
-      (db_host ++ db_port ++ db_user ++ db_passwd ++ db_name ++ ["-a", answer_sql, "-S", submittedFilePath]) ""
+      (db_host ++ db_port ++ db_user ++ db_passwd ++ db_prefix ++ init_sql
+        ++ inti_file ++ ["-a", answer_sql, "-S", submittedFilePath]) ""
 
 
 classify :: (ExitCode, Text, Text) -> Result
