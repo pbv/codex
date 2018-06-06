@@ -6,21 +6,6 @@ import mysql.connector
 
 
 def compare_databases_schema(conn, answer_db_name, submission_db_name):
-    """
-    information_schema:
-    SET @db = "eval_7792838795";
-    SELECT * FROM `information_schema`.`TABLES` WHERE `TABLE_SCHEMA` LIKE @db;
-    SELECT * FROM `information_schema`.`COLUMNS` WHERE `TABLE_SCHEMA` LIKE @db;
-    SELECT * FROM `information_schema`.`KEY_COLUMN_USAGE` WHERE `TABLE_SCHEMA` LIKE @db;
-    SELECT * FROM `information_schema`.`TABLE_CONSTRAINTS` WHERE `CONSTRAINT_SCHEMA` LIKE @db;
-    SELECT * FROM `information_schema`.`REFERENTIAL_CONSTRAINTS` WHERE `CONSTRAINT_SCHEMA` LIKE @db;
-    SELECT * FROM `information_schema`.`STATISTICS` WHERE `INDEX_SCHEMA` LIKE db;
-
-    SHOW TABLES;
-    DESCRIBE table;
-    SHOW INDEX FROM table;
-
-    """
     cursor = conn.cursor()
 
     # check tables names
@@ -76,10 +61,15 @@ def compare_databases_schema(conn, answer_db_name, submission_db_name):
     # check type, default value, nullability and auto-increment
     sql_columns = """    
     SELECT db1.table_name, db1.column_name
-    FROM (SELECT table_name, column_name, column_default, is_nullable, data_type, extra FROM information_schema.columns WHERE table_schema = %(db1)s) AS db1
-    JOIN (SELECT table_name, column_name, column_default, is_nullable, data_type, extra FROM information_schema.columns WHERE table_schema = %(db2)s) AS db2
+    FROM (SELECT table_name, column_name, column_default, is_nullable, data_type, extra FROM information_schema.columns
+          WHERE table_schema = %(db1)s) AS db1
+    JOIN (SELECT table_name, column_name, column_default, is_nullable, data_type, extra FROM information_schema.columns
+          WHERE table_schema = %(db2)s) AS db2
     ON (db1.table_name = db2.table_name AND db1.column_name = db2.column_name)
-    WHERE !(db1.column_default<=>db2.column_default) OR !(db1.is_nullable<=>db2.is_nullable) OR !(db1.data_type<=>db2.data_type) OR !(db1.extra<=>db2.extra)
+    WHERE !(db1.column_default<=>db2.column_default)
+       OR !(db1.is_nullable<=>db2.is_nullable)
+       OR !(db1.data_type<=>db2.data_type)
+       OR !(db1.extra<=>db2.extra)
     """
     cursor.execute(sql_columns, {"db1": answer_db_name, "db2": submission_db_name})
     msg = []
