@@ -14,10 +14,12 @@ import           Control.Monad.Trans
 import           System.IO
 import           System.IO.Temp
 import           System.Exit
-import           System.Directory
+import           System.Directory (doesFileExist, removeFile)
 import           System.Posix.Files
 import           System.Posix.Types (FileMode)
-import           System.Process.Text (readProcessWithExitCode)
+import qualified System.Process.Text as T
+import qualified System.Process.Text.Lazy as L
+import qualified Data.Text.Lazy           as L
  
 import           Data.Bits
 import           Data.Maybe(catMaybes)
@@ -40,6 +42,7 @@ withTemp name contents k
 withTempDir :: MonadIO m => FilePath -> (FilePath -> IO a) -> m a
 withTempDir name k
   = liftIO $ withSystemTempDirectory name k
+
 
 -- | ensure an test assertion; throws MiscError otherwise
 assert :: MonadIO m => IO Bool -> String -> m ()
@@ -82,7 +85,7 @@ writeable mode =
 
 runCompiler :: FilePath -> [String] -> IO ()
 runCompiler cmd args = do
-  (exitCode, _, err) <- readProcessWithExitCode cmd args ""
+  (exitCode, _, err) <- T.readProcessWithExitCode cmd args ""
   case exitCode of
     ExitFailure _ ->
       throwIO (compileError err)
@@ -90,38 +93,49 @@ runCompiler cmd args = do
       return ()
 
 
--- | run a command under SafeExec
+-- | run a command under SafeExec;
+-- uses lazy Text to detect and handle output limit violation
 safeExec :: Limits
-          -> FilePath            -- ^ command
+          -> FilePath           -- ^ command
           -> [String]           -- ^ arguments
           -> Text               -- ^ stdin
           -> IO (ExitCode, Text, Text) -- ^ code, stdout, stderr
-safeExec Limits{..} cmd args stdin
-  = let mkArg opt = maybe [] (\c -> [opt, show c])
-        args' = mkArg "--cpu" maxCpuTime
-                ++
-                mkArg "--clock" maxClockTime
-                ++
-                mkArg "--mem" maxMemory
-                ++
-                mkArg "--stack" maxStack
-                ++
-                mkArg "--fsize" maxFSize
-                ++
-                mkArg "--core" maxCore
-                ++
-                mkArg "--nproc" numProc
-                ++
-                ["--exec", cmd] ++
-                args
-    in
-      readProcessWithExitCode "safeexec" args' stdin
+safeExec Limits{..} exec args stdin = do
+  (code, stdout, stderr) <-
+    L.readProcessWithExitCode "safeexec" (args ++ args') (L.fromStrict stdin)
+  if L.compareLength stdout outputLimit == GT ||
+     L.compareLength stderr outputLimit == GT then
+    throwIO (runtimeError "Output limit exceeded")
+    else
+    return (code, L.toStrict stdout, L.toStrict stderr)
+  where
+    outputLimit = maybe 100000 fromIntegral maxFSize
+    -- default output limit: 100K charateres 
+    mkArg opt = maybe [] (\c -> [opt, show c])
+    args' = mkArg "--cpu" maxCpuTime
+            ++
+            mkArg "--clock" maxClockTime
+            ++
+            mkArg "--mem" maxMemory
+            ++
+            mkArg "--stack" maxStack
+            ++
+            mkArg "--fsize" maxFSize
+            ++
+            mkArg "--core" maxCore
+            ++
+            mkArg "--nproc" numProc
+            ++
+            ["--exec", exec] 
+    
 
+  
 unsafeExec :: FilePath                 -- ^ command
           -> [String]                  -- ^ arguments
           -> Text                      -- ^ stdin
           -> IO (ExitCode, Text, Text) -- ^ code, stdout, stderr
-unsafeExec = readProcessWithExitCode
+unsafeExec = T.readProcessWithExitCode
+
 
 -- get QuickCheck runner command line arguments
 getQuickCheckArgs :: Meta -> [String]

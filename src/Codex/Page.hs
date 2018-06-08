@@ -18,7 +18,6 @@ import           Data.Monoid
 import           Control.Applicative
 
 import           Data.List (intersperse)
-import           Data.Char (isAlphaNum)
 
 import           Codex.Types
 import           Codex.Interval
@@ -55,7 +54,13 @@ pageTitle p
 -- list of accepted languages for an exercise
 pageLanguages :: Page -> [Language]
 pageLanguages (Pandoc meta _)
-  = fromMaybe [] (lookupFromMeta "languages" meta)
+  = fromMaybe []
+    (lookupFromMeta "languages" meta
+     <|>
+     do lang <- lookupFromMeta "language" meta
+        return [lang])
+    
+    
 
 
 -- text for submission filled in by default

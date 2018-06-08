@@ -9,7 +9,6 @@ module Codex.Evaluate(
   ) where
 
 import qualified Data.Text as T
-import           Data.Monoid
 import           Data.Maybe
 import           Data.Time.LocalTime
 import           Control.Monad.State
@@ -24,7 +23,6 @@ import           Data.Configurator.Types(Config)
 
 import           Codex.Application
 import           Codex.Tasks
-import           Codex.Types
 import           Codex.Utils
 import           Codex.Page
 import           Codex.Submission

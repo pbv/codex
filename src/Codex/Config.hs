@@ -8,8 +8,6 @@ import           Snap.Util.FileServe(MimeMap, defaultMimeTypes)
 mimeTypes :: MimeMap
 mimeTypes
   = HM.union defaultMimeTypes $
-    HM.fromList [(".tst", "text/plain"),
-                 (".py",  "text/plain"),
-                 (".mdown", "text/markdown"),
-                 (".md",  "text/markdown"),
-                 (".db", "application/x-sqlite3")]
+    HM.fromList [(".mdown", "text/markdown"),
+                 (".md",  "text/markdown")
+                ]
