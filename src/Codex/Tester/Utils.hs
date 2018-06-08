@@ -102,7 +102,7 @@ safeExec :: Limits
           -> IO (ExitCode, Text, Text) -- ^ code, stdout, stderr
 safeExec Limits{..} exec args stdin = do
   (code, stdout, stderr) <-
-    L.readProcessWithExitCode "safeexec" (args ++ args') (L.fromStrict stdin)
+    L.readProcessWithExitCode "safeexec" (args' ++ args) (L.fromStrict stdin)
   if L.compareLength stdout outputLimit == GT ||
      L.compareLength stderr outputLimit == GT then
     throwIO (runtimeError "Output limit exceeded")
