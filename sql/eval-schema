@@ -1,0 +1,164 @@
+#! /usr/bin/python3
+
+from utils import *
+import argparse
+import mysql.connector
+
+
+def compare_databases_schema(conn, answer_db_name, submission_db_name):
+    cursor = conn.cursor()
+
+    # check tables names
+    sql_diff_tables = """    
+    SELECT db1.table_name, db2.table_name
+    FROM (SELECT table_name FROM information_schema.tables WHERE table_schema = %(db1)s) AS db1
+    LEFT JOIN (SELECT table_name FROM information_schema.tables WHERE table_schema = %(db2)s) AS db2
+    ON (db1.table_name = db2.table_name)
+    WHERE db2.table_name IS NULL
+    UNION ALL
+    SELECT db1.table_name, db2.table_name
+    FROM (SELECT table_name FROM information_schema.tables WHERE table_schema = %(db1)s) AS db1
+    RIGHT JOIN (SELECT table_name FROM information_schema.tables WHERE table_schema = %(db2)s) AS db2
+    ON (db1.table_name = db2.table_name)
+    WHERE db1.table_name IS NULL;
+    """
+    cursor.execute(sql_diff_tables, {"db1": answer_db_name, "db2": submission_db_name})
+    msg = []
+    for (a_t, s_t) in cursor.fetchall():
+        if s_t is None:
+            msg.append("- missing table \"%s\"" % a_t)
+        else:
+            msg.append("- found unknown table \"%s\"" % s_t)
+    if len(msg) > 0:
+        wrong_answer_msg("\n".join(msg))
+        return
+
+    # check columns names
+    sql_diff_columns = """    
+    SELECT db1.table_name, db1.column_name, db2.table_name, db2.column_name
+    FROM (SELECT table_name, column_name FROM information_schema.columns WHERE table_schema = %(db1)s) AS db1
+    LEFT JOIN (SELECT table_name, column_name FROM information_schema.columns WHERE table_schema = %(db2)s) AS db2
+    ON (db1.table_name = db2.table_name AND db1.column_name = db2.column_name)
+    WHERE db2.table_name IS NULL
+    UNION ALL
+    SELECT db1.table_name, db1.column_name, db2.table_name, db2.column_name
+    FROM (SELECT table_name, column_name FROM information_schema.columns WHERE table_schema = %(db1)s) AS db1
+    RIGHT JOIN (SELECT table_name, column_name FROM information_schema.columns WHERE table_schema = %(db2)s) AS db2
+    ON (db1.table_name = db2.table_name AND db1.column_name = db2.column_name)
+    WHERE db1.table_name IS NULL;    
+    """
+    cursor.execute(sql_diff_columns, {"db1": answer_db_name, "db2": submission_db_name})
+    msg = []
+    for (a_t, a_c, s_t, s_c) in cursor.fetchall():
+        if s_t is None:
+            msg.append("- missing column \"%s\" on table \"%s\"" % (a_c, a_t))
+        else:
+            msg.append("- found unknown column \"%s\" on table \"%s\"" % (s_t, s_c))
+    if len(msg) > 0:
+        wrong_answer_msg("\n".join(msg))
+        return
+
+    # check type, default value, nullability and auto-increment
+    sql_columns = """    
+    SELECT db1.table_name, db1.column_name
+    FROM (SELECT table_name, column_name, column_default, is_nullable, data_type, extra FROM information_schema.columns
+          WHERE table_schema = %(db1)s) AS db1
+    JOIN (SELECT table_name, column_name, column_default, is_nullable, data_type, extra FROM information_schema.columns
+          WHERE table_schema = %(db2)s) AS db2
+    ON (db1.table_name = db2.table_name AND db1.column_name = db2.column_name)
+    WHERE !(db1.column_default<=>db2.column_default)
+       OR !(db1.is_nullable<=>db2.is_nullable)
+       OR !(db1.data_type<=>db2.data_type)
+       OR !(db1.extra<=>db2.extra)
+    """
+    cursor.execute(sql_columns, {"db1": answer_db_name, "db2": submission_db_name})
+    msg = []
+    for (t, c) in cursor.fetchall():
+        msg.append("- table \"%s\" column \"%s\": wrong type, default value, nullability or auto-increment" % (t, c))
+    if len(msg) > 0:
+        wrong_answer_msg("\n".join(msg))
+        return
+
+    accepted_msg()
+
+
+def main(host, port, user, passwd, db_prefix, init_sql, init_file, answer_sql, submission_sql, answer_file,
+         submission_file):
+    conn = None
+    submission_db_name = None
+    answer_db_name = None
+    try:
+        if init_file is not None:
+            with open(init_file, "r") as f:
+                init_sql = f.read()
+        if answer_file is not None:
+            with open(answer_file, "r") as f:
+                answer_sql = f.read()
+        if submission_file is not None:
+            with open(submission_file, "r") as f:
+                submission_sql = f.read()
+
+        if submission_sql == "":
+            wrong_answer_msg("Empty query.")
+            return
+        elif answer_sql == "":
+            system_error_msg("Empty answer provided.")
+            return
+
+        conn = mysql.connector.connect(host=host, port=port, user=user, passwd=passwd, connect_timeout=10)
+
+        # exec first the student submission, it will probably fail :)
+        submission_db_name = create_random_database(conn, db_prefix)
+        exec_multi_query(conn, submission_db_name, init_sql)
+        try:
+            exec_multi_query(conn, submission_db_name, submission_sql)
+        except mysql.connector.Error as e:
+            e.scope = "submission"
+            raise e
+
+        answer_db_name = create_random_database(conn, db_prefix)
+        exec_multi_query(conn, answer_db_name, init_sql)
+        try:
+            exec_multi_query(conn, answer_db_name, answer_sql)
+        except mysql.connector.Error as e:
+            e.scope = "answer"
+            raise e
+
+        compare_databases_schema(conn, answer_db_name, submission_db_name)
+    except mysql.connector.Error as e:
+        mysql_error_handler(e, e.scope if hasattr(e, "scope") else "system")
+    finally:
+        try:
+            if submission_db_name is not None:
+                delete_database(conn, submission_db_name)
+                if answer_db_name is not None:
+                    delete_database(conn, answer_db_name)
+            if conn is not None:
+                conn.close()
+        except Exception:
+            pass
+
+
+if __name__ == "__main__":
+    parser = argparse.ArgumentParser(description="""Evaluate a SQL schema edition submission query against an answer.
+    
+    ./eval-edit -H db-exam -u eval_schema -p passwd -I init.sql -a "DROP TABLE t1;" -s "DROP TABLE t2;"
+    """, formatter_class=argparse.RawTextHelpFormatter)
+    parser.add_argument('-H', '--host', dest='host', type=str, default="localhost")
+    parser.add_argument('-P', '--port', dest='port', type=int, default=3306)
+    parser.add_argument('-u', '--user', dest='user', type=str, default="")
+    parser.add_argument('-p', '--passwd', dest='passwd', type=str, default="")
+    parser.add_argument('-D', '--db-prefix', dest='db_prefix', type=str, default="")
+    group = parser.add_mutually_exclusive_group()
+    group.add_argument('-i', '--init-sql', dest='init_sql', type=str, default=None)
+    group.add_argument('-I', '--init-file', dest='init_file', type=str, default=None)
+    group = parser.add_mutually_exclusive_group(required=True)
+    group.add_argument('-a', '--answer-sql', dest='answer_sql', type=str, default=None)
+    group.add_argument('-A', '--answer-file', dest='answer_file', type=str, default=None)
+    group = parser.add_mutually_exclusive_group(required=True)
+    group.add_argument('-s', '--submission-sql', dest='submission_sql', type=str, default=None)
+    group.add_argument('-S', '--submission-file', dest='submission_file', type=str, default=None)
+    args = parser.parse_args()
+
+    main(args.host, args.port, args.user, args.passwd, args.db_prefix, args.init_sql, args.init_file, args.answer_sql,
+         args.submission_sql, args.answer_file, args.submission_file)

@@ -13,6 +13,7 @@
 * no way to change classifications/timing of submissions - DONE (re-evaluation)
 * implement export submissions (e.g. CSV) - DONE
 * implement printout submissions - DONE
+* no way to download files
 
 # Known bugs
 

@@ -33,6 +33,8 @@ import           Codex.Tester.Haskell
 import           Codex.Tester.C
 import           Codex.Tester.InputOutput
 import           Codex.Tester.SqlSelect
+import           Codex.Tester.SqlEdit
+import           Codex.Tester.SqlSchema
 import           Snap.Loader.Static
 
 app :: SnapletInit App App
@@ -40,12 +42,19 @@ app = codexInit $
       oneof [ pythonDoctester
             , haskellQCTester
             , clangQCTester
-            , sqlSelectTester              
-            , \info code -> clangBuild >>= stdioTester info code "c" 
-            , \info code -> pythonBuild >>= stdioTester info code "python"
-            , \info code -> javaBuild info >>= stdioTester info code "java" 
+            -- * I/O evaluators
+            , \info code -> clangBuild >>=
+                            stdioTester info code "c" 
+            , \info code -> pythonBuild >>=
+                            stdioTester info code "python"
+            , \info code -> javaBuild info >>=
+                            stdioTester info code "java" 
             , \info code -> haskellBuild info >>=
                             stdioTester info code "haskell"
+            -- * SQL evaluators
+            , sqlSelectTester
+            , sqlEditTester
+            , sqlSchemaTester
             ]
 
 ------------------------------------------------------------------------------
