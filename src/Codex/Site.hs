@@ -313,7 +313,7 @@ codexInit :: Tester -> SnapletInit App App
 codexInit tst =
   makeSnaplet "codex" "Web server for programming exercises." Nothing $ do
     conf <- getSnapletUserConfig
-    prefix <- liftIO $ Conf.require conf "prefix"
+    prefix <- liftIO $ Conf.require conf "url_prefix"
     h <- nestSnaplet "" heist $ heistInit "templates"
     r <- nestSnaplet "router" router (initRouter prefix)
     s <- nestSnaplet "sess" sess $
@@ -348,9 +348,11 @@ codexInit tst =
 
 configSplices :: Config -> IO ISplices
 configSplices conf = do
-  urls <- Conf.require conf "js_libraries"
+  mathjax_js <- Conf.require conf "mathjax_js"
+  ace_editor_js <- Conf.require conf "ace_editor_js"
   return $ do
-    "js-libraries" ## return (map javascriptSrc urls)
+    "mathjax-js" ## return (map javascriptSrc mathjax_js)
+    "ace-editor-js" ## return (map javascriptSrc ace_editor_js)
 
 staticSplices :: ISplices
 staticSplices = do

@@ -4,6 +4,8 @@
 <bind tag="icon-editor"><img src="/static/icons/16x16/editor.png"/></bind>
 
 <apply template="_base">
+  <mathjax-js/>
+  <ace-editor-js/>
 <h1><page-title/></h1>
 <h2>Submissão <submit-id/></h2>
 <p>Enviada por <code><submit-user-id/></code> em <submit-time/>.</p>
@@ -59,14 +61,11 @@
     function() { editor.session.setMode(languageModes[this.selectedIndex]); } );
 </script>
 
-<js-language-constants/>
-<js-default-language/>
+<language-constants-js/>
+<default-language-js/>
 
 </evaluating>
 </apply>
-
-
-
 
 <apply template="_browse">
   <li><a title="Editar folha de exercício"

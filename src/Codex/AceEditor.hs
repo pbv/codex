@@ -6,13 +6,11 @@
 module Codex.AceEditor
        ( textEditorSplice
        , languageSplices
-       -- , languageExtension
        , languageExtensions
        ) where
 
 
 import qualified Data.Text             as T
-import           Data.Maybe(fromMaybe)
 import           Data.Map.Syntax
 import           Heist
 import           Heist.Interpreted
@@ -36,21 +34,7 @@ textEditor = do
     node <- getParamNode
     let children = X.elementChildren node
     let attrs = X.elementAttrs node
-    -- let id = fromMaybe "editor" $ lookup "id" attrs
     return [ element "div" children attrs ]
-    {-
-    return [
-      element "textarea" [] [("name",id), ("style", "display:none")],
-      element "div" children [("id", id)]
-       javascript $
-        T.unlines [
-          T.pack $
-           printf "var editor = ace.edit(\"%s\");" (T.unpack id)
-          , "editor.setFontSize(16);"
-          ]
-]
--}
-  
 
 
 -- | splice pulldown selector for the submission language
@@ -77,19 +61,6 @@ languageConstants langs =
          ]
 
 
-{-
-  let attrs = X.elementAttrs node ++
-        [ ("onchange", "editor.session.setMode(languageModes[this.selectedIndex])")
-        ]
-
-, javascript $  T.unlines [
-             
-             , T.pack $ "var languageExtensions = " ++
-               show (map languageExtension langs) ++ ";"
-             ]
--}
-  
-
 textEditorSplice :: (Monad m) => Splices (Splice m)
 textEditorSplice = do
   "input-text-editor" ## textEditor
@@ -98,8 +69,8 @@ languageSplices :: Monad m =>
   [Language] -> Maybe Language -> Splices (Splice m)
 languageSplices langs optSelected = do
   "input-language-selector" ##  languageSelector langs
-  "js-language-constants" ## languageConstants langs
-  "js-default-language" ## return [
+  "language-constants-js" ## languageConstants langs
+  "default-language-js" ## return [
     javascript $ T.pack $
     printf "editor.session.setMode(%s);"
     (maybe "languageModes[0]" (show.languageMode) optSelected)

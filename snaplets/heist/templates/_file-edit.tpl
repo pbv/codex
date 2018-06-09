@@ -1,4 +1,5 @@
 <apply template="_base">
+  <ace-editor-js/>
   <h1>/<file-path/></h1>
   <p>Mime-type: <file-mime/></p>
   <if-image-file>

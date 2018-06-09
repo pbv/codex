@@ -6,6 +6,8 @@
 <bind tag="time-icon"><valid><icon-accepted/><else/><icon-overdue/></valid></bind>
 
 <apply template="_base">
+  <mathjax-js/>
+  <ace-editor-js/>
   <div class="description">
     <page-description/>
   </div>
@@ -87,8 +89,8 @@
     function() { editor.session.setMode(languageModes[this.selectedIndex]); } );
 </script>
 
-<js-language-constants/>
-<js-default-language/>
+<language-constants-js/>
+<default-language-js/>
 
 <apply template="_browse">
   <li><a title="Editar a página de exercício" href="${file-url}">Editar</a></li>

@@ -1,4 +1,5 @@
 <apply template="_base">
+  <mathjax-js/>
   <div class="description">
     <page-description/>
   </div>
