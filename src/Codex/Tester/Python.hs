@@ -35,7 +35,7 @@ classify (_, stdout, stderr)
   | T.null stdout && match "OK" stderr = accepted stderr
   | match "Time Limit" stderr          = timeLimitExceeded stderr
   | match "Memory Limit" stderr        = memoryLimitExceeded stderr
-  | match "Exception Raised" stdout    = runtimeError stdout
+  | match "Exception raised" stdout    = runtimeError stdout
   | match "SyntaxError" stderr         = compileError stderr
   | match "Failed" stdout              = wrongAnswer stdout
   | otherwise                          = miscError (stdout <> stderr)
