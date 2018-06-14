@@ -2,8 +2,10 @@ import random
 import sys
 
 
-def accepted_msg():
+def accepted_msg(msg=None):
     print("Accepted", file=sys.stderr)
+    if msg is not None:
+        print(msg)
 
 
 def wrong_answer_msg(msg):
