@@ -309,8 +309,8 @@ newSubmission uid rqpath code = do
 
 ------------------------------------------------------------------------------
 -- | The application initializer.
-codexInit :: Tester -> SnapletInit App App
-codexInit tst =
+codexInit :: Tester Result -> SnapletInit App App
+codexInit tester =
   makeSnaplet "codex" "Web server for programming exercises." Nothing $ do
     conf <- getSnapletUserConfig
     prefix <- liftIO $ Conf.require conf "url_prefix"
@@ -339,7 +339,7 @@ codexInit tst =
                , _sess = s
                , _auth = a
                , _db   = d
-               , _tester = tst
+               , _tester = tester
                , _tasks = tasks
                , _semph = semph
                , _logger  = logger

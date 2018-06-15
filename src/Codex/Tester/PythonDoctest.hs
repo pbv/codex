@@ -1,9 +1,9 @@
-{-# LANGUAGE OverloadedStrings #-}
-{-
+--------------------------------------------------
 -- Test Python code using a doctest script
--}
-module Codex.Tester.Python (
-  pythonDoctester
+--------------------------------------------------
+{-# LANGUAGE OverloadedStrings #-}
+module Codex.Tester.PythonDoctest (
+  pythonDocTester
   ) where
 
 import           Codex.Tester
@@ -11,16 +11,18 @@ import           Data.Text(Text)
 import qualified Data.Text as T
 
 
-pythonDoctester :: PageInfo -> Code -> Test Result
-pythonDoctester (PageInfo path meta) (Code lang src) = do
+pythonDocTester :: Tester Result
+pythonDocTester = tester "doctest" $ do
+  Code lang src <- testCode
   guard (lang == "python")
-  guard (tester meta == Just "doctest")
   ---
   python  <- configured "language.python.interpreter"
   pytest  <- configured "language.python.pytest"
   scripts <- configured "language.python.scripts"
-  limits  <- getLimits "language.python.limits"
-  let doctestPath = replaceExtension path ".tst"
+  limits  <- testLimits "language.python.limits"
+  path    <- testPath
+  meta    <- testMetadata
+  let doctestPath = guessDoctest path meta
   assert (fileExists doctestPath)
     ("doctest file not found: " <> show doctestPath)
   chmod readable doctestPath
@@ -42,7 +44,6 @@ classify (_, stdout, stderr)
 
 
 
-{-
 -- | guess the doctest path from page metadata or filename
 guessDoctest :: FilePath -> Meta -> FilePath
 guessDoctest filepath meta
@@ -50,5 +51,5 @@ guessDoctest filepath meta
        (replaceExtension filepath ".tst")
        (takeDirectory filepath </>)
        (lookupFromMeta "doctest" meta)
--}
+
   

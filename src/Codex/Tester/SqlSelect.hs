@@ -7,10 +7,11 @@ import           Codex.Tester
 import           Data.Text(Text)
 
 
-sqlSelectTester :: PageInfo -> Code -> Test Result
-sqlSelectTester (PageInfo _ meta) (Code lang src) = do
+sqlSelectTester :: Tester Result
+sqlSelectTester = tester "select" $ do
+  Code lang src <- testCode
   guard (lang == "sql")
-  guard (tester meta == Just "select")
+  meta <- testMetadata
   ---
   evaluator <- configured "language.sql.select.evaluator"
   let db_host = maybe [] (\x -> ["-H", x]) (lookupFromMeta "db-host" meta)

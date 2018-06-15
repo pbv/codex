@@ -24,7 +24,6 @@ import System.FastLogger (Logger)
 
 import Control.Monad.State (get)
 
--- import Control.Concurrent (MVar, ThreadId)
 import Control.Concurrent.QSem (QSem)
 
 import Codex.Tasks
@@ -54,7 +53,7 @@ data App = App
     , _sess    :: Snaplet SessionManager
     , _auth    :: Snaplet (AuthManager App)
     , _db      :: Snaplet Sqlite
-    , _tester  :: Tester           -- ^ exercise testers to use
+    , _tester  :: Tester Result    -- ^ exercise testers to use
     , _tasks   :: Tasks            -- ^ list of evaluation thread ids
     , _semph   :: QSem             -- ^ semaphore for evaluation scheduling
     , _logger  :: Logger

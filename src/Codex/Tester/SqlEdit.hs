@@ -7,11 +7,12 @@ import           Codex.Tester
 import           Data.Text(Text)
 
 
-sqlEditTester :: PageInfo -> Code -> Test Result
-sqlEditTester (PageInfo _ meta) (Code lang src) = do
+sqlEditTester :: Tester Result
+sqlEditTester = tester "edit" $ do
+  Code lang src <- testCode
   guard (lang == "sql")
-  guard (tester meta == Just "edit")
   ---
+  meta <- testMetadata
   evaluator <- configured "language.sql.edit.evaluator"
   let db_host = maybe [] (\x -> ["-H", x]) (lookupFromMeta "db-host" meta)
   let db_port = maybe [] (\x -> ["-P", x]) (lookupFromMeta "db-port" meta)

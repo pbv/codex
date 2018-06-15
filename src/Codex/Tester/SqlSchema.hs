@@ -7,10 +7,11 @@ import           Codex.Tester
 import           Data.Text(Text)
 
 
-sqlSchemaTester :: PageInfo -> Code -> Test Result
-sqlSchemaTester (PageInfo _ meta) (Code lang src) = do
+sqlSchemaTester :: Tester Result
+sqlSchemaTester = tester "schema" $ do
+  Code lang src <- testCode
   guard (lang == "sql")
-  guard (tester meta == Just "schema")
+  meta <- testMetadata
   ---
   evaluator <- configured "language.sql.schema.evaluator"
   let db_host = maybe [] (\x -> ["-H", x]) (lookupFromMeta "db-host" meta)

@@ -53,12 +53,12 @@ cancelPending :: Codex ()
 cancelPending = reevaluate []
 
 
--- | evaluate a submission  with a specific tester
+-- | evaluate a submission with a specific tester
 -- (1st time or re-evaluation);
 -- runs code tester in separate thread
--- uses a semaphore for limitting concurrency 
-evaluatorWith :: Tester -> Submission -> Codex (IO ())
-evaluatorWith tst sub = do
+-- uses a semaphore for limiting concurrency 
+evaluatorWith :: Tester Result -> Submission -> Codex (IO ())
+evaluatorWith tester sub = do
   sqlite <- S.getSqliteState
   evs <- getEvents
   root <- getDocumentRoot
@@ -69,20 +69,21 @@ evaluatorWith tst sub = do
   return $ do                             -- ^ return evaluation IO action
     tz <- getCurrentTimeZone
     meta <- pageMeta <$> readMarkdownFile filepath
-    let info = PageInfo filepath meta
-    let opt = rankTime (submitTime sub) <$> evalI tz evs (metaInterval meta)
+    let opt = rankTime (submitTime sub) <$>
+              evalI tz evs (metaInterval meta)
     case opt of
       Nothing ->
         updateSubmission sqlite sid wrongInterval Valid
       Just timing -> do
-        result <- runTester conf (tst info code)
+        result <- testerWrapper conf filepath code meta tester
                   `catch`
-                  (\(e::SomeException) -> return (miscError $ T.pack $ show e))
+                  (\(e::SomeException) ->
+                      return (miscError $ T.pack $ show e))
         updateSubmission sqlite sid result timing
 
 -- | set default limits and run a tester
-runTester :: Config -> Test Result -> IO Result
-runTester cfg tst = fromMaybe invalidTester <$> runTest cfg tst 
+testerWrapper cfg path code meta action
+  = fromMaybe invalidTester <$> runTester cfg meta path code action
 
 wrongInterval :: Result
 wrongInterval = miscError "invalid submission interval"
