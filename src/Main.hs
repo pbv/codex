@@ -32,9 +32,10 @@ import           Codex.Tester.PythonDoctest
 import           Codex.Tester.HaskellQC
 import           Codex.Tester.ClangQC
 import           Codex.Tester.InputOutput
-import           Codex.Tester.SqlSelect
-import           Codex.Tester.SqlEdit
-import           Codex.Tester.SqlSchema
+-- import           Codex.Tester.SqlSelect
+-- import           Codex.Tester.SqlEdit
+-- import           Codex.Tester.SqlSchema
+import           Codex.Tester.Sql
 import           Snap.Loader.Static
 
 
@@ -51,9 +52,10 @@ app = codexInit $
             , stdioTester "haskell" =<< haskellBuild
             , stdioTester "python" =<< pythonBuild
             -- SQL testers
-            , sqlSelectTester
-            , sqlEditTester
-            , sqlSchemaTester
+            , sqlTester
+            -- , sqlSelectTester
+            -- , sqlEditTester
+            -- , sqlSchemaTester
             ]
        
 ------------------------------------------------------------------------------

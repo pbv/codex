@@ -40,9 +40,10 @@ Executable codex-server
     Codex.Tester.Limits
     Codex.Tester.Monad
     Codex.Tester.PythonDoctest
-    Codex.Tester.SqlSelect
-    Codex.Tester.SqlEdit
-    Codex.Tester.SqlSchema                                        
+    Codex.Tester.Sql                
+                -- Codex.Tester.SqlSelect
+                -- Codex.Tester.SqlEdit
+                -- Codex.Tester.SqlSchema
     Codex.Tester.Result
     Codex.Tester.Utils
     Codex.Types
