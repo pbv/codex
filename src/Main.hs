@@ -28,35 +28,36 @@ import           Codex.Application
 
 -- specific testers
 import           Codex.Tester
-import           Codex.Tester.Python
-import           Codex.Tester.Haskell
-import           Codex.Tester.C
+import           Codex.Tester.PythonDoctest
+import           Codex.Tester.HaskellQC
+import           Codex.Tester.ClangQC
 import           Codex.Tester.InputOutput
-import           Codex.Tester.SqlSelect
-import           Codex.Tester.SqlEdit
-import           Codex.Tester.SqlSchema
+-- import           Codex.Tester.SqlSelect
+-- import           Codex.Tester.SqlEdit
+-- import           Codex.Tester.SqlSchema
+import           Codex.Tester.Sql
 import           Snap.Loader.Static
+
+
 
 app :: SnapletInit App App
 app = codexInit $
-      oneof [ pythonDoctester
+      oneOf [ pythonDocTester
+            -- quickcheck testers
             , haskellQCTester
             , clangQCTester
-            -- * I/O evaluators
-            , \info code -> clangBuild >>=
-                            stdioTester info code "c" 
-            , \info code -> pythonBuild >>=
-                            stdioTester info code "python"
-            , \info code -> javaBuild info >>=
-                            stdioTester info code "java" 
-            , \info code -> haskellBuild info >>=
-                            stdioTester info code "haskell"
-            -- * SQL evaluators
-            , sqlSelectTester
-            , sqlEditTester
-            , sqlSchemaTester
+            -- I/O testers
+            , stdioTester "c" =<< clangBuild
+            , stdioTester "java" =<< javaBuild
+            , stdioTester "haskell" =<< haskellBuild
+            , stdioTester "python" =<< pythonBuild
+            -- SQL testers
+            , sqlTester
+            -- , sqlSelectTester
+            -- , sqlEditTester
+            -- , sqlSchemaTester
             ]
-
+       
 ------------------------------------------------------------------------------
 -- | This is the entry point for this web server application. It supports
 -- easily switching between interpreting source and running statically compiled

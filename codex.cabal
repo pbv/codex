@@ -34,15 +34,16 @@ Executable codex-server
     Codex.Submission
     Codex.Tasks
     Codex.Tester
-    Codex.Tester.C
-    Codex.Tester.Haskell                
+    Codex.Tester.ClangQC
+    Codex.Tester.HaskellQC
     Codex.Tester.InputOutput
     Codex.Tester.Limits
     Codex.Tester.Monad
-    Codex.Tester.Python
-    Codex.Tester.SqlSelect
-    Codex.Tester.SqlEdit
-    Codex.Tester.SqlSchema                                        
+    Codex.Tester.PythonDoctest
+    Codex.Tester.Sql                
+                -- Codex.Tester.SqlSelect
+                -- Codex.Tester.SqlEdit
+                -- Codex.Tester.SqlSchema
     Codex.Tester.Result
     Codex.Tester.Utils
     Codex.Types

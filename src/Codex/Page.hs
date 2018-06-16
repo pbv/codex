@@ -53,14 +53,15 @@ pageTitle p
 
 -- list of accepted languages for an exercise
 pageLanguages :: Page -> [Language]
-pageLanguages (Pandoc meta _)
-  = fromMaybe []
-    (lookupFromMeta "languages" meta
-     <|>
-     do lang <- lookupFromMeta "language" meta
-        return [lang])
-    
-    
+pageLanguages = languages . pageMeta
+
+languages :: Meta -> [Language]
+languages meta =
+  fromMaybe [] 
+  (lookupFromMeta "languages" meta
+   <|>
+   do lang <- lookupFromMeta "language" meta
+      return [lang])
 
 
 -- text for submission filled in by default

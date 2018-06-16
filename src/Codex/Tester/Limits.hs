@@ -4,7 +4,7 @@
 -}
 module Codex.Tester.Limits (
   Limits(..),
-  lookupLimits,
+  configLimits,
   ) where
 
 
@@ -50,9 +50,9 @@ instance Monoid Limits where
 
 
 
--- | lookup limits from a configuration record
-lookupLimits :: Config -> IO Limits
-lookupLimits cfg = do
+-- | lookup limits from a subconfig 
+configLimits :: Config -> IO Limits
+configLimits cfg = do
   cpu  <- Configurator.lookup cfg "max_cpu"
   clock<- Configurator.lookup cfg "max_clock"
   mem  <- Configurator.lookup cfg "max_memory"

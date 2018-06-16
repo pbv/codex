@@ -1,9 +1,8 @@
+{-# LANGUAGE OverloadedStrings #-}
 --------------------------------------------------------------------------
 -- Test Haskell code using QuickCheck
 --------------------------------------------------------------------------
-{-# LANGUAGE OverloadedStrings #-}
-
-module Codex.Tester.Haskell (
+module Codex.Tester.HaskellQC (
   haskellQCTester
   ) where
 
@@ -18,10 +17,12 @@ import           Control.Exception (catch)
 
 
 -- | running and evaluating Haskell submissions
-haskellQCTester :: PageInfo -> Code -> Test Result
-haskellQCTester (PageInfo path meta) (Code lang src) = do
+haskellQCTester :: Tester Result
+haskellQCTester = tester "quickcheck" $ do
+  Code lang src <- testCode
   guard (lang == "haskell")
-  guard (tester meta == Just "quickcheck")
+  meta <- testMetadata
+  path <- testPath
   --------------
   let qcpath = replaceExtension path ".hs"
   assert (fileExists qcpath)
@@ -29,7 +30,7 @@ haskellQCTester (PageInfo path meta) (Code lang src) = do
   props <- liftIO $ T.readFile qcpath
   let qcArgs = getQuickCheckArgs meta
   ghc <- configured "language.haskell.compiler"
-  limits <- getLimits "language.haskell.limits"
+  limits <- testLimits "language.haskell.limits"
   liftIO (haskellRunner limits ghc qcArgs src props `catch` return)
 
 

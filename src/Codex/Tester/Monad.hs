@@ -4,11 +4,15 @@
 {-# LANGUAGE RecordWildCards #-}
 
 module Codex.Tester.Monad (
-  Test,
-  runTest,
+  Tester,
+  runTester,
   configured,
   maybeConfigured,
-  getLimits,
+  testLimits,
+  testConfig,
+  testPath,
+  testCode,
+  testMetadata,
   ) where
 
 
@@ -16,46 +20,76 @@ module Codex.Tester.Monad (
 import           Data.Configurator.Types
 import qualified Data.Configurator as Conf
 
+import           Data.Monoid
 import           Control.Applicative
 import           Control.Monad.Trans
-import           Control.Monad.Trans.Maybe
+import           Control.Monad.Trans.Maybe 
 import           Control.Monad.Trans.Reader
 
+import           Codex.Types (Code)
+import           Text.Pandoc (Meta)
 import           Codex.Tester.Limits
 
 
 -- | a monad for testing scripts
--- allows IO, access to a configuration environment and failure 
-newtype Test a
-  = Test { unTest :: ReaderT Config (MaybeT IO) a }
+-- allows access to a test environment, IO and failure (i.e. passing)
+newtype Tester a
+  = Tester { unTester :: ReaderT TestEnv (MaybeT IO) a }
   deriving (Functor, Monad, Applicative, Alternative, MonadIO)
 
+-- | testing environment
+data TestEnv
+   = TestEnv { _testConfig :: Config   -- ^ static configuration file
+             , _testMeta :: Meta       -- ^ exercise metadata
+             , _testPath :: FilePath   -- ^ file path to exercise page
+             , _testCode :: Code       -- ^ submited language & code 
+             } 
 
--- | run a test
---
-runTest :: Config -> Test a -> IO (Maybe a)
-runTest cfg action
-  = runMaybeT $ runReaderT (unTest action) cfg
+
+-- | run a tester
+runTester :: Config -> Meta -> FilePath -> Code -> Tester a
+          -> IO (Maybe a)
+runTester cfg meta path code action
+  = runMaybeT $ runReaderT (unTester action) (TestEnv cfg meta path code)
+
+
+-- | fetch paramaters from the enviroment
+testConfig :: Tester Config
+testConfig = Tester (asks _testConfig)
+
+testPath :: Tester FilePath
+testPath = Tester (asks _testPath)
+
+testCode :: Tester Code
+testCode = Tester (asks _testCode)
+
+testMetadata :: Tester Meta
+testMetadata = Tester (asks _testMeta)
+
+
+-- | fetch a configured value; return Nothing if key not present
+maybeConfigured :: Configured a => Name -> Tester (Maybe a)
+maybeConfigured key = do
+  cfg <- testConfig
+  liftIO $ Conf.lookup cfg key
 
 -- | fetch a configuration value
-maybeConfigured :: Configured a => Name -> Test (Maybe a)
-maybeConfigured name = do
-  cfg <- Test ask
-  liftIO $ Conf.lookup cfg name 
-
--- | fetch a configuration value
--- throws an exception if the key is not present
-configured :: Configured a => Name -> Test a
-configured name = do
-  cfg <- Test ask
-  liftIO $ Conf.require cfg name 
+-- throws an exception if key is not present
+configured :: Configured a => Name -> Tester a
+configured key = do
+  cfg <- testConfig
+  liftIO $ Conf.require cfg key
 
 
--- | get configured limits from the test environment
-getLimits :: Name -> Test Limits
-getLimits prefix = do
-  cfg <- Test ask
-  liftIO $ lookupLimits (Conf.subconfig prefix cfg)
+-- | get configured limits from the tester environment
+-- overrides default config with the specific one
+testLimits :: Name -> Tester Limits
+testLimits key = do
+  cfg <- testConfig
+  liftIO $ do
+    def  <- configLimits (Conf.subconfig "limits" cfg)
+    spec <- configLimits (Conf.subconfig key cfg)
+    return (spec <> def)
                   
 
 

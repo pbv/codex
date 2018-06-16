@@ -1,10 +1,9 @@
 --------------------------------------------------------------------------
--- Test C code using input/output files
+-- Test complete programs using input/output files
 --------------------------------------------------------------------------
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE ExistentialQuantification #-}
 {-# LANGUAGE RecordWildCards #-}
-
 
 module Codex.Tester.InputOutput (
   Build,
@@ -31,7 +30,7 @@ import           System.Directory.Glob
 
 --
 -- | build and run scripts for testing standalone programs;
--- the type of the executable artifact is hidden existentially
+-- the type of executable artifact is hidden (existentially quantified)
 --
 data Build =
   forall exec.
@@ -40,11 +39,12 @@ data Build =
         }
 
 
--- builder for C programs
-clangBuild :: Test Build
+-- | builder for C programs
+--
+clangBuild :: Tester Build
 clangBuild = do
   cc_cmd <- configured "language.c.compiler"
-  limits <- getLimits "language.c.limits"
+  limits <- testLimits "language.c.limits"
   let cc:cc_args = words cc_cmd
   let make tmpdir (Code lang code) = do 
         let c_file = tmpdir </> "submit.c"
@@ -59,11 +59,12 @@ clangBuild = do
   return (Build make run)
 
 
--- builder for Python programs
-pythonBuild ::  Test Build
+-- | builder for Python programs
+--
+pythonBuild ::  Tester Build
 pythonBuild = do
   python <- configured "language.python.interpreter"
-  limits <- getLimits "language.python.limits"
+  limits <- testLimits "language.python.limits"
   let make tmpdir (Code lang code)  = do
         let pyfile = tmpdir </> "submit.py"
         T.writeFile pyfile code
@@ -74,12 +75,14 @@ pythonBuild = do
         safeExec limits python [pyfile] stdin
   return (Build make run)
 
--- builder for Java programs
-javaBuild :: PageInfo -> Test Build
-javaBuild (PageInfo _ meta) = do
+-- | builder for Java programs
+--
+javaBuild :: Tester Build
+javaBuild = do
+  meta <- testMetadata
   javac_cmd <- configured "language.java.compiler"
   java_cmd <- configured "language.java.runtime"
-  limits <- getLimits "language.java.limits"
+  limits <- testLimits "language.java.limits"
   -- fetch name for public main class
   let classname = fromMaybe "Main" $ lookupFromMeta "class" meta
   let javac:javac_args = words javac_cmd
@@ -99,10 +102,11 @@ javaBuild (PageInfo _ meta) = do
 
 
 -- builder for Haskell programs
-haskellBuild :: PageInfo -> Test Build
-haskellBuild (PageInfo _ meta) = do
+haskellBuild :: Tester Build
+haskellBuild = do
+  meta <- testMetadata
   ghc_cmd <- configured "language.haskell.compiler"
-  limits <- getLimits "language.haskell.limits"
+  limits <- testLimits "language.haskell.limits"
   -- name for main module
   let modname = fromMaybe "Main" (lookupFromMeta "module" meta)
   let ghc:ghc_args = words ghc_cmd
@@ -122,14 +126,18 @@ haskellBuild (PageInfo _ meta) = do
 
 -- | parametrized I/O tester 
 --
-stdioTester :: PageInfo -> Code -> Language -> Build -> Test Result
-stdioTester (PageInfo path meta) code@(Code lang src) language Build{..} = do
+stdioTester :: Language -> Build -> Tester Result
+stdioTester language Build{..} = tester "stdio" $ do
+  code@(Code lang _) <- testCode
   guard (lang == language)
-  guard (tester meta == Just "stdio")
   ---
+  path <- testPath
+  meta <- testMetadata
   let dir = takeDirectory path
-  let inpatts  = map (dir</>) $ fromMaybe [] (lookupFromMeta "inputs" meta) 
-  let outpatts = map (dir</>) $ fromMaybe [] (lookupFromMeta "outputs" meta)
+  let inpatts  = map (dir</>) $
+                 fromMaybe [] (lookupFromMeta "inputs" meta) 
+  let outpatts = map (dir</>) $
+                 fromMaybe [] (lookupFromMeta "outputs" meta)
   assert (pure $ not (null inpatts)) "no inputs defined"
   assert (pure $ not (null outpatts)) "no outputs defined"
   inputs <- liftIO $ globMany globDefaults inpatts
@@ -138,7 +146,7 @@ stdioTester (PageInfo path meta) code@(Code lang src) language Build{..} = do
     "different number of inputs and outputs"
   let limit = fromMaybe maxBound (lookupFromMeta "feedback-limit" meta)
   liftIO $ (withTempDir "codex" $ \tmpdir -> do
-    exe_file <- makeExec tmpdir code 
+    exe_file <- makeExec tmpdir code
     aggregate limit <$> runMany exe_file inputs outputs) `catch` return
   where
     runMany exe_file  = zipWithM (runSingle exe_file) 

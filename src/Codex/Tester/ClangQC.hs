@@ -3,7 +3,7 @@
 --------------------------------------------------------------------------
 {-# LANGUAGE OverloadedStrings #-}
 
-module Codex.Tester.C (
+module Codex.Tester.ClangQC (
   clangQCTester
   ) where
 
@@ -15,18 +15,20 @@ import           Control.Exception (catch)
 import           Codex.Tester
 
 
-clangQCTester :: PageInfo -> Code -> Test Result
-clangQCTester (PageInfo path meta) (Code lang src) = do
+clangQCTester :: Tester Result
+clangQCTester = tester "quickcheck" $ do
+  Code lang src <- testCode
   guard (lang == "c")
-  guard (tester meta == Just "quickcheck")
+  meta <- testMetadata
+  path <- testPath
   -------------------------------------------
   let qcpath = replaceExtension path ".hs"
   assert (fileExists qcpath)
     ("QuickCheck file not found: " <> show qcpath)
-  props <- liftIO (T.readFile qcpath)
-  ghc <- configured "language.haskell.compiler"
-  gcc <- configured "language.c.compiler"
-  limits <- getLimits "language.haskell.limits"
+  props  <- liftIO (T.readFile qcpath)
+  ghc    <- configured "language.haskell.compiler"
+  gcc    <- configured "language.c.compiler"
+  limits <- testLimits "language.haskell.limits"
   let qcArgs = getQuickCheckArgs meta
   -- append an optional header (for includes, prototypes, etc.)
   let code = fromMaybe "" (lookupFromMeta "header" meta) <> "\n" <> src

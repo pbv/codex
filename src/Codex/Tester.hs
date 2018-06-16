@@ -1,9 +1,7 @@
 
 module Codex.Tester (
-  Tester, PageInfo(..),
-  language,
+  oneOf,
   tester,
-  oneof,
   -- * module re-exports
   Meta, Code(..),
   lookupFromMeta,
@@ -36,22 +34,17 @@ import           Data.Monoid
 
 import           Data.Text (Text)
 
--- | an exercise tester 
-type Tester = PageInfo -> Code -> Test Result
+-- | Try testers in order, return the first one that suceedds.
+-- This is just `asum` from Control.Applicative.Alternative
+-- renamed for readability
+oneOf :: [Tester a] -> Tester a
+oneOf = foldr (<|>) empty
 
-data PageInfo
-  = PageInfo { infoPath :: FilePath
-             , infoMeta :: Meta
-             } deriving Show
 
-language :: Meta -> Maybe Language
-language = lookupFromMeta "language"
-
-tester :: Meta -> Maybe Text
-tester = lookupFromMeta "tester"
-
--- | combine a list of testers in sequence
-oneof :: [Tester] -> Tester
-oneof list info code 
-  = foldr (\t r -> t info code <|> r) empty list
-
+-- | label a tester and ignore submissions that don't match 
+tester :: Text -> Tester a -> Tester a
+tester name cont = do
+  meta <- testMetadata
+  guard (lookupFromMeta "tester" meta == Just name)
+  cont
+  
