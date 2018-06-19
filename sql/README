@@ -1,31 +1,31 @@
 -------------------------------------------------------------------------------
-Privileges for "eval_select" (select evaluator)
+Privileges for "guest" (select evaluator)
 -------------------------------------------------------------------------------
 Create an user with permissions to do SELECT on the desired database.
 
-CREATE USER 'eval_select' IDENTIFIED BY 'passwd';
-GRANT SELECT ON `exam-db`.* TO 'eval_select'@'%';
+CREATE USER 'guest' IDENTIFIED BY 'passwd';
+GRANT SELECT ON `exam-db`.* TO 'guest'@'%';
 
 
 -------------------------------------------------------------------------------
-Privileges for "eval_edit" (insert/update/delete evaluator)
+Privileges for "edit" (insert/update/delete evaluator)
 -------------------------------------------------------------------------------
 Create an user with all permissions to edit some database name prefix.
-The evaluator will need an extra user (eval_schema) to create and destroy
+The evaluator will need an extra user (schema) to create and destroy
 random databases with the given prefix.
 
-CREATE USER 'eval_edit' IDENTIFIED BY 'passwd';
-GRANT SELECT, INSERT, UPDATE, DELETE ON `eval\_%`.* TO 'eval_edit'@'%';
+CREATE USER 'edit' IDENTIFIED BY 'passwd';
+GRANT SELECT, INSERT, UPDATE, DELETE ON `eval\_%`.* TO 'edit'@'%';
 
 
 -------------------------------------------------------------------------------
-Privileges for "eval_schema" (schema evaluator)
+Privileges for "schema" (schema evaluator)
 -------------------------------------------------------------------------------
 Create an user with all permissions to some database name prefix.
 The evaluator will create and destroy random databases with the given prefix.
 
-CREATE USER 'eval_schema' IDENTIFIED BY 'passwd';
-GRANT ALL PRIVILEGES ON `eval\_%`.* TO 'eval_schema'@'%';
+CREATE USER 'schema' IDENTIFIED BY 'passwd';
+GRANT ALL PRIVILEGES ON `eval\_%`.* TO 'schema'@'%';
 
 
 -------------------------------------------------------------------------------
@@ -37,7 +37,7 @@ max_statement_time=1.0
 
 
 -------------------------------------------------------------------------------
-Improve DB creation/destruction speed (in eval_edit and eval_schema)
+Improve DB creation/destruction speed (in edit and schema evaluators)
 -------------------------------------------------------------------------------
  - use only the subset of the database needed to the question;
  - data is not needed in eval_schema;
