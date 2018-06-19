@@ -23,18 +23,19 @@ sqlSelectTester = tester "select" $ do
   meta <- testMetadata
   ---
   evaluator <- configured "language.sql.select.evaluator"
-  let args = concatMap (optArg meta)
-             [ ("-H", "db-host")
-             , ("-P", "db-port")
-             , ("-u", "db-user")
-             , ("-p", "db-pass")
-             , ("-d", "db-name")
-             ]
+  confArgs <- getOptConfArgs "language.sql.select.args"
+              [ ("-H", "host")
+              , ("-P", "port")
+              , ("-u", "user")
+              , ("-p", "pass")
+              ]
+  metaArgs <- getOptMetaArgs
+              [ ("-d", "db-name") ]
   answer <- liftIO (getSqlAnswer meta)
   withTemp "submit.sql" src $ \submittedFilePath -> do
     chmod readable submittedFilePath
     classify <$> unsafeExec evaluator
-      (args ++ ["-a", answer, "-S", submittedFilePath]) ""
+      (confArgs ++ metaArgs ++ ["-a", answer, "-S", submittedFilePath]) ""
 
 
 sqlEditTester :: Tester Result
@@ -44,22 +45,24 @@ sqlEditTester = tester "edit" $ do
   ---
   meta <- testMetadata
   evaluator <- configured "language.sql.edit.evaluator"
-  let args = concatMap (optArg meta)
-             [ ("-H", "db-host")
-             , ("-P", "db-port")
-             , ("-uS", "db-user-schema")
-             , ("-pS", "db-pass-schema")
-             , ("-uE", "db-user-edit")
-             , ("-pE", "db-pass-edit")
-             , ("-D", "db-prefix")
-             , ("-i", "db-init-sql")
+  confArgs <- getOptConfArgs "language.sql.edit.args"
+             [ ("-H", "host")
+             , ("-P", "port")
+             , ("-uS", "user_schema")
+             , ("-pS", "pass_schema")
+             , ("-uE", "user_edit")
+             , ("-pE", "pass_edit")
+             , ("-D", "prefix")
+             ]
+  metaArgs <- getOptMetaArgs
+             [ ("-i", "db-init-sql")
              , ("-I", "db-init-file")
              ]
   answer <- liftIO (getSqlAnswer meta)
   withTemp "submit.sql" src $ \submittedFilePath -> do
     chmod readable submittedFilePath
     classify <$> unsafeExec evaluator
-      (args ++ ["-a", answer,"-S", submittedFilePath]) ""
+      (confArgs ++ metaArgs ++ ["-a", answer,"-S", submittedFilePath]) ""
 
 
 sqlSchemaTester :: Tester Result
@@ -69,25 +72,39 @@ sqlSchemaTester = tester "schema" $ do
   meta <- testMetadata
   ---
   evaluator <- configured "language.sql.schema.evaluator"
-  let args = concatMap (optArg meta)
-             [ ("-H", "db-host")
-             , ("-P", "db-port")
-             , ("-u", "db-user")
-             , ("-p", "db-pass")
-             , ("-D", "db-prefix")
-             , ("-i", "db-init-sql")
+  confArgs <- getOptConfArgs "language.sql.schema.args"
+             [ ("-H", "host")
+             , ("-P", "port")
+             , ("-u", "user")
+             , ("-p", "pass")
+             , ("-D", "prefix")
+             ]
+  metaArgs <- getOptMetaArgs
+             [ ("-i", "db-init-sql")
              , ("-I", "db-init-file")
              ]
   answer <- liftIO (getSqlAnswer meta)
   withTemp "submit.sql" src $ \submittedFilePath -> do
     chmod readable submittedFilePath
     classify <$> unsafeExec evaluator
-      (args ++ ["-a", answer, "-S", submittedFilePath]) ""
+      (confArgs ++ metaArgs ++ ["-a", answer, "-S", submittedFilePath]) ""
 
 
-optArg :: Meta -> (String, String) -> [String]
-optArg meta (opt,key)
-  = maybe [] (\x -> [opt, x]) (lookupFromMeta key meta)
+getOptConfArgs :: Text -> [(String, Text)] -> Tester [String]
+getOptConfArgs prefix opts =
+  concat <$> mapM optConfArg opts
+  where
+    optConfArg (opt, key) = do
+      cnf <- maybeConfigured (prefix<>"."<>key)
+      return $ maybe [] (\x -> [opt, x]) cnf
+
+
+getOptMetaArgs :: [(String, String)] -> Tester [String]
+getOptMetaArgs opts = do
+  meta <- testMetadata
+  let optMetaArg (opt,key) =
+          maybe [] (\x -> [opt, x]) (lookupFromMeta key meta)
+  return $ concatMap optMetaArg opts
 
 
 classify :: (ExitCode, Text, Text) -> Result
