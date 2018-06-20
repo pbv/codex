@@ -32,9 +32,6 @@ import           Codex.Tester.PythonDoctest
 import           Codex.Tester.HaskellQC
 import           Codex.Tester.ClangQC
 import           Codex.Tester.InputOutput
--- import           Codex.Tester.SqlSelect
--- import           Codex.Tester.SqlEdit
--- import           Codex.Tester.SqlSchema
 import           Codex.Tester.Sql
 import           Snap.Loader.Static
 

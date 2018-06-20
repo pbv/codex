@@ -38,7 +38,7 @@ def eval_queries(conn, q1, q2):
                 continue
             break
         else:
-            accepted_msg()
+            accepted_msg("Returned %d rows." % rc)
 
     c1.close()
     c2.close()

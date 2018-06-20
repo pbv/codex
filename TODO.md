@@ -20,3 +20,15 @@
 * re-submiting exercises as admin does not maintain the original user id
 * possible security flaw: all files types (including specifications, test cases,
   solutions, etc) are served by the public interface
+
+# SQL Evaluators
+* sql/utils.py - `exec_multi_query()` uses a lot of resources. Try not use
+  cursors
+* sql/eval-schema.py - check indexes and foreign keys
+
+# Markdown
+* allow get title from pages without exercises
+* put color of accepted/wrong answer in exercises links
+* allow specify exercise number (A, B, C / 1, 2, 3). In this case the full exercise title becomes "A - Title"
+* allow link to exercises without the submissions counter
+* allow link to exercises showing only the number
