@@ -1,36 +1,28 @@
 import random
-import sys
 
 
 def accepted_msg(msg=None):
-    print("Accepted", file=sys.stderr)
-    if msg is not None:
-        print(msg)
+    return 0, msg, None
 
 
 def wrong_answer_msg(msg):
-    print("Wrong Answer", file=sys.stderr)
-    print(msg)
+    return 1, msg, None
 
 
 def runtime_error_msg(msg):
-    print("Runtime Error", file=sys.stderr)
-    print(msg)
+    return 2, msg, None
 
 
 def compile_error_msg(msg):
-    print("Compile Error", file=sys.stderr)
-    print(msg)
+    return 3, msg, None
 
 
 def time_limit_exceeded_msg(msg):
-    print("Time Limit", file=sys.stderr)
-    print(msg)
+    return 4, msg, None
 
 
 def system_error_msg(msg):
-    print("System Error", file=sys.stderr)
-    print(msg)
+    return -1, msg, None
 
 
 def create_random_database(conn, db_prefix):
@@ -61,30 +53,30 @@ def exec_multi_query(conn, db_name, sql):
 
 def mysql_runtime_error_msg(e, scope):
     scope = "" if scope == "submission" else " [on: %s]" % scope
-    runtime_error_msg("%s%s" % (e, scope))
+    return runtime_error_msg("%s%s" % (e, scope))
 
 
 def mysql_compile_error_msg(e, scope):
     scope = "" if scope == "submission" else " [on: %s]" % scope
-    compile_error_msg("%s%s" % (e, scope))
+    return compile_error_msg("%s%s" % (e, scope))
 
 
 def mysql_system_error_msg(e, scope):
     scope = "" if scope == "submission" else " [on: %s]" % scope
-    system_error_msg("%s%s" % (e, scope))
+    return system_error_msg("%s%s" % (e, scope))
 
 
 def mysql_time_limit_exceeded_msg(e, scope):
     scope = "" if scope == "submission" else " [on: %s]" % scope
-    time_limit_exceeded_msg("%s%s" % (e, scope))
+    return time_limit_exceeded_msg("%s%s" % (e, scope))
 
 
 def mysql_error_handler(exception, scope):
     if exception.sqlstate is not None and exception.sqlstate == "42000":
-        mysql_compile_error_msg(exception, scope)
+        return mysql_compile_error_msg(exception, scope)
     elif exception.sqlstate is not None and exception.sqlstate[:2] in ("22", "23", "42"):
-        mysql_runtime_error_msg(exception, scope)
+        return mysql_runtime_error_msg(exception, scope)
     elif exception.msg is not None and "max_statement_time" in exception.msg:
-        mysql_time_limit_exceeded_msg(exception, scope)
+        return mysql_time_limit_exceeded_msg(exception, scope)
     else:
-        mysql_system_error_msg(exception, scope)
+        return mysql_system_error_msg(exception, scope)

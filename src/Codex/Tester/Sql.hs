@@ -108,14 +108,13 @@ getOptMetaArgs opts = do
 
 
 classify :: (ExitCode, Text, Text) -> Result
-classify (_, stdout, stderr)
-  | match "Accepted" stderr            = accepted stdout
-  | match "Wrong Answer" stderr        = wrongAnswer stdout
-  | match "Runtime Error" stderr       = runtimeError stdout
-  | match "Compile Error" stderr       = compileError stdout
-  | match "Time Limit" stderr          = timeLimitExceeded stdout
-  | match "Memory Limit" stderr        = memoryLimitExceeded stdout
-  | otherwise                          = miscError (stderr <> stdout)
+classify (ExitSuccess, stdout, _)      = accepted stdout
+classify (ExitFailure 1, stdout, _)      = wrongAnswer stdout
+classify (ExitFailure 2, stdout, _)      = runtimeError stdout
+classify (ExitFailure 3, stdout, _)      = compileError stdout
+classify (ExitFailure 4, stdout, _)      = timeLimitExceeded stdout
+classify (ExitFailure 5, stdout, _)      = memoryLimitExceeded stdout
+classify (_, stdout, stderr) = miscError (stdout <> stderr)
 
 
 getSqlAnswer :: Meta -> IO String
