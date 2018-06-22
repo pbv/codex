@@ -82,10 +82,8 @@ if __name__ == "__main__":
     group.add_argument('-S', '--submission-file', dest='submission_file', type=str, default=None)
     args = parser.parse_args()
 
-    code, out, err = main(args.host, args.port, args.user, args.passwd, args.db, args.answer_sql, args.submission_sql,
+    code, out = main(args.host, args.port, args.user, args.passwd, args.db, args.answer_sql, args.submission_sql,
                           args.answer_file,
                           args.submission_file)
     print(out)
-    if err is not None:
-        print(err, file=sys.stderr)
     sys.exit(code)
