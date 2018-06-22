@@ -2,27 +2,31 @@ import random
 
 
 def accepted_msg(msg=None):
-    return 0, msg, None
+    return 100, msg, None
 
 
 def wrong_answer_msg(msg):
-    return 1, msg, None
+    return 101, msg, None
 
 
 def runtime_error_msg(msg):
-    return 2, msg, None
+    return 102, msg, None
 
 
 def compile_error_msg(msg):
-    return 3, msg, None
+    return 103, msg, None
 
 
 def time_limit_exceeded_msg(msg):
-    return 4, msg, None
+    return 104, msg, None
+
+
+def memory_limit_exceeded_msg(msg):
+    return 105, msg, None
 
 
 def system_error_msg(msg):
-    return -1, msg, None
+    return 110, msg, None
 
 
 def create_random_database(conn, db_prefix):
@@ -72,7 +76,7 @@ def mysql_time_limit_exceeded_msg(e, scope):
 
 
 def mysql_error_handler(exception, scope):
-    if exception.sqlstate is not None and exception.sqlstate == "42000":
+    if exception.errno in (1064, 1149):
         return mysql_compile_error_msg(exception, scope)
     elif exception.sqlstate is not None and exception.sqlstate[:2] in ("22", "23", "42"):
         return mysql_runtime_error_msg(exception, scope)
