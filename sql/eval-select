@@ -3,7 +3,6 @@
 from utils import *
 import argparse
 import mysql.connector
-import sys
 
 
 def eval_queries(conn, q1, q2):
@@ -82,8 +81,9 @@ if __name__ == "__main__":
     group.add_argument('-S', '--submission-file', dest='submission_file', type=str, default=None)
     args = parser.parse_args()
 
-    code, out = main(args.host, args.port, args.user, args.passwd, args.db, args.answer_sql, args.submission_sql,
+    status, msg = main(args.host, args.port, args.user, args.passwd, args.db, args.answer_sql, args.submission_sql,
                           args.answer_file,
                           args.submission_file)
-    print(out)
-    sys.exit(code)
+    print(status)
+    if msg is not None:
+        print(msg)

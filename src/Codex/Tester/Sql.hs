@@ -8,6 +8,7 @@ module Codex.Tester.Sql (
 
 import           Codex.Tester
 import           Data.Text(Text)
+import qualified Data.Text as T
 import           Control.Exception
 import           Control.Applicative
 
@@ -108,13 +109,16 @@ getOptMetaArgs opts = do
 
 
 classify :: (ExitCode, Text, Text) -> Result
-classify (ExitFailure 100, stdout, _) = accepted stdout
-classify (ExitFailure 101, stdout, _) = wrongAnswer stdout
-classify (ExitFailure 102, stdout, _) = runtimeError stdout
-classify (ExitFailure 103, stdout, _) = compileError stdout
-classify (ExitFailure 104, stdout, _) = timeLimitExceeded stdout
-classify (ExitFailure 105, stdout, _) = memoryLimitExceeded stdout
-classify (_, stdout, stderr)          = miscError (stdout <> stderr)
+classify (ExitSuccess, stdout, _)
+  | match "Accepted" stdout              = accepted (dropFirstLn stdout)
+  | match "Wrong Answer" stdout          = wrongAnswer (dropFirstLn stdout)
+  | match "Runtime Error" stdout         = runtimeError (dropFirstLn stdout)
+  | match "Compile Error" stdout         = compileError (dropFirstLn stdout)
+  | match "Time Limit Exceeded" stdout   = timeLimitExceeded (dropFirstLn stdout)
+  | match "Memory Limit Exceeded" stdout = memoryLimitExceeded (dropFirstLn stdout)
+  where
+    dropFirstLn = T.dropWhile (/='\n')
+classify (_, stdout, stderr)             = miscError (stdout <> stderr)
 
 
 getSqlAnswer :: Meta -> IO String

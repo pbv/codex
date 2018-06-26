@@ -3,7 +3,6 @@
 from utils import *
 import argparse
 import mysql.connector
-import sys
 
 
 def compare_databases_schema(conn, answer_db_name, submission_db_name):
@@ -156,8 +155,9 @@ if __name__ == "__main__":
     group.add_argument('-S', '--submission-file', dest='submission_file', type=str, default=None)
     args = parser.parse_args()
 
-    code, out = main(args.host, args.port, args.user, args.passwd, args.db_prefix, args.init_sql, args.init_file,
+    status, msg = main(args.host, args.port, args.user, args.passwd, args.db_prefix, args.init_sql, args.init_file,
                           args.answer_sql,
                           args.submission_sql, args.answer_file, args.submission_file)
-    print(out)
-    sys.exit(code)
+    print(status)
+    if msg is not None:
+        print(msg)

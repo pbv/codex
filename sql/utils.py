@@ -2,31 +2,31 @@ import random
 
 
 def accepted_msg(msg=None):
-    return 100, msg
+    return "Accepted", msg
 
 
 def wrong_answer_msg(msg):
-    return 101, msg
+    return "Wrong Answer", msg
 
 
 def runtime_error_msg(msg):
-    return 102, msg
+    return "Runtime Error", msg
 
 
 def compile_error_msg(msg):
-    return 103, msg
+    return "Compile Error", msg
 
 
 def time_limit_exceeded_msg(msg):
-    return 104, msg
+    return "Time Limit Exceeded", msg
 
 
 def memory_limit_exceeded_msg(msg):
-    return 105, msg
+    return "Memory Limit Exceeded", msg
 
 
 def system_error_msg(msg):
-    return 110, msg
+    return "System Error", msg
 
 
 def create_random_database(conn, db_prefix):
