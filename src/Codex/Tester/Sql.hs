@@ -23,12 +23,12 @@ sqlSelectTester = tester "select" $ do
   guard (lang == "sql")
   meta <- testMetadata
   ---
-  evaluator <- configured "language.sql.select.evaluator"
-  confArgs <- getOptConfArgs "language.sql.select.args"
+  evaluator <- configured "language.sql.evaluator.select"
+  confArgs <- getOptConfArgs "language.sql.args"
               [ ("-H", "host")
               , ("-P", "port")
-              , ("-u", "user")
-              , ("-p", "pass")
+              , ("-u", "user_guest")
+              , ("-p", "pass_guest")
               ]
   metaArgs <- getOptMetaArgs
               [ ("-d", "db-name") ]
@@ -45,8 +45,8 @@ sqlEditTester = tester "edit" $ do
   guard (lang == "sql")
   ---
   meta <- testMetadata
-  evaluator <- configured "language.sql.edit.evaluator"
-  confArgs <- getOptConfArgs "language.sql.edit.args"
+  evaluator <- configured "language.sql.evaluator.edit"
+  confArgs <- getOptConfArgs "language.sql.args"
              [ ("-H", "host")
              , ("-P", "port")
              , ("-uS", "user_schema")
@@ -72,12 +72,12 @@ sqlSchemaTester = tester "schema" $ do
   guard (lang == "sql")
   meta <- testMetadata
   ---
-  evaluator <- configured "language.sql.schema.evaluator"
-  confArgs <- getOptConfArgs "language.sql.schema.args"
+  evaluator <- configured "language.sql.evaluator.schema"
+  confArgs <- getOptConfArgs "language.sql.args"
              [ ("-H", "host")
              , ("-P", "port")
-             , ("-u", "user")
-             , ("-p", "pass")
+             , ("-u", "user_schema")
+             , ("-p", "pass_schema")
              , ("-D", "prefix")
              ]
   metaArgs <- getOptMetaArgs
