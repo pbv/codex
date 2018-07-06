@@ -20,7 +20,6 @@ sqlSelectTester :: Tester Result
 sqlSelectTester = tester "select" $ do
   Code lang src <- testCode
   guard (lang == "sql")
-  meta <- testMetadata
   ---
   evaluator <- configured "language.sql.select.evaluator"
   confArgs <- getOptConfArgs "language.sql.select.args"
@@ -31,7 +30,7 @@ sqlSelectTester = tester "select" $ do
               ]
   metaArgs <- getOptMetaArgs
               [ ("-d", "db-name") ]
-  answer <- liftIO (getSqlAnswer meta)
+  answer <- getSqlAnswer 
   withTemp "submit.sql" src $ \submittedFilePath -> do
     chmod readable submittedFilePath
     classify <$> unsafeExec evaluator
@@ -43,7 +42,6 @@ sqlEditTester = tester "edit" $ do
   Code lang src <- testCode
   guard (lang == "sql")
   ---
-  meta <- testMetadata
   evaluator <- configured "language.sql.edit.evaluator"
   confArgs <- getOptConfArgs "language.sql.edit.args"
              [ ("-H", "host")
@@ -58,7 +56,7 @@ sqlEditTester = tester "edit" $ do
              [ ("-i", "db-init-sql")
              , ("-I", "db-init-file")
              ]
-  answer <- liftIO (getSqlAnswer meta)
+  answer <- getSqlAnswer 
   withTemp "submit.sql" src $ \submittedFilePath -> do
     chmod readable submittedFilePath
     classify <$> unsafeExec evaluator
@@ -69,7 +67,6 @@ sqlSchemaTester :: Tester Result
 sqlSchemaTester = tester "schema" $ do
   Code lang src <- testCode
   guard (lang == "sql")
-  meta <- testMetadata
   ---
   evaluator <- configured "language.sql.schema.evaluator"
   confArgs <- getOptConfArgs "language.sql.schema.args"
@@ -83,7 +80,7 @@ sqlSchemaTester = tester "schema" $ do
              [ ("-i", "db-init-sql")
              , ("-I", "db-init-file")
              ]
-  answer <- liftIO (getSqlAnswer meta)
+  answer <- getSqlAnswer 
   withTemp "submit.sql" src $ \submittedFilePath -> do
     chmod readable submittedFilePath
     classify <$> unsafeExec evaluator
@@ -98,13 +95,13 @@ getOptConfArgs prefix opts =
       cnf <- maybeConfigured (prefix<>"."<>key)
       return $ maybe [] (\x -> [opt, x]) cnf
 
-
 getOptMetaArgs :: [(String, String)] -> Tester [String]
-getOptMetaArgs opts = do
-  meta <- testMetadata
-  let optMetaArg (opt,key) =
-          maybe [] (\x -> [opt, x]) (lookupFromMeta key meta)
-  return $ concatMap optMetaArg opts
+getOptMetaArgs opts
+  = concat <$> mapM optMetaArg opts
+  where
+    optMetaArg (opt,key) = maybe [] (\x -> [opt, x]) <$> metadata key
+
+
 
 
 classify :: (ExitCode, Text, Text) -> Result
@@ -118,10 +115,11 @@ classify (_, stdout, stderr)
   | otherwise                          = miscError (stderr <> stdout)
 
 
-getSqlAnswer :: Meta -> IO String
-getSqlAnswer meta = do
-  case lookupFromMeta "answer-sql" meta of
+getSqlAnswer :: Tester String
+getSqlAnswer  = do
+  opt <- metadata "answer-sql"
+  case opt of
     Nothing ->
-      throwIO (miscError "no sql-answer specified in metadata")
+      liftIO $ throwIO $ miscError "missing answer-sql in metadata"
     Just answer ->
       return answer

@@ -21,8 +21,7 @@ pythonDocTester = tester "doctest" $ do
   scripts <- configured "language.python.scripts"
   limits  <- testLimits "language.python.limits"
   path    <- testPath
-  meta    <- testMetadata
-  let doctestPath = guessDoctest path meta
+  doctestPath <- guessDoctest path 
   assert (fileExists doctestPath)
     ("doctest file not found: " <> show doctestPath)
   chmod readable doctestPath
@@ -45,11 +44,12 @@ classify (_, stdout, stderr)
 
 
 -- | guess the doctest path from page metadata or filename
-guessDoctest :: FilePath -> Meta -> FilePath
-guessDoctest filepath meta
-  = maybe
+guessDoctest :: FilePath -> Tester FilePath
+guessDoctest filepath =
+  do optPath <- metadata "doctest"
+     return $ maybe
        (replaceExtension filepath ".tst")
        (takeDirectory filepath </>)
-       (lookupFromMeta "doctest" meta)
+       optPath
 
   
