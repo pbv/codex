@@ -30,11 +30,13 @@ import           System.Directory.Glob
 
 --
 -- | build and run scripts for testing standalone programs;
--- the type of executable artifact is hidden (existentially quantified)
+-- the type for executables is existentially quantified (hidden);
+-- this generality isn't used at the moment
 --
 data Build =
   forall exec.
-  Build { makeExec :: FilePath -> Code -> IO exec
+  Build { checkLanguage :: Language -> Bool
+        , makeExec :: FilePath -> Code -> IO exec
         , runExec  :: exec -> Text -> IO (ExitCode, Text, Text)
         }
 
@@ -46,7 +48,7 @@ clangBuild = do
   cc_cmd <- configured "language.c.compiler"
   limits <- testLimits "language.c.limits"
   let cc:cc_args = words cc_cmd
-  let make tmpdir (Code lang code) = do 
+  let make tmpdir (Code _ code) = do 
         let c_file = tmpdir </> "submit.c"
         let exe_file = tmpdir </> "submit"
         T.writeFile c_file code
@@ -56,7 +58,7 @@ clangBuild = do
         return exe_file
   let run exe_file stdin = do
         safeExec limits exe_file [] stdin
-  return (Build make run)
+  return (Build (=="c") make run)
 
 
 -- | builder for Python programs
@@ -65,7 +67,7 @@ pythonBuild ::  Tester Build
 pythonBuild = do
   python <- configured "language.python.interpreter"
   limits <- testLimits "language.python.limits"
-  let make tmpdir (Code lang code)  = do
+  let make tmpdir (Code _ code)  = do
         let pyfile = tmpdir </> "submit.py"
         T.writeFile pyfile code
         chmod readable pyfile
@@ -73,21 +75,20 @@ pythonBuild = do
         return pyfile
   let run pyfile stdin = do
         safeExec limits python [pyfile] stdin
-  return (Build make run)
+  return (Build (=="python") make run)
 
 -- | builder for Java programs
 --
 javaBuild :: Tester Build
 javaBuild = do
-  meta <- testMetadata
   javac_cmd <- configured "language.java.compiler"
   java_cmd <- configured "language.java.runtime"
   limits <- testLimits "language.java.limits"
-  -- fetch name for public main class
-  let classname = fromMaybe "Main" $ lookupFromMeta "class" meta
+  -- name for public class with the main entry point
+  classname <- fromMaybe "Main" <$> metadata "class" 
   let javac:javac_args = words javac_cmd
   let java:java_args = words java_cmd
-  let make tmpdir (Code lang code) = do
+  let make tmpdir (Code _ code) = do
         let java_file = tmpdir </> classname <.> "java"
         let classfile = tmpdir </> classname <.> "class"
         T.writeFile java_file code
@@ -98,19 +99,18 @@ javaBuild = do
   let run classfile stdin = do
         let dir = takeDirectory classfile
         safeExec limits java (java_args ++ ["-cp", dir, classname]) stdin
-  return (Build make run)
+  return (Build (=="java") make run)
 
 
 -- builder for Haskell programs
 haskellBuild :: Tester Build
 haskellBuild = do
-  meta <- testMetadata
   ghc_cmd <- configured "language.haskell.compiler"
   limits <- testLimits "language.haskell.limits"
-  -- name for main module
-  let modname = fromMaybe "Main" (lookupFromMeta "module" meta)
+  -- name for the main module
+  modname <- fromMaybe "Main" <$> metadata "module" 
   let ghc:ghc_args = words ghc_cmd
-  let make tmpdir (Code lang code) = do
+  let make tmpdir (Code _ code) = do
         let hs_file = tmpdir </> modname <.> "hs"
         let exe_file = tmpdir </> modname
         T.writeFile hs_file code
@@ -120,31 +120,27 @@ haskellBuild = do
         return exe_file
   let run exe_file stdin = do
         safeExec limits exe_file [] stdin
-  return (Build make run)
+  return (Build (=="haskell") make run)
         
 
 
 -- | parametrized I/O tester 
 --
-stdioTester :: Language -> Build -> Tester Result
-stdioTester language Build{..} = tester "stdio" $ do
+stdioTester ::  Build -> Tester Result
+stdioTester Build{..} = tester "stdio" $ do
   code@(Code lang _) <- testCode
-  guard (lang == language)
+  guard (checkLanguage lang)
   ---
-  path <- testPath
-  meta <- testMetadata
-  let dir = takeDirectory path
-  let inpatts  = map (dir</>) $
-                 fromMaybe [] (lookupFromMeta "inputs" meta) 
-  let outpatts = map (dir</>) $
-                 fromMaybe [] (lookupFromMeta "outputs" meta)
+  dir <- takeDirectory <$> testPath
+  inpatts <- map (dir</>) . fromMaybe [] <$> metadata "inputs"
+  outpatts <- map (dir</>) . fromMaybe [] <$> metadata "outputs"
   assert (pure $ not (null inpatts)) "no inputs defined"
   assert (pure $ not (null outpatts)) "no outputs defined"
   inputs <- liftIO $ globMany globDefaults inpatts
   outputs <- liftIO $ globMany globDefaults outpatts
   assert (pure $ length inputs == length outputs)
     "different number of inputs and outputs"
-  let limit = fromMaybe maxBound (lookupFromMeta "feedback-limit" meta)
+  limit <- fromMaybe maxBound <$> metadata "feedback-limit" 
   liftIO $ (withTempDir "codex" $ \tmpdir -> do
     exe_file <- makeExec tmpdir code
     aggregate limit <$> runMany exe_file inputs outputs) `catch` return
@@ -170,7 +166,7 @@ worstResult results
 
 
 classify :: Text -> Text -> (ExitCode, Text, Text) -> Result
-classify _ _ (ExitFailure c, out, err) 
+classify _ _ (ExitFailure c, _, err) 
   = runtimeError $ T.unlines
     [ "Program exited with non-zero status: " <> T.pack (show c)
     ,  err
@@ -196,15 +192,13 @@ classify  input expected (_, out, _)
 
 -- number each test report
 numberResults :: [Result] -> [Result]
-numberResults results = zipWith number [1..] results
+numberResults results = zipWith number [1..total] results
   where
     total = length results
+    test num = T.pack $ printf "*** Test %d / %d ***\n" num total
     number n Result{..}
-      = Result resultClassify (numberText n total <> "\n" <> resultMessage)
+      = Result resultClassify (test n <> resultMessage)
 
-numberText :: Int -> Int -> Text
-numberText num total
-  = T.pack $ printf "*** Test %d / %d ***" num total
 
 -- hide feedback detail for after some number of tests
 hideDetails :: Int -> [Result] -> [Result]

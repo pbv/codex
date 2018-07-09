@@ -44,10 +44,10 @@ app = codexInit $
             , haskellQCTester
             , clangQCTester
             -- I/O testers
-            , stdioTester "c" =<< clangBuild
-            , stdioTester "java" =<< javaBuild
-            , stdioTester "haskell" =<< haskellBuild
-            , stdioTester "python" =<< pythonBuild
+            , stdioTester =<< clangBuild
+            , stdioTester =<< javaBuild
+            , stdioTester =<< haskellBuild
+            , stdioTester =<< pythonBuild
             -- SQL tester
             , sqlTester
             ]

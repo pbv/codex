@@ -19,7 +19,6 @@ clangQCTester :: Tester Result
 clangQCTester = tester "quickcheck" $ do
   Code lang src <- testCode
   guard (lang == "c")
-  meta <- testMetadata
   path <- testPath
   -------------------------------------------
   let qcpath = replaceExtension path ".hs"
@@ -29,9 +28,10 @@ clangQCTester = tester "quickcheck" $ do
   ghc    <- configured "language.haskell.compiler"
   gcc    <- configured "language.c.compiler"
   limits <- testLimits "language.haskell.limits"
-  let qcArgs = getQuickCheckArgs meta
+  qcArgs <- getQuickCheckArgs <$> testMetadata
   -- append an optional header (for includes, prototypes, etc.)
-  let code = fromMaybe "" (lookupFromMeta "header" meta) <> "\n" <> src
+  header <- fromMaybe "" <$> metadata "header"
+  let code = header <> "\n" <> src
   liftIO (clangRunner limits gcc ghc qcArgs code props `catch` return)
 
 clangRunner :: Limits

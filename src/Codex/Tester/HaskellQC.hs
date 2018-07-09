@@ -21,14 +21,13 @@ haskellQCTester :: Tester Result
 haskellQCTester = tester "quickcheck" $ do
   Code lang src <- testCode
   guard (lang == "haskell")
-  meta <- testMetadata
   path <- testPath
   --------------
   let qcpath = replaceExtension path ".hs"
   assert (fileExists qcpath)
-    ("quickcheck file not found: " <> show qcpath)
+      ("quickcheck file not found: " <> show qcpath)
   props <- liftIO $ T.readFile qcpath
-  let qcArgs = getQuickCheckArgs meta
+  qcArgs <- getQuickCheckArgs <$> testMetadata
   ghc <- configured "language.haskell.compiler"
   limits <- testLimits "language.haskell.limits"
   liftIO (haskellRunner limits ghc qcArgs src props `catch` return)
