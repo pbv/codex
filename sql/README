@@ -1,10 +1,12 @@
 -------------------------------------------------------------------------------
 Privileges for "guest" (select evaluator)
 -------------------------------------------------------------------------------
-Create an user with permissions to do SELECT on the desired database.
+Create an user with permissions to do SELECT on some database name prefix.
+The evaluator will need an extra user (schema) to create the databases
+with the given prefix, for each problem.
 
 CREATE USER 'guest' IDENTIFIED BY 'passwd';
-GRANT SELECT ON `exam-db`.* TO 'guest'@'%';
+GRANT SELECT ON `eval\_%`.* TO 'guest'@'%';
 
 
 -------------------------------------------------------------------------------
