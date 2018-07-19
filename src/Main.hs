@@ -48,7 +48,7 @@ app = codexInit $
             , stdioTester =<< javaBuild
             , stdioTester =<< haskellBuild
             , stdioTester =<< pythonBuild
-            -- SQL testers
+            -- SQL tester
             , sqlTester
             ]
        

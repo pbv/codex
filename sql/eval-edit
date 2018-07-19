@@ -29,12 +29,9 @@ def compare_databases_data(conn, answer_db_name, submission_db_name):
             LIMIT 1;
             """ % (answer_db_name, table, submission_db_name, table, ",".join(map(lambda c: '`%s`' % c, cols))))
         if len(cursor.fetchall()) > 0:
-            wrong_answer_msg("Wrong values on table \"%s\"." % table)
-            break
+            return wrong_answer_msg("Wrong values on table \"%s\"." % table)
     else:
-        accepted_msg()
-
-    cursor.close()
+        return accepted_msg()
 
 
 def main(host, port, schema_user, schema_passwd, edit_user, edit_passwd, db_prefix, init_sql, init_file, answer_sql,
@@ -56,15 +53,14 @@ def main(host, port, schema_user, schema_passwd, edit_user, edit_passwd, db_pref
                 submission_sql = f.read()
 
         if submission_sql == "":
-            wrong_answer_msg("Empty query.")
-            return
+            return wrong_answer_msg("Empty query.")
         elif answer_sql == "":
-            system_error_msg("Empty answer provided.")
-            return
+            return system_error_msg("Empty answer provided.")
 
         conn_admin = mysql.connector.connect(host=host, port=port, user=schema_user, passwd=schema_passwd,
                                              connect_timeout=10)
-        conn_edit = mysql.connector.connect(host=host, port=port, user=edit_user, passwd=edit_passwd, connect_timeout=10)
+        conn_edit = mysql.connector.connect(host=host, port=port, user=edit_user, passwd=edit_passwd,
+                                            connect_timeout=10)
 
         # exec first the student submission, it will probably fail :)
         submission_db_name = create_random_database(conn_admin, db_prefix)
@@ -83,9 +79,9 @@ def main(host, port, schema_user, schema_passwd, edit_user, edit_passwd, db_pref
             e.scope = "answer"
             raise e
 
-        compare_databases_data(conn_admin, answer_db_name, submission_db_name)
+        return compare_databases_data(conn_admin, answer_db_name, submission_db_name)
     except mysql.connector.Error as e:
-        mysql_error_handler(e, e.scope if hasattr(e, "scope") else "system")
+        return mysql_error_handler(e, e.scope if hasattr(e, "scope") else "system")
     finally:
         try:
             if conn_edit is not None:
@@ -124,6 +120,10 @@ if __name__ == "__main__":
     group.add_argument('-S', '--submission-file', dest='submission_file', type=str, default=None)
     args = parser.parse_args()
 
-    main(args.host, args.port, args.schema_user, args.schema_passwd, args.edit_user, args.edit_passwd, args.db_prefix,
-         args.init_sql, args.init_file, args.answer_sql,
-         args.submission_sql, args.answer_file, args.submission_file)
+    status, msg = main(args.host, args.port, args.schema_user, args.schema_passwd, args.edit_user, args.edit_passwd,
+                          args.db_prefix,
+                          args.init_sql, args.init_file, args.answer_sql,
+                          args.submission_sql, args.answer_file, args.submission_file)
+    print(status)
+    if msg is not None:
+        print(msg)
