@@ -50,9 +50,6 @@ app = codexInit $
             , stdioTester =<< pythonBuild
             -- SQL testers
             , sqlTester
-            -- , sqlSelectTester
-            -- , sqlEditTester
-            -- , sqlSchemaTester
             ]
        
 ------------------------------------------------------------------------------

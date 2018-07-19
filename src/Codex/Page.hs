@@ -20,7 +20,7 @@ import           Control.Applicative
 import           Data.List (intersperse)
 
 import           Codex.Types
-import           Codex.Interval
+import           Codex.Time
 
 
 --
@@ -75,10 +75,10 @@ pageIsExercise p
   = fromMaybe False $ lookupFromMeta "exercise" (pageMeta p)
 
 -- time interval for valid submissions
-pageInterval :: Page -> Interval TimeExpr
+pageInterval :: Page -> Interval Time
 pageInterval = metaInterval . pageMeta
 
-metaInterval :: Meta -> Interval TimeExpr
+metaInterval :: Meta -> Interval Time
 metaInterval meta
   = fromMaybe (Interval Nothing Nothing) $
     (lookupFromMeta "valid" meta >>= parseInterval)

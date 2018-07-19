@@ -26,7 +26,7 @@ Executable codex-server
     Codex.Config
     Codex.Db
     Codex.Evaluate
-    Codex.Interval
+    Codex.Time
     Codex.LdapAuth
     Codex.Page
     Codex.Printout            
@@ -85,6 +85,7 @@ Executable codex-server
     process-extras,
     temporary,
     glob-posix
+--    time-parsers                
   if flag(development)
     -- build-depends:
     --  snap-loader-dynamic
