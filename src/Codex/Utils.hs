@@ -39,7 +39,7 @@ import qualified Data.Configurator as Configurator
 
 import           Codex.Types
 import           Codex.Page
-import           Codex.Interval
+import           Codex.Time
 import           Codex.Application
 
 import           Data.Time.Clock
@@ -120,19 +120,22 @@ withAdmin action = do
 -- | get all events 
 getEvents :: Codex Events
 getEvents = do
-  uevs <- maybe [] userEvents <$> with auth currentUser
-  dbevs <- query_ "SELECT name, time FROM events"
-  let evs = uevs ++ dbevs
-  return (`lookup` evs)
+  evcfg <- gets _eventcfg
+  liftIO $ readEvents evcfg
+  
+  -- uevs <- maybe [] userEvents <$> with auth currentUser
+  -- dbevs <- query_ "SELECT name, time FROM events"
+  -- let evs = uevs ++ dbevs
+  -- return (`lookup` uevs)
+
 
 -- | events associated with a user account
-userEvents :: AuthUser -> [(Text, UTCTime)]
-userEvents au = [(n, t) | (n,f)<-fields, t <- maybeToList (f au)]
+userEvents :: AuthUser -> [(Text, Time)]
+userEvents au = [(n, fromUTCTime t) | (n,f) <- fields, t <- maybeToList (f au)]
   where fields =  [("activation", userActivatedAt),
                    ("creation", userCreatedAt),
                    ("update", userUpdatedAt),
                    ("login", userCurrentLoginAt)]
-
 
 -- | get submission id from request parameters
 getSubmitId :: Codex (Maybe SubmitId)

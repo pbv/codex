@@ -13,7 +13,6 @@ module Codex.Site
 
 import           Control.Applicative
 import           Control.Concurrent.MVar
--- import           Control.Concurrent.QSem 
 import           Control.Lens
 import           Control.Monad.State
 import           Control.Exception  (IOException)
@@ -24,7 +23,6 @@ import           Data.Map.Syntax
 
 import qualified Data.Text                                   as T
 import           Data.Maybe(fromMaybe)
-import           Data.List (intersperse) 
 
 
 import           Heist
@@ -61,7 +59,7 @@ import           Codex.Application
 import           Codex.AuthHandlers
 import           Codex.Config
 import qualified Codex.Db           as  Db
-import           Codex.Interval
+import           Codex.Time
 import           Codex.Page
 import           Codex.Submission
 import           Codex.Types
@@ -227,17 +225,20 @@ timingSplices page = do
   tz  <- liftIO getCurrentTimeZone
   now <- liftIO getCurrentTime
   events <- getEvents
-  let interval = evalI tz events (pageInterval page)
-  let timeLeft = fmap (\t -> diffUTCTime t now) (higher =<< interval)
-  return $ do
-    "valid-from" ##
-      I.textSplice $ maybe "N/A" (showTime tz) (lower =<< interval)
-    "valid-until" ##
-      I.textSplice $ maybe "N/A" (showTime tz) (higher =<< interval)
-    "current-timing" ##
-      maybe (return []) (caseSplice . rankTime now) interval
-    "time-left" ##
-      I.textSplice $ maybe "N/A" (T.pack . formatNominalDiffTime) timeLeft
+  let optInt = evalInterval tz events (pageInterval page)
+  case optInt of
+    Left msg -> return (pure ())
+    Right interval -> do
+      let timeLeft = fmap (\t -> diffUTCTime t now) (higher interval)
+      return $ do
+        "valid-from" ##
+          I.textSplice $ maybe "N/A" (showTime tz) (lower interval)
+        "valid-until" ##
+          I.textSplice $ maybe "N/A" (showTime tz) (higher interval)
+        "current-timing" ##
+          (caseSplice . timeInterval now) interval
+        "time-left" ##
+          I.textSplice $ maybe "N/A" (\t -> T.pack $ formatNominalDiffTime t) timeLeft
  
 
 
@@ -323,6 +324,8 @@ codexInit tester =
     addAuthSplices h auth
     js <- liftIO $ configSplices conf
     addConfig h (mempty & scInterpretedSplices .~ (staticSplices `mappend` js))
+    -- auto-reload config file for events
+    (evcfg, _) <- liftIO $ Conf.autoReload Conf.autoConfig [Conf.Required "events.cfg"]
     -- create a logger for user authentication
     logger <- liftIO $ newLogger "log/auth.log"
     onUnload (stopLogger logger)
@@ -331,7 +334,7 @@ codexInit tester =
     let c = S.sqliteConn $ d ^# snapletValue
     liftIO $ withMVar c $ \conn -> Db.createTables conn
     addRoutes routes
-    -- create a semaphore for throttling concurrent evaluation threads
+    -- | semaphore for limiting concurrent evaluations
     ntasks <- liftIO $ Conf.require conf "system.max_concurrent"
     (semph, tasks) <- liftIO (makeTasks ntasks)
     return App { _heist = h
@@ -343,6 +346,7 @@ codexInit tester =
                , _tasks = tasks
                , _semph = semph
                , _logger  = logger
+               , _eventcfg = evcfg
                }
 
 

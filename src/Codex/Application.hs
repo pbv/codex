@@ -26,6 +26,8 @@ import Control.Monad.State (get)
 
 import Control.Concurrent.QSem (QSem)
 
+import Data.Configurator.Types (Config)
+
 import Codex.Tasks
 import Codex.Types
 import Codex.Tester
@@ -57,6 +59,7 @@ data App = App
     , _tasks   :: Tasks            -- ^ list of evaluation thread ids
     , _semph   :: QSem             -- ^ semaphore for evaluation scheduling
     , _logger  :: Logger
+    , _eventcfg :: Config          -- ^ events configuration
    }
 
 makeLenses ''App

@@ -56,7 +56,7 @@ import           System.FilePath (splitDirectories)
 import           Codex.Application
 
 import           Codex.Utils
-import           Codex.Interval
+import           Codex.Time
 import           Codex.Types
 import           Codex.Tester.Result
 

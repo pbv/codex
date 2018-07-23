@@ -140,7 +140,7 @@ stdioTester Build{..} = tester "stdio" $ do
   outputs <- liftIO $ globMany globDefaults outpatts
   assert (pure $ length inputs == length outputs)
     "different number of inputs and outputs"
-  limit <- fromMaybe maxBound <$> metadata "feedback-limit" 
+  limit <- fromMaybe maxBound <$> metadata "visible" 
   liftIO $ (withTempDir "codex" $ \tmpdir -> do
     exe_file <- makeExec tmpdir code
     aggregate limit <$> runMany exe_file inputs outputs) `catch` return
