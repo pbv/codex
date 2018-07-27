@@ -16,8 +16,7 @@ module Codex.Time (
     evalInterval,
     timeInterval,
     showTime,
-    formatNominalDiffTime,
-    readEvents
+    formatNominalDiffTime
     ) where 
 
 import           Data.Char
@@ -28,10 +27,6 @@ import           Data.Time hiding (parseTime)
 
 import           Text.ParserCombinators.ReadP
 
-import           Data.Configurator.Types (Config)
-import qualified Data.Configurator.Types as Conf
-import qualified Data.Configurator       as Conf
-import qualified Data.HashMap.Strict     as HM
 
 type Name = Text             -- event names
 
@@ -200,7 +195,7 @@ evalTime' :: TimeZone -> Events -> [Name] -> Time -> Either String UTCTime
 evalTime' tz env viz (Event name)
   | name `elem` viz = Left ("cyclic dependency: " ++ show (name:viz))
   | otherwise = case env name of
-      Nothing -> Left ("undefined event: " ++ show name)
+      Nothing -> Left ("undefined event or parse error: " ++ show name)
       Just t -> evalTime' tz env (name:viz) t
 evalTime' tz _ _ (UTC t)
   = pure t
@@ -257,13 +252,6 @@ timeInterval t (Interval Nothing (Just high))
 timeInterval _ _
   = Valid
 
---------------------------------------------------------------
--- load events from a configuration record
-----------------------------------------------------------------
-readEvents :: Config -> IO Events
-readEvents cfg = do
-  hm <- Conf.getMap cfg
-  return (\name -> HM.lookup name hm >>= Conf.convert >>= parseTime)
 
 -------------------------------------------------------------
 -- pretty printing

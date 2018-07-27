@@ -20,12 +20,6 @@ tableExists conn tblName = do
     _ -> False
 
 -- | Create the necessary database tables, if not already initialized.
-{-
-createTables :: S.Connection -> IO ()
-createTables conn = do
-  schemaCreated <- tableExists conn "submissions"
-  unless schemaCreated $ mapM_ (S.execute_ conn) initCmds
--}
 createTables :: S.Connection -> IO ()
 createTables conn =
     forM_ initCmds $ \(table,cmds) -> do
@@ -39,8 +33,6 @@ createTables conn =
 --  | initialization SQL commands for each Db table
 initCmds :: [(String, [S.Query])]
 initCmds = either (error.show) Map.assocs $ runMap $ do
-  "events"  ## ["CREATE TABLE events (id INTEGER PRIMARY KEY, \
-                 \name TEXT NOT NULL, time TIMESTAMP NOT NULL)"]
   "submissions" ## ["CREATE TABLE submissions (\
             \id INTEGER PRIMARY KEY, \
             \user_id TEXT NOT NULL, \
