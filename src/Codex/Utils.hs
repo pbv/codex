@@ -31,11 +31,12 @@ import qualified Heist.Interpreted as I
 import qualified Text.XmlHtml as X
 
 
-
+import           Control.Monad (join)
 import           Control.Monad.State
 import           Control.Exception (SomeException)
 
 import qualified Data.Configurator as Configurator
+import qualified Data.Configurator.Types as Configurator
 
 import           Codex.Types
 import           Codex.Page
@@ -44,7 +45,7 @@ import           Codex.Application
 
 import           Data.Time.Clock
 import           Data.Time.LocalTime
-import           Data.Time.Format
+import           Data.Time.Format hiding (parseTime)
 
 import           System.FilePath
 import qualified System.FastLogger as FastLogger
@@ -117,18 +118,21 @@ withAdmin action = do
                     else unauthorized
 
 
--- | get all events 
+-- | get all events from the configuration 
+----------------------------------------------------------------
 getEvents :: Codex Events
 getEvents = do
   evcfg <- gets _eventcfg
-  liftIO $ readEvents evcfg
-  
+  hm <- liftIO $ Configurator.getMap evcfg
+  let hm' = HM.map (\v -> Configurator.convert v >>= parseTime) hm
+  return (\k -> join (HM.lookup k hm'))
+
   -- uevs <- maybe [] userEvents <$> with auth currentUser
   -- dbevs <- query_ "SELECT name, time FROM events"
   -- let evs = uevs ++ dbevs
   -- return (`lookup` uevs)
 
-
+{-
 -- | events associated with a user account
 userEvents :: AuthUser -> [(Text, Time)]
 userEvents au = [(n, fromUTCTime t) | (n,f) <- fields, t <- maybeToList (f au)]
@@ -136,6 +140,7 @@ userEvents au = [(n, fromUTCTime t) | (n,f) <- fields, t <- maybeToList (f au)]
                    ("creation", userCreatedAt),
                    ("update", userUpdatedAt),
                    ("login", userCurrentLoginAt)]
+-}
 
 -- | get submission id from request parameters
 getSubmitId :: Codex (Maybe SubmitId)

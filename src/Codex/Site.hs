@@ -61,6 +61,7 @@ import           Codex.Config
 import qualified Codex.Db           as  Db
 import           Codex.Time
 import           Codex.Page
+import           Codex.Quiz
 import           Codex.Submission
 import           Codex.Types
 import           Codex.Utils
@@ -110,8 +111,12 @@ handlePost uid rqpath filepath = do
 servePage :: UserLogin -> FilePath -> Codex ()
 servePage uid rqpath = do
   page <- readPage uid rqpath
+  let quiz = fromMaybe False (lookupFromMeta "quiz" (pageMeta page))
   if pageIsExercise page then
-    renderExercise rqpath page =<< getPageSubmissions uid rqpath
+    if quiz then
+      renderQuiz rqpath (makeQuiz uid page)
+      else
+      renderExercise rqpath page =<< getPageSubmissions uid rqpath
     else
     renderWithSplices "_page" (pageUrlSplices rqpath >>
                                fileUrlSplices rqpath >>
@@ -131,6 +136,13 @@ renderExercise rqpath page subs = do
     submissionListSplices tz subs
     textEditorSplice
     languageSplices (pageLanguages page) Nothing
+
+renderQuiz :: FilePath -> Quiz -> Codex ()
+renderQuiz rqpath quiz = do
+  renderWithSplices "_quiz" $ do
+    pageUrlSplices rqpath
+    fileUrlSplices rqpath
+    quizSplices quiz
     
 
 -- render report for a single submission

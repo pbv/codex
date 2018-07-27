@@ -68,7 +68,6 @@ languages meta =
 pageDefaultText :: Page -> Maybe Text
 pageDefaultText = lookupFromMeta "code" . pageMeta
 
-
 -- is this an exercise page?
 pageIsExercise :: Page -> Bool
 pageIsExercise p
@@ -182,6 +181,9 @@ pageToHtml = renderHtmlNodes . writeHtml opts
                , writerHTMLMathMethod = MathJax "/mathjax",
                  writerHighlight = True
                }
+
+blocksToHtml :: [Block] -> [Node]
+blocksToHtml blocks = pageToHtml (Pandoc nullMeta blocks)
 
 
 -- | read a file and parse markdown to a Pandoc document

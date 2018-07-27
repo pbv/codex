@@ -40,7 +40,7 @@ import           Web.Routes.PathInfo
 
 -- | a user login; should uniquely identify the user
 newtype UserLogin
-  = UserLogin {fromLogin :: Text} deriving (Eq, Ord)
+  = UserLogin {fromLogin :: Text} deriving (Eq, Ord, Hashable)
 
 newtype Password
   = Password {fromPassword :: ByteString} deriving (Eq,Ord)
