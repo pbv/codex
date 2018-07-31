@@ -45,6 +45,8 @@ Executable codex-server
     Codex.Tester.Utils
     Codex.Types
     Codex.Utils
+    Codex.Quiz
+    Codex.Quiz.Random
   build-depends:
     filepath,
     directory,
@@ -84,8 +86,8 @@ Executable codex-server
     lens,
     process-extras,
     temporary,
-    glob-posix
---    time-parsers                
+    glob-posix,
+    random
   if flag(development)
     -- build-depends:
     --  snap-loader-dynamic
