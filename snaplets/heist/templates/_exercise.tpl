@@ -3,7 +3,7 @@
 <bind tag="icon-warning"><img src="/static/icons/16x16/warning.png"/></bind>
 <bind tag="icon-overdue"><img src="/static/icons/16x16/overdue.png"/></bind>
 <bind tag="icon-editor"><img src="/static/icons/16x16/editor.png"/></bind>
-<bind tag="time-icon"><valid><icon-accepted/><else/><icon-overdue/></valid></bind>
+<bind tag="time-icon"><valid><else/><icon-overdue/></valid></bind>
 
 <apply template="_base">
   <mathjax-js/>

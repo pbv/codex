@@ -214,7 +214,8 @@ utcTimeSplice tz t =
 pageSplices  :: Monad m => Page -> Splices (I.Splice m)
 pageSplices page = do
   "page-description" ## return (pageToHtml page)
-  "if-exercise" ## I.ifElseISplice (pageIsExercise page)
+  -- NB: not used; maybe remove?
+  -- "if-exercise" ## I.ifElseISplice (pageIsExercise page)
 
 
 pageUrlSplices :: FilePath -> ISplices
@@ -231,6 +232,10 @@ fileUrlSplices rqpath = do
   "file-path" ## I.textSplice (T.pack rqpath)
   "file-url" ## urlSplice (Files path)
   "file-parent-url" ## urlSplice (Files parent)
+
+urlSplices :: FilePath -> ISplices
+urlSplices rqpath = pageUrlSplices rqpath >> fileUrlSplices rqpath
+  
 
 
 

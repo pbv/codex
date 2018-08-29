@@ -70,21 +70,25 @@ ul.menubar li a:hover {
 
 ol.submissions {
   list-style-type: none;
-  width: 80%;
-  columns: 4;
+  /* columns: 4; */
 }
 
 ol.submissions li {
-  padding-right: 1em;
-  padding-bottom: 1ex;
+    float: left;
+    width: 8em;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    padding-right: 1em;
+    padding-bottom: 1ex;
 }
 
+
 ol.submissions:after {
-/*  content: '';
+  content: '';
   display: block;
   clear: both;
-*/
  }
+
 
 #content {
    padding-top: 3em;
@@ -239,6 +243,8 @@ table.submissions td.received {
     color: black;
     font-style: oblique;
 }
+
+
 
 /* --- code highlighting --- */
 

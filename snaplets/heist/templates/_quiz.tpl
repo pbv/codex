@@ -9,18 +9,15 @@
     <questions>
       <fieldset>
       <answer-preamble/>
-      <ol type="${list-type}" start="${list-start}">
+      <ol class="answers" type="${list-type}" start="${list-start}">
 	<answers>
-	  <li><input type="checkbox" name="${answer-name}" value="${answer-label}"/> <answer-item/>
+	  <li><label><input type="checkbox" name="${answer-name}" value="${answer-label}"/>&nbsp;<answer-item/></label>
 	  </li>
 	</answers>
       </ol>
       </fieldset>
     </questions>
   </form>
-
-
-  
 </apply>
 
 
