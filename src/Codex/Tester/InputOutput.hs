@@ -145,7 +145,7 @@ stdioTester Build{..} = tester "stdio" $ do
     exe_file <- makeExec tmpdir code
     aggregate limit <$> runMany exe_file inputs outputs) `catch` return
   where
-    runMany exe_file  = zipWithM (runSingle exe_file) 
+    runMany exe_file = zipWithM (runSingle exe_file) 
     runSingle exe_file in_file out_file = do
       in_txt <- T.readFile in_file
       out_txt <- T.readFile out_file
@@ -171,14 +171,39 @@ classify _ _ (ExitFailure c, _, err)
     [ "Program exited with non-zero status: " <> T.pack (show c)
     ,  err
     ]
-classify  _ _ (_, out, err)
+classify input expected (_, out, err)
   | match "Command terminated by signal" err ||
     match "Command exited with non-zero status" err
-  = runtimeError $ T.unlines [ out, err ]
+  = runtimeError $
+    T.unlines [ "Input:", input
+              , "Expected output:", expected
+              , "Obtained ouput:", out, err
+              ]
+classify input expected (_, out, err)
+  | match "Time Limit" err =
+    timeLimitExceeded $
+    T.unlines [ "Input:", input
+              , "Expected output:", expected
+              , "Obtained output:", out, err
+              ]
+classify input expected (_, out, err)
+  | match "Memory Limit" err =
+    memoryLimitExceeded $
+    T.unlines [ "Input:", input
+              , "Expected output:", expected
+              , "Obtained output:", out, err
+              ]
+classify input expected (_, out, err)
+  | match "Output Limit" err =
+    runtimeError $ 
+    T.unlines [ "Input:", input
+              , "Expected output:", expected
+              , "Obtained output:", out, err
+              ]
 classify _ expected (_, out, _) 
   | out == expected
-  = accepted  "Passed" 
-classify  input expected (_, out, _) 
+  = accepted "Passed" 
+classify input expected (_, out, _) 
   = (if T.strip out == T.strip expected
       then
         presentationError
