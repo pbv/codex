@@ -32,10 +32,10 @@ sqlSelectTester = tester "select" $ do
   metaArgs <- getOptMetaArgs
               [ ("-d", "db-name") ]
   answer <- getSqlAnswer
-  withTemp "submit.sql" src $ \submittedFilePath -> do
-    chmod readable submittedFilePath
-    classify <$> unsafeExec evaluator
-      (confArgs ++ metaArgs ++ ["-a", answer, "-S", submittedFilePath]) ""
+  withTemp "answer.sql" (T.pack answer) $ \answerFilePath ->
+    withTemp "submit.sql" src $ \submittedFilePath ->
+      classify <$> unsafeExec evaluator
+        (confArgs ++ metaArgs ++ ["-A", answerFilePath,"-S", submittedFilePath]) ""
 
 
 sqlEditTester :: Tester Result
@@ -58,10 +58,10 @@ sqlEditTester = tester "edit" $ do
              , ("-I", "db-init-file")
              ]
   answer <- getSqlAnswer
-  withTemp "submit.sql" src $ \submittedFilePath -> do
-    chmod readable submittedFilePath
-    classify <$> unsafeExec evaluator
-      (confArgs ++ metaArgs ++ ["-a", answer,"-S", submittedFilePath]) ""
+  withTemp "answer.sql" (T.pack answer) $ \answerFilePath ->
+    withTemp "submit.sql" src $ \submittedFilePath ->
+      classify <$> unsafeExec evaluator
+        (confArgs ++ metaArgs ++ ["-A", answerFilePath,"-S", submittedFilePath]) ""
 
 
 sqlSchemaTester :: Tester Result
@@ -82,10 +82,10 @@ sqlSchemaTester = tester "schema" $ do
              , ("-I", "db-init-file")
              ]
   answer <- getSqlAnswer
-  withTemp "submit.sql" src $ \submittedFilePath -> do
-    chmod readable submittedFilePath
-    classify <$> unsafeExec evaluator
-      (confArgs ++ metaArgs ++ ["-a", answer, "-S", submittedFilePath]) ""
+  withTemp "answer.sql" (T.pack answer) $ \answerFilePath ->
+    withTemp "submit.sql" src $ \submittedFilePath ->
+      classify <$> unsafeExec evaluator
+        (confArgs ++ metaArgs ++ ["-A", answerFilePath,"-S", submittedFilePath]) ""
 
 
 getOptConfArgs :: Text -> [(String, Text)] -> Tester [String]
@@ -108,15 +108,15 @@ getOptMetaArgs opts
 
 classify :: (ExitCode, Text, Text) -> Result
 classify (ExitSuccess, stdout, _)
-  | match "Accepted" stdout              = accepted (dropFirstLn stdout)
-  | match "Wrong Answer" stdout          = wrongAnswer (dropFirstLn stdout)
-  | match "Runtime Error" stdout         = runtimeError (dropFirstLn stdout)
-  | match "Compile Error" stdout         = compileError (dropFirstLn stdout)
-  | match "Time Limit Exceeded" stdout   = timeLimitExceeded (dropFirstLn stdout)
-  | match "Memory Limit Exceeded" stdout = memoryLimitExceeded (dropFirstLn stdout)
+  | T.isPrefixOf "Accepted" stdout              = accepted (dropFirstLn stdout)
+  | T.isPrefixOf "Wrong Answer" stdout          = wrongAnswer (dropFirstLn stdout)
+  | T.isPrefixOf "Runtime Error" stdout         = runtimeError (dropFirstLn stdout)
+  | T.isPrefixOf "Compile Error" stdout         = compileError (dropFirstLn stdout)
+  | T.isPrefixOf "Time Limit Exceeded" stdout   = timeLimitExceeded (dropFirstLn stdout)
+  | T.isPrefixOf "Memory Limit Exceeded" stdout = memoryLimitExceeded (dropFirstLn stdout)
   where
     dropFirstLn = T.dropWhile (/='\n')
-classify (_, stdout, stderr)             = miscError (stdout <> stderr)
+classify (_, stdout, stderr)                    = miscError (stdout <> stderr)
 
 
 getSqlAnswer :: Tester String
