@@ -17,6 +17,8 @@ import           Data.Aeson
 import qualified Data.HashMap.Strict as HM
 import           Data.Map.Syntax
 
+import           Snap.Snaplet.Auth.Backends.SqliteSimple
+
 import           Snap.Core hiding (path)
 import           Snap.Snaplet
 import           Snap.Snaplet.Heist
@@ -68,12 +70,18 @@ getStaticRoot = do
 -- | lookup full name for a user login in Db
 queryFullname :: UserLogin -> Codex (Maybe Text)
 queryFullname uid = do
-  list <- query "SELECT meta_json FROM snap_auth_user WHERE login = ?" (Only uid)
-  return $ case list of
-    [] -> Nothing
-    (txt:_) -> do
-      hm <- decodeStrict (T.encodeUtf8 txt) :: Maybe (HM.HashMap Text Text)
-      HM.lookup "fullname" hm
+  -- this hugly hack is needed because the Sqlite backend inserts NULL
+  -- fields for empty metadata; maybe we could handle this better?
+  Only check:_ <- query "SELECT meta_json is NULL from snap_auth_user WHERE login = ?" (Only uid) 
+  if check  then
+    return Nothing
+    else do
+    list <- query "SELECT meta_json FROM snap_auth_user WHERE login = ?" (Only uid)
+    return $ case list of
+      (txt:_) -> do
+        hm <- decodeStrict (T.encodeUtf8 txt) :: Maybe (HM.HashMap Text Text)
+        HM.lookup "fullname" hm
+      _ -> Nothing
 
 
 -- | Get current logged in user ID (if any)

@@ -120,12 +120,13 @@ generatePrintouts patts order = do
   dir <- liftIO $ Configurator.require conf "printouts.directory"
   liftIO $ createDirectoryIfMissing True dir
   templ <- liftIO $ readFile =<< Configurator.require conf "printouts.template"
+  title <- liftIO $ Configurator.require conf "printouts.title"
   let opts = def { -- writerStandalone = True
                    writerTemplate = Just templ
                  , writerHighlight = True
                  , writerSetextHeaders = False
                  }
-  generateSummary patts order >>= generateReports dir opts 
+  generateSummary patts order >>= generateReports title dir opts 
 
 
 -- | cummulative summary of submissions
@@ -161,25 +162,27 @@ generateSummary patts order
   = withFilterSubmissions patts order M.empty (\x y -> return (addSubmission x y))
 
 -- | generate reports from the summary
-generateReports :: FilePath -> WriterOptions -> Summary -> Codex ()
-generateReports dir opts summary
+generateReports ::
+  String -> FilePath -> WriterOptions -> Summary -> Codex ()
+generateReports title dir opts summary
   = forM_ (M.assocs summary) $
     (\(uid,submap) ->
         do writeText (fromLogin uid <> "\n")
            let filepath = dir </> T.unpack (fromLogin uid) <.> "md"
-           report <- userReport uid (M.assocs submap)
+           report <- userReport title uid (M.assocs submap)
            liftIO $ writeFile filepath (writeMarkdown opts report))
 
     
-userReport :: UserLogin -> [(FilePath,Submission)] -> Codex Pandoc
-userReport uid submissions = do
+userReport ::
+  String -> UserLogin -> [(FilePath,Submission)] -> Codex Pandoc
+userReport title uid submissions = do
   now <- liftIO getZonedTime
   let login = T.unpack (fromLogin uid)
   fullname <- maybe login T.unpack <$> queryFullname uid
   titles <- sequence [ getTitle path | (path,_) <- submissions ]
   let exercises = [ submissionReport sub | (_,sub) <- submissions ]
   let blocks = [ header 1 title <> report | (title,report) <- zip titles exercises]
-  return (setTitle (text "Report") $
+  return (setTitle (text title) $
           setAuthors [text $ fullname ++ " (" ++ login ++ ")"] $
           setDate (text $ show now) $
           doc $ mconcat blocks)
