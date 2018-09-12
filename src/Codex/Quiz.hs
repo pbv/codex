@@ -1,5 +1,7 @@
 {-# LANGUAGE OverloadedStrings #-}
-
+--
+-- Multiple choice quizzes
+--
 module Codex.Quiz where
 
 import           Data.Char
@@ -10,14 +12,25 @@ import           Data.Maybe (fromMaybe, catMaybes)
 import           Data.Hashable
 import qualified Data.Text as T
 import           Data.Text(Text)
+import           Data.ByteString.UTF8 (ByteString)
+import qualified Data.ByteString.UTF8 as B
+
 import           Codex.Quiz.Random
 import           Codex.Page
 import           Codex.Types
 
+import           Snap.Core hiding (path)
+
 import           Heist
 import qualified Heist.Splices as I
 import qualified Heist.Interpreted as I
+
+import           Data.HashMap.Strict (HashMap)
+import qualified Data.HashMap.Strict as HashMap
+import qualified Data.Map            as Map
+import           Data.Aeson
 import           Data.Map.Syntax
+import           Data.List (intersperse)
 
 import qualified Text.XmlHtml as X
 
@@ -27,17 +40,48 @@ data Quiz = Quiz [Block] [Question]
   deriving Show
 
 -- | a question has a preamble blocks,
--- a list of answers (strings), and an ordered list of answers 
+-- a list of answer keys (strings),
+-- and an ordered list of blocks describing options
 data Question = Question [Block] [String] ListAttributes [[Block]]
   deriving Show
 
+-- | answers to a quiz;
+-- map from question id to (possibly many) selected options
+newtype Answers = Answers (HashMap String [String])
+  deriving Show
+
+emptyAnswers :: Answers
+emptyAnswers = Answers HashMap.empty
+
+-- | instances for converting to/from JSON
+instance ToJSON Answers where
+  toJSON (Answers m) = toJSON m
+
+instance FromJSON Answers where
+  parseJSON v = Answers <$> parseJSON v
+
+
+-- | get all form parameters as a quiz answer
+--
+getAnswers :: MonadSnap m => m Answers
+getAnswers = do
+  m <- getParams
+  let m'= HashMap.fromList [(B.toString k, map B.toString vs) | (k,vs)<-Map.assocs m]
+  return (Answers m')
+  
+lookupAnswers :: Question -> Answers -> [String]
+lookupAnswers (Question (header:_) _ _ _) (Answers hm) 
+  = fromMaybe [] $ do name <- identifier header
+                      HashMap.lookup name hm
+
+
 makeQuiz :: UserLogin -> Page -> Quiz
 makeQuiz uid page
-  = runRand (shuffle2 =<< shuffle1 (toQuiz page)) salt
+  = runRand (shuffle2 =<< shuffle1 (toQuiz page)) seed'
   where
     meta = pageMeta page
-    salt = hashWithSalt salt' uid
-    salt'= fromMaybe (0 :: Int) (lookupFromMeta "salt" meta)
+    seed = fromMaybe (0 :: Int) (lookupFromMeta "seed" meta)
+    seed'= hashWithSalt seed uid
     opt1 = fromMaybe False $ lookupFromMeta "shuffle-questions" meta
     opt2 = fromMaybe False $ lookupFromMeta "shuffle-answers" meta
     shuffle1 = if opt1 then shuffleQuestions else return
@@ -50,8 +94,6 @@ toQuiz (Pandoc _ blocks) =  Quiz blocks' (questions blocks'')
   where
     blocks' = takeWhile (not . header) blocks
     blocks''= dropWhile (not . header) blocks
-
-
 
 
 questions :: [Block] -> [Question]
@@ -86,7 +128,8 @@ removeKey k (Header n (id, classes, kvs) inlines)
 removeKey _ b = b
 
 makeQuestion :: Block -> [Block] -> Question
-makeQuestion header body = Question (header':preamble) answer attrs items
+makeQuestion header body
+  = Question (header':preamble) answer attrs items
   where
     preamble = takeWhile (not . list) body
     (attrs,items) = fromMaybe (emptyAttrs,[]) $ getFirst $ query answers body
@@ -115,7 +158,8 @@ shuffleSingle (Question preamble answers attrs items) = do
   labeled_items' <- shuffle (zip labels items)
   let labels' = map fst labeled_items'
   let items' = map snd labeled_items'
-  let answers' = catMaybes $ map (flip lookup (zip labels labels')) answers
+  let translation = zip labels' labels
+  let answers' = catMaybes $ map (flip lookup translation) answers
   return (Question preamble answers' attrs items')
 
 
@@ -150,28 +194,40 @@ numerals =
    (10, "x"),  (9, "ix"), (5, "v"), (4, "iv"), (1, "i")]
 
 
-  
-
-
 -----------------------------
 
-quizSplices :: Monad m => Quiz -> Splices (I.Splice m)
-quizSplices (Quiz preamble questions) = do
+quizSplices :: Monad m => Quiz -> Answers -> Splices (I.Splice m)
+quizSplices (Quiz preamble questions) answers = do
   "quiz-preamble" ## return (blocksToHtml preamble)
-  "questions" ## I.mapSplices (I.runChildrenWith . questionSplice) questions
+  "questions" ## I.mapSplices (I.runChildrenWith . questionSplice answers) questions
 
 
-questionSplice :: Monad m => Question -> Splices (I.Splice m)
-questionSplice (Question preamble answers attrs items) = do
-  "answer-preamble" ## return (blocksToHtml preamble)
-  "answer-name" ## maybe (return []) (I.textSplice . T.pack) (identifier $ head preamble)
+-- | splices for questions with answer key
+questionSplice :: Monad m => Answers -> Question -> Splices (I.Splice m)
+questionSplice answers question@(Question preamble@(header:_) key attrs items) = do
+  let responses = lookupAnswers question answers
+  let labeled_items = zip (listLabels attrs) items
+  "question-preamble" ## return (blocksToHtml preamble)
+  "question-name" ## maybe (return []) (I.textSplice . T.pack) (identifier header)
   "list-type" ## I.textSplice (listType attrs)
   "list-start" ## I.textSplice (listStart attrs)
-  "answers" ## I.mapSplices (I.runChildrenWith . answerSplices) (zip items (listLabels attrs))
-  where 
-    answerSplices (block, label) = do
-      "answer-item" ## return (blocksToHtml block)
-      "answer-label" ## I.textSplice (T.pack label)
+  "onclick-callback" ##  if "multiple" `elem` classes header then
+                           return [] else I.textSplice "onlyOne(this)"
+  "answers" ## I.textSplice (T.pack $ concat $ intersperse "," key)
+  "alternatives" ##
+    I.mapSplices (I.runChildrenWith . altSplices responses) labeled_items
+  where
+    altSplices responses (label, item) = do
+      "alternative-label" ## I.textSplice (T.pack label)
+      "alternative" ## return (blocksToHtml item)
+      "if-checked" ## I.ifElseISplice (label `elem` responses)
+      "if-correct" ## I.ifElseISplice (label `elem` key)
+      
+      
+
+
+----
+
 
 
 listType :: ListAttributes -> Text

@@ -19,11 +19,15 @@ import           Control.Exception  (IOException)
 import           Control.Exception.Lifted  (catch)
 
 import           Data.ByteString.UTF8                        (ByteString)
+import qualified Data.ByteString.Lazy.UTF8 as LB
+import qualified Data.ByteString.Lazy      as LB
 import           Data.Map.Syntax
 
 import qualified Data.Text                                   as T
+import qualified Data.Text.Encoding                          as T
 import           Data.Maybe(fromMaybe)
 
+import qualified Data.Aeson as Aeson
 
 import           Heist
 import qualified Heist.Interpreted                           as I
@@ -83,15 +87,15 @@ import           Text.Pandoc.Walk                            as Pandoc
 handlePage :: FilePath -> Codex ()
 handlePage rqpath = do
   uid <- require getUserLogin <|> unauthorized
-  method GET (handleGet uid rqpath) <|>
-    method POST (handlePost uid rqpath)
+  method GET (handleGet uid rqpath <|> notFound) <|>
+    method POST (handlePost uid rqpath <|> badRequest)
 
--- | handle page GET requests
+-- | handle GET requests for pages and files
 handleGet uid rqpath = do
   root <- getDocumentRoot
   let filepath = root </> rqpath
-  exists <- liftIO (doesFileExist filepath)
-  unless exists notFound
+  c <- liftIO (doesFileExist filepath)
+  guard c
   let mime = fileType mimeTypes rqpath
   if mime == "text/markdown" then do
     page <- readPage uid rqpath
@@ -100,38 +104,47 @@ handleGet uid rqpath = do
     serveFileAs mime filepath
   
 
--- | handle POST requests; only for exercise pages
---
+-- | handle POST requests for submission pages
 handlePost :: UserLogin -> FilePath -> Codex ()
 handlePost uid rqpath = do
   root <- getDocumentRoot
   let filepath = root </> rqpath
   let mime = fileType mimeTypes rqpath
-  unless (mime == "text/markdown") badRequest
+  guard (mime == "text/markdown") 
+  c <- liftIO (doesFileExist filepath)
+  guard c
   page <- liftIO (readMarkdownFile filepath)
-  unless (pageIsExercise page) badRequest
-  text <- require (getTextPost "code")
-  lang <- Language <$> require (getTextPost "language")
-  unless (lang `elem` pageLanguages page) badRequest
-  sid <- newSubmission uid rqpath (Code lang text)
-  redirectURL (Report sid)
+  guard (isExercise page) 
+  if isQuiz page then do
+    ans <- getAnswers
+    let text = T.decodeUtf8 $ LB.toStrict $ Aeson.encode ans
+    sid <- newSubmission uid rqpath (Code "json" text)
+    redirectURL (Report sid)
+    else do
+      text <- require (getTextPost "code")
+      lang <- Language <$> require (getTextPost "language")
+      unless (lang `elem` pageLanguages page) badRequest
+      sid <- newSubmission uid rqpath (Code lang text)
+      redirectURL (Report sid)
 
 
 -- | serve a markdown page
 servePage :: UserLogin -> FilePath -> Page -> Codex ()
 servePage uid rqpath page
-  | pageIsExercise page =
-      -- NB: this is an experimental hack 
-      if pageIsQuiz page then
-        renderWithSplices "_quiz" (quizSplices $ makeQuiz uid page)
+  | isExercise page =
+      -- experimental hack to view multiple-choice quizzes
+      if isQuiz page then
+        renderWithSplices "_quiz" (quizSplices (makeQuiz uid page) emptyAnswers)
       else        
         renderExercise rqpath page =<< getPageSubmissions uid rqpath
   | otherwise =
       renderWithSplices "_page" (pageSplices page)
    
 
-pageIsQuiz :: Page -> Bool
-pageIsQuiz page = fromMaybe False (lookupFromMeta "quiz" (pageMeta page))
+isQuiz :: Page -> Bool
+isQuiz page
+  = lookupFromMeta "tester" (pageMeta page) == Just ("quiz" :: Text)
+
 
 
 -- | render an exercise page
@@ -145,12 +158,12 @@ renderExercise rqpath page subs = do
     textEditorSplice
     languageSplices (pageLanguages page) Nothing
 
-    
+ 
 
 -- | render the report for a single submission
 renderReport :: FilePath -> Page -> Submission -> Codex ()
 renderReport rqpath page sub = do
-  tz <- liftIO getCurrentTimeZone
+  tz <- liftIO getCurrentTimeZone   
   withTimeSplices page $ renderWithSplices "_report" $ do
     urlSplices rqpath
     pageSplices page
@@ -159,6 +172,18 @@ renderReport rqpath page sub = do
     textEditorSplice
     languageSplices (pageLanguages page) (Just $ submitLang sub)
 
+renderAnswers :: FilePath -> Page -> Submission -> Codex ()
+renderAnswers rqpath page sub = do
+  tz <- liftIO getCurrentTimeZone
+  let quiz = makeQuiz (submitUser sub) page
+  let Code _ text = submitCode sub
+  let Just answers= Aeson.decode $
+                    LB.fromStrict $ T.encodeUtf8 text :: Maybe Answers
+  renderWithSplices "_answers" $ do
+    urlSplices rqpath
+    pageSplices page
+    submitSplices tz sub
+    quizSplices quiz answers
 
 -- | read a page and patch any links to exercises
 readPage :: UserLogin -> FilePath -> Codex Page
@@ -210,7 +235,10 @@ handleReport sid = do
   let rqpath = submitPath sub
   method GET $ do
     page <- liftIO $ readMarkdownFile (root </> rqpath)
-    renderReport rqpath page sub
+    if isQuiz page then
+      renderAnswers rqpath page sub
+      else
+      renderReport rqpath page sub
 
 
 

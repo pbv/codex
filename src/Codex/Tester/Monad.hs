@@ -12,7 +12,9 @@ module Codex.Tester.Monad (
   testConfig,
   testPath,
   testCode,
+  testPage,
   testMetadata,
+  testUser,
   metadata,
   ) where
 
@@ -27,7 +29,7 @@ import           Control.Monad.Trans
 import           Control.Monad.Trans.Maybe 
 import           Control.Monad.Trans.Reader
 
-import           Codex.Types (Code)
+import           Codex.Types (Code, UserLogin)
 import           Text.Pandoc (Meta)
 import           Codex.Page
 import           Codex.Tester.Limits
@@ -42,20 +44,22 @@ newtype Tester a
 -- | testing environment
 data TestEnv
    = TestEnv { _testConfig :: Config   -- ^ static configuration file
-             , _testMeta :: Meta       -- ^ exercise metadata
+             , _testPage :: Page       -- ^ exercise page
              , _testPath :: FilePath   -- ^ file path to exercise page
-             , _testCode :: Code       -- ^ submited language & code 
+             , _testCode :: Code       -- ^ submited language & code
+             , _testUser :: UserLogin  -- ^ user 
              } 
 
 
--- | run a tester
-runTester :: Config -> Meta -> FilePath -> Code -> Tester a
-          -> IO (Maybe a)
-runTester cfg meta path code action
-  = runMaybeT $ runReaderT (unTester action) (TestEnv cfg meta path code)
+-- | run function for testers
+runTester ::
+  Config -> Page -> FilePath -> Code -> UserLogin -> Tester a
+  -> IO (Maybe a)
+runTester cfg page path code user action
+  = runMaybeT $ runReaderT (unTester action) (TestEnv cfg page path code user)
 
 
--- | fetch paramaters from the enviroment
+-- | fetch parameters from enviroment
 testConfig :: Tester Config
 testConfig = Tester (asks _testConfig)
 
@@ -65,8 +69,15 @@ testPath = Tester (asks _testPath)
 testCode :: Tester Code
 testCode = Tester (asks _testCode)
 
+testPage :: Tester Page
+testPage = Tester (asks _testPage)
+
 testMetadata :: Tester Meta
-testMetadata = Tester (asks _testMeta)
+testMetadata = pageMeta <$> testPage
+
+testUser :: Tester UserLogin
+testUser = Tester (asks _testUser)
+
 
 metadata :: FromMetaValue a => String -> Tester (Maybe a)
 metadata key = do

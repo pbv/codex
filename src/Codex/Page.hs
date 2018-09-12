@@ -69,9 +69,11 @@ pageDefaultText :: Page -> Maybe Text
 pageDefaultText = lookupFromMeta "code" . pageMeta
 
 -- is this an exercise page?
-pageIsExercise :: Page -> Bool
-pageIsExercise p
-  = fromMaybe False $ lookupFromMeta "exercise" (pageMeta p)
+isExercise :: Page -> Bool
+isExercise = isJust . pageTester
+
+pageTester :: Page -> Maybe Text
+pageTester = lookupFromMeta "tester" . pageMeta
 
 -- time interval for valid submissions
 pageInterval :: Page -> Interval Time

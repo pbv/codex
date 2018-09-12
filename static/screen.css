@@ -70,7 +70,6 @@ ul.menubar li a:hover {
 
 ol.submissions {
   list-style-type: none;
-  /* columns: 4; */
 }
 
 ol.submissions li {
@@ -131,8 +130,6 @@ ol.submissions:after {
 
 .warnings {
   color: red;
-  /* font-style: oblique; */
-  /* font-size: 90%; */
 }
 
 
@@ -172,13 +169,6 @@ pre {
 .hidden { display:none; }
 
 .disabled { color: #A0A0A0; }
-
-.filters {
-    float: left;
-    margin-left: 1em;
-    width: 14em;
-}
-
 
 
 td.filename {
@@ -235,7 +225,12 @@ table.submissions td.received {
 }
 
 
-.PresentationError, .CompileError, .RuntimeError, .MiscError,  .MemoryLimitExceeded, .TimeLimitExceeded  {
+.PresentationError,
+.CompileError,
+.RuntimeError,
+.MiscError,
+.MemoryLimitExceeded,
+.TimeLimitExceeded  {
     color: black;
 }
 
@@ -245,8 +240,19 @@ table.submissions td.received {
 }
 
 
+/* --- Quiz answers --- */
 
-/* --- code highlighting --- */
+.wrong {
+    /* text-decoration: line-through; */
+}
+
+.missing {
+    border-bottom: 2px dotted;
+    padding: 2px;
+}
+
+
+/* --- Code highlighting --- */
 
 .sourceCode .kw { font-weight: bold; color: blue;  }
 .sourceCode .co { color: darkgreen; }

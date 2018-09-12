@@ -66,39 +66,27 @@ evaluatorWith tester Submission{..} = do
   conf <- getSnapletUserConfig
   return $ do                           -- ^ return evaluation IO action
     let filepath = root </> submitPath  -- ^ file path to exercise 
-    meta <- pageMeta <$> readMarkdownFile filepath
+    page <- readMarkdownFile filepath
     tz <- getCurrentTimeZone
-    let optInt = evalInterval tz events (metaInterval meta)
+    let optInt = evalInterval tz events (metaInterval $ pageMeta page)
     case optInt of
       Left err ->
         updateSubmission sqlite submitId (wrongInterval err) Valid
       Right int -> do
         let timing = timeInterval submitTime int
-        result <- testerWrapper conf filepath submitCode meta tester
+        result <- testWrapper conf page filepath submitCode submitUser tester
                   `catch`
                   (\(e::SomeException) ->
                       return (miscError $ T.pack $ show e))
         updateSubmission sqlite submitId result timing
 
--- let opt = rankTime submitTime <$> evalI tz evs (metaInterval meta)  
-{-        
-    case opt of
-      Nothing ->
-        updateSubmission sqlite sid wrongInterval Valid
-      Just timing -> do
-        result <- testerWrapper conf filepath code meta tester
-                  `catch`
-                  (\(e::SomeException) ->
-                      return (miscError $ T.pack $ show e))
-        updateSubmission sqlite sid result timing
--}
 
--- | set default limits and run a tester
-testerWrapper cfg path code meta action
-  = fromMaybe invalidTester <$> runTester cfg meta path code action
+-- | wrapper to set default limits and run a tester
+testWrapper cfg page path code user action
+  = fromMaybe invalidTester <$> runTester cfg page path code user action
 
 wrongInterval :: String -> Result
-wrongInterval msg = miscError ("invalid metadata: " <> T.pack msg)
+wrongInterval msg = miscError ("invalid time interval: " <> T.pack msg)
  
 invalidTester :: Result
 invalidTester = miscError "no acceptable tester configured"

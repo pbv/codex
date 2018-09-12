@@ -43,6 +43,7 @@ Executable codex-server
     Codex.Tester.Sql                
     Codex.Tester.Result
     Codex.Tester.Utils
+    Codex.Tester.Quiz            
     Codex.Types
     Codex.Utils
     Codex.Quiz
