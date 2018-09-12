@@ -28,7 +28,7 @@ quizTester = tester "quiz" $ do
   guard (lang == "json")
   uid <- testUser
   page <- testPage
-  let quiz = makeQuiz uid page
+  let quiz = shuffleQuiz uid page
   let Just answers = Aeson.decode $
                      LB.fromStrict $ T.encodeUtf8 text :: Maybe Answers
   let Score{..} = scoreAnswers quiz answers
@@ -65,9 +65,10 @@ scoreAnswers (Quiz _ questions) answers
   = mconcat (map (flip scoreQuestion answers) questions)
 
 scoreQuestion :: Question -> Answers  -> Score
-scoreQuestion question@(Question _ key _ alts) answers
+scoreQuestion question@(Question _ attr alts) answers
   = Score correct wrong grade
   where selected = lookupAnswers question answers
+        key = [ label | (label,True,_) <- alts ]
         num_alts = length alts
         num_correct = length key
         num_wrong = num_alts - num_correct

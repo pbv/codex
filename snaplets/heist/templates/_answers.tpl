@@ -43,7 +43,7 @@
 	      </if-checked>
 	  </alternatives>
 	</ol>
-	<p><em>Answers</em>: <em><answers/></em></p>
+	<p><em>Answers</em>: <em><answer-key/></em></p>
       </fieldset>
     </questions>
     <p> <a href="${page-parent-url}"

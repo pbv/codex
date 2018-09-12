@@ -134,7 +134,7 @@ servePage uid rqpath page
   | isExercise page =
       -- experimental hack to view multiple-choice quizzes
       if isQuiz page then
-        renderWithSplices "_quiz" (quizSplices (makeQuiz uid page) emptyAnswers)
+        renderWithSplices "_quiz" (quizSplices (shuffleQuiz uid page) emptyAnswers)
       else        
         renderExercise rqpath page =<< getPageSubmissions uid rqpath
   | otherwise =
@@ -175,7 +175,7 @@ renderReport rqpath page sub = do
 renderAnswers :: FilePath -> Page -> Submission -> Codex ()
 renderAnswers rqpath page sub = do
   tz <- liftIO getCurrentTimeZone
-  let quiz = makeQuiz (submitUser sub) page
+  let quiz = shuffleQuiz (submitUser sub) page
   let Code _ text = submitCode sub
   let Just answers= Aeson.decode $
                     LB.fromStrict $ T.encodeUtf8 text :: Maybe Answers
