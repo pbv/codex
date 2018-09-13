@@ -10,10 +10,12 @@ import           Text.Pandoc.Walk
 import           Data.Monoid
 import           Data.Maybe (fromMaybe, catMaybes)
 import           Data.Hashable
-import qualified Data.Text as T
+import qualified Data.Text           as T
+import qualified Data.Text.Encoding as T
 import           Data.Text(Text)
 import           Data.ByteString.UTF8 (ByteString)
 import qualified Data.ByteString.UTF8 as B
+import qualified Data.ByteString.Lazy as LB
 
 import           Codex.Quiz.Random
 import           Codex.Page
@@ -28,23 +30,26 @@ import qualified Heist.Interpreted as I
 import           Data.HashMap.Strict (HashMap)
 import qualified Data.HashMap.Strict as HashMap
 import qualified Data.Map            as Map
-import           Data.Aeson
+import           Data.Aeson (ToJSON, FromJSON, toJSON, parseJSON)
+import qualified Data.Aeson          as Aeson
 import           Data.Map.Syntax
 import           Data.List (intersperse, sort)
 
 import qualified Text.XmlHtml as X
 
 
--- | a quiz has a preamble blocks and a list of questions
+-- | a quiz has a preamble and a list of questions
 data Quiz = Quiz [Block] [Question]
   deriving Show
 
-type Label = String
-
 -- | a question consists of a preamble (list of blocks), 
 -- list of items describing options tagged with truth values
-data Question = Question [Block] ListAttributes [(Label, Bool, [Block])]
+data Question
+  = Question [Block] ListAttributes [(Label, Bool, [Block])]
   deriving Show
+
+-- | answer labels
+type Label = String
 
 
 -- | answers to a quiz;
@@ -63,27 +68,37 @@ instance FromJSON Answers where
   parseJSON v = Answers <$> parseJSON v
 
 
--- | get all form parameters as a quiz answer
+-- | convert quiz answers from/to text
+decodeAnswers :: Text -> Maybe Answers
+decodeAnswers = Aeson.decode . LB.fromStrict . T.encodeUtf8 
+
+encodeAnswers :: Answers -> Text
+encodeAnswers = T.decodeUtf8 . LB.toStrict . Aeson.encode 
+
+
+-- | get quiz answers from form parameters 
 --
-getAnswers :: MonadSnap m => m Answers
-getAnswers = do
+getFormAnswers :: MonadSnap m => m Answers
+getFormAnswers = do
   m <- getParams
   let m'= HashMap.fromList [ (B.toString k, map B.toString vs)
                            | (k,vs)<-Map.assocs m ]
   return (Answers m')
   
+
 lookupAnswers :: Question -> Answers -> [Label]
 lookupAnswers (Question (header:_) _ _) (Answers hm) 
   = fromMaybe [] $ do name <- identifier header
                       HashMap.lookup name hm
 
+
 -- | deterministic shuffle questions & answers in a quiz
 shuffleQuiz :: UserLogin -> Page -> Quiz
 shuffleQuiz uid page
-  = runRand (shuffle2 =<< shuffle1 (toQuiz page)) seed'
+  = runRand (shuffle2 =<< shuffle1 (makeQuiz page)) seed'
   where
     meta = pageMeta page
-    seed = fromMaybe (0 :: Int) (lookupFromMeta "seed" meta)
+    seed = fromMaybe (0 :: Int) (lookupFromMeta "shuffle-seed" meta)
     seed'= hashWithSalt seed uid
     opt1 = fromMaybe False $ lookupFromMeta "shuffle-questions" meta
     opt2 = fromMaybe False $ lookupFromMeta "shuffle-answers" meta
@@ -92,8 +107,8 @@ shuffleQuiz uid page
     
 
 -- | split up a list of blocks into questions
-toQuiz :: Page -> Quiz
-toQuiz (Pandoc _ blocks) =  Quiz blocks' (questions blocks'')
+makeQuiz :: Page -> Quiz
+makeQuiz (Pandoc _ blocks) =  Quiz blocks' (questions blocks'')
   where
     blocks' = takeWhile (not . header) blocks
     blocks''= dropWhile (not . header) blocks

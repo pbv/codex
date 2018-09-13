@@ -7,7 +7,7 @@
 <h1><page-title/></h1>
 <h2>Submissão <submit-id/></h2>
 <p>Enviada por <code><submit-user-id/></code> em <submit-time/>.</p>
-<evaluating>
+<if-evaluating>
   <p><img src="/static/images/spinner.svg"></p>
   <p class="info">Se a página não atualizar automaticamente,
       use o botão "reload" do "browser".</p>
@@ -36,7 +36,7 @@
   <input type="hidden" name="_method" value="PATCH"/>
   <input type="submit" title="Re-avaliar a submissão" value="Re-avaliar"/>
 </form>
-</evaluating>
+</if-evaluating>
 </apply>
 <apply template="_browse">
   <li><a title="Editar folha de exercício"   href="${file-url}">Editar</a><li>

@@ -9,23 +9,25 @@
 <h1><page-title/></h1>
 <h2>Submissão <submit-id/></h2>
 <p>Enviada por <code><submit-user-id/></code> em <submit-time/>.</p>
-<evaluating>
+<if-evaluating>
   <p><img src="/static/images/spinner.svg"></p>
   <p class="info">Se a página não atualizar automaticamente,
       use o botão "reload" do "browser".</p>
+  <p><a class="button"
+     href="${page-url}">Voltar ao exercício</a> &emsp;
+  <a class="button"
+       href="${page-parent-url}">Voltar à página de índice</a>
+  </p>
 <else/>
-<feedback-medium>
-  <current-timing>
+<current-timing>
     <Early>
       <p>Submissão antecipada; o resultado ficará visível após <valid-from/>.</p>
     </Early>
     <default>
-      <h3>Resultado: <em><submit-classify/></em><overdue>&nbsp;(enviada fora do tempo)</overdue></h3>
-      <feedback-high><pre><submit-message/></pre
-      ></feedback-high>
-      </default>
-  </current-timing>
-</feedback-medium>
+      <h3>Resultado: <em><submit-classify/></em><if-overdue>&nbsp;(enviada fora do tempo)</if-overdue></h3>
+      <if-feedback><pre><submit-message/></pre></if-feedback>
+    </default>
+</current-timing>
 
 <h2>Editar submissão</h2>
 
@@ -40,9 +42,9 @@
   <p><textarea id="code" name="code" style="display:none;"/></p>
   <div id="editor"><submit-text/></div>
   <p>
-    <input type="submit" value="Re-submeter"/> &nbsp;
+    <input type="submit" value="Re-submeter"/> &emsp;
     <a class="button"
-       href="${page-url}">Voltar ao exercício</a> &nbsp;
+       href="${page-url}">Voltar ao exercício</a> &emsp;
     <a class="button"
        href="${page-parent-url}">Voltar à página de índice</a>
   </p>
@@ -64,7 +66,7 @@
 <language-constants-js/>
 <default-language-js/>
 
-</evaluating>
+</if-evaluating>
 </apply>
 
 <apply template="_browse">

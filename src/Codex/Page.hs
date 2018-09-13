@@ -16,7 +16,7 @@ import qualified Data.Text as T
 import qualified Data.Map as Map
 import           Data.Monoid
 import           Control.Applicative
-
+import           Control.Monad.IO.Class
 import           Data.List (intersperse)
 
 import           Codex.Types
@@ -68,9 +68,11 @@ languages meta =
 pageDefaultText :: Page -> Maybe Text
 pageDefaultText = lookupFromMeta "code" . pageMeta
 
--- is this an exercise page?
-isExercise :: Page -> Bool
-isExercise = isJust . pageTester
+-- is it an exercise page? a quiz page?
+isExercise, isQuiz :: Page -> Bool
+isExercise  = isJust . pageTester
+isQuiz page = pageTester page == Just "quiz" 
+
 
 pageTester :: Page -> Maybe Text
 pageTester = lookupFromMeta "tester" . pageMeta
@@ -84,9 +86,9 @@ metaInterval meta
   = fromMaybe (Interval Nothing Nothing) $
     (lookupFromMeta "valid" meta >>= parseInterval)
 
--- feedback level for submissions
-pageFeedback :: Page -> Int
-pageFeedback p = fromMaybe 100 (lookupFromMeta "feedback" (pageMeta p))
+-- | give feedback for submissions?
+pageFeedback :: Page -> Bool
+pageFeedback = fromMaybe True . lookupFromMeta "feedback" . pageMeta 
 
 
 
@@ -189,8 +191,8 @@ blocksToHtml blocks = pageToHtml (Pandoc nullMeta blocks)
 
 
 -- | read a file and parse markdown to a Pandoc document
-readMarkdownFile :: FilePath -> IO Pandoc
-readMarkdownFile fp = do
+readMarkdownFile :: MonadIO m => FilePath -> m Pandoc
+readMarkdownFile fp = liftIO $ do
   r <- readMarkdown opts <$> readFile fp
   case r of
     Left err -> ioError (userError $ show err)
@@ -200,4 +202,3 @@ readMarkdownFile fp = do
                , readerSmart = True
                }
 
- 

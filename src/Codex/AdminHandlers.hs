@@ -77,8 +77,7 @@ handleGet rqpath = file <|> directory <|> notFound
     directory = do
       root <- getDocumentRoot
       let filepath = root </> rqpath
-      c <- liftIO (doesDirectoryExist filepath)
-      unless c pass
+      guardDirectoryExists filepath
       entries <- liftIO (listDir filepath)
       tz <- liftIO getCurrentTimeZone
       renderWithSplices "_file-list" $ do
@@ -88,8 +87,7 @@ handleGet rqpath = file <|> directory <|> notFound
     file = do
       root <- getDocumentRoot
       let filepath = root </> rqpath
-      c <- liftIO (doesFileExist filepath)
-      unless c pass
+      guardFileExists filepath
       let mime = fileType mimeTypes rqpath
       contents <- if B.isPrefixOf "text" mime then
                     liftIO (T.readFile filepath)
@@ -136,7 +134,7 @@ listDir root = do
 handleEdit :: FilePath -> Codex ()
 handleEdit rqpath = do
   root <- getDocumentRoot
-  contents <- require (getTextPost "editform.text")
+  contents <- require (getTextParam "editform.text")
   liftIO $ T.writeFile (root</>rqpath) contents
   redirectURL (Files $ splitDirectories rqpath)
 

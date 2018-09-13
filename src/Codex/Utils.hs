@@ -35,6 +35,7 @@ import qualified Text.XmlHtml as X
 
 import           Control.Monad (join)
 import           Control.Monad.State
+import           Control.Applicative 
 import           Control.Exception (SomeException)
 
 import qualified Data.Configurator as Configurator
@@ -51,6 +52,7 @@ import           Data.Time.Format hiding (parseTime)
 
 import           System.FilePath
 import qualified System.FastLogger as FastLogger
+import           System.Directory (doesFileExist, doesDirectoryExist)
 
 -- interpreted splices for handlers
 type ISplices = Splices (I.Splice Codex)
@@ -175,8 +177,8 @@ require handler = do
 
 
 -- | get a text parameter from a POST request
-getTextPost :: MonadSnap m => ByteString -> m (Maybe Text)
-getTextPost name =
+getTextParam :: MonadSnap m => ByteString -> m (Maybe Text)
+getTextParam name =
   do opt <- getPostParam name
      return ((T.filter (/='\r') . T.decodeUtf8With T.ignore) <$> opt)
 
@@ -186,7 +188,11 @@ getParamDef :: MonadSnap m => ByteString -> ByteString -> m ByteString
 getParamDef name def = fromMaybe def <$> getParam name
 
 
+guardFileExists  :: (MonadIO m, Alternative m) => FilePath -> m ()
+guardFileExists f = guard =<< liftIO (doesFileExist f) 
 
+guardDirectoryExists  :: (MonadIO m, Alternative m) => FilePath -> m ()
+guardDirectoryExists f = guard =<< liftIO (doesDirectoryExist f) 
 
 ---------------------------------------------------------------------
 -- | error handlers

@@ -270,11 +270,11 @@ submitSplices tz Submission{..} = do
   "submit-classify" ##  I.textSplice classify
   "submit-message" ## I.textSplice (resultMessage submitResult)
   "submit-timing" ## I.textSplice (T.pack $ show submitTiming)
-  "valid" ## I.ifElseISplice (submitTiming == Valid)
-  "early" ## I.ifElseISplice (submitTiming == Early)
-  "overdue" ## I.ifElseISplice (submitTiming == Overdue)
-  "accepted" ## I.ifElseISplice (resultClassify submitResult == Accepted)
-  "evaluating" ## I.ifElseISplice (resultClassify submitResult == Evaluating)
+  "if-valid" ## I.ifElseISplice (submitTiming == Valid)
+  "if-early" ## I.ifElseISplice (submitTiming == Early)
+  "if-overdue" ## I.ifElseISplice (submitTiming == Overdue)
+  "if-accepted" ## I.ifElseISplice (resultClassify submitResult == Accepted)
+  "if-evaluating" ## I.ifElseISplice (resultClassify submitResult == Evaluating)
                                       
 
 

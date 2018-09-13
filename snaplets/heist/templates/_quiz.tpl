@@ -11,7 +11,13 @@
 	<question-preamble/>
 	<ol class="answers" type="${list-type}" start="${list-start}">
 	  <alternatives>
-	    <li><label><input type="checkbox" name="${question-name}" value="${alternative-label}" onclick="${onclick-callback}"/>&nbsp;<alternative/>
+	    <li>
+	      <label>
+		<if-checked>
+		  <input type="checkbox" name="${question-name}" value="${alternative-label}" onclick="${onclick-callback}" checked/>
+		  <else/>
+		  <input type="checkbox" name="${question-name}" value="${alternative-label}" onclick="${onclick-callback}"/>
+		</if-checked>&nbsp;<alternative/>
 	      </label>
 	    </li>
 	  </alternatives>
@@ -35,7 +41,6 @@
     }
     }
   </script>
-
 </apply>
 
 

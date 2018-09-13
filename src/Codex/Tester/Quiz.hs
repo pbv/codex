@@ -12,10 +12,9 @@ import           Codex.Tester
 import           Codex.Quiz
 import           Data.Text(Text)
 import qualified Data.Text as T
-import qualified Data.Text.Encoding as T
-import qualified Data.ByteString.Lazy as LB
 
 import qualified Data.Aeson as Aeson
+import           Data.Maybe
 import           Data.Monoid
 import           Data.Ratio
 import           Data.List (intersect, (\\))
@@ -26,18 +25,16 @@ quizTester :: Tester Result
 quizTester = tester "quiz" $ do
   Code lang text <- testCode
   guard (lang == "json")
-  uid <- testUser
   page <- testPage
-  let quiz = shuffleQuiz uid page
-  let Just answers = Aeson.decode $
-                     LB.fromStrict $ T.encodeUtf8 text :: Maybe Answers
+  let quiz = makeQuiz page
+  let answers = fromMaybe emptyAnswers (decodeAnswers text)
   let Score{..} = scoreAnswers quiz answers
   let percent = realToFrac (100 * accum /
                             fromIntegral (numQuestions quiz)) :: Double
   return $
     accepted $
-    T.unlines [ T.pack (show correct ++ " correct and " ++
-                         show wrong ++ " incorrect answers.")
+    T.unlines [ T.pack (printf "%d correct and %d incorrect answers."
+                        correct wrong)
               , T.pack (printf "Score: %.2f%%" percent)
               ]
 
@@ -66,7 +63,8 @@ scoreAnswers (Quiz _ questions) answers
 
 scoreQuestion :: Question -> Answers  -> Score
 scoreQuestion question@(Question _ attr alts) answers
-  = Score correct wrong grade
+  | num_correct>0 && num_wrong>0 = Score correct wrong grade
+  | otherwise                    = mempty   -- invalid question
   where selected = lookupAnswers question answers
         key = [ label | (label,True,_) <- alts ]
         num_alts = length alts
