@@ -150,7 +150,7 @@ getSubmission sid =
 getPageSubmissions :: UserLogin -> FilePath -> Codex [Submission]
 getPageSubmissions uid path =
   query "SELECT * FROM submissions \
-       \ WHERE user_id = ? AND path = ? ORDER BY id" (uid, path)
+       \ WHERE user_id = ? AND path = ? ORDER BY received" (uid, path)
 
 
 -- | count user submissions to an exercise page

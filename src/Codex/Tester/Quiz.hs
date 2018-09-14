@@ -45,7 +45,7 @@ numQuestions (Quiz _ questions) = length questions
 -- | a record for grading quizzes
 data Score = Score { correct :: !Int
                    , wrong   :: !Int
-                   , accum :: Ratio Int -- ^ cumulative percentages
+                   , accum :: !(Ratio Int) -- ^ cumulative percentages
                    }
              deriving Show
 
