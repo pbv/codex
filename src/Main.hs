@@ -53,6 +53,8 @@ app = codexInit $
             , quizTester
             -- SQL tester
             , sqlTester
+            -- trivial tester (accepts all submissions)
+            , nullTester
             ]
        
 ------------------------------------------------------------------------------

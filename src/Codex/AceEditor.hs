@@ -94,6 +94,7 @@ fileExtension
   = HM.fromList
     [
       ("c", ".c")
+    , ("sh", ".sh")
     , ("bash", ".sh")
     , ("cpp", ".cpp")
     , ("csharp", ".cs")
@@ -137,7 +138,7 @@ editorMode
     , ("scala", "ace/mode/scala")
     , ("rust", "ace/mode/rust")
     , ("prolog", "ace/mode/prolog")
-    , ("bash", "ace/mode/bash")
+    , ("bash", "ace/mode/sh")
     , ("tcl", "ace/mode/tcl")
     , ("sql", "ace/mode/sql")
     , ("tex", "ace/mode/tex")

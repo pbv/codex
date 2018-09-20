@@ -108,10 +108,11 @@ handleGetQuiz uid rqpath page = do
   guard (isQuiz page)
   let quiz = shuffleQuiz uid page
   subs <- getPageSubmissions uid rqpath
+  -- fill-in last submitted answers
   let answers = fromMaybe emptyAnswers $ case subs of
                   [] -> Nothing
                   _ ->  getSubmittedAnswers (last subs)
-  renderWithSplices "_quiz" (quizSplices quiz answers)
+  withTimeSplices page $ renderWithSplices "_quiz" $ quizSplices quiz answers
 
 
 -- | get a coding exercise 

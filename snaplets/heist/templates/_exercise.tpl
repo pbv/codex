@@ -11,13 +11,6 @@
   <div class="description">
     <page-description/>
   </div>
-  <p class="info">
-    <if-feedback>
-      Exercício com "<em>feedback</em>" de resultados e testes.
-      <else/>
-      Exercício sem "<em>feedback</em>".
-    </if-feedback>
-  </p>
   <p class="info">Linguagens: <page-languages/>.</p>  
   <p class="info">
     <current-timing>

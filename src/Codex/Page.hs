@@ -196,9 +196,24 @@ readMarkdownFile fp = liftIO $ do
   r <- readMarkdown opts <$> readFile fp
   case r of
     Left err -> ioError (userError $ show err)
-    Right doc -> return doc
+    Right doc -> return (removeHTMLComments doc)
   where
     opts = def { readerExtensions = pandocExtensions
                , readerSmart = True
                }
 
+--
+-- | remove raw HTML comments from pages
+--
+removeHTMLComments :: Page -> Page
+removeHTMLComments = walk removeInline . walk removeBlock
+  where removeInline (RawInline (Format "html") str)
+          | comment str = Space
+        removeInline elm = elm
+        removeBlock (RawBlock (Format "html") str)
+          | comment str = Null
+        removeBlock blk = blk
+        -- test a comment string
+        -- comment str = take 4 str == "<!--" 
+        comment ('<':'!':'-':'-':_) = True
+        comment _                   = False

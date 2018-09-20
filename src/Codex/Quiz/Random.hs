@@ -49,7 +49,7 @@ fisherYatesStep (m, gen) (i, x)
 fisherYates :: RandomGen g => g -> [a] -> ([a], g)
 fisherYates gen [] = ([], gen)
 fisherYates gen (x:xs) = 
-  toElems $ foldl fisherYatesStep (initial x gen) (zip [1..] xs)
+  toElems $ foldl fisherYatesStep (initial x) (zip [1..] xs)
   where
     toElems (x, y) = (IntMap.elems x, y)
-    initial x gen = (IntMap.singleton 0 x, gen)  
+    initial x = (IntMap.singleton 0 x, gen)  
