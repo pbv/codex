@@ -28,44 +28,53 @@ quizTester = tester "quiz" $ do
   page <- testPage
   let quiz = makeQuiz page
   let answers = fromMaybe emptyAnswers (decodeAnswers text)
-  let Score{..} = scoreAnswers quiz answers
-  let percent = realToFrac (100 * accum /
-                            fromIntegral (numQuestions quiz)) :: Double
+  let Score{..} = scoreQuiz quiz answers
+  let percent = realToFrac (100 * accum / fromIntegral total) :: Double
   return $
     accepted $
-    T.unlines [ T.pack (printf "%d correct and %d incorrect answers."
-                        correct wrong)
-              , T.pack (printf "Score: %.2f%%" percent)
-              ]
+    T.unlines $ map T.pack
+       [ printf "Answered %d of %d questions." answered total
+       , printf "%d correct and %d incorrect replies." correct wrong
+       , printf "Score: %.2f%%" percent
+       ]
 
-numQuestions :: Quiz -> Int
-numQuestions (Quiz _ questions) = length questions
 
 
 -- | a record for grading quizzes
-data Score = Score { correct :: !Int
-                   , wrong   :: !Int
-                   , accum :: !(Ratio Int) -- ^ cumulative percentages
-                   }
-             deriving Show
+data Score
+  = Score { total   :: !Int       -- ^ total # of questions
+          , answered :: !Int      -- ^ number of answered questions
+          , correct :: !Int       -- ^ correct answer counter
+          , wrong   :: !Int       -- ^ wrong answer counter
+          , accum   :: !(Ratio Int) -- ^ cumulative percentages
+          }
+  deriving Show
 
 instance Monoid Score where
-  mempty = Score 0 0 0 
+  mempty = Score 0 0 0 0 0
   s1 `mappend` s2
-    = Score { correct = correct s1 + correct s2
+    = Score { total   = total s1 + total s2
+            , answered = answered s1 + answered s2
+            , correct = correct s1 + correct s2
             , wrong   = wrong s1 + wrong s2
             , accum   = accum s1 + accum s2
             }
 
-scoreAnswers :: Quiz -> Answers -> Score
-scoreAnswers (Quiz _ questions) answers
+-- | score all questions in a quiz
+--
+scoreQuiz :: Quiz -> Answers -> Score
+scoreQuiz (Quiz _ questions) answers
   = mconcat (map (flip scoreQuestion answers) questions)
 
+-- | score a single question
+--
 scoreQuestion :: Question -> Answers  -> Score
 scoreQuestion question@(Question _ attr alts) answers
-  | num_correct>0 && num_wrong>0 = Score correct wrong grade
-  | otherwise                    = mempty   -- invalid question
+  | num_correct>0 && num_wrong>0 = Score 1 answered correct wrong grade
+  | otherwise                    = Score 1 0 0 0 0
+                                    -- invalid question
   where selected = lookupAnswers question answers
+        answered = if null selected then 0 else 1
         key = [ label | (label,True,_) <- alts ]
         num_alts = length alts
         num_correct = length key

@@ -18,7 +18,9 @@ import           Control.Monad.State
 import           Control.Exception  (IOException)
 import           Control.Exception.Lifted  (catch)
 
+import           Data.Char (isAlphaNum)
 import           Data.ByteString.UTF8                        (ByteString)
+import qualified Data.ByteString.UTF8                        as B
 import           Data.Map.Syntax
 
 import qualified Data.Text                                   as T
@@ -366,8 +368,9 @@ codexInit tester =
     prefix <- liftIO $ Conf.require conf "url_prefix"
     h <- nestSnaplet "" heist $ heistInit "templates"
     r <- nestSnaplet "router" router (initRouter prefix)
-    s <- nestSnaplet "sess" sess $
-           initCookieSessionManager "site_key.txt" "sess" Nothing (Just 36000)
+    let sessName = sessionName prefix 
+    s <- nestSnaplet sessName sess $
+         initCookieSessionManager "site_key.txt" sessName Nothing Nothing
     d <- nestSnaplet "db" db S.sqliteInit
     a <- nestSnaplet "auth" auth $ initSqliteAuth sess d
     addAuthSplices h auth
@@ -397,6 +400,11 @@ codexInit tester =
                , _logger  = logger
                , _eventcfg = evcfg
                }
+
+-- | cookie name for each session is a function of the request path prefix
+sessionName :: Text -> ByteString
+sessionName prefix
+  = "sess_" <> (B.fromString $ T.unpack $ T.filter isAlphaNum prefix)
 
 
 configSplices :: Config -> IO ISplices
