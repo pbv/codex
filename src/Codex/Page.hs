@@ -8,11 +8,13 @@ module Codex.Page where
 import           Text.Pandoc hiding (Code)
 import qualified Text.Pandoc ( Inline(Code) )
 import           Text.Pandoc.Walk
+import           Text.Pandoc.Highlighting (monochrome)
 import           Text.XmlHtml
 import           Text.Blaze.Renderer.XmlHtml
 
 import           Data.Maybe
 import qualified Data.Text as T
+import qualified Data.Text.IO as T
 import qualified Data.Map as Map
 import           Data.Monoid
 import           Control.Applicative
@@ -179,11 +181,15 @@ metaText (MetaMap m) =
 
 -- | render a page as a list of HTML nodes
 pageToHtml :: Page -> [Node]
-pageToHtml = renderHtmlNodes . writeHtml opts
+pageToHtml doc = case result of
+  Left err -> error (show err)
+  Right nodes -> renderHtmlNodes nodes
   where
+    result = runPure (writeHtml5 opts doc)
     opts = def { writerExtensions = pandocExtensions
-               , writerHTMLMathMethod = MathJax "/mathjax",
-                 writerHighlight = True
+               , writerHTMLMathMethod = MathJax "/mathjax"
+               -- , writerHighlightStyle = Nothing
+               , writerHighlightStyle = Just monochrome
                }
 
 blocksToHtml :: [Block] -> [Node]
@@ -192,14 +198,11 @@ blocksToHtml blocks = pageToHtml (Pandoc nullMeta blocks)
 
 -- | read a file and parse markdown to a Pandoc document
 readMarkdownFile :: MonadIO m => FilePath -> m Pandoc
-readMarkdownFile fp = liftIO $ do
-  r <- readMarkdown opts <$> readFile fp
-  case r of
-    Left err -> ioError (userError $ show err)
-    Right doc -> return (removeHTMLComments doc)
+readMarkdownFile filepath = liftIO $ do
+  txt <- T.readFile filepath
+  removeHTMLComments <$> runIOorExplode (readMarkdown opts txt)
   where
     opts = def { readerExtensions = pandocExtensions
-               , readerSmart = True
                }
 
 --

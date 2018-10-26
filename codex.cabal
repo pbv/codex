@@ -1,5 +1,5 @@
 Name:                codex
-Version:             0.9
+Version:             0.9.1
 Synopsis:            A web server for programming exercises
 Description:         A web server for programming exercises
 License:             MIT
@@ -19,6 +19,7 @@ Executable codex-server
   main-is: Main.hs
   default-language: Haskell2010
   other-modules:
+    Paths_codex
     Codex.AceEditor
     Codex.AdminHandlers
     Codex.Application
@@ -51,15 +52,14 @@ Executable codex-server
   build-depends:
     filepath,
     directory,
-    old-locale,
     process,
     unix,
+    lifted-base,                
     transformers,
     bytestring,
     utf8-string,
     heist,
     map-syntax,
-    lifted-base,                
     monad-control,
     mtl,
     network-uri,
@@ -85,9 +85,12 @@ Executable codex-server
     configurator,
     base,
     lens,
-    process-extras,
+    io-streams,
+    async,                                
     temporary,
-    glob-posix,
+    Glob,                
+    -- process-extras,
+    -- glob-posix,
     random
   if flag(development)
     -- build-depends:
@@ -100,9 +103,6 @@ Executable codex-server
     -- warnings allows quicker workflow.
     ghc-options: -fdefer-type-errors -threaded -rtsopts
   else
-    ghc-options: -threaded -Wall -fwarn-tabs -funbox-strict-fields -O2 -fno-warn-orphans -fno-warn-unused-do-bind -rtsopts
+    ghc-options: -threaded -Wall -fwarn-tabs -funbox-strict-fields -O2 -fno-warn-orphans -fno-warn-unused-do-bind -rtsopts 
 
-
---  ghc-options: -optl-fuse-ld=gold
---  ld-options:  -fuse-ld=gold
 

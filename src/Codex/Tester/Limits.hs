@@ -37,8 +37,10 @@ instance Monoid Limits where
              , maxFSize     = Nothing
              , maxCore      = Nothing
              }            
+
+instance Semigroup Limits where
   -- | combine limits; left-hand side overrriding right-hand side
-  l `mappend` r
+  l <> r
     = Limits { maxCpuTime   = maxCpuTime l `mplus` maxCpuTime r,
                maxClockTime = maxClockTime l `mplus` maxClockTime r,    
                maxMemory    = maxMemory l `mplus` maxMemory r,

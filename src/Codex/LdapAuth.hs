@@ -12,7 +12,6 @@ import qualified Data.ByteString.UTF8 as B
 
 import           Data.Text(Text)
 import qualified Data.Text as T
-import           Data.Monoid
 
 
 import           Data.HashMap.Strict(HashMap)

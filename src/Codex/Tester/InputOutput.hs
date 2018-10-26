@@ -4,6 +4,7 @@
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE ExistentialQuantification #-}
 {-# LANGUAGE RecordWildCards #-}
+{-# LANGUAGE ScopedTypeVariables #-}
 
 module Codex.Tester.InputOutput (
   Build,
@@ -21,12 +22,12 @@ import           Data.Text (Text)
 import qualified Data.Text as T
 import qualified Data.Text.IO as T
 import           Data.Maybe (fromMaybe)
-import           Data.List(minimumBy)
+import           Data.List(sort, minimumBy)
 import           Data.Ord(comparing)
 import           Text.Printf
 
 import           Control.Exception (catch)
-import           System.Directory.Glob
+import           System.FilePath.Glob (glob)
 
 --
 -- | build and run scripts for testing standalone programs;
@@ -136,8 +137,8 @@ stdioTester Build{..} = tester "stdio" $ do
   outpatts <- map (dir</>) . fromMaybe [] <$> metadata "outputs"
   assert (pure $ not (null inpatts)) "no inputs defined"
   assert (pure $ not (null outpatts)) "no outputs defined"
-  inputs <- liftIO $ globMany globDefaults inpatts
-  outputs <- liftIO $ globMany globDefaults outpatts
+  inputs <-  liftIO $ (sort . concat) <$> mapM glob inpatts
+  outputs <- liftIO $ (sort . concat) <$> mapM glob outpatts
   assert (pure $ length inputs == length outputs)
     "different number of inputs and outputs"
   limit <- fromMaybe maxBound <$> metadata "visible" 

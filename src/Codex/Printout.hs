@@ -11,11 +11,11 @@ import           Data.Time.LocalTime
 import           System.Directory
 
 import qualified Data.Text as T
-import           Control.Monad (forM, forM_)
+import qualified Data.Text.IO as T
+import           Control.Monad (forM)
 import           Control.Monad.Trans
 
 import qualified Data.Configurator as Configurator
-import           Snap.Core(writeText)
 import           Snap.Snaplet
 
 import           Codex.Utils
@@ -26,9 +26,9 @@ import           Codex.Page
 import           Codex.Quiz hiding (header)
 import           Codex.Tester.Result
 
-import           Text.Pandoc
+import           Text.Pandoc.Highlighting (monochrome)
+import           Text.Pandoc hiding (getZonedTime)
 import           Text.Pandoc.Builder
-import           Text.Pandoc.Walk
 
 import           Data.Maybe
 import           Data.HashMap.Strict (HashMap)
@@ -48,7 +48,7 @@ generatePrintouts patts order = do
   --           readMarkdownFile =<<
   --           Configurator.require conf "printouts.header"
   let opts = def { writerTemplate =  Just templ
-                 , writerHighlight = True
+                 , writerHighlightStyle = Just monochrome
                  , writerSetextHeaders = False
                  }
   getSummary patts order >>= writeReports dir opts
@@ -102,8 +102,10 @@ writeReports dir opts  summary = do
     \(uid, submap) -> do
         let filepath = dir </> T.unpack (fromLogin uid) <.> "md"
         report <- userReport uid (HM.elems submap)
-        liftIO $ writeFile filepath (writeMarkdown opts report)
-        return filepath
+        case runPure (writeMarkdown opts report) of
+          Right txt ->  do liftIO $ T.writeFile filepath txt
+                           return filepath
+          Left err -> error (show err)
 
     
     

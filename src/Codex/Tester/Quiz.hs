@@ -50,15 +50,17 @@ data Score
           }
   deriving Show
 
-instance Monoid Score where
-  mempty = Score 0 0 0 0 0
-  s1 `mappend` s2
+instance Semigroup Score where
+  s1 <> s2
     = Score { total   = total s1 + total s2
             , answered = answered s1 + answered s2
             , correct = correct s1 + correct s2
             , wrong   = wrong s1 + wrong s2
             , accum   = accum s1 + accum s2
             }
+
+instance Monoid Score where
+  mempty = Score 0 0 0 0 0
 
 -- | score all questions in a quiz
 --

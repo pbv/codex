@@ -75,7 +75,9 @@ import           Data.Version                                (showVersion)
 import           Paths_codex                                 (version)
 
 
-import           Text.Pandoc                                 hiding (Code)
+import           Text.Pandoc               hiding (Code,
+                                                   getCurrentTime,
+                                                   getCurrentTimeZone)
 import qualified Text.Pandoc as Pandoc 
 import           Text.Pandoc.Walk                            as Pandoc
 
