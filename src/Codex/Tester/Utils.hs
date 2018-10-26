@@ -6,7 +6,6 @@ module Codex.Tester.Utils where
 
 
 import           Data.Text(Text)
--- import qualified Data.Text as T
 import qualified Data.Text.IO as T
 
 import           Control.Exception
@@ -25,13 +24,6 @@ import           Control.Concurrent.Async (async, wait)
 import           System.Process (readProcessWithExitCode, waitForProcess)
 import           System.IO.Streams (InputStream, OutputStream)
 import qualified System.IO.Streams as Streams
-
--- import qualified Data.ByteString.Lazy           as LB
--- import qualified Data.ByteString.Lazy.Internal  as LB
--- import qualified System.Process.ByteString.Lazy as LB
--- import qualified System.Process.ByteString      as B
--- import qualified System.Process.Text.Lazy       as T
--- import qualified Data.Text.Lazy           as L
 
 import           Data.ByteString    (ByteString)
 import qualified Data.ByteString                as B
@@ -139,17 +131,18 @@ safeExecBS :: Limits
              -- ^ code, stdout, stderr
 safeExecBS Limits{..} exec args inbs = do
   (inp, out, err, pid) <-
-    Streams.runInteractiveProcess "safeexec" (args'++args) Nothing Nothing
-  _ <- forkIO (produceStream inp inbs)
-  a1 <- async (consumeStream outputLimit out)
-  a2 <- async (consumeStream outputLimit err)
-  outbs <- wait a1
-  errbs <- wait a2
-  code <- waitForProcess pid
-  return (code, outbs, errbs)
+    Streams.runInteractiveProcess "safeexec" (args' ++ args) Nothing Nothing
+  onException (do _ <- forkIO (produceStream inp inbs)
+                  a1 <- async (consumeStream outputLimit out)
+                  a2 <- async (consumeStream outputLimit err)
+                  outbs <- wait a1
+                  errbs <- wait a2
+                  code <- waitForProcess pid
+                  return (code, outbs, errbs)
+              ) (waitForProcess pid)
   where
-    outputLimit = maybe 10000 fromIntegral maxFSize
-    -- default output limit: 100K charateres 
+    outputLimit = maybe 30000 fromIntegral maxFSize
+    -- default output limit: 30K bytes
     mkArg opt = maybe [] (\c -> [opt, show c])
     args' = mkArg "--cpu" maxCpuTime
             ++
