@@ -22,8 +22,7 @@ import           Data.Text (Text)
 import qualified Data.Text as T
 import qualified Data.Text.IO as T
 import           Data.Maybe (fromMaybe)
-import           Data.List(sort, minimumBy)
-import           Data.Ord(comparing)
+import           Data.List(sort)
 import           Text.Printf
 
 import           Control.Exception (catch)
@@ -141,95 +140,80 @@ stdioTester Build{..} = tester "stdio" $ do
   outputs <- liftIO $ (sort . concat) <$> mapM glob outpatts
   assert (pure $ length inputs == length outputs)
     "different number of inputs and outputs"
-  limit <- fromMaybe maxBound <$> metadata "visible" 
-  liftIO $ (withTempDir "codex" $ \tmpdir -> do
-    exe_file <- makeExec tmpdir code
-    aggregate limit <$> runMany exe_file inputs outputs) `catch` return
+  liftIO $
+    (withTempDir "codex" $ \tmpdir -> do
+        exe_file <- makeExec tmpdir code
+        runTests (runExec exe_file) $ zip inputs outputs) `catch` return
+
+runTests ::
+  (Text -> IO (ExitCode, Text, Text)) -> [(FilePath, FilePath)] -> IO Result
+runTests action inouts = test 1 inouts
   where
-    runMany exe_file = zipWithM (runSingle exe_file) 
-    runSingle exe_file in_file out_file = do
+    total = length inouts
+    test _ []
+      = return $ accepted $ "Passed " <> T.pack (show total) <> " tests"
+    test n ((in_file,out_file):files) = do
       in_txt <- T.readFile in_file
       out_txt <- T.readFile out_file
-      classify in_txt out_txt <$> runExec exe_file in_txt
-
-
--- | aggregate all tests results into a single one
-aggregate :: Int -> [Result] -> Result
-aggregate limit = worstResult . numberResults . hideDetails limit
-
--- | combine results into a single most severe result
-worstResult :: [Result] -> Result
-worstResult results
-  = minimumBy (comparing resultClassify) (summary:results)
-  where
-    total = length results
-    summary = accepted $ "Passed " <> T.pack (show total) <> " tests"
+      result <- classify in_txt out_txt <$> action in_txt
+      if resultClassify result == Accepted then
+        test (n+1) files
+        else
+        return (numberResult n total result)
+          
+numberResult :: Int -> Int -> Result -> Result
+numberResult num total Result{..}
+  = Result resultClassify (test <> resultMessage)
+  where test = T.pack $ printf "*** Test %d / %d ***\n" num total
 
 
 classify :: Text -> Text -> (ExitCode, Text, Text) -> Result
-classify _ _ (ExitFailure c, _, err) 
+classify input _ (ExitFailure c, _, err) 
   = runtimeError $ T.unlines
-    [ "Program exited with non-zero status: " <> T.pack (show c)
+    [ textInput input, ""
+    ,  "Program exited with non-zero status: " <> T.pack (show c)
     ,  err
     ]
-classify input expected (_, out, err)
+classify input _ (_, _, err)
   | match "Command terminated by signal" err ||
     match "Command exited with non-zero status" err
   = runtimeError $
-    T.unlines [ "Input:", input
-              , "Expected output:", expected
-              , "Obtained ouput:", out, err
-              ]
-classify input expected (_, out, err)
+    T.unlines [textInput input, err ]
+classify input _ (_, _, err)
   | match "Time Limit" err =
-    timeLimitExceeded $
-    T.unlines [ "Input:", input
-              , "Expected output:", expected
-              , "Obtained output:", out, err
-              ]
-classify input expected (_, out, err)
+    timeLimitExceeded $ textInput input 
+classify input _ (_, _, err)
   | match "Memory Limit" err =
-    memoryLimitExceeded $
-    T.unlines [ "Input:", input
-              , "Expected output:", expected
-              , "Obtained output:", out, err
-              ]
-classify input expected (_, out, err)
+    memoryLimitExceeded $ textInput input 
+classify input _ (_, _, err)
   | match "Output Limit" err =
-    runtimeError $ 
-    T.unlines [ "Input:", input
-              , "Expected output:", expected
-              , "Obtained output:", out, err
-              ]
-classify _ expected (_, out, _) 
-  | out == expected
-  = accepted "Passed" 
+    runtimeError $
+    T.unlines [textInput input, err]
 classify input expected (_, out, _) 
+  | T.strip out == T.strip expected
+  = accepted "OK"
+  | otherwise
+  = wrongAnswer $ textDiff expected input out
+
+{-
+classify input expected (_, out, _) 
+  = 
   = (if T.strip out == T.strip expected
-      then
-        presentationError
-      else wrongAnswer) $
+      then presentationError
+      else wrongAnswer) $ textDiff expected input out
+-}
+
+textInput :: Text -> Text
+textInput input =  "Input:\n" <> textHighlight input
+
+textDiff :: Text -> Text -> Text -> Text
+textDiff expected input out =
     T.unlines
-    [ "Input:", input
-    , "Expected output:", expected
-    , "Obtained output:", out
+    [ "Input:", textHighlight input
+    , "Expected output:", textHighlight expected
+    , "Obtained output:", textHighlight out
     ]
-  
 
--- number each test report
-numberResults :: [Result] -> [Result]
-numberResults results = zipWith number [1..total] results
-  where
-    total = length results
-    test num = T.pack $ printf "*** Test %d / %d ***\n" num total
-    number n Result{..}
-      = Result resultClassify (test n <> resultMessage)
+textHighlight :: Text -> Text
+textHighlight = T.map (\c -> if c == ' ' then '\x2423' else c) 
 
-
--- hide feedback detail for after some number of tests
-hideDetails :: Int -> [Result] -> [Result]
-hideDetails n results
-  = take n results ++ map (\r -> r{resultMessage = msg}) (drop n results)
-  where
-    msg = T.pack $
-          printf "*** input / output details hidden after %d tests ***" n

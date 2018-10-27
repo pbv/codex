@@ -2,13 +2,25 @@
 {-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 
-module Codex.Tester.Utils where
+module Codex.Tester.Utils
+  ( match
+  , withTemp, withTempDir
+  , assert
+  , fileExists
+  , removeFileIfExists
+  , chmod
+  , readable, executable, writeable
+  , runCompiler
+  , safeExec
+  , unsafeExec
+  , getQuickCheckArgs
+  ) where
 
 
 import           Data.Text(Text)
 import qualified Data.Text.IO as T
 
-import           Control.Exception
+import           Control.Exception hiding (assert)
 import           Control.Monad       (when, unless)
 import           Control.Monad.Trans
 import           System.IO
@@ -21,12 +33,13 @@ import           System.Posix.Types (FileMode)
 
 import           Control.Concurrent (forkIO)
 import           Control.Concurrent.Async (async, wait)
-import           System.Process (readProcessWithExitCode, waitForProcess)
+import           System.Process (readProcessWithExitCode,
+                                  terminateProcess, waitForProcess)
 import           System.IO.Streams (InputStream, OutputStream)
 import qualified System.IO.Streams as Streams
 
-import           Data.ByteString    (ByteString)
-import qualified Data.ByteString                as B
+import           Data.ByteString.Char8    (ByteString)
+import qualified Data.ByteString.Char8          as B
 import qualified Data.ByteString.Builder        as B
 import qualified Data.ByteString.Lazy           as LB
 
@@ -132,14 +145,18 @@ safeExecBS :: Limits
 safeExecBS Limits{..} exec args inbs = do
   (inp, out, err, pid) <-
     Streams.runInteractiveProcess "safeexec" (args' ++ args) Nothing Nothing
-  onException (do _ <- forkIO (produceStream inp inbs)
-                  a1 <- async (consumeStream outputLimit out)
-                  a2 <- async (consumeStream outputLimit err)
-                  outbs <- wait a1
-                  errbs <- wait a2
-                  code <- waitForProcess pid
-                  return (code, outbs, errbs)
-              ) (waitForProcess pid)
+  (do forkIO (produceStream inp inbs)
+      a1 <- async (consumeStream outputLimit out)
+      a2 <- async (consumeStream outputLimit err)
+      outbs <- wait a1
+      errbs <- wait a2
+      code <- waitForProcess pid
+      return (code, outbs, errbs)
+    ) `catch` (\(e ::SomeException) ->
+                  do terminateProcess pid
+                     code <- waitForProcess pid
+                     return (code, "", B.pack $ show e)
+              )
   where
     outputLimit = maybe 30000 fromIntegral maxFSize
     -- default output limit: 30K bytes
