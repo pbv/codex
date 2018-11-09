@@ -42,14 +42,14 @@ generatePrintouts patts order = do
   conf <- getSnapletUserConfig
   dir <- liftIO $ Configurator.require conf "printouts.directory"
   liftIO $ createDirectoryIfMissing True dir
-  templ <- liftIO $
-           readFile =<< Configurator.require conf "printouts.template"
+  templ <- liftIO $ readFile =<< Configurator.require conf "printouts.template"
   -- header <- liftIO $
   --           readMarkdownFile =<<
   --           Configurator.require conf "printouts.header"
   let opts = def { writerTemplate =  Just templ
-                 , writerHighlightStyle = Just monochrome
+                 , writerExtensions = pandocExtensions
                  , writerSetextHeaders = False
+                 , writerListings = True
                  }
   getSummary patts order >>= writeReports dir opts
   return ()
