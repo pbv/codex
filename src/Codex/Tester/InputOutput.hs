@@ -18,6 +18,7 @@ module Codex.Tester.InputOutput (
 import           Codex.Tester
 import           Codex.Types (Language)
 
+import           Data.Char (isSpace, isControl)
 import           Data.Text (Text)
 import qualified Data.Text as T
 import qualified Data.Text.IO as T
@@ -204,16 +205,22 @@ classify input expected (_, out, _)
 -}
 
 textInput :: Text -> Text
-textInput input =  "Input:\n" <> textHighlight input
+textInput input =  "Input:\n" <> sanitize input
 
 textDiff :: Text -> Text -> Text -> Text
 textDiff expected input out =
     T.unlines
-    [ "Input:", textHighlight input
-    , "Expected output:", textHighlight expected
-    , "Obtained output:", textHighlight out
+    [ "Input:", sanitize input
+    , "Expected output:", sanitize expected
+    , "Obtained output:", sanitize out
     ]
 
-textHighlight :: Text -> Text
-textHighlight = T.map (\c -> if c == ' ' then '\x2423' else c) 
+-- | sanitize output text from student's submission;
+-- replace spaces with a visible space;
+-- replace control chars with the invalid UTF symbol
+sanitize :: Text -> Text
+sanitize = T.map (\c -> case c of
+                     ' ' -> '\x2423'
+                     _ -> if isControl c && not (isSpace c)
+                          then '\xfffd' else c)
 
