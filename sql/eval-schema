@@ -85,13 +85,13 @@ def main(host, port, user, passwd, db_prefix, init_sql, init_file, answer_sql, s
     submission_db_name = None
     answer_db_name = None
     try:
-        if init_file is not None:
+        if init_file != "":
             with open(init_file, "r") as f:
                 init_sql = f.read()
-        if answer_file is not None:
+        if answer_file != "":
             with open(answer_file, "r") as f:
                 answer_sql = f.read()
-        if submission_file is not None:
+        if submission_file != "":
             with open(submission_file, "r") as f:
                 submission_sql = f.read()
 
@@ -104,7 +104,8 @@ def main(host, port, user, passwd, db_prefix, init_sql, init_file, answer_sql, s
 
         # exec first the student submission, it will probably fail :)
         submission_db_name = create_random_database(conn, db_prefix)
-        exec_multi_query(conn, submission_db_name, init_sql)
+        if init_sql != "":
+            exec_multi_query(conn, submission_db_name, init_sql)
         try:
             exec_multi_query(conn, submission_db_name, submission_sql)
         except mysql.connector.Error as e:
@@ -112,7 +113,8 @@ def main(host, port, user, passwd, db_prefix, init_sql, init_file, answer_sql, s
             raise e
 
         answer_db_name = create_random_database(conn, db_prefix)
-        exec_multi_query(conn, answer_db_name, init_sql)
+        if init_sql != "":
+            exec_multi_query(conn, answer_db_name, init_sql)
         try:
             exec_multi_query(conn, answer_db_name, answer_sql)
         except mysql.connector.Error as e:
@@ -145,19 +147,18 @@ if __name__ == "__main__":
     parser.add_argument('-p', '--passwd', dest='passwd', type=str, default="")
     parser.add_argument('-D', '--db-prefix', dest='db_prefix', type=str, default="")
     group = parser.add_mutually_exclusive_group()
-    group.add_argument('-i', '--init-sql', dest='init_sql', type=str, default=None)
-    group.add_argument('-I', '--init-file', dest='init_file', type=str, default=None)
+    group.add_argument('-i', '--init-sql', dest='init_sql', type=str, default="")
+    group.add_argument('-I', '--init-file', dest='init_file', type=str, default="")
     group = parser.add_mutually_exclusive_group(required=True)
-    group.add_argument('-a', '--answer-sql', dest='answer_sql', type=str, default=None)
-    group.add_argument('-A', '--answer-file', dest='answer_file', type=str, default=None)
+    group.add_argument('-a', '--answer-sql', dest='answer_sql', type=str, default="")
+    group.add_argument('-A', '--answer-file', dest='answer_file', type=str, default="")
     group = parser.add_mutually_exclusive_group(required=True)
-    group.add_argument('-s', '--submission-sql', dest='submission_sql', type=str, default=None)
-    group.add_argument('-S', '--submission-file', dest='submission_file', type=str, default=None)
+    group.add_argument('-s', '--submission-sql', dest='submission_sql', type=str, default="")
+    group.add_argument('-S', '--submission-file', dest='submission_file', type=str, default="")
     args = parser.parse_args()
 
     status, msg = main(args.host, args.port, args.user, args.passwd, args.db_prefix, args.init_sql, args.init_file,
-                          args.answer_sql,
-                          args.submission_sql, args.answer_file, args.submission_file)
+                       args.answer_sql, args.submission_sql, args.answer_file, args.submission_file)
     print(status)
     if msg is not None:
         print(msg)
