@@ -16,7 +16,6 @@ import           Data.Maybe
 import qualified Data.Text as T
 import qualified Data.Text.IO as T
 import qualified Data.Map as Map
-import           Data.Monoid
 import           Control.Applicative
 import           Control.Monad.IO.Class
 import           Data.List (intersperse)
@@ -24,12 +23,6 @@ import           Data.List (intersperse)
 import           Codex.Types
 import           Codex.Time
 
-
---
--- a Page is a synonym for a Pandoc document 
--- either an active exercise or a passive document (e.g. an index)
---
-type Page = Pandoc
 
 emptyPage :: Page
 emptyPage = Pandoc nullMeta []
@@ -69,12 +62,6 @@ languages meta =
 -- text for submission filled in by default
 pageDefaultText :: Page -> Maybe Text
 pageDefaultText = lookupFromMeta "code" . pageMeta
-
--- is it an exercise page? a quiz page?
-isExercise, isQuiz :: Page -> Bool
-isExercise  = isJust . pageTester
-isQuiz page = pageTester page == Just "quiz" 
-
 
 pageTester :: Page -> Maybe Text
 pageTester = lookupFromMeta "tester" . pageMeta

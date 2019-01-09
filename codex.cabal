@@ -1,5 +1,5 @@
 Name:                codex
-Version:             0.9.1
+Version:             0.9.2
 Synopsis:            A web server for programming exercises
 Description:         A web server for programming exercises
 License:             MIT
@@ -21,6 +21,10 @@ Executable codex-server
   other-modules:
     Paths_codex
     Codex.AceEditor
+    Codex.Handlers
+    Codex.Handlers.Quiz
+    Codex.Handlers.Quiz.Random
+    Codex.Handlers.Code                                
     Codex.AdminHandlers
     Codex.Application
     Codex.AuthHandlers
@@ -33,6 +37,7 @@ Executable codex-server
     Codex.Printout            
     Codex.Site
     Codex.Submission
+    Codex.Submission.Types
     Codex.Tasks
     Codex.Tester
     Codex.Tester.ClangQC
@@ -47,8 +52,6 @@ Executable codex-server
     Codex.Tester.Quiz            
     Codex.Types
     Codex.Utils
-    Codex.Quiz
-    Codex.Quiz.Random
   build-depends:
     filepath,
     directory,

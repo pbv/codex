@@ -1,7 +1,7 @@
 --
 -- | A monad for random computations
 --
-module Codex.Quiz.Random(
+module Codex.Handlers.Quiz.Random(
   Rand,
   runRand, shuffle,
   -- module System.Random.TF.Gen,

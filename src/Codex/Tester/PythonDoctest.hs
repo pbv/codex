@@ -9,6 +9,7 @@ module Codex.Tester.PythonDoctest (
 import           Codex.Tester
 import           Data.Text(Text)
 import qualified Data.Text as T
+import           Control.Exception (catch)
 
 
 pythonDocTester :: Tester Result
@@ -16,19 +17,23 @@ pythonDocTester = tester "doctest" $ do
   Code lang src <- testCode
   guard (lang == "python")
   ---
-  python  <- configured "language.python.interpreter"
-  pytest  <- configured "language.python.pytest"
-  scripts <- configured "language.python.scripts"
+  python    <- configured "language.python.interpreter"
+  pytest    <- configured "language.python.pytest"
+  scripts   <- configured "language.python.scripts"
+  optLinter <- maybeConfigured "language.python.linter"
   limits  <- testLimits "language.python.limits"
   path    <- testPath
   doctestPath <- guessDoctest path 
   assert (fileExists doctestPath)
     ("doctest file not found: " <> show doctestPath)
   chmod readable doctestPath
-  withTemp "submit.py" src $ \pyfile -> do
+  withTemp "submit.py" src $ \pyfile -> (do
     chmod readable pyfile
+    case optLinter of
+      Just linter -> runCompiler linter [pyfile]
+      Nothing -> return ()
     classify <$>
-      safeExec limits python [pytest, scripts, doctestPath, pyfile] ""
+      safeExec limits python [pytest, scripts, doctestPath, pyfile] "") `catch` return
 
 
 classify :: (ExitCode, Text, Text) -> Result

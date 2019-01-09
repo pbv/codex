@@ -315,6 +315,7 @@ handleSubmissionAdmin sid = withAdmin $ handleMethodOverride $ do
       method DELETE (delete sub)
   where
     -- get report on a submission
+    report :: Submission -> Codex ()
     report sub = do
       root <- getDocumentRoot
       page <- liftIO $ readMarkdownFile (root </>submitPath sub)
@@ -324,11 +325,13 @@ handleSubmissionAdmin sid = withAdmin $ handleMethodOverride $ do
         submitSplices tz sub
 
     -- delete a submission
+    delete :: Submission -> Codex ()
     delete sub = do
       deleteSubmission (submitId sub)
       redirectURL SubmissionList
 
     -- revaluate a single submission
+    reevaluate :: Submission -> Codex ()
     reevaluate sub = do
       let sid = submitId sub
       sqlite <- S.getSqliteState

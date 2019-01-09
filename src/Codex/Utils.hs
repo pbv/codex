@@ -12,12 +12,10 @@ import qualified Data.Text as T
 import qualified Data.Text.Encoding as T
 import qualified Data.Text.Encoding.Error as T
 
-import           Data.Maybe (fromMaybe, listToMaybe, maybeToList)
+import           Data.Maybe (fromMaybe, listToMaybe)
 import           Data.Aeson
 import qualified Data.HashMap.Strict as HM
 import           Data.Map.Syntax
-
-import           Snap.Snaplet.Auth.Backends.SqliteSimple
 
 import           Snap.Core hiding (path)
 import           Snap.Snaplet
@@ -137,20 +135,6 @@ getEvents = do
   let hm' = HM.map (\v -> Configurator.convert v >>= parseTime) hm
   return (\k -> join (HM.lookup k hm'))
 
-  -- uevs <- maybe [] userEvents <$> with auth currentUser
-  -- dbevs <- query_ "SELECT name, time FROM events"
-  -- let evs = uevs ++ dbevs
-  -- return (`lookup` uevs)
-
-{-
--- | events associated with a user account
-userEvents :: AuthUser -> [(Text, Time)]
-userEvents au = [(n, fromUTCTime t) | (n,f) <- fields, t <- maybeToList (f au)]
-  where fields =  [("activation", userActivatedAt),
-                   ("creation", userCreatedAt),
-                   ("update", userUpdatedAt),
-                   ("login", userCurrentLoginAt)]
--}
 
 -- | get submission id from request parameters
 getSubmitId :: Codex (Maybe SubmitId)
@@ -280,20 +264,6 @@ caseSplice v = tagCaseSplice (T.pack $ show v)
 
 
 --------------------------------------------------------------
- {-
--- | make a checkbox input for a tag filter
-checkboxInput :: Text -> Bool -> Bool -> [X.Node]
-checkboxInput value checked disabled
-  = [X.Element "label" attrs' [X.Element "input" attrs [], X.TextNode value]]
-  where attrs = [ ("checked", "checked") | checked ] ++
-                [ ("disabled", "disabled") | disabled ] ++
-                [ ("type", "checkbox"),
-                  ("name", "tag"),
-                  ("value", value),
-                  ("onclick", "this.form.submit();")
-                ]
-        attrs' = [ ("class","disabled") | disabled ]
--}
 
 checkboxInput :: [(Text,Text)] -> [X.Node] -> X.Node
 checkboxInput attrs contents = X.Element "input" attrs' contents
@@ -358,3 +328,32 @@ logMsg msg = do
   liftIO $ FastLogger.logMsg logger =<< FastLogger.timestampedLogEntry msg
 
 
+withTimeSplices :: Page -> Codex a -> Codex a
+withTimeSplices page action = do
+  tz  <- liftIO getCurrentTimeZone
+  now <- liftIO getCurrentTime
+  events <- getEvents
+  let optInt = evalInterval tz events (pageInterval page)
+  let splices = case optInt of
+        Left err -> do
+          "current-timing" ## I.textSplice (T.pack err)
+        Right interval -> timingSplices tz now interval
+  withSplices splices action
+
+-- | splices related to the submission interval for an exercise
+timingSplices :: TimeZone -> UTCTime -> Interval UTCTime -> ISplices
+timingSplices tz now interval = do
+  let timeLeft = fmap (\t -> diffUTCTime t now) (higher interval)
+  "valid-from" ##
+    I.textSplice $ maybe "N/A" (showTime tz) (lower interval)
+  "valid-until" ##
+    I.textSplice $ maybe "N/A" (showTime tz) (higher interval)
+  "current-timing" ##
+    (caseSplice . timeInterval now) interval
+  "time-left" ##
+    I.textSplice $ maybe "N/A" (\t -> T.pack $ formatNominalDiffTime t) timeLeft
+
+    
+feedbackSplices :: Page -> ISplices
+feedbackSplices page = do
+  "if-feedback" ## I.ifElseISplice (pageFeedback page)

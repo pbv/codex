@@ -14,8 +14,9 @@ module Codex.Types
     SubmitId(..),
     Language(..),
     Code(..),
-    -- * typeclass
-    Text, toText
+    Page,
+    -- re-exports
+    Text
   ) where
 
 import           Data.Typeable
@@ -36,6 +37,7 @@ import           Data.Configurator.Types
 import           Data.Configurator ()
 
 import           Web.Routes.PathInfo
+import           Text.Pandoc.Definition -- hiding (Code)
 
 
 -- | a user login; should uniquely identify the user
@@ -80,23 +82,6 @@ instance Configured Language where
   convert v = (Language . T.toLower) <$> convert v
 
 
--- | type class to overload conversion to text
-class ToText a where
-  toText :: a -> Text
-
-instance ToText Text where
-  toText = id
-
-instance ToText UserLogin where
-  toText = fromLogin
-
-instance ToText SubmitId where
-  toText = T.pack . show . fromSubmitId
-
-instance ToText Language where
-  toText = fromLanguage
-
-
 -- | conversion from strings
 instance IsString UserLogin where
   fromString = UserLogin . T.pack
@@ -128,5 +113,12 @@ instance FromField Language where
 
 instance FromRow Text where
   fromRow = field
+
+
+--
+-- a Page is a synonym for a Pandoc document 
+-- either an active exercise or a passive document (e.g. an index)
+--
+type Page = Pandoc
 
 

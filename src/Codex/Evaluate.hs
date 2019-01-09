@@ -3,6 +3,7 @@
 {-# LANGUAGE RecordWildCards #-}
 
 module Codex.Evaluate(
+  newSubmission,
   -- * evaluate a single submission
   evaluate,
   reevaluate,
@@ -11,6 +12,7 @@ module Codex.Evaluate(
 
 import qualified Data.Text as T
 import           Data.Maybe
+import           Data.Time.Clock
 import           Data.Time.LocalTime
 import           Control.Monad.State
 import           Control.Concurrent(ThreadId) 
@@ -20,8 +22,9 @@ import           System.FilePath
 import           Snap.Snaplet
 import qualified Snap.Snaplet.SqliteSimple as S
 
-import           Data.Configurator.Types(Config)
+-- import           Data.Configurator.Types(Config)
 
+import           Codex.Types
 import           Codex.Application
 import           Codex.Tasks
 import           Codex.Utils
@@ -31,7 +34,16 @@ import           Codex.Tester
 import           Codex.Time
 
 
-
+-- | handle a new submission
+-- insert a pending submission and start
+-- run code tester in separate thread
+newSubmission :: UserLogin -> FilePath -> Code -> Codex SubmitId
+newSubmission uid rqpath code = do
+  now <- liftIO getCurrentTime
+  sub <- insertSubmission uid rqpath now code evaluating Valid
+  evaluate sub
+  return (submitId sub)
+  
 -- | evaluate a single submissions
 evaluate :: Submission -> Codex ThreadId
 evaluate sub = do

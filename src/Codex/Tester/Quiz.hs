@@ -9,7 +9,7 @@ module Codex.Tester.Quiz (
 
 
 import           Codex.Tester
-import           Codex.Quiz
+import           Codex.Handlers.Quiz
 import           Data.Text(Text)
 import qualified Data.Text as T
 

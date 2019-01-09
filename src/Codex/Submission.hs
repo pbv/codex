@@ -34,17 +34,14 @@ import           Data.Time.LocalTime
 import qualified Data.Text          as T
 import qualified Data.Text.Encoding as T
 
-import           Data.Monoid
 import           Data.List (intersperse)
-import           Data.Maybe(listToMaybe, fromMaybe)
+import           Data.Maybe(listToMaybe,fromMaybe)
 
-import           Snap.Core hiding (path)
+import           Snap.Core(getParam) -- hiding (path)
 import           Snap.Snaplet.SqliteSimple
 import           Snap.Snaplet.Router
 import qualified Database.SQLite.Simple as S
 import           Database.SQLite.Simple (NamedParam(..))
-import           Database.SQLite.Simple.FromField
-import           Database.SQLite.Simple.ToField
 import           Heist.Splices     as I
 import qualified Heist.Interpreted as I
 
@@ -59,56 +56,14 @@ import           Codex.Utils
 import           Codex.Time
 import           Codex.Types
 import           Codex.Tester.Result
-
-
-
--- | a row in the submssion table
-data Submission = Submission {
-  submitId     :: SubmitId,     -- submission DB id
-  submitUser   :: UserLogin,    -- user login
-  submitPath   :: FilePath,     -- exercise request path 
-  submitTime   :: UTCTime,      -- submission time
-  submitCode   :: Code,         -- submitted code
-  submitResult :: Result,       -- accepted/wrong answer/etc
-  submitTiming :: Timing        -- timing (early, valid, overdue)
-  } 
-
-
-submitLang :: Submission -> Language
-submitLang = codeLang . submitCode
-
-
-instance ToField Timing where
-  toField s = toField (show s)
-
-instance FromField Timing where
-  fromField f = do s <- fromField f
-                   parse (reads s)
-    where
-      parse ((s,""):_) = return s
-      parse _  = returnError ConversionFailed f "invalid Timing field"
-
-instance FromRow Submission where
-  fromRow = do
-    sid <- field
-    uid <- field
-    path <- field
-    time <- field
-    lang <- field
-    text <- field 
-    classf <- field
-    msg <- field
-    tv <- field
-    let code = Code lang text
-    let result = Result classf msg
-    return (Submission sid uid path time code result tv)
+import           Codex.Submission.Types
 
 
 
 -- | insert a new submission into the DB
 insertSubmission ::
-  UserLogin -> FilePath -> UTCTime -> Code -> Result -> Timing ->
-  Codex Submission
+  HasSqlite m =>
+  UserLogin -> FilePath -> UTCTime -> Code -> Result -> Timing -> m Submission
 insertSubmission uid path time code result timing = do
   let (Code lang text) = code
   let (Result classf msg) = result
@@ -141,20 +96,20 @@ markEvaluating sqlite sids = do
 
 
 -- | get a single submission
-getSubmission :: SubmitId -> Codex (Maybe Submission)
+getSubmission :: HasSqlite m => SubmitId -> m (Maybe Submission)
 getSubmission sid =
   listToMaybe <$> query "SELECT * FROM submissions WHERE id=?" (Only sid)
 
 
 -- | get all submissions for a user and exercise page
-getPageSubmissions :: UserLogin -> FilePath -> Codex [Submission]
+getPageSubmissions :: HasSqlite m => UserLogin -> FilePath -> m [Submission]
 getPageSubmissions uid path =
   query "SELECT * FROM submissions \
        \ WHERE user_id = ? AND path = ? ORDER BY received" (uid, path)
 
 
 -- | count user submissions to an exercise page
-countPageSubmissions :: UserLogin -> FilePath -> Codex Int
+countPageSubmissions :: HasSqlite m => UserLogin -> FilePath -> m Int
 countPageSubmissions uid path = do
   r <- query "SELECT COUNT(*) FROM submissions \
             \ WHERE user_id = ?  AND path = ?" (uid,path)
@@ -164,7 +119,7 @@ countPageSubmissions uid path = do
 
 
 -- | delete a single submission
-deleteSubmission :: SubmitId -> Codex ()
+deleteSubmission :: HasSqlite m => SubmitId -> m ()
 deleteSubmission sid =
   execute "DELETE FROM submissions where id = ?" (Only sid)
 
@@ -197,7 +152,7 @@ sqlOrdering :: Ordering -> Text
 sqlOrdering Ascending  = "ASC"
 sqlOrdering Descending = "DESC"
 
-countSubmissions :: Patterns -> Codex Int
+countSubmissions :: HasSqlite m => Patterns -> m Int
 countSubmissions patts = withSqlite $ \conn -> do
   let sql = "SELECT COUNT(*) FROM submissions " <> sqlPatterns patts
   r <- S.queryNamed conn (S.Query sql) (namedParams patts)
@@ -206,7 +161,8 @@ countSubmissions patts = withSqlite $ \conn -> do
      _ -> error "countSubmissions: invalid result from database"
 
 
-filterSubmissions :: Patterns -> Ordering -> Int -> Int -> Codex [Submission]
+filterSubmissions ::
+  HasSqlite m => Patterns -> Ordering -> Int -> Int -> m [Submission]
 filterSubmissions patts ord limit offset = 
   let
     sql = ("SELECT * FROM submissions "
@@ -221,8 +177,8 @@ filterSubmissions patts ord limit offset =
   
 
 -- | process submissions with a filter
-withFilterSubmissions ::
-  Patterns -> Ordering -> a -> (a -> Submission -> IO a) -> Codex a
+withFilterSubmissions :: HasSqlite m =>
+  Patterns -> Ordering -> a -> (a -> Submission -> IO a) -> m a
 withFilterSubmissions patts ord a f = 
   let sql = "SELECT * FROM submissions "
             <> sqlPatterns patts
@@ -231,12 +187,38 @@ withFilterSubmissions patts ord a f =
   in withSqlite (\conn -> S.foldNamed conn (S.Query sql) (namedParams patts) a f)
 
 -- | process all submissions
-withSubmissions :: a -> (a -> Submission -> IO a) -> Codex a
+withSubmissions ::
+  HasSqlite m => a -> (a -> Submission -> IO a) -> m a
 withSubmissions a f = do
   let sql = "SELECT * FROM submissions ORDER BY id ASC"
   withSqlite (\conn -> S.fold_ conn sql a f)
 
 
+
+
+-- | splices relating to a single submission
+submitSplices :: TimeZone -> Submission -> ISplices
+submitSplices tz Submission{..} = do
+  "submit-id" ##  I.textSplice (T.pack $ show submitId)
+  "report-url" ## urlSplice (Report submitId)
+  "submission-admin-url" ## urlSplice (SubmissionAdmin submitId)
+  "page-url" ## urlSplice (Page $ splitDirectories submitPath)
+  "file-url" ## urlSplice (Files $ splitDirectories submitPath)
+  "submit-path" ## I.textSplice (T.pack submitPath)
+  "submit-user-id" ## I.textSplice (fromLogin submitUser)
+  "submit-time" ## utcTimeSplice tz submitTime
+  "submit-lang" ## I.textSplice (fromLanguage $ codeLang submitCode)
+  "submit-text" ##  I.textSplice (codeText submitCode)
+  let classify = T.pack $ show $ resultClassify submitResult
+  "submit-classify" ##  I.textSplice classify
+  "submit-message" ## I.textSplice (resultMessage submitResult)
+  "submit-timing" ## I.textSplice (T.pack $ show submitTiming)
+  "if-valid" ## I.ifElseISplice (submitTiming == Valid)
+  "if-early" ## I.ifElseISplice (submitTiming == Early)
+  "if-overdue" ## I.ifElseISplice (submitTiming == Overdue)
+  "if-accepted" ## I.ifElseISplice (resultClassify submitResult == Accepted)
+  "if-evaluating" ## I.ifElseISplice (resultClassify submitResult == Evaluating)
+                                      
 -- | Helper function to decode patterns from http request parameters
 getPatterns :: Codex Patterns
 getPatterns = do
@@ -250,31 +232,5 @@ getPatterns = do
 patternSplices :: Patterns -> ISplices
 patternSplices patts
   = sequence_ [ field ## I.textSplice (fromMaybe "" pat) | (field, pat) <- patts]
-
-
-
--- | splices relating to a single submission
-submitSplices :: TimeZone -> Submission -> ISplices
-submitSplices tz Submission{..} = do
-  "submit-id" ##  I.textSplice (toText submitId)
-  "report-url" ## urlSplice (Report submitId)
-  "submission-admin-url" ## urlSplice (SubmissionAdmin submitId)
-  "page-url" ## urlSplice (Page $ splitDirectories submitPath)
-  "file-url" ## urlSplice (Files $ splitDirectories submitPath)
-  "submit-path" ## I.textSplice (T.pack submitPath)
-  "submit-user-id" ## I.textSplice (toText submitUser)
-  "submit-time" ## utcTimeSplice tz submitTime
-  "submit-lang" ## I.textSplice (toText $ codeLang submitCode)
-  "submit-text" ##  I.textSplice (codeText submitCode)
-  let classify = T.pack $ show $ resultClassify submitResult
-  "submit-classify" ##  I.textSplice classify
-  "submit-message" ## I.textSplice (resultMessage submitResult)
-  "submit-timing" ## I.textSplice (T.pack $ show submitTiming)
-  "if-valid" ## I.ifElseISplice (submitTiming == Valid)
-  "if-early" ## I.ifElseISplice (submitTiming == Early)
-  "if-overdue" ## I.ifElseISplice (submitTiming == Overdue)
-  "if-accepted" ## I.ifElseISplice (resultClassify submitResult == Accepted)
-  "if-evaluating" ## I.ifElseISplice (resultClassify submitResult == Evaluating)
-                                      
 
 

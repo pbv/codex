@@ -23,13 +23,12 @@ module Codex.Tester.Monad (
 import           Data.Configurator.Types
 import qualified Data.Configurator as Conf
 
-import           Data.Monoid
 import           Control.Applicative
 import           Control.Monad.Trans
 import           Control.Monad.Trans.Maybe 
 import           Control.Monad.Trans.Reader
 
-import           Codex.Types (Code, UserLogin)
+import           Codex.Types (Page, Code, UserLogin)
 import           Text.Pandoc (Meta)
 import           Codex.Page
 import           Codex.Tester.Limits

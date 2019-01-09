@@ -30,16 +30,17 @@ import Data.Configurator.Types (Config)
 
 import Codex.Tasks
 import Codex.Types
+import Codex.Handlers
 import Codex.Tester
 
 
 -- | URLs for our application
 data AppUrl =
-    Login              -- ^ session login / logout
+    Login                  -- ^ session login / logout
   | Logout
   | Register
-  | Page [FilePath]    -- ^ exercise page or other file
-  | Report SubmitId    -- ^ report for previously submitted exercise
+  | Page [FilePath]        -- ^ exercise page or other file
+  | Report SubmitId        -- ^ report for previous submission
   -- following are for adminstrator only
   | Files [FilePath]          -- ^ file browser 
   | SubmissionList            -- ^ submissions list
@@ -48,6 +49,9 @@ data AppUrl =
 
 instance PathInfo AppUrl
 
+------------------------------------------------------------------------------
+type Codex = Handler App App
+------------------------------------------------------------------------------
 
 data App = App
     { _heist   :: Snaplet (Heist App)
@@ -56,6 +60,7 @@ data App = App
     , _auth    :: Snaplet (AuthManager App)
     , _db      :: Snaplet Sqlite
     , _tester  :: Tester Result    -- ^ exercise testers to use
+    , _handlers :: Handlers Codex  -- ^ exercise handlers to use
     , _tasks   :: Tasks            -- ^ list of evaluation thread ids
     , _semph   :: QSem             -- ^ semaphore for evaluation scheduling
     , _logger  :: Logger
@@ -90,6 +95,3 @@ instance HasRouter (Handler b RouterState) where
     getRouterState = get
     
 
-------------------------------------------------------------------------------
-type Codex = Handler App App
-------------------------------------------------------------------------------

@@ -112,10 +112,10 @@ writeable mode =
 
 runCompiler :: FilePath -> [String] -> IO ()
 runCompiler cmd args = do
-  (exitCode, _, err) <- readProcessWithExitCode cmd args ""
+  (exitCode, out, err) <- readProcessWithExitCode cmd args ""
   case exitCode of
     ExitFailure _ ->
-      throwIO (compileError $ T.pack err)
+      throwIO (compileError $ T.pack out <> T.pack err)
     ExitSuccess ->
       return ()
 
