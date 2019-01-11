@@ -14,15 +14,15 @@ import           Control.Exception (catch)
 
 pythonDocTester :: Tester Result
 pythonDocTester = tester "doctest" $ do
-  Code lang src <- testCode
+  Code lang src <- askSubmitted
   guard (lang == "python")
   ---
   python    <- configured "language.python.interpreter"
   pytest    <- configured "language.python.pytest"
   scripts   <- configured "language.python.scripts"
   optLinter <- maybeConfigured "language.python.linter"
-  limits  <- testLimits "language.python.limits"
-  path    <- testPath
+  limits  <- askLimits "language.python.limits"
+  path    <- askPath
   doctestPath <- guessDoctest path 
   assert (fileExists doctestPath)
     ("doctest file not found: " <> show doctestPath)

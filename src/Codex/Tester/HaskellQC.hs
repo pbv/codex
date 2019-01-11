@@ -19,17 +19,17 @@ import           Control.Exception (catch)
 -- | running and evaluating Haskell submissions
 haskellQCTester :: Tester Result
 haskellQCTester = tester "quickcheck" $ do
-  Code lang src <- testCode
+  Code lang src <- askSubmitted
   guard (lang == "haskell")
-  path <- testPath
+  path <- askPath
   --------------
   let qcpath = replaceExtension path ".hs"
   assert (fileExists qcpath)
       ("quickcheck file not found: " <> show qcpath)
   props <- liftIO $ T.readFile qcpath
-  qcArgs <- getQuickCheckArgs <$> testMetadata
+  qcArgs <- getQuickCheckArgs <$> askMetadata
   ghc <- configured "language.haskell.compiler"
-  limits <- testLimits "language.haskell.limits"
+  limits <- askLimits "language.haskell.limits"
   liftIO (haskellRunner limits ghc qcArgs src props `catch` return)
 
 

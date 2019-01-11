@@ -8,13 +8,13 @@ module Codex.Tester.Monad (
   runTester,
   configured,
   maybeConfigured,
-  testLimits,
-  testConfig,
-  testPath,
-  testCode,
-  testPage,
-  testMetadata,
-  testUser,
+  askLimits,
+  askConfig,
+  askPath,
+  askSubmitted,
+  askPage,
+  askMetadata,
+  askUser,
   metadata,
   ) where
 
@@ -45,7 +45,7 @@ data TestEnv
    = TestEnv { _testConfig :: Config   -- ^ static configuration file
              , _testPage :: Page       -- ^ exercise page
              , _testPath :: FilePath   -- ^ file path to exercise page
-             , _testCode :: Code       -- ^ submited language & code
+             , _testSubmitted :: Code  -- ^ submited language & code
              , _testUser :: UserLogin  -- ^ user 
              } 
 
@@ -59,50 +59,50 @@ runTester cfg page path code user action
 
 
 -- | fetch parameters from enviroment
-testConfig :: Tester Config
-testConfig = Tester (asks _testConfig)
+askConfig :: Tester Config
+askConfig = Tester (asks _testConfig)
 
-testPath :: Tester FilePath
-testPath = Tester (asks _testPath)
+askPath :: Tester FilePath
+askPath = Tester (asks _testPath)
 
-testCode :: Tester Code
-testCode = Tester (asks _testCode)
+askSubmitted :: Tester Code
+askSubmitted = Tester (asks _testSubmitted)
 
-testPage :: Tester Page
-testPage = Tester (asks _testPage)
+askPage :: Tester Page
+askPage = Tester (asks _testPage)
 
-testMetadata :: Tester Meta
-testMetadata = pageMeta <$> testPage
+askMetadata :: Tester Meta
+askMetadata = pageMeta <$> askPage
 
-testUser :: Tester UserLogin
-testUser = Tester (asks _testUser)
+askUser :: Tester UserLogin
+askUser = Tester (asks _testUser)
 
 
 metadata :: FromMetaValue a => String -> Tester (Maybe a)
 metadata key = do
-  meta <- testMetadata
+  meta <- askMetadata
   return (lookupFromMeta key meta)
 
 
 -- | fetch a configured value; return Nothing if key not present
 maybeConfigured :: Configured a => Name -> Tester (Maybe a)
 maybeConfigured key = do
-  cfg <- testConfig
+  cfg <- askConfig
   liftIO $ Conf.lookup cfg key
 
 -- | fetch a configuration value
 -- throws an exception if key is not present
 configured :: Configured a => Name -> Tester a
 configured key = do
-  cfg <- testConfig
+  cfg <- askConfig
   liftIO $ Conf.require cfg key
 
 
--- | get configured limits from the tester environment
+-- | ask configured limits from the tester environment
 -- overrides default config with the specific one
-testLimits :: Name -> Tester Limits
-testLimits key = do
-  cfg <- testConfig
+askLimits :: Name -> Tester Limits
+askLimits key = do
+  cfg <- askConfig
   liftIO $ do
     def  <- configLimits (Conf.subconfig "limits" cfg)
     spec <- configLimits (Conf.subconfig key cfg)

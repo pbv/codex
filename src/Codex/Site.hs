@@ -1,6 +1,7 @@
 {-# LANGUAGE OverloadedStrings   #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE RecordWildCards #-}
+{-# LANGUAGE NamedFieldPuns #-}
 
 ------------------------------------------------------------------------------
 -- | This module is where all the routes and handlers are defined for your
@@ -100,7 +101,7 @@ handleGet uid rqpath = do
   let mime = fileType mimeTypes rqpath
   if mime == "text/markdown" then do
     page <- readMarkdownFile filepath
-    Handlers{..} <- gets _handlers
+    Handlers{handleView} <- gets _handlers
     -- first try exercise handler, otherwise render markdown
     withSplices (urlSplices rqpath)
       (handleView uid rqpath page <|>
@@ -125,7 +126,7 @@ handlePost uid rqpath = do
   let mime = fileType mimeTypes rqpath
   guard (mime == "text/markdown") 
   page <- readMarkdownFile filepath
-  Handlers{..} <- gets _handlers
+  Handlers{handleSubmit} <- gets _handlers
   handleSubmit uid rqpath page
 
   
@@ -140,7 +141,7 @@ handleGetReport sid = method GET $ do
   root <- getDocumentRoot
   let rqpath = submitPath sub
   page <- readMarkdownFile (root </> rqpath)
-  Handlers{..} <- gets _handlers
+  Handlers{handleReport} <- gets _handlers
   handleReport uid rqpath page sub
 
 

@@ -10,12 +10,12 @@ module Codex.Tester.Quiz (
 
 import           Codex.Tester
 import           Codex.Handlers.Quiz
-import           Data.Text(Text)
+-- import           Data.Text(Text)
 import qualified Data.Text as T
 
-import qualified Data.Aeson as Aeson
+--import qualified Data.Aeson as Aeson
 import           Data.Maybe
-import           Data.Monoid
+--import           Data.Monoid
 import           Data.Ratio
 import           Data.List (intersect, (\\))
 
@@ -23,9 +23,9 @@ import           Text.Printf(printf)
 
 quizTester :: Tester Result
 quizTester = tester "quiz" $ do
-  Code lang text <- testCode
+  Code lang text <- askSubmitted
   guard (lang == "json")
-  page <- testPage
+  page <- askPage
   let quiz = makeQuiz page
   let answers = fromMaybe emptyAnswers (decodeAnswers text)
   let Score{..} = scoreQuiz quiz answers

@@ -17,9 +17,9 @@ import           Codex.Tester
 
 clangQCTester :: Tester Result
 clangQCTester = tester "quickcheck" $ do
-  Code lang src <- testCode
+  Code lang src <- askSubmitted
   guard (lang == "c")
-  path <- testPath
+  path <- askPath
   -------------------------------------------
   let qcpath = replaceExtension path ".hs"
   assert (fileExists qcpath)
@@ -27,8 +27,8 @@ clangQCTester = tester "quickcheck" $ do
   props  <- liftIO (T.readFile qcpath)
   ghc    <- configured "language.haskell.compiler"
   gcc    <- configured "language.c.compiler"
-  limits <- testLimits "language.haskell.limits"
-  qcArgs <- getQuickCheckArgs <$> testMetadata
+  limits <- askLimits "language.haskell.limits"
+  qcArgs <- getQuickCheckArgs <$> askMetadata
   -- append an optional header (for includes, prototypes, etc.)
   header <- fromMaybe "" <$> metadata "header"
   let code = header <> "\n" <> src

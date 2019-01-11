@@ -47,7 +47,7 @@ data Build =
 clangBuild :: Tester Build
 clangBuild = do
   cc_cmd <- configured "language.c.compiler"
-  limits <- testLimits "language.c.limits"
+  limits <- askLimits "language.c.limits"
   let cc:cc_args = words cc_cmd
   let make tmpdir (Code _ code) = do 
         let c_file = tmpdir </> "submit.c"
@@ -67,7 +67,7 @@ clangBuild = do
 pythonBuild ::  Tester Build
 pythonBuild = do
   python <- configured "language.python.interpreter"
-  limits <- testLimits "language.python.limits"
+  limits <- askLimits "language.python.limits"
   let make tmpdir (Code _ code)  = do
         let pyfile = tmpdir </> "submit.py"
         T.writeFile pyfile code
@@ -84,7 +84,7 @@ javaBuild :: Tester Build
 javaBuild = do
   javac_cmd <- configured "language.java.compiler"
   java_cmd <- configured "language.java.runtime"
-  limits <- testLimits "language.java.limits"
+  limits <- askLimits "language.java.limits"
   -- name for public class with the main entry point
   classname <- fromMaybe "Main" <$> metadata "class" 
   let javac:javac_args = words javac_cmd
@@ -107,7 +107,7 @@ javaBuild = do
 haskellBuild :: Tester Build
 haskellBuild = do
   ghc_cmd <- configured "language.haskell.compiler"
-  limits <- testLimits "language.haskell.limits"
+  limits <- askLimits "language.haskell.limits"
   -- name for the main module
   modname <- fromMaybe "Main" <$> metadata "module" 
   let ghc:ghc_args = words ghc_cmd
@@ -129,10 +129,10 @@ haskellBuild = do
 --
 stdioTester ::  Build -> Tester Result
 stdioTester Build{..} = tester "stdio" $ do
-  code@(Code lang _) <- testCode
+  code@(Code lang _) <- askSubmitted
   guard (checkLanguage lang)
   ---
-  dir <- takeDirectory <$> testPath
+  dir <- takeDirectory <$> askPath
   inpatts <- map (dir</>) . fromMaybe [] <$> metadata "inputs"
   outpatts <- map (dir</>) . fromMaybe [] <$> metadata "outputs"
   assert (pure $ not (null inpatts)) "no inputs defined"

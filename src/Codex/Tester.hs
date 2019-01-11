@@ -45,7 +45,7 @@ oneOf = foldr (<|>) empty
 -- | label a tester and ignore submissions that don't match 
 tester :: Text -> Tester a -> Tester a
 tester name cont = do
-  meta <- testMetadata
+  meta <- askMetadata
   guard (lookupFromMeta "tester" meta == Just name)
   cont
   
