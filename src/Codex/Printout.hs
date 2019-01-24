@@ -1,5 +1,7 @@
 {-# LANGUAGE OverloadedStrings #-}
-{-# LANGUAGE RecordWildCards #-} 
+{-# LANGUAGE RecordWildCards #-}
+{-# LANGUAGE NamedFieldPuns #-}
+
 {-
    Produce printouts for exams, etc.
 -}
@@ -103,7 +105,7 @@ writePrintouts dir opts  summary = do
     
 userPrintout :: UserLogin -> [Submission] -> Codex Pandoc
 userPrintout uid  submissions = do
-  Handlers{..} <- gets _handlers
+  Handlers{handlePrintout} <- gets _handlers
   root <- getDocumentRoot
   now <- liftIO getZonedTime
   let login = T.unpack (fromLogin uid)

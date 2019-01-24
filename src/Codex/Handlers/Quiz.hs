@@ -330,21 +330,13 @@ quizReport rqpath page sub = do
 --
 quizPrintout :: UserLogin -> Page -> Submission -> Codex P.Blocks
 quizPrintout _ page sub@Submission{..}  = do
-  guard (isQuiz page) 
-  return mempty
-    {- $
-    mconcat [ -- P.header 1 title
-            -- , ppHeader sub
-             -- ppQuiz quiz answers 
-             --  P.codeBlock msg
-            --  P.horizontalRule
-            ] -}
+  guard (isQuiz page)
+  return (if pageFeedback page
+          then ppQuiz quiz answers else mempty)
   where
-    -- title = maybe (P.text submitPath) P.fromList (pageTitle page)
     quiz = makeQuiz page
     answers = fromMaybe emptyAnswers $
               decodeAnswers $ codeText $ submitCode
-    msg = T.unpack $ resultMessage submitResult
 
 {-
 ppHeader Submission{..}

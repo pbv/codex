@@ -73,7 +73,7 @@ scoreQuiz (Quiz _ questions) answers
 scoreQuestion :: Question -> Answers  -> Score
 scoreQuestion question@(Question _ attr alts) answers
   | num_correct>0 && num_wrong>0 = Score 1 answered correct wrong grade
-  | otherwise                    = Score 1 0 0 0 0
+  | otherwise                    = Score 0 0 0 0 0
                                     -- invalid question
   where selected = lookupAnswers question answers
         answered = if null selected then 0 else 1
