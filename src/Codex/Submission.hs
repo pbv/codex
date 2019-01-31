@@ -208,23 +208,16 @@ submitSplices tz Submission{..} = do
   "submit-user-id" ## I.textSplice (fromLogin submitUser)
   "submit-time" ## utcTimeSplice tz submitTime
   "submit-lang" ## I.textSplice (fromLanguage $ codeLang submitCode)
-  "submit-text" ##  I.textSplice (escapeAmpersand $ codeText submitCode)
+  "submit-text" ##  I.textSplice (codeText submitCode)
   let classify = T.pack $ show $ resultClassify submitResult
   "submit-classify" ##  I.textSplice classify
-  "submit-message" ## I.textSplice (escapeAmpersand $ resultMessage submitResult)
+  "submit-message" ## I.textSplice (resultMessage submitResult)
   "submit-timing" ## I.textSplice (T.pack $ show submitTiming)
   "if-valid" ## I.ifElseISplice (submitTiming == Valid)
   "if-early" ## I.ifElseISplice (submitTiming == Early)
   "if-overdue" ## I.ifElseISplice (submitTiming == Overdue)
   "if-accepted" ## I.ifElseISplice (resultClassify submitResult == Accepted)
   "if-evaluating" ## I.ifElseISplice (resultClassify submitResult == Evaluating)
-
--- escape ampersand signs for code and compiler msgs
--- TODO: check why this isn't handled automatically by Heist
-escapeAmpersand :: Text -> Text
-escapeAmpersand
-  = T.concatMap (\x -> if x == '&' then "&amp" else T.singleton x)
-
 
 
 -- | Helper function to decode patterns from http request parameters
