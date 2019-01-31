@@ -9,7 +9,7 @@ module Codex.Tester.HaskellQC (
 
 import           Data.Text (Text)
 import qualified Data.Text.IO as T
-
+import           Data.Maybe (fromMaybe)
 import           Codex.Tester 
 
 import           Control.Exception (catch)
@@ -22,10 +22,11 @@ haskellQCTester = tester "quickcheck" $ do
   Code lang src <- askSubmitted
   guard (lang == "haskell")
   path <- askPath
-  --------------
-  let qcpath = replaceExtension path ".hs"
+  qcpath <- fromMaybe (replaceExtension path ".hs")
+            <$>
+            metadataPath "properties"
   assert (fileExists qcpath)
-      ("quickcheck file not found: " <> show qcpath)
+      ("properties file not found: " <> show qcpath)
   props <- liftIO $ T.readFile qcpath
   qcArgs <- getQuickCheckArgs <$> askMetadata
   ghc <- configured "language.haskell.compiler"

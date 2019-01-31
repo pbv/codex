@@ -16,6 +16,7 @@ module Codex.Tester.Monad (
   askMetadata,
   askUser,
   metadata,
+  metadataPath,
   ) where
 
 
@@ -32,6 +33,7 @@ import           Codex.Types (Page, Code, UserLogin)
 import           Text.Pandoc (Meta)
 import           Codex.Page
 import           Codex.Tester.Limits
+import           System.FilePath
 
 
 -- | a monad for testing scripts
@@ -77,11 +79,18 @@ askMetadata = pageMeta <$> askPage
 askUser :: Tester UserLogin
 askUser = Tester (asks _testUser)
 
-
+-- | get a medata value from a field
 metadata :: FromMetaValue a => String -> Tester (Maybe a)
 metadata key = do
   meta <- askMetadata
   return (lookupFromMeta key meta)
+
+-- | get an absolute path from metadata field
+metadataPath :: String -> Tester (Maybe FilePath)
+metadataPath key = do
+  dir <- takeDirectory <$> askPath   -- directory for exercise page
+  fmap (dir </>) <$> metadata key
+                      -- lookup key and make absolute path if found
 
 
 -- | fetch a configured value; return Nothing if key not present

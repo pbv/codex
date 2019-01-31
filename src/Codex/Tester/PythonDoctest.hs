@@ -9,6 +9,7 @@ module Codex.Tester.PythonDoctest (
 import           Codex.Tester
 import           Data.Text(Text)
 import qualified Data.Text as T
+import           Data.Maybe(fromMaybe)
 import           Control.Exception (catch)
 
 
@@ -23,17 +24,19 @@ pythonDocTester = tester "doctest" $ do
   optLinter <- maybeConfigured "language.python.linter"
   limits  <- askLimits "language.python.limits"
   path    <- askPath
-  doctestPath <- guessDoctest path 
-  assert (fileExists doctestPath)
-    ("doctest file not found: " <> show doctestPath)
-  chmod readable doctestPath
+  testsPath <- fromMaybe (replaceExtension path ".tst")
+               <$>
+               metadataPath "tests"
+  assert (fileExists testsPath)
+    ("tests file not found: " <> show testsPath)
+  chmod readable testsPath
   withTemp "submit.py" src $ \pyfile -> (do
     chmod readable pyfile
     case optLinter of
       Just linter -> runCompiler linter [pyfile]
       Nothing -> return ()
     classify <$>
-      safeExec limits python [pytest, scripts, doctestPath, pyfile] "") `catch` return
+      safeExec limits python [pytest, scripts, testsPath, pyfile] "") `catch` return
 
 
 classify :: (ExitCode, Text, Text) -> Result
@@ -46,15 +49,3 @@ classify (_, stdout, stderr)
   | match "Failed" stdout              = wrongAnswer stdout
   | otherwise                          = miscError (stdout <> stderr)
 
-
-
--- | guess the doctest path from page metadata or filename
-guessDoctest :: FilePath -> Tester FilePath
-guessDoctest filepath =
-  do optPath <- metadata "doctest"
-     return $ maybe
-       (replaceExtension filepath ".tst")
-       (takeDirectory filepath </>)
-       optPath
-
-  

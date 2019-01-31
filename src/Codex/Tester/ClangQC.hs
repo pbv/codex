@@ -20,10 +20,11 @@ clangQCTester = tester "quickcheck" $ do
   Code lang src <- askSubmitted
   guard (lang == "c")
   path <- askPath
-  -------------------------------------------
-  let qcpath = replaceExtension path ".hs"
+  qcpath <- fromMaybe (replaceExtension path ".hs")
+            <$>
+            metadataPath "properties"
   assert (fileExists qcpath)
-    ("QuickCheck file not found: " <> show qcpath)
+    ("properties file not found: " <> show qcpath)
   props  <- liftIO (T.readFile qcpath)
   ghc    <- configured "language.haskell.compiler"
   gcc    <- configured "language.c.compiler"
