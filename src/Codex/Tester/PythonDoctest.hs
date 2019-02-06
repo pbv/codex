@@ -21,7 +21,8 @@ pythonDocTester = tester "doctest" $ do
   python    <- configured "language.python.interpreter"
   pytest    <- configured "language.python.pytest"
   scripts   <- configured "language.python.scripts"
-  optLinter <- maybeConfigured "language.python.linter"
+  optLinter <- fmap words <$> maybeConfigured "language.python.linter"
+  args  <- (words . fromMaybe "") <$> metadata "linter-options"
   limits  <- askLimits "language.python.limits"
   path    <- askPath
   testsPath <- fromMaybe (replaceExtension path ".tst")
@@ -33,7 +34,7 @@ pythonDocTester = tester "doctest" $ do
   withTemp "submit.py" src $ \pyfile -> (do
     chmod readable pyfile
     case optLinter of
-      Just linter -> runCompiler linter [pyfile]
+      Just (cmd:args') -> runCompiler cmd (args' ++ args ++ [pyfile])
       Nothing -> return ()
     classify <$>
       safeExec limits python [pytest, scripts, testsPath, pyfile] "") `catch` return
