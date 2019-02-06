@@ -35,7 +35,7 @@ pythonDocTester = tester "doctest" $ do
     chmod readable pyfile
     case optLinter of
       Just (cmd:args') -> runCompiler cmd (args' ++ args ++ [pyfile])
-      Nothing -> return ()
+      _ -> return ()
     classify <$>
       safeExec limits python [pytest, scripts, testsPath, pyfile] "") `catch` return
 
