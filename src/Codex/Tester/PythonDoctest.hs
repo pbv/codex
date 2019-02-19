@@ -21,21 +21,23 @@ pythonDocTester = tester "doctest" $ do
   python    <- configured "language.python.interpreter"
   pytest    <- configured "language.python.pytest"
   scripts   <- configured "language.python.scripts"
-  optLinter <- fmap words <$> maybeConfigured "language.python.linter"
-  args  <- (words . fromMaybe "") <$> metadata "linter-options"
+  linter    <- fromMaybe False <$> metadata "linter"
+  linterCmd <- fmap words <$> maybeConfigured "language.python.linter"
+  extraArgs <- (words . fromMaybe "") <$> metadata "linter-options"
   limits  <- askLimits "language.python.limits"
   path    <- askPath
-  testsPath <- fromMaybe (replaceExtension path ".tst")
-               <$>
+  testsPath <- fromMaybe (replaceExtension path ".tst") <$>
                metadataPath "tests"
   assert (fileExists testsPath)
     ("tests file not found: " <> show testsPath)
   chmod readable testsPath
   withTemp "submit.py" src $ \pyfile -> (do
     chmod readable pyfile
-    case optLinter of
-      Just (cmd:args') -> runCompiler cmd (args' ++ args ++ [pyfile])
-      _ -> return ()
+    when linter $
+      case linterCmd of
+        Just (cmd:args') ->
+          runCompiler cmd (args' ++ extraArgs ++ [pyfile])
+        _ -> fail "linter command not found in config file"
     classify <$>
       safeExec limits python [pytest, scripts, testsPath, pyfile] "") `catch` return
 
