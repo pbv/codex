@@ -23,7 +23,7 @@ import           Data.Text (Text)
 import qualified Data.Text as T
 import qualified Data.Text.IO as T
 import           Data.Maybe (fromMaybe)
-import           Data.List(sort)
+import           Data.List(sort, zip3)
 import           Text.Printf
 
 import           Control.Exception (catch)
@@ -38,7 +38,7 @@ data Build =
   forall exec.
   Build { checkLanguage :: Language -> Bool
         , makeExec :: FilePath -> Code -> IO exec
-        , runExec  :: exec -> Text -> IO (ExitCode, Text, Text)
+        , runExec  :: exec -> [String] -> Text -> IO (ExitCode, Text, Text)
         }
 
 
@@ -57,8 +57,8 @@ clangBuild = do
         chmod readable exe_file
         chmod executable tmpdir
         return exe_file
-  let run exe_file stdin = do
-        safeExec limits exe_file [] stdin
+  let run exe_file args stdin = do
+        safeExec limits exe_file args stdin
   return (Build (=="c") make run)
 
 
@@ -74,8 +74,8 @@ pythonBuild = do
         chmod readable pyfile
         chmod executable tmpdir
         return pyfile
-  let run pyfile stdin = do
-        safeExec limits python [pyfile] stdin
+  let run pyfile args stdin = do
+        safeExec limits python (pyfile:args) stdin
   return (Build (=="python") make run)
 
 -- | builder for Java programs
@@ -97,9 +97,10 @@ javaBuild = do
         chmod readable classfile
         chmod executable tmpdir
         return classfile
-  let run classfile stdin = do
+  let run classfile args stdin = do
         let dir = takeDirectory classfile
-        safeExec limits java (java_args ++ ["-cp", dir, classname]) stdin
+        let args' = java_args ++ ["-cp", dir, classname] ++ args
+        safeExec limits java args' stdin
   return (Build (=="java") make run)
 
 
@@ -119,8 +120,8 @@ haskellBuild = do
         chmod readable exe_file
         chmod executable tmpdir
         return exe_file
-  let run exe_file stdin = do
-        safeExec limits exe_file [] stdin
+  let run exe_file args stdin = do
+        safeExec limits exe_file args stdin
   return (Build (=="haskell") make run)
         
 
@@ -139,41 +140,51 @@ stdioTester Build{..} = tester "stdio" $ do
   assert (pure $ not (null outpatts)) "no outputs defined"
   inputs <-  liftIO $ (sort . concat) <$> mapM glob inpatts
   outputs <- liftIO $ (sort . concat) <$> mapM glob outpatts
-  assert (pure $ length inputs == length outputs)
+  let i = length inputs
+  let o = length outputs
+  assert (pure $ i == o)
     "different number of inputs and outputs"
+  args <- fromMaybe (replicate i "") <$> metadata "arguments"
+  assert (pure $ length args == i)
+    "invalid number of command-line arguments"
   liftIO $
     (withTempDir "codex" $ \tmpdir -> do
         exe_file <- makeExec tmpdir code
-        runTests (runExec exe_file) $ zip inputs outputs) `catch` return
+        runTests (runExec exe_file) $ zip3 args inputs outputs)
+    `catch` return
 
 runTests ::
-  (Text -> IO (ExitCode, Text, Text)) -> [(FilePath, FilePath)] -> IO Result
+  ([String] -> Text -> IO (ExitCode, Text, Text)) ->
+  [(String, FilePath, FilePath)] ->
+  IO Result
 runTests action inouts = test 1 inouts
   where
     total = length inouts
     test _ []
       = return $ accepted $ "Passed " <> T.pack (show total) <> " tests"
-    test n ((in_file,out_file):files) = do
+    test n ((args,in_file,out_file) : files) = do
       in_txt <- T.readFile in_file
       out_txt <- T.readFile out_file
-      result <- classify in_txt out_txt <$> action in_txt
+      result <- classify in_txt out_txt <$> action (words args) in_txt
       if resultClassify result == Accepted then
         test (n+1) files
         else
-        return (numberResult n total result)
+        return (numberResult n total (T.pack args) result)
           
-numberResult :: Int -> Int -> Result -> Result
-numberResult num total Result{..}
+numberResult :: Int -> Int -> Text -> Result -> Result
+numberResult num total args Result{..}
   = Result resultClassify (test <> resultMessage)
-  where test = T.pack $ printf "*** Test %d / %d ***\n" num total
+  where test = T.pack (printf "*** Test %d / %d ***\n\n" num total) <>
+               "Command-line arguments:\n" <> sanitize args <> "\n"
+          
 
 
-classify :: Text -> Text -> (ExitCode, Text, Text) -> Result
+classify ::  Text -> Text -> (ExitCode, Text, Text) -> Result
 classify input _ (ExitFailure c, _, err) 
   = runtimeError $ T.unlines
     [ textInput input, ""
-    ,  "Program exited with non-zero status: " <> T.pack (show c)
-    ,  err
+    , "Program exited with non-zero status: " <> T.pack (show c)
+    , err
     ]
 classify input _ (_, _, err)
   | match "Command terminated by signal" err ||
