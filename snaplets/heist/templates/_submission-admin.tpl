@@ -26,16 +26,19 @@
   }
   }
 </script>
-<form id="deleteform" method="POST" 
-      action="${submission-admin-url}" style="display:inline;">
+
+  <a class="button" href="${report-url}">Visualizar</a> &nbsp;
+  <form id="deleteform" method="POST" 
+	action="${submission-admin-url}" style="display:inline;">
     <input type="hidden" name="_method" value="DELETE"/>
     <input type="button" onClick="confirmDelete()" 
 	   title="Apagar a submissão" value="Apagar"/>
-</form>
-<form method="POST" action="${submission-admin-url}" style="display:inline;">
+  </form> &nbsp;
+  <form method="POST" action="${submission-admin-url}" style="display:inline;">
   <input type="hidden" name="_method" value="PATCH"/>
   <input type="submit" title="Re-avaliar a submissão" value="Re-avaliar"/>
-</form>
+  </form>
+
 </if-evaluating>
 </apply>
 <apply template="_browse">

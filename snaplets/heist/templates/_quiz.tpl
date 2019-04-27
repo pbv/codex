@@ -29,9 +29,9 @@
 	    <li>
 	      <label>
 		<if-checked>
-		  <input type="checkbox" name="${question-name}" value="${alternative-label}" onclick="${onclick-callback}" checked/>
+		  <input type="checkbox" name="${question-name}" value="${alternative-label}" onclick="quiz_modified=true;${onclick-callback}" checked/>
 		  <else/>
-		  <input type="checkbox" name="${question-name}" value="${alternative-label}" onclick="${onclick-callback}"/>
+		  <input type="checkbox" name="${question-name}" value="${alternative-label}" onclick="quiz_modified=true;${onclick-callback}"/>
 		</if-checked>&nbsp;<alternative/>
 	      </label>
 	    </li>
@@ -40,7 +40,7 @@
       </fieldset>
     </questions>
     <div>
-      <p><input type="submit" value="Submeter"/> &emsp;
+      <p><input type="submit" value="Submeter" onclick="quiz_modified=false;"/> &emsp;
 	<a href="${page-parent-url}"
 	   class="button">Voltar à página de índice</a> &emsp;
 	<input type="button" value="Limpar seleção" style="float:right"
@@ -50,21 +50,33 @@
   </form>
 
   <script>
+    var quiz_modified = false;
+    
     function onlyOne(checkbox) {
     var array = document.forms["quiz"].getElementsByTagName("input");
     for (i = 0; i<array.length; i++) {
 	var item= array[i];
 	if (item !== checkbox && item.name == checkbox.name) item.checked = false
+     }
     }
- }
 
    function resetAll() {
+    quiz_modified = true;				
     var array = document.forms["quiz"].getElementsByTagName("input");
     for (i = 0; i<array.length; i++) {
 	var item= array[i];
 	if (item.type == "checkbox") item.checked = false
     }
-   }				
+   }
+
+   window.onbeforeunload = function(e) {
+     if (quiz_modified) {
+	return "Confirm?";
+     } else {
+       return;
+     }
+    }; 
+   
   </script>
 </apply>
 
