@@ -242,6 +242,10 @@ table.submissions td.received {
 
 /* --- Quiz answers --- */
 
+.fillin {
+    padding: 0.5ex;
+}
+
 .wrong {
     /* text-decoration: line-through; */
 }

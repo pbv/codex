@@ -12,20 +12,7 @@
     <page-description/>
   </div>
   <p class="info">Linguagens: <page-languages/>.</p>  
-  <p class="info">
-    <current-timing>
-      <Early>
-	Submissões visíveis após <valid-from/>.
-      </Early>
-      <Valid>
-	Submissões terminam em <valid-until/> (<time-left/>).
-    </Valid>
-      <Overdue>
-	Submissões terminaram em <valid-until/>.
-      </Overdue>
-    </current-timing>
-</p>
-
+  <apply template="_timing"/>
 <if-submitted>
   <current-timing>
     <Early>

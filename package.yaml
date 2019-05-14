@@ -1,0 +1,72 @@
+name:                codex
+version:             0.9.3
+github:              "pbv/codex"
+license:             MIT
+author:              "Pedro Baltazar Vasconcelos"
+maintainer:          "pbv@dcc.fc.up.pt"
+copyright:           "2019 Pedro Baltazar Vasconcelos"
+
+extra-source-files:
+- README.md
+
+# Metadata used when publishing your package
+# synopsis:            Short description of your package
+# category:            Web
+
+# To avoid duplicated efforts in documentation and dealing with the
+# complications of embedding Haddock markup inside cabal files, it is
+# common to point users to the README.md file.
+description:         Please see the README on GitHub at <https://github.com/githubuser/db-example#readme>
+
+dependencies:
+- Glob
+- aeson
+- async
+- base >= 4.7 && < 5
+- blaze-builder
+- bytestring
+- configurator
+- containers
+- directory
+- filepath
+- hashable
+- heist
+- io-streams
+- ldap-client
+- lens
+- lifted-base                
+- map-syntax
+- monad-control
+- mtl
+- network-uri
+- pandoc
+- pandoc-types
+- process
+- random
+- snap
+- snap-core
+- snap-loader-static
+- snap-server
+- snap-web-routes
+- snaplet-sqlite-simple
+- sqlite-simple
+- temporary
+- text
+- time
+- transformers
+- unix
+- unordered-containers
+- utf8-string
+- web-routes
+- xmlhtml
+
+executables:
+  codex-server:
+    main:                Main.hs
+    source-dirs:         src
+    ghc-options:
+    - -threaded
+    - -rtsopts
+    - -W
+
+

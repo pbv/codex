@@ -1,42 +1,20 @@
-
 <apply template="_base">
   <mathjax-js/>
   <div class="description">
     <quiz-preamble/>
   </div>
 
-  <p class="info">
-    <current-timing>
-      <Early>
-	Submissões visíveis após <valid-from/>.
-      </Early>
-      <Valid>
-	Submissões terminam em <valid-until/> (<time-left/>).
-    </Valid>
-      <Overdue>
-	Submissões terminaram em <valid-until/>.
-      </Overdue>
-    </current-timing>
-  </p>
-  
+  <apply template="_timing"/>
   
   <form id="quiz" method="POST" action="${page-url}">
     <questions>
       <fieldset>
-	<question-preamble/>
-	<ol class="answers" type="${list-type}" start="${list-start}">
-	  <alternatives>
-	    <li>
-	      <label>
-		<if-checked>
-		  <input type="checkbox" name="${question-name}" value="${alternative-label}" onclick="quiz_modified=true;${onclick-callback}" checked/>
-		  <else/>
-		  <input type="checkbox" name="${question-name}" value="${alternative-label}" onclick="quiz_modified=true;${onclick-callback}"/>
-		</if-checked>&nbsp;<alternative/>
-	      </label>
-	    </li>
-	  </alternatives>
-	</ol>
+	<question-description/>
+	<question-fillin>
+	  <apply template="_fillin"/>
+	  <else/>
+	  <apply template="_choices"/>	  
+	</question-fillin>
       </fieldset>
     </questions>
     <div>

@@ -6,13 +6,8 @@
 -- Multiple choice quizzes
 --
 module Codex.Handlers.Quiz
-  ( Quiz(..)
-  , Question(..)
-  , Answers(..)
-  , makeQuiz
-  , lookupAnswers
+  ( encodeAnswers
   , decodeAnswers
-  , emptyAnswers
   , quizHandlers
   ) where
 
@@ -23,8 +18,7 @@ import           Codex.Submission
 import           Codex.Evaluate
 import           Codex.Utils
 import           Codex.Handlers
-import           Codex.Tester.Result
-import           Codex.Handlers.Quiz.Random
+import           Codex.Quiz
 
 import           Snap.Core hiding (path)
 import           Snap.Snaplet.Heist
@@ -36,25 +30,17 @@ import qualified Heist.Interpreted as I
 
 import qualified Text.Pandoc.Definition as P
 import qualified Text.Pandoc.Builder as P
-import qualified Text.Pandoc.Walk as P
-
-import qualified Text.XmlHtml as X
 
 import           Data.Char
-import           Data.Monoid
-import           Data.Maybe (fromMaybe, catMaybes)
-import           Data.Hashable
+import           Data.Maybe (fromMaybe)
 import qualified Data.Text           as T
 import qualified Data.Text.Encoding as T
 import           Data.Text(Text)
-import           Data.ByteString.UTF8 (ByteString)
 import qualified Data.ByteString.UTF8 as B
 import qualified Data.ByteString.Lazy as LB
 
-import           Data.HashMap.Strict (HashMap)
 import qualified Data.HashMap.Strict as HashMap
 import qualified Data.Map            as Map
-import           Data.Aeson (ToJSON, FromJSON, toJSON, parseJSON)
 import qualified Data.Aeson          as Aeson
 import           Data.Map.Syntax
 import           Data.List (intersperse, sort)
@@ -63,36 +49,7 @@ import           Data.Time.LocalTime
 import           Control.Monad (guard)
 import           Control.Monad.IO.Class (liftIO)
 
--- | a quiz has a preamble and a list of questions
-data Quiz = Quiz [P.Block] [Question]
-  deriving Show
-
--- | a question consists of a preamble (list of blocks), 
--- list of items describing options tagged with truth values
-data Question
-  = Question [P.Block] P.ListAttributes  [(Label, Bool, [P.Block])]
-  deriving Show
-
--- | answer labels
-type Label = String
-
-
--- | answers to a quiz;
--- map from question id to (possibly many) selected options
-newtype Answers = Answers (HashMap String [Label])
-  deriving (Show, Semigroup, Monoid)
-
-emptyAnswers :: Answers
-emptyAnswers = Answers HashMap.empty
-
--- | instances for converting to/from JSON
-instance ToJSON Answers where
-  toJSON (Answers m) = toJSON m
-
-instance FromJSON Answers where
-  parseJSON v = Answers <$> parseJSON v
-
-
+  
 -- | convert quiz answers from/to text
 decodeAnswers :: Text -> Maybe Answers
 decodeAnswers = Aeson.decode . LB.fromStrict . T.encodeUtf8 
@@ -100,175 +57,68 @@ decodeAnswers = Aeson.decode . LB.fromStrict . T.encodeUtf8
 encodeAnswers :: Answers -> Text
 encodeAnswers = T.decodeUtf8 . LB.toStrict . Aeson.encode 
 
-
--- | get quiz answers from form parameters 
+-- | get quiz answers from HTTP form parameters 
 --
 getFormAnswers :: MonadSnap m => m Answers
-getFormAnswers = do
-  m <- getParams
-  let m'= HashMap.fromList [ (B.toString k, map B.toString vs)
-                           | (k,vs)<-Map.assocs m ]
-  return (Answers m')
-  
+getFormAnswers = answersFromParams <$> getParams
 
-lookupAnswers :: Question -> Answers -> [Label]
-lookupAnswers (Question (header:_) _ _) (Answers hm) 
-  = fromMaybe [] $ do name <- identifier header
-                      HashMap.lookup name hm
+-- | get quiz answers from HTTP form parameters 
+--
+answersFromParams :: Params -> Answers
+answersFromParams params =
+  Answers $ HashMap.fromList [ (B.toString k, map B.toString vs)
+                             | (k,vs) <- Map.assocs params ]
 
 
--- | deterministic shuffle questions & answers in a quiz
-shuffleQuiz :: UserLogin -> Page -> Quiz
-shuffleQuiz uid page
-  = runRand (shuffle2 =<< shuffle1 (makeQuiz page)) seed'
-  where
-    meta = pageMeta page
-    seed = fromMaybe (0 :: Int) (lookupFromMeta "shuffle-seed" meta)
-    seed'= hashWithSalt seed uid
-    opt1 = fromMaybe False $ lookupFromMeta "shuffle-questions" meta
-    opt2 = fromMaybe False $ lookupFromMeta "shuffle-answers" meta
-    shuffle1 = if opt1 then shuffleQuestions else return
-    shuffle2 = if opt2 then shuffleAnswers else return 
-    
 
--- | split up a list of blocks into questions
-makeQuiz :: Page -> Quiz
-makeQuiz (P.Pandoc _ blocks) =  Quiz blocks' (questions blocks'')
-  where
-    blocks' = takeWhile (not . header) blocks
-    blocks''= dropWhile (not . header) blocks
-
-
-questions :: [P.Block] -> [Question]
-questions [] = []
-questions (block : blocks)
-  | header block = makeQuestion block blocks' : questions blocks''
-  | otherwise    = questions blocks
-  where
-    blocks'  = takeWhile (not . header) blocks
-    blocks'' = dropWhile (not . header) blocks
-
--- | check if a block is a question header
-header :: P.Block -> Bool
-header = ("question" `elem`) . classes 
-
--- | class atributes for a header block
-classes :: P.Block -> [String]
-classes (P.Header _ (_, classes, _) _) = classes
-classes _                            = []
-
-attributes :: P.Block -> [(String,String)]
-attributes (P.Header _ (_, _, kvs) _) = kvs
-attributes _                        = []
-
-identifier :: P.Block -> Maybe String
-identifier (P.Header _ (id, _,_) _) = Just id
-identifier _                        = Nothing
-
-removeKey :: String -> P.Block -> P.Block
-removeKey k (P.Header n (id, classes, kvs) inlines)
-  = P.Header n (id, classes, filter (\(k',_) ->  k' /= k) kvs) inlines
-removeKey _ b = b
-
-makeQuestion :: P.Block -> [P.Block] -> Question
-makeQuestion header body
-  = Question (header':preamble) attrs alts
-  where
-    preamble = takeWhile (not . list) body
-    (attrs,items) = fromMaybe (emptyAttrs,[]) $
-                    getFirst $ P.query answers body
-    key = [v | ("answer", v) <- attributes header]
-    alts = [ (label, truth, item)
-           | (label,item) <- zip (listLabels attrs) items
-           , let truth = label `elem` key
-           ]
-    header' = removeKey "answer" header
-    emptyAttrs = (1, P.DefaultStyle, P.DefaultDelim)
-    list (P.OrderedList _ _) = True
-    list _                 = False
-    answers (P.OrderedList attrs items)  = First (Just (attrs, items))
-    answers _                            = First Nothing
-
-
--- | shuffle questions and answers
-shuffleQuestions :: Quiz -> Rand Quiz
-shuffleQuestions (Quiz preamble questions)
-  = Quiz preamble <$> shuffle questions
-
-shuffleAnswers :: Quiz -> Rand Quiz
-shuffleAnswers (Quiz preamble questions)
-  = Quiz preamble <$> mapM shuffleSingle questions
-
-
-shuffleSingle :: Question -> Rand Question
-shuffleSingle (Question preamble attrs alts) = do
-  alts' <- shuffle alts
-  return (Question preamble attrs alts')
-
-
--- | enumerate Pandoc list labels
-listLabels :: P.ListAttributes -> [String]
-listLabels (start, style, _) = drop (start-1) $ listNumbers style
-
-listNumbers :: P.ListNumberStyle -> [String]
-listNumbers P.LowerAlpha = map (:"") ['a'..'z']
-listNumbers P.UpperAlpha = map (:"") ['A'..'Z']
-listNumbers P.LowerRoman = lowerRomans
-listNumbers P.UpperRoman = upperRomans
-listNumbers _          = map show [1::Int .. 100]
-
-
-lowerRomans, upperRomans :: [String]
-lowerRomans = map makeRoman [1..100]
-upperRomans = map (map toUpper) lowerRomans
-
-
-makeRoman :: Int -> String
-makeRoman 0 = ""
-makeRoman n
-  | n>0 = symbols ++ makeRoman (n - value)
-  | otherwise = error "lowerRoman: negative argument"
-  where (value, symbols) = head $ dropWhile ((>n).fst) numerals
-
-numerals :: [(Int, String)]
-numerals =
-  [ (1000, "m"), (900, "cm"), (500, "d"), (400, "cd"),
-    (100, "c"), (90, "xc"), (50, "l"), (40, "xl"),
-    (10, "x"),  (9, "ix"), (5, "v"), (4, "iv"), (1, "i") ]
-
-
------------------------------
+-----------------------------------------------------------------
+-- Heist splices
+-----------------------------------------------------------------
 
 quizSplices :: Monad m => Quiz -> Answers -> Splices (I.Splice m)
-quizSplices (Quiz preamble questions) answers = do
+quizSplices Quiz{..} answers = do
   "quiz-preamble" ## return (blocksToHtml preamble)
-  "questions" ## I.mapSplices (I.runChildrenWith . questionSplice answers) questions
+  "questions" ##
+    I.mapSplices (I.runChildrenWith . questionSplices answers) questions
 
 
--- | splices for questions with answer key
-questionSplice :: Monad m => Answers -> Question -> Splices (I.Splice m)
-questionSplice answers question@(Question preamble@(header:_) attrs alts) = do
-  let multiples = "multiple" `elem` classes header
-  let responses = lookupAnswers question answers
-  let answers = sort [ label
-                     | (label, (_,True,_)) <- zip (listLabels attrs) alts
-                     ]
-  "question-preamble" ## return (blocksToHtml preamble)
-  "question-name" ## maybe (return []) (I.textSplice . T.pack) (identifier header)
+questionSplices :: Monad m => Answers -> Question -> Splices (I.Splice m)
+questionSplices answers question@Question{..} = do
+  "question-name" ##  I.textSplice (T.pack identifier)
+  "question-description" ## return (blocksToHtml description)
+  let answer = lookupAnswer question answers
+  choicesSplices choices answer
+
+choicesSplices :: Monad m => Choices -> [Key] -> Splices (I.Splice m)
+choicesSplices (FillIn keyText normalize) answers = do
+  let answerText = T.concat $ map T.pack answers
+  "question-answer" ## I.textSplice answerText
+  "question-answer-key" ##  I.textSplice keyText
+  "if-correct" ## I.ifElseISplice (normalize answerText ==
+                                   normalize keyText)
+  "question-fillin" ## I.ifElseISplice True
+
+choicesSplices (Alternatives multiples attrs alts) selected = do
+  let keys = sort [ label
+                  | (label, (_,True,_)) <- zip (listLabels attrs) alts
+                  ]
+  let keyText = T.concat $ intersperse "," $ map T.pack keys
+  let answerText = T.concat $ intersperse "," $ map T.pack selected
+  "question-answer" ## I.textSplice answerText
+  "question-answer-key" ## I.textSplice keyText
   "list-type" ## I.textSplice (listType attrs)
   "list-start" ## I.textSplice (listStart attrs)
   "onclick-callback" ## if multiples then return []
                         else I.textSplice "onlyOne(this)"
-  "answer-key" ## I.textSplice (T.pack $ concat $ intersperse "," answers)
-  "alternatives" ##
-    I.mapSplices (I.runChildrenWith . altSplices responses) alts
-  where
-    altSplices responses (label,truth,item) = do
-      "alternative-label" ## I.textSplice (T.pack label)
-      "alternative" ## return (blocksToHtml item)
-      "if-checked" ## I.ifElseISplice (label `elem` responses)
-      "if-correct" ## I.ifElseISplice truth
-      
+  let altSplices (label,truth,item) = do
+        "alternative-label" ## I.textSplice (T.pack label)
+        "alternative" ## return (blocksToHtml item)
+        "if-checked" ## I.ifElseISplice (label `elem` selected)
+        "if-correct" ## I.ifElseISplice truth
+  "alternatives" ## I.mapSplices (I.runChildrenWith . altSplices) alts
+  "question-fillin" ## I.ifElseISplice False
+
+
 
 listType :: P.ListAttributes -> Text
 listType (_, style, _)
@@ -291,21 +141,22 @@ quizView uid rqpath page = do
   let quiz = shuffleQuiz uid page
   subs <- getPageSubmissions uid rqpath
   -- fill-in last submitted answers
-  let answers = fromMaybe emptyAnswers $ case subs of
+  let answers = fromMaybe mempty $ case subs of
                   [] -> Nothing
-                  _ ->  getSubmittedAnswers (last subs)
-  withTimeSplices page $ renderWithSplices "_quiz" $ quizSplices quiz answers
+                  _ ->  getSubmitAnswers (last subs)
+  withTimeSplices page $
+    renderWithSplices "_quiz" $ quizSplices quiz answers
 
 
-getSubmittedAnswers :: Submission -> Maybe Answers
-getSubmittedAnswers = decodeAnswers . codeText . submitCode
+getSubmitAnswers :: Submission -> Maybe Answers
+getSubmitAnswers = decodeAnswers . codeText . submitCode
 
 quizSubmit :: UserLogin -> FilePath -> Page -> Codex ()
 quizSubmit uid rqpath page = do
   guard (isQuiz page)
-  ans <- getFormAnswers
-  let text = encodeAnswers ans
-  sid <- newSubmission uid rqpath (Code "json" text)
+  sel <- getFormAnswers
+  let json = encodeAnswers sel
+  sid <- newSubmission uid rqpath (Code "json" json)
   redirectURL (Report sid)
 
 isQuiz :: Page -> Bool
@@ -317,7 +168,7 @@ quizReport rqpath page sub = do
   guard (isQuiz page)
   tz <- liftIO getCurrentTimeZone
   let quiz = shuffleQuiz (submitUser sub) page
-  let answers = fromMaybe emptyAnswers $ getSubmittedAnswers sub
+  let answers = fromMaybe mempty $ getSubmitAnswers sub
   renderWithSplices "_answers" $ do
     urlSplices rqpath
     pageSplices page
@@ -325,47 +176,49 @@ quizReport rqpath page sub = do
     submitSplices tz sub
     quizSplices quiz answers
 
--- 
--- | handler for generating a quiz printout 
---
-quizPrintout :: UserLogin -> Page -> Submission -> Codex P.Blocks
-quizPrintout _ page sub@Submission{..}  = do
-  guard (isQuiz page)
-  return (if pageFeedback page
-          then ppQuiz quiz answers else mempty)
-  where
-    quiz = makeQuiz page
-    answers = fromMaybe emptyAnswers $
-              decodeAnswers $ codeText $ submitCode
+verbosePrintout :: Page -> Bool
+verbosePrintout = fromMaybe True . lookupFromMeta "printout" . pageMeta 
 
-{-
-ppHeader Submission{..}
-  = P.header 2 (P.strong (P.text $ show $ resultClassify submitResult) <>
-              P.space <>
-              P.emph (P.text $ "(" ++ show submitTiming ++ ")")) <>
-    P.para (P.text ("Submission " ++ show submitId ++ "; " ++
-                    show submitTime))
--}
+----------------------------------------------------------------------
+-- | handler for generating printouts for quizzes
+----------------------------------------------------------------------
+quizPrintout :: UserLogin -> Page -> Submission -> Codex P.Blocks
+quizPrintout _ page Submission{..}  = do
+  guard (isQuiz page)
+  return (if verbosePrintout page then ppQuiz quiz answers else mempty)
+  where
+    quiz = shuffleQuiz submitUser page
+    answers = fromMaybe mempty $ decodeAnswers $ codeText $ submitCode
 
 ppQuiz :: Quiz -> Answers -> P.Blocks
-ppQuiz (Quiz _ questions) answers 
+ppQuiz (Quiz _ questions) answers
   = mconcat (map (flip ppQuestion answers) questions)
 
 ppQuestion :: Question -> Answers -> P.Blocks
-ppQuestion question@(Question preamble attrs alts) answers
-  = let checked = lookupAnswers question answers
-    in P.fromList preamble  <>
-       P.orderedListWith attrs [ questionItem checked alt | alt <- alts ]
+ppQuestion question@Question{..} answers
+  = P.fromList description <>
+    ppChoices choices (lookupAnswer question answers) 
 
-questionItem checked (label, truth, blocks)
+  
+ppChoices :: Choices -> [Key] -> P.Blocks
+ppChoices (FillIn keyText _) answers
+  = P.plain (mconcat $ map P.text answers) <>
+    P.plain (P.emph "Answer:" <> P.text (T.unpack keyText))
+
+ppChoices (Alternatives _ attrs alts) selected
+  = P.orderedListWith attrs (map (ppAlternative selected) alts)
+
+ppAlternative :: [Key] -> (Key, Bool, [P.Block]) -> P.Blocks
+ppAlternative selected (label, truth, blocks)
   = label1 <> P.fromList blocks <> label2
   where
-    reply = label `elem` checked
+    reply = label `elem` selected
     label1 = P.plain $ P.math $ if reply then "\\bullet" else "\\circ"
     label2 | reply && truth = P.plain $ P.strong $ P.text "OK"
            | reply && not truth = P.plain $ P.strong $ P.text "WRONG"
            | not reply && truth = P.plain $ P.strong $ P.text "MISS"
            | otherwise = mempty
+           
     
 -- | record with quiz handlers
 quizHandlers :: Handlers Codex

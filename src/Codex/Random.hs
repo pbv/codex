@@ -1,9 +1,9 @@
 --
--- | A monad for random computations
+-- | A monad for computations that require pseudo-randomization
 --
-module Codex.Handlers.Quiz.Random(
+module Codex.Random(
   Rand,
-  runRand, shuffle,
+  run, shuffle, choose, distinct,
   -- module System.Random.TF.Gen,
   -- module System.Random.TF.Init,
   -- module System.Random.TF.Instances
@@ -21,13 +21,11 @@ import qualified Data.IntMap as IntMap
 import           Data.IntMap (IntMap, (!))
 
 
--- | random shuffleing for questions & answers
--- monad for random computations
+-- | state monad for random computations
 type Rand = State StdGen
 
-runRand ::  Rand a -> Int -> a
-runRand action salt = evalState action (mkStdGen salt)
-
+run ::  Rand a -> Int -> a
+run action salt = evalState action (mkStdGen salt)
 
 -- | shuffle a list
 shuffle :: [a] -> Rand [a]
@@ -40,7 +38,8 @@ shuffle xs = do
 --
 -- | purely functional Fisher-Yates shuffling; O(n * log n) complexity
 --
-fisherYatesStep :: RandomGen g => (IntMap a, g) -> (Int, a) -> (IntMap a, g)
+fisherYatesStep ::
+  RandomGen g => (IntMap a, g) -> (Int, a) -> (IntMap a, g)
 fisherYatesStep (m, gen) (i, x)
   = ((IntMap.insert j x . IntMap.insert i (m ! j)) m, gen')
   where
@@ -53,3 +52,23 @@ fisherYates gen (x:xs) =
   where
     toElems (x, y) = (IntMap.elems x, y)
     initial x = (IntMap.singleton 0 x, gen)  
+
+
+-- | choose k distinct elements from a list
+-- if k >= length, returns all the list elements
+distinct :: Int -> [a] -> Rand [a]
+distinct k xs = do
+  let n = length xs
+  ixs <- take k <$> shuffle [0..n-1]
+  let xs' = [x | (i,x)<-zip [0..] xs, i`elem`ixs]
+  return xs'
+
+
+-- | choose one element
+choose :: [a] -> Rand a
+choose [] = error "Rand.choose: empty list"
+choose xs = do
+  g <- get
+  let (i,g') = randomR (0, length xs-1) g
+  put g'
+  return (xs!!i)

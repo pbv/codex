@@ -4,6 +4,7 @@
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE ScopedTypeVariables #-}
+
 module Codex.Tester.Quiz (
   quizTester
   ) where
@@ -11,7 +12,8 @@ module Codex.Tester.Quiz (
 
 import           Codex.Tester
 import           Codex.Page 
-import           Codex.Handlers.Quiz
+import           Codex.Quiz
+import           Codex.Handlers.Quiz (decodeAnswers)
 import qualified Data.Text as T
 
 import           Data.Maybe
@@ -23,7 +25,7 @@ import           Text.Printf(printf)
 
 type Fraction = Ratio Int
 
--- | grading weights
+-- | grading parameters
 data Weights
   = Weights { rightWeight :: Maybe Fraction
             , wrongWeight :: Maybe Fraction
@@ -35,9 +37,9 @@ data Weights
 data Score
   = Score { total   :: !Int       -- ^ total number of questions
           , answered :: !Int      -- ^ number of answered questions
-          , correct :: !Int       -- ^ number of correct answers
-          , wrong   :: !Int       -- ^ number of wrong answers
-          , accum   :: !Fraction  -- ^ accumulated percentages
+          , correct :: !Int       -- ^ number of correctly answered
+          , wrong   :: !Int       -- ^ number of wrongly answered
+          , accum   :: !Fraction  -- ^ accumulated grades
           }
   deriving Show
 
@@ -59,12 +61,13 @@ quizTester = tester "quiz" $ do
   Code lang text <- askSubmitted
   guard (lang == "json")
   page <- askPage
-  -- optional grade weights
-  weights@Weights{..} <-  Weights <$>
-                          metadata "correct-weight" <*>
-                          metadata "incorrect-weight"
-  let quiz = makeQuiz page
-  let answers = fromMaybe emptyAnswers (decodeAnswers text)
+  uid <- askUser
+  -- optional grading weights
+  weights@Weights{..} <- Weights <$>
+                         metadata "correct-weight" <*>
+                         metadata "incorrect-weight"
+  let quiz = shuffleQuiz uid page
+  let answers = fromMaybe mempty (decodeAnswers text)
   let Score{..} = scoreQuiz weights quiz answers
   let percent = realToFrac (100 * accum / fromIntegral total) :: Double
   return $
@@ -117,18 +120,21 @@ readFrac r =
 --
 scoreQuiz :: Weights -> Quiz -> Answers -> Score
 scoreQuiz weights (Quiz _ questions) answers
-  = mconcat (map (scoreQuestion weights answers) questions)
+  = mconcat [scoreQuestion weights q answers | q<-questions]
 
 -- | score a single question
 --
-scoreQuestion :: Weights -> Answers -> Question -> Score
-scoreQuestion Weights{..} answers question@(Question _ _ alts) 
+scoreQuestion :: Weights -> Question -> Answers -> Score
+scoreQuestion weights question answers 
+  = scoreChoices weights (choices question) (lookupAnswer question answers)
+
+scoreChoices :: Weights -> Choices -> [Key] -> Score
+scoreChoices Weights{..} (Alternatives _ _ alts) selected
   | num_correct>0 && num_wrong>0
   = Score 1 answered correct wrong grade 
   | otherwise
-  = mempty           -- no scoring for invalid questions
-  where selected = lookupAnswers question answers
-        answered = if null selected then 0 else 1
+  = mempty           -- invalid question; empty score
+  where answered = if null selected then 0 else 1
         key = [ label | (label,True,_) <- alts ]
         num_alts = length alts
         num_correct = length key
@@ -141,5 +147,13 @@ scoreQuestion Weights{..} answers question@(Question _ _ alts)
         negative = maybe (-wrong%num_wrong) (*fromIntegral wrong)
                    wrongWeight
         grade = (-1) `max` (positive + negative) `min` 1
-                
-    
+
+scoreChoices _ (FillIn keyText normalize) answers
+  = Score 1 1 correct wrong grade
+  where grade = fromIntegral correct 
+        correct = if normalize answerText == normalize keyText
+                  then 1 else 0
+        wrong = 1 - correct
+        answerText = T.concat $ map T.pack answers 
+        
+        
