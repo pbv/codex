@@ -75,8 +75,8 @@ quizTester = tester "quiz" $ do
     T.unlines $ map T.pack
        [ printf "Answered %d of %d questions." answered total
        , printf "%d correct and %d incorrect replies." correct wrong
-       , "Weight for correct answers: " ++ showWeight rightWeight
-       , "Weight for incorrect answers: " ++ showWeight wrongWeight
+       , "Weight for correct choice answers: " ++ showWeight rightWeight
+       , "Weight for wrong choice answers: " ++ showWeight wrongWeight
        , printf "Score: %.2f%%" percent
        ]
   where
