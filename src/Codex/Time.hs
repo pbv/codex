@@ -1,28 +1,31 @@
+{-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE DeriveDataTypeable #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE DeriveFunctor #-}
 {-# LANGUAGE DeriveTraversable #-}
 
 module Codex.Time (
-    Time,
-    Events,
-    Interval(..),
-    Timing(..),
+    Time,    -- ^ export abstract types
+    TimeEnv,
+    makeTimeEnv,
+    Constraint(..),
+    early, late,  lower, higher,
     fromLocalTime,
     fromUTCTime,
+    timeLeft, 
     parseTime,
-    parseInterval,
+    parseConstraint,
     evalTime,
-    evalInterval,
-    timeInterval,
+    evalConstraint,
     showTime,
     formatNominalDiffTime
     ) where 
 
 import           Data.Char
+import           Data.List (intersperse)
+import           Data.Maybe (catMaybes)
 import           Data.Text (Text)
 import qualified Data.Text as T
-import           Data.Typeable
 import           Data.Time hiding (parseTime)
 
 import           Text.ParserCombinators.ReadP
@@ -32,14 +35,14 @@ type Name = Text             -- event names
 
 -- | time expressions
 data Time 
-  = Event Name               -- event 
-  | Local LocalTime          -- time constants
-  | UTC UTCTime             
-  | Add Diff Time            -- add a time difference
-  deriving (Eq, Show)
+  = Event Name               -- ^ named event 
+  | Local LocalTime          -- ^ local time constant
+  | UTC UTCTime              -- ^ unversal time constant
+  | Add Diff Time            -- ^ add a time difference
+  deriving (Eq, Read, Show)
 
 data Diff = Diff !Int !Unit
-  deriving (Eq, Show)
+  deriving (Eq, Read, Show)
 
 data Unit
   = Week
@@ -47,7 +50,7 @@ data Unit
   | Hour
   | Minute
   | Second
-  deriving (Eq, Show)
+  deriving (Eq, Read, Show)
 
 
 fromLocalTime :: LocalTime -> Time
@@ -56,7 +59,63 @@ fromLocalTime = Local
 fromUTCTime :: UTCTime -> Time
 fromUTCTime = UTC
 
+-- | submission validity constraints;
+-- parametrized by the type for time
+data Constraint t
+  = OK           -- ^ no constraint
+  | Before t     -- ^ before some time 
+  | After t      -- ^ after some time
+  | MaxAttempts Int  -- ^ maximum number of submissions
+  | And (Constraint t) (Constraint t)  -- ^ conjunction
+  deriving (Eq, Read, Show, Functor, Foldable, Traversable)
 
+
+early :: Ord t => t -> Constraint t -> Bool
+early t c = case lower c of
+              Nothing -> False
+              Just t' -> t < t'
+
+{-
+early t (And c1 c2) = early t c1 || early t c2
+early t (After t')  = t < t'
+early t _           = False
+-}
+              
+late :: Ord t => t -> Constraint t -> Bool
+late t c = case higher c of
+             Nothing -> False
+             Just t' -> t > t'
+
+{-
+late t (And c1 c2) = late t c1 || late t c2
+late t (Before t')  = t > t'
+late t _           = False
+-}
+
+
+-- | lower and higher time required by a constraint
+lower :: Ord t => Constraint t -> Maybe t
+lower (After t) = Just t 
+lower (And c1 c2)
+  = case catMaybes [lower c1, lower c2] of
+      [] -> Nothing
+      ts -> Just (maximum ts)
+lower _ = Nothing
+
+higher :: Ord t => Constraint t -> Maybe t
+higher (Before t)  = Just t 
+higher (And c1 c2)
+  = case catMaybes [higher c1, higher c2] of
+      [] -> Nothing
+      ts -> Just (minimum ts)
+higher _ = Nothing
+
+
+timeLeft :: UTCTime -> Constraint UTCTime -> Maybe NominalDiffTime
+timeLeft t c = fmap (\t'-> diffUTCTime t' t) (higher c)
+
+
+{-
 -- | interval parameterized by time 
 data Interval t
   = Interval { lower :: !(Maybe t)
@@ -68,37 +127,31 @@ data Interval t
 data Timing
   = Early | Valid | Overdue
   deriving (Eq, Ord, Read, Show, Typeable)
-
+-}
 
 --
--- | parse an interval and a time expression
+-- | parse a time constraint
 --
-parseInterval :: String -> Maybe (Interval Time)
-parseInterval str
-  = case readP_to_S (skipSpaces >> parseIntervalP) str of
+parseConstraint :: String -> Maybe (Constraint Time)
+parseConstraint str
+  = case readP_to_S (skipSpaces >> parseConstraintP) str of
        ((v, ""):_) -> Just v
        _           -> Nothing
 
 
 -- | worker 
-parseIntervalP :: ReadP (Interval Time)
-parseIntervalP =
-  do symbol "always"
-     return (Interval Nothing Nothing)
+parseConstraintP :: ReadP (Constraint Time)
+parseConstraintP = (parseBaseP >>= cont) <++ return OK
+  where cont b = do symbol "and"; b'<-parseBaseP; cont (And b b')
+                 <++ return b
+
+parseBaseP =
+  do (symbol "before" <++ symbol "until"); Before <$> parseTimeP
   <++
-  do symbol "until"
-     t <- parseTimeP
-     return (Interval Nothing (Just t))
+  do symbol "after"; After <$> parseTimeP
   <++
-  do symbol "after"
-     t <- parseTimeP
-     return (Interval (Just t) Nothing)
-  <++
-  do symbol "between"
-     start <- parseTimeP
-     symbol "and"
-     end <- parseTimeP
-     return (Interval (Just start) (Just end))
+  do symbol "attempts"; MaxAttempts <$> integer
+
 
 -- | parse time expressions
 parseTime :: String -> Maybe Time
@@ -109,21 +162,28 @@ parseTime str
 
 -- | worker function
 parseTimeP :: ReadP Time
-parseTimeP = do
-  t  <- base
-  ds <- many' timeDiff
-  return (foldr Add t ds)
+parseTimeP = base >>= cont
   where
     base = (Event <$> eventName) <++ (Local <$> localTime)
+    cont t = do
+      d <- timeDiff
+      cont (Add d t)
+      <++
+      return t
+
+  -- t  <- base
+  -- ds <- many' timeDiff
+  -- return (foldr Add t ds)
+  -- where
+    
 
 -- | parse local time strings
 localTime ::  ReadP LocalTime
-localTime =
-  readPTime True defaultTimeLocale "%H:%M %d/%m/%0Y"
-  <++
-  readPTime True defaultTimeLocale "%d/%m/%0Y %H:%M"
-  <++
-  readPTime True defaultTimeLocale "%d/%m/%0Y"
+localTime = token (readPTime True defaultTimeLocale "%H:%M %d/%m/%0Y"
+                   <++
+                   readPTime True defaultTimeLocale "%d/%m/%0Y %H:%M"
+                   <++
+                   readPTime True defaultTimeLocale "%d/%m/%0Y")
 
 -- | parse an event
 --
@@ -164,9 +224,10 @@ unit = do
 -- | helper functions
 
 -- | non-backtracking versions of the parsing combinators
-many', many1' :: ReadP a -> ReadP [a]
-many1' p = do x<-p; xs<-many' p; return (x:xs)
-many' p = many1' p <++ return []
+-- many', many1' :: ReadP a -> ReadP [a]
+-- many1' p = do x<-p; xs<-many' p; return (x:xs)
+-- many' p = many1' p <++ return []
+
 
 -- | ignore trailing spaces
 --
@@ -183,26 +244,39 @@ symbol s = token (string s)
 ---- semantics
 -----------------------------------------------------------
 
--- | environments for event names
-type Events = Name -> Maybe Time
+-- | environments for evaluation of time expression 
+data TimeEnv
+  = TimeEnv
+    { timeZone :: TimeZone
+    , timeEvents :: Name -> Maybe Time
+    }
 
--- | evaluate a time
-evalTime :: TimeZone -> Events -> Time -> Either String UTCTime
-evalTime tz env t = evalTime' tz env [] t
+
+makeTimeEnv :: TimeZone -> (Name -> Maybe Time) -> TimeEnv
+makeTimeEnv = TimeEnv
+
+
+-- | evaluate a time expression;
+-- top-level wrapper
+evalTime :: TimeEnv -> Time -> Either Text UTCTime
+evalTime env t = evalTime' env [] t
 
 -- | worker function
-evalTime' :: TimeZone -> Events -> [Name] -> Time -> Either String UTCTime
-evalTime' tz env viz (Event name)
-  | name `elem` viz = Left ("cyclic dependency: " ++ show (name:viz))
-  | otherwise = case env name of
-      Nothing -> Left ("undefined event or parse error: " ++ show name)
-      Just t -> evalTime' tz env (name:viz) t
-evalTime' tz _ _ (UTC t)
+evalTime' :: TimeEnv -> [Name] -> Time -> Either Text UTCTime
+evalTime' env@TimeEnv{..} deps (Event name)
+  | name `elem` deps =
+      Left ("cyclic dependency: " <>
+            T.concat (intersperse "->" $ reverse (name:deps)))
+  | otherwise =
+      case timeEvents name of
+        Nothing -> Left ("undefined event: " <> name)
+        Just t -> evalTime' env (name:deps) t
+evalTime' _ _ (UTC t)
   = pure t
-evalTime' tz _ _ (Local t)
-  = pure (localTimeToUTC tz t)     
-evalTime' tz env viz (Add d e)
-  = addUTCTime (evalDiff d) <$> evalTime' tz env viz e
+evalTime' TimeEnv{..} _ (Local t)
+  = pure (localTimeToUTC timeZone t)     
+evalTime' env deps (Add d e)
+  = addUTCTime (evalDiff d) <$> evalTime' env deps e
 
 
 evalDiff :: Diff -> NominalDiffTime
@@ -215,42 +289,13 @@ evalDiff (Diff value un) = fromIntegral value * toSeconds un
     toSeconds Week   = 7*24*3600
   
 
-
--- | evaluate intervals
-evalInterval :: TimeZone -> Events -> Interval Time
-             -> Either String (Interval UTCTime)
-evalInterval tz events = traverse (evalTime tz events)
-
-{-
-evalI' :: Monad m => (t -> m t') -> Interval t -> m (Interval t')
-evalI' f (Interval (Just l) (Just h)) = do
-    l' <- f l
-    h' <- f h
-    return (Interval (Just l') (Just h'))
-evalI' f (Interval (Just l) Nothing) = do
-    l' <- f l
-    return (Interval (Just l') Nothing)
-evalI' f (Interval Nothing (Just h)) = do
-      h' <- f h
-      return (Interval Nothing (Just h'))
-evalI' _ _  =
-      return (Interval Nothing Nothing)
--}
-
 --
--- | relation between a point and an interval
+-- | evaluate a submission constraint
 --
-timeInterval :: Ord t => t -> Interval t -> Timing
-timeInterval t (Interval (Just low) (Just high))
-  | t<low     = Early
-  | t>high    = Overdue
-  | otherwise = Valid
-timeInterval t (Interval (Just low) Nothing)
-  = if t<low then Early else Valid
-timeInterval t (Interval Nothing (Just high))
-  = if t<=high then Valid else Overdue
-timeInterval _ _
-  = Valid
+evalConstraint :: TimeEnv
+               -> Constraint Time
+               -> Either Text (Constraint UTCTime)
+evalConstraint env = traverse (evalTime env)  
 
 
 -------------------------------------------------------------

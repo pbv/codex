@@ -63,8 +63,8 @@ type Summary = HashMap UserLogin (HashMap FilePath Submission)
 -- | best of two submissions
 best :: Submission -> Submission -> Submission
 best s1 s2
-  = let class1 = resultClassify (submitResult s1)
-        class2 = resultClassify (submitResult s2)
+  = let class1 = resultStatus (submitResult s1)
+        class2 = resultStatus (submitResult s2)
     in case (class1, class2) of
          (Accepted, Accepted) -> latest s1 s2
          (Accepted, _)        -> s1
@@ -130,12 +130,12 @@ submissionPrintout page sub@Submission{..}  content
             , horizontalRule ]
   where
     title = maybe (text submitPath) fromList (pageTitle page)
-    msg = T.unpack $ resultMessage submitResult
+    msg = T.unpack $ resultReport submitResult
 
 submissionHeader Submission{..}
-  = header 2 (strong (text $ show $ resultClassify submitResult) <>
+  = header 2 (strong (text $ show $ resultStatus submitResult) <>
               space <>
-              emph (text $ "(" ++ show submitTiming ++ ")")) <>
+              emph (text $ "(" ++ show (resultCheck submitResult) ++ ")")) <>
     para (text ("Submission " ++ show submitId ++ "; " ++
                  show submitTime ))
 

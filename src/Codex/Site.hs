@@ -14,6 +14,7 @@ module Codex.Site
 ------------------------------------------------------------------------------
 
 import           Control.Applicative
+import           Control.Concurrent (newQSem)
 import           Control.Concurrent.MVar
 import           Control.Lens
 import           Control.Monad.State
@@ -214,7 +215,7 @@ loggedInName authmgr = do
 nowSplice :: I.Splice Codex
 nowSplice = do tz <- liftIO getCurrentTimeZone
                t <- liftIO getCurrentTime
-               utcTimeSplice tz t
+               localTimeSplice tz t
 
 versionSplice :: I.Splice Codex
 versionSplice = I.textSplice (T.pack (showVersion version))
@@ -246,9 +247,10 @@ codexInit tester =
     let c = S.sqliteConn $ d ^# snapletValue
     liftIO $ withMVar c $ \conn -> Db.createTables conn
     addRoutes routes
-    -- | semaphore for limiting concurrent evaluations
-    ntasks <- liftIO $ Conf.require conf "system.max_concurrent"
-    (semph, tasks) <- liftIO (makeTasks ntasks)
+    -- | semaphore for limimit concurrent evaluations
+    maxtasks <- liftIO $ Conf.require conf "system.max_concurrent"
+    semph <- liftIO $ newQSem maxtasks
+    queue <- newQueue
     return App { _heist = h
                , _router = r
                , _sess = s
@@ -256,7 +258,7 @@ codexInit tester =
                , _db   = d
                , _tester = tester
                , _handlers = quizHandlers <> codeHandlers
-               , _tasks = tasks
+               , _queue = queue
                , _semph = semph
                , _logger  = logger
                , _eventcfg = evcfg

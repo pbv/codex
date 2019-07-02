@@ -3,7 +3,7 @@
 <bind tag="icon-warning"><img src="/static/icons/16x16/warning.png"/></bind>
 <bind tag="icon-overdue"><img src="/static/icons/16x16/overdue.png"/></bind>
 <bind tag="icon-editor"><img src="/static/icons/16x16/editor.png"/></bind>
-<bind tag="time-icon"><if-valid><else/><icon-overdue/></if-valid></bind>
+<bind tag="valid-icon"><if-accepted><if-valid><else/><icon-warning/></if-valid></if-accepted></bind>
 
 <apply template="_base">
   <mathjax-js/>
@@ -12,24 +12,26 @@
     <page-description/>
   </div>
   <p class="info">Linguagens: <page-languages/>.</p>  
-  <apply template="_timing"/>
-<if-submitted>
-  <current-timing>
-    <Early>
-      <p><submissions-count/> submissões antecipadas; os resultados serão
-	visíveis após <valid-from/>.</p> 
-    </Early>
-    <default>
+  <!-- <apply template="_timing"/> -->
+  <if-submitted>
+    <!--
+    <current-timing>
+      <Early>
+	<p><submissions-count/> submissões antecipadas; os resultados serão
+	  visíveis após <valid-from/>.</p> 
+      </Early>
+      <default>
+	-->
       <h2>Submissões anteriores</h2>
       <ol class="submissions">
 	<submissions-list>
 	  <li>
-	    <a href="${report-url}"><submit-id/></a>&nbsp;<span class="${submit-classify}"><submit-classify/></span><if-accepted><time-icon/></if-accepted>
+	    <a href="${report-url}"><submit-id/></a>&nbsp;<span class="${result-status}"><result-status/></span><valid-icon/>
 	  </li>
 	</submissions-list>
       </ol>
-    </default>
-  </current-timing>
+<!--  </default>
+     </current-timing> -->
 </if-submitted>
 
 <h2>Nova submissão</h2>

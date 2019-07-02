@@ -4,16 +4,15 @@
 
 module Codex.Evaluate(
   newSubmission,
-  -- * evaluate a single submission
   evaluate,
-  reevaluate,
+  evaluateMany,
   cancelPending
   ) where
 
 import qualified Data.Text as T
 import           Data.Maybe
 import           Data.Time.Clock
-import           Data.Time.LocalTime
+-- import           Data.Time.LocalTime
 import           Control.Monad.State
 import           Control.Concurrent(ThreadId) 
 import           Control.Exception  (SomeException, catch)
@@ -22,7 +21,7 @@ import           System.FilePath
 import           Snap.Snaplet
 import qualified Snap.Snaplet.SqliteSimple as S
 
--- import           Data.Configurator.Types(Config)
+import           Data.Configurator.Types(Config)
 
 import           Codex.Types
 import           Codex.Application
@@ -34,72 +33,100 @@ import           Codex.Tester
 import           Codex.Time
 
 
--- | handle a new submission
--- insert a pending submission and start
--- run code tester in separate thread
+-- | insert a new submission into the database
+-- also schedule evaluation in separate thread
 newSubmission :: UserLogin -> FilePath -> Code -> Codex SubmitId
 newSubmission uid rqpath code = do
   now <- liftIO getCurrentTime
-  sub <- insertSubmission uid rqpath now code evaluating Valid
+  sub <- insertSubmission uid rqpath now code evaluating
   evaluate sub
   return (submitId sub)
-  
--- | evaluate a single submissions
+
+
+-- | evaluate a submission
+-- fork an IO thread under a quantity semaphore for limiting concurrency 
 evaluate :: Submission -> Codex ThreadId
 evaluate sub = do
-  tester <- gets _tester
   semph <- gets _semph
-  action <- evaluatorWith tester sub
-  liftIO $ forkSingle semph action
+  evaluateWith (forkQSem semph) sub
 
--- | re-evaluate a list of submissions
-reevaluate :: [Submission] -> Codex ()
-reevaluate subs = do
-  tester <- gets _tester
+-- | evaluate a list of submissions;
+-- fork IO threads under a quantity semaphore for limiting concurrency;
+-- record thread ids in a queue to allow canceling
+evaluateMany :: [Submission] -> Codex ()
+evaluateMany subs = do
   semph <- gets _semph
-  tasks <- gets _tasks
-  actions <- mapM (evaluatorWith tester) subs
-  liftIO $ forkMany semph tasks actions
+  queue <- gets _queue
+  sequence_ [evaluateWith (addQueue queue . forkQSem semph) sub
+            | sub <- subs]
 
--- | cancel pending evaluations
+-- | cancel all pending evaluations
 cancelPending :: Codex ()
-cancelPending = reevaluate []
+cancelPending = cancelQueue =<< gets _queue 
 
 
--- | evaluate a submission with a specific tester
--- (1st time or re-evaluation);
--- runs code tester in separate thread
--- uses a semaphore for limiting concurrency 
-evaluatorWith :: Tester Result -> Submission -> Codex (IO ())
-evaluatorWith tester Submission{..} = do
+-- | evaluate a single submission with a given scheduling strategy
+-- 
+evaluateWith :: (IO () -> Codex r) -> Submission -> Codex r
+evaluateWith schedule Submission{..} = do
   sqlite <- S.getSqliteState
-  events <- getEvents
-  root <- getDocumentRoot
   conf <- getSnapletUserConfig
-  return $ do                           -- ^ return evaluation IO action
-    let filepath = root </> submitPath  -- ^ file path to exercise 
+  env <- getTimeEnv
+  tester <- gets _tester
+  filepath <- fmap (</> submitPath) getDocumentRoot
+  schedule $ do
+    updateSubmission sqlite submitId evaluating
     page <- readMarkdownFile filepath
-    tz <- getCurrentTimeZone
-    let optInt = evalInterval tz events (metaInterval $ pageMeta page)
-    case optInt of
-      Left err ->
-        updateSubmission sqlite submitId (wrongInterval err) Valid
-      Right int -> do
-        let timing = timeInterval submitTime int
-        result <- testWrapper conf page filepath submitCode submitUser tester
-                  `catch`
-                  (\(e::SomeException) ->
-                      return (miscError $ T.pack $ show e))
-        updateSubmission sqlite submitId result timing
+    result <- testWrapper tester conf page filepath submitUser submitCode
+    let result' = checkTiming env (pageValid page) submitTime result
+    updateSubmission sqlite submitId result'
 
 
--- | wrapper to set default limits and run a tester
-testWrapper cfg page path code user action
-  = fromMaybe invalidTester <$> runTester cfg page path code user action
 
-wrongInterval :: String -> Result
-wrongInterval msg = miscError ("invalid time interval: " <> T.pack msg)
- 
+            
+checkTiming :: TimeEnv -> Constraint Time -> UTCTime -> Result -> Result
+checkTiming env constr time result 
+  = check result $ case evalConstraint env constr of
+    Left err -> Invalid err
+    Right constr'
+      | early time constr' -> Invalid "Early submission."
+      | late  time constr' -> Invalid "Late submission."
+      | otherwise -> Valid
+
+check :: Result -> Check -> Result
+check r c = r { resultCheck = resultCheck r <> c }
+      
+
+{-
+checkAttempts :: MonadIO m
+              => Connection
+              -> UserLogin
+              -> FilePath
+              -> Constraint t
+              -> Result
+              -> m Result
+checkAttempt sqlite uid path constr result
+  = case maxAttempts constr of
+      Fin max -> do 
+  | attempts > maxAttempts constr = Invalid "Too many attempts"
+  | otherwise                     = Valid
+-}
+
+
+-- | wrapper to run a tester and catch any exception
+testWrapper :: Tester Result
+            -> Config
+            -> Page
+            -> FilePath
+            -> UserLogin
+            -> Code
+            -> IO Result
+testWrapper tester conf page path user code
+  = (fromMaybe invalidTester <$> runTester conf page path code user tester)
+    `catch`
+    (\(e::SomeException) -> return (miscError $ T.pack $ show e))
+  
+
 invalidTester :: Result
 invalidTester = miscError "no acceptable tester configured"
 

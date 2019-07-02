@@ -8,6 +8,7 @@ module Codex.Tester.Utils
   , assert
   , fileExists
   , removeFileIfExists
+  , cleanupFiles
   , chmod
   , readable, executable, writeable
   , runCompiler

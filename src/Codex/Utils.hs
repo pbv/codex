@@ -128,12 +128,13 @@ withAdmin action = do
 
 -- | get all events from the configuration 
 ----------------------------------------------------------------
-getEvents :: Codex Events
-getEvents = do
+getTimeEnv :: Codex TimeEnv
+getTimeEnv = do
   evcfg <- gets _eventcfg
   hm <- liftIO $ Configurator.getMap evcfg
   let hm' = HM.map (\v -> Configurator.convert v >>= parseTime) hm
-  return (\k -> join (HM.lookup k hm'))
+  tz <- liftIO $ getCurrentTimeZone
+  return $ makeTimeEnv tz (\k -> join (HM.lookup k hm'))
 
 
 -- | get submission id from request parameters
@@ -203,9 +204,9 @@ finishError code msg = do
 
 
 
--- | splice an UTC time as a local time string
-utcTimeSplice :: Monad m => TimeZone -> UTCTime -> I.Splice m
-utcTimeSplice tz t =
+-- | format an UTC time as a local time string
+localTimeSplice :: Monad m => TimeZone -> UTCTime -> I.Splice m
+localTimeSplice tz t =
   I.textSplice $ T.pack $ formatTime defaultTimeLocale "%c" $ utcToLocalTime tz t
 
 
@@ -327,7 +328,7 @@ logMsg msg = do
   logger <- gets _logger
   liftIO $ FastLogger.logMsg logger =<< FastLogger.timestampedLogEntry msg
 
-
+{-
 withTimeSplices :: Page -> Codex a -> Codex a
 withTimeSplices page action = do
   tz  <- liftIO getCurrentTimeZone
@@ -352,6 +353,35 @@ timingSplices tz now interval = do
     (caseSplice . timeInterval now) interval
   "time-left" ##
     I.textSplice $ maybe "N/A" (\t -> T.pack $ formatNominalDiffTime t) timeLeft
+-}
+
+withTimeSplices :: Page -> Codex a -> Codex a
+withTimeSplices page action = do
+  tz  <- liftIO getCurrentTimeZone
+  now <- liftIO getCurrentTime
+  env <- getTimeEnv
+  flip withSplices action $ 
+    case evalConstraint env (pageValid page) of
+      Left err -> do
+        "valid-from" ## I.textSplice err
+        "valid-until" ## I.textSplice err
+        "time-left" ## I.textSplice err        
+      Right constr ->
+        timingSplices tz now constr
+
+
+-- | splices related to the submission interval for an exercise
+timingSplices :: TimeZone -> UTCTime -> Constraint UTCTime -> ISplices
+timingSplices tz now constr = do
+  "valid-from" ##
+    I.textSplice $ maybe "N/A" (showTime tz) (lower constr)
+  "valid-until" ##
+    I.textSplice $ maybe "N/A" (showTime tz) (higher constr)
+  -- "current-timing" ## (caseSplice . timeInterval now) interval
+  "time-left" ##
+    I.textSplice $
+    maybe "N/A" (\t -> T.pack $ formatNominalDiffTime t) (timeLeft now constr)
+
 
     
 feedbackSplices :: Page -> ISplices

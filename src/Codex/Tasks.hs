@@ -1,30 +1,62 @@
 {-# LANGUAGE RecordWildCards #-}
 {- 
--- Manage a thread pool for evaluation tasks
+-- Manage threads for evaluation tasks
 -}
-module Codex.Tasks where
+module Codex.Tasks
+  ( Queue,
+    newQueue,
+    addQueue,
+    cancelQueue,
+    forkQSem,
+  ) where
 
+import           Control.Monad.IO.Class
 import           Control.Concurrent
 import           Control.Exception (bracket_)
 
 
--- | a mutable list of threads for pending evaluations
-type Tasks = MVar [ThreadId]
+-- | a queue for canceling IO threads (e.g. re-evaluations)
+-- mutable list of thread ids
+newtype Queue = Queue { threadList :: MVar [ThreadId] }
 
--- | for a thread locked with a semaphore
-forkSingle :: QSem -> IO () -> IO ThreadId
-forkSingle semph action
-  = forkIO $ bracket_ (waitQSem semph) (signalQSem semph) action
+newQueue :: MonadIO m => m Queue
+newQueue  = liftIO $ Queue <$> newMVar []
 
+--
+-- | add an IO action to a queue
+--
+addQueue :: MonadIO m => Queue -> IO ThreadId -> m ()
+addQueue Queue{..} action
+  = liftIO $ modifyMVar_ threadList $ \tids -> do tid<-action; return (tid:tids)
+
+
+-- | cancel all pending tasks
+cancelQueue :: MonadIO m => Queue -> m ()
+cancelQueue Queue{..}
+  = liftIO $ modifyMVar_ threadList (\ids -> mapM_ killThread ids >> return [])
+
+
+-- | fork an IO action controlled by a quantity semaphore
+--
+forkQSem :: MonadIO m => QSem -> IO () -> m ThreadId
+forkQSem qsem action
+  =  liftIO $ forkIO $ bracket_ (waitQSem qsem) (signalQSem qsem) action
+    
+
+                
+{-
 -- | fork several threads with a semaphore
 -- allows possible canceling
-forkMany :: QSem -> Tasks -> [IO ()] -> IO ()
-forkMany semph tasks actions =
+forkTasks :: QSem -> Tasks -> [IO ()] -> IO ()
+forkTasks semph tasks actions =
   modifyMVar_ tasks $ \tids -> do
     mapM_ killThread tids
     tids' <- mapM (forkSingle semph) actions
     return tids'
+-}
 
-
-makeTasks :: Int -> IO (QSem, Tasks)
-makeTasks n = (,) <$> newQSem n <*> newMVar []
+{-
+-- | initialize tasks for a given number of concurrent threads
+initPool :: MonadIO m => Int -> m Pool
+initPool n = liftIO $ Pool <$> newQSem n <*> newMVar []
+-}

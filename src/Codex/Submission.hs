@@ -10,7 +10,7 @@ module Codex.Submission (
   Ordering(..),
   insertSubmission,
   updateSubmission,
-  markEvaluating,
+  -- markEvaluating,
   getSubmission,
   deleteSubmission,
   getPageSubmissions,
@@ -53,7 +53,7 @@ import           System.FilePath (splitDirectories)
 import           Codex.Application
 
 import           Codex.Utils
-import           Codex.Time
+-- import           Codex.Time
 import           Codex.Types
 import           Codex.Tester.Result
 import           Codex.Submission.Types
@@ -63,36 +63,36 @@ import           Codex.Submission.Types
 -- | insert a new submission into the DB
 insertSubmission ::
   HasSqlite m =>
-  UserLogin -> FilePath -> UTCTime -> Code -> Result -> Timing -> m Submission
-insertSubmission uid path time code result timing = do
+  UserLogin -> FilePath -> UTCTime -> Code -> Result -> m Submission
+insertSubmission uid path time code result = do
   let (Code lang text) = code
-  let (Result classf msg) = result
+  let (Result status check report) = result
   withSqlite $ \conn -> do
     S.execute conn
       "INSERT INTO submissions \
-       \ (user_id, path, received, language, code, class, message, timing) \
+       \ (user_id, path, received, language, code, status, chck, report) \
        \ VALUES(?, ?, ?, ?, ?, ?, ?, ?)"
-       (uid, path, time, lang, text, classf, msg, timing)
+       (uid, path, time, lang, text, status, check, report)
     sid <- fmap SubmitId (S.lastInsertRowId conn)
-    return (Submission sid uid path time code result timing)
+    return (Submission sid uid path time code result)
 
 -- | update submission result after evaluation
-updateSubmission :: Sqlite -> SubmitId -> Result -> Timing -> IO ()
-updateSubmission sqlite sid result timing =
+updateSubmission :: Sqlite -> SubmitId -> Result -> IO ()
+updateSubmission sqlite sid Result{..}  =
   withMVar (sqliteConn sqlite) $ \conn ->
      S.execute conn
-       "UPDATE submissions SET class=?, message=?, timing=? \
-       \ where id = ?" (resultClassify result, resultMessage result, timing, sid)
+       "UPDATE submissions SET status=?, chck=?, report=? \
+       \ where id = ?" (resultStatus, resultCheck, resultReport, sid)
 
-
+{-
 -- | mark submissions to the "evaluating" state
 markEvaluating :: Sqlite -> [SubmitId] -> IO ()
 markEvaluating sqlite sids = do
   withMVar (sqliteConn sqlite) $ \conn ->
     S.withTransaction conn $
     S.executeMany conn
-     "UPDATE submissions SET class='Evaluating' where id=?" (map Only sids)
-
+     "UPDATE submissions SET status='Evaluating' where id=?" (map Only sids)
+-}
 
 
 -- | get a single submission
@@ -206,18 +206,33 @@ submitSplices tz Submission{..} = do
   "file-url" ## urlSplice (Files $ splitDirectories submitPath)
   "submit-path" ## I.textSplice (T.pack submitPath)
   "submit-user-id" ## I.textSplice (fromLogin submitUser)
-  "submit-time" ## utcTimeSplice tz submitTime
+  "submit-time" ## localTimeSplice tz submitTime
   "submit-lang" ## I.textSplice (fromLanguage $ codeLang submitCode)
-  "submit-text" ##  I.textSplice (codeText submitCode)
-  let classify = T.pack $ show $ resultClassify submitResult
-  "submit-classify" ##  I.textSplice classify
-  "submit-message" ## I.textSplice (resultMessage submitResult)
-  "submit-timing" ## I.textSplice (T.pack $ show submitTiming)
+  "submit-code" ##  I.textSplice (codeText submitCode)
+  resultSplices submitResult
+  {-
   "if-valid" ## I.ifElseISplice (submitTiming == Valid)
   "if-early" ## I.ifElseISplice (submitTiming == Early)
   "if-overdue" ## I.ifElseISplice (submitTiming == Overdue)
   "if-accepted" ## I.ifElseISplice (resultClassify submitResult == Accepted)
   "if-evaluating" ## I.ifElseISplice (resultClassify submitResult == Evaluating)
+   -}
+
+resultSplices :: Result -> ISplices
+resultSplices Result{..} = do
+  "result-status" ## I.textSplice (T.pack $ show resultStatus)
+  "result-check" ## I.textSplice (T.pack $ show resultCheck)
+  "result-report" ## I.textSplice resultReport
+  "if-valid" ## I.ifElseISplice (resultCheck == Valid)
+  "if-early" ## I.ifElseISplice (match "Early" resultCheck)
+  "if-late" ## I.ifElseISplice (match "Late" resultCheck)
+  "if-accepted" ## I.ifElseISplice (resultStatus == Accepted)
+  "if-evaluating" ## I.ifElseISplice (resultStatus == Evaluating)
+  
+match :: Text -> Check -> Bool
+match txt (Invalid msg) = T.isInfixOf txt msg
+match _   _             = False
+  
 
 
 -- | Helper function to decode patterns from http request parameters
@@ -228,7 +243,7 @@ getPatterns = do
                    | field <- fields
                    ]
   return (zip (map T.decodeUtf8 fields) txts)
-  where fields = ["id", "user_id", "path", "language", "class", "timing"]
+  where fields = ["id", "user_id", "path", "language", "status", "check"]
 
 patternSplices :: Patterns -> ISplices
 patternSplices patts

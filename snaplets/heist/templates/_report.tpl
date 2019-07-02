@@ -2,6 +2,7 @@
 <bind tag="icon-rejected"><img src="/static/icons/16x16/rejected.png"/></bind>
 <bind tag="icon-overdue"><img src="/static/icons/16x16/overdue.png"/></bind>
 <bind tag="icon-editor"><img src="/static/icons/16x16/editor.png"/></bind>
+<bind tag="valid-icon"><if-accepted><if-valid><else/><icon-warning/></if-valid></if-accepted></bind>
 
 <apply template="_base">
   <mathjax-js/>
@@ -18,16 +19,20 @@
   <a class="button"
        href="${page-parent-url}">Voltar à página de índice</a>
   </p>
-<else/>
+  <else/>
+  <!-- 
 <current-timing>
     <Early>
       <p>Submissão antecipada; o resultado ficará visível após <valid-from/>.</p>
     </Early>
     <default>
-      <h3>Resultado: <em><submit-classify/></em><if-overdue>&nbsp;(enviada fora do tempo)</if-overdue></h3>
-      <if-feedback><pre><submit-message/></pre></if-feedback>
+-->
+      <h3>Resultado: <em><result-status/></em><if-valid><else/><result-check/></if-valid></h3>
+      <if-feedback><pre><result-report/></pre></if-feedback>
+      <!-- 
     </default>
 </current-timing>
+-->
 
 <h2>Editar submissão</h2>
 

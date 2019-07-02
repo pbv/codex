@@ -14,7 +14,7 @@ module Codex.AdminHandlers(
  
 import           Snap.Core hiding (path)
 import           Snap.Snaplet.Heist
-import qualified Snap.Snaplet.SqliteSimple                   as S
+-- import qualified Snap.Snaplet.SqliteSimple                   as S
 import           Snap.Snaplet.Router
 import           Snap.Util.FileServe hiding (mimeTypes)
 import           Snap.Util.FileUploads
@@ -111,7 +111,7 @@ listingSplices tz path list =
           fileUrlSplices (path </> name)
           "file-name" ## I.textSplice (T.pack name)
           "file-type" ## I.textSplice (T.decodeUtf8 mime)
-          "file-modified" ## utcTimeSplice tz time
+          "file-modified" ## localTimeSplice tz time
           "if-text" ## ifElseISplice (B.isPrefixOf "text" mime)
           "if-dir" ## ifElseISplice (mime == "DIR")
 
@@ -264,9 +264,9 @@ reevalSubmissions :: Patterns -> Codex.Submission.Ordering -> Codex ()
 reevalSubmissions patts order  = do
   count <- countSubmissions patts
   subs  <- filterSubmissions patts order count 0
-  sqlite <- S.getSqliteState
-  liftIO $ markEvaluating sqlite (map submitId subs)
-  reevaluate subs
+  -- sqlite <- S.getSqliteState
+  -- liftIO $ markEvaluating sqlite (map submitId subs)
+  evaluateMany subs
 
 
 
@@ -297,8 +297,8 @@ exportSubmissions' patts ord filetpl sep  = do
                                  show submitUser,
                                  show submitPath,
                                  show (codeLang submitCode),
-                                 show (resultClassify submitResult),
-                                 show submitTiming,
+                                 show (resultStatus submitResult),
+                                 show (resultCheck submitResult),
                                  show (show submitTime)
                                 ]
       hPutStrLn h row
@@ -334,8 +334,8 @@ handleSubmissionAdmin sid = withAdmin $ handleMethodOverride $ do
     reevaluate :: Submission -> Codex ()
     reevaluate sub = do
       let sid = submitId sub
-      sqlite <- S.getSqliteState
-      liftIO $ markEvaluating sqlite [sid]
+      -- sqlite <- S.getSqliteState
+      -- liftIO $ markEvaluating sqlite [sid]
       evaluate sub
       redirectURL (SubmissionAdmin sid)
 

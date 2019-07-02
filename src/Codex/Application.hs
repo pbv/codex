@@ -61,8 +61,8 @@ data App = App
     , _db      :: Snaplet Sqlite
     , _tester  :: Tester Result    -- ^ exercise testers to use
     , _handlers :: Handlers Codex  -- ^ exercise handlers to use
-    , _tasks   :: Tasks            -- ^ list of evaluation thread ids
-    , _semph   :: QSem             -- ^ semaphore for evaluation scheduling
+    , _queue   :: Queue            -- ^ queue for re-evaluation actions
+    , _semph   :: QSem             -- ^ semaphore for limiting currency 
     , _logger  :: Logger
     , _eventcfg :: Config          -- ^ events configuration
    }

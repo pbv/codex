@@ -66,14 +66,15 @@ pageDefaultText = lookupFromMeta "code" . pageMeta
 pageTester :: Page -> Maybe Text
 pageTester = lookupFromMeta "tester" . pageMeta
 
--- time interval for valid submissions
-pageInterval :: Page -> Interval Time
-pageInterval = metaInterval . pageMeta
+-- | constraint for valid submissions
+pageValid :: Page -> Constraint Time
+pageValid p
+  = fromMaybe OK (lookupFromMeta "valid" (pageMeta p) >>= parseConstraint)
 
-metaInterval :: Meta -> Interval Time
-metaInterval meta
-  = fromMaybe (Interval Nothing Nothing) $
-    (lookupFromMeta "valid" meta >>= parseInterval)
+-- metaInterval :: Meta -> Interval Time
+-- metaInterval meta
+--   = fromMaybe (Interval Nothing Nothing) $
+--     (lookupFromMeta "valid" meta >>= parseInterval)
 
 -- | give feedback for submissions?
 pageFeedback :: Page -> Bool

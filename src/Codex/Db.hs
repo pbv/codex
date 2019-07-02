@@ -40,8 +40,8 @@ initCmds = either (error.show) Map.assocs $ runMap $ do
             \received TIMESTAMP NOT NULL, \
             \language TEXT NOT NULL, \
             \code TEXT NOT NULL, \
-            \class TEXT NOT NULL, \
-            \message TEXT NOT NULL, \
-            \timing TEXT NOT NULL)",
+            \status TEXT NOT NULL, \
+            \chck TEXT NOT NULL, \
+            \report TEXT NOT NULL)",
             "CREATE INDEX user_index ON submissions(user_id)"
            ]

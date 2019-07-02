@@ -166,14 +166,14 @@ runTests action inouts = test 1 inouts
       in_txt <- T.readFile in_file
       out_txt <- T.readFile out_file
       result <- classify in_txt out_txt <$> action (words args) in_txt
-      if resultClassify result == Accepted then
+      if resultStatus result == Accepted then
         test (n+1) files
         else
         return (numberResult n total (T.pack args) result)
           
 numberResult :: Int -> Int -> Text -> Result -> Result
 numberResult num total args Result{..}
-  = Result resultClassify (test <> resultMessage)
+  = Result resultStatus Valid (test <> resultReport)
   where test = T.pack (printf "*** Test %d / %d ***\n\n" num total) <>
                "Command-line arguments:\n" <> sanitize args <> "\n"
           
