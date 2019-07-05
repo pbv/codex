@@ -72,7 +72,7 @@ instance Exception Result -- default instance
 
 -- | result construtors
 evaluating :: Result
-evaluating = Result Evaluating Valid ""
+evaluating = Result Evaluating (Invalid "???") ""
 
 received, accepted,
   wrongAnswer, presentationError, compileError, runtimeError,

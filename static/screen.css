@@ -12,6 +12,8 @@ a {
    text-decoration: underline;
 }
 
+
+
 a :hover {
    cursor: pointer;
    text-decoration: underline;
@@ -34,13 +36,6 @@ img {
 }
 
 
-.index {
-    float: left;
-    width: 30em;
-}
-
-.index li {
-}
 
 ul.menubar {
   list-style-type: none;
@@ -62,11 +57,14 @@ ul.menubar li a {
 
 ul.menubar li a:hover {
     background-color: darkcyan;
-    color: white;
+    color: white; 
 }
 
 
-
+ul.menubar li button:hover {
+    background-color: darkcyan;
+    color: white; 
+}
 
 ol.submissions {
   list-style-type: none;
@@ -91,15 +89,14 @@ ol.submissions:after {
 
 #content {
    padding-top: 3em;
-   margin-left: auto;
-   margin-right: auto;
-   width: 80%;
+   margin-left: 2em;
+   margin-right: 1em;
+   width: auto;
 }
 
 
 #actions {
-   background-color: cyan;
-   position: absolute;
+   position: fixed;
    width: auto;
    height: 1.5em;
    left: 0em;
@@ -110,8 +107,17 @@ ol.submissions:after {
    padding-right: 1em;
    padding-top: 1em;
    padding-bottom: 1em;
+   background-color: cyan;
 }
 
+#uppercorner {
+    position: fixed;
+    top: 20px;
+    right: 20px;
+    left: auto;
+    width: 20em;
+    text-align: right;
+}
 
 
 .info {
@@ -139,10 +145,13 @@ ol.submissions:after {
 
 
 #footer {
-    position: relative;
-    clear: both;
-    bottom: -2ex;
+    position: fixed;
+    bottom: 0px;
+    left: 0px;
+    right: 0px;
     width: auto;
+    height: 1em;
+    clear: both;
     background-color: cyan;
     padding-top: 2ex;
     padding-bottom: 2ex;
@@ -154,15 +163,30 @@ ol.submissions:after {
 
 pre {
     background-color: #ffffcc;
-    margin-left: 1em;
     padding: 1em;
-    width: 55em;
+    left: 1em;
+    right: 1em;
+    width: auto;
     overflow-x: auto;
 }
 
+/*
 .ace_editor {
     width:  45em; 
     height: 45ex; 
+    width: 90%;
+    height: 50%;
+    width: auto;
+    height: auto;
+}
+*/
+
+
+#editor {
+    width: auto;
+    left: 0px;
+    right: 0px;
+    height: 50ex;
 }
 
 
@@ -218,10 +242,12 @@ table.submissions td.received {
 .Accepted {
   color: green; 
   font-weight: bold;
+    white-space: nowrap;
 } 
 
 .WrongAnswer  { 
   color: red;
+    white-space: nowrap;
 }
 
 
@@ -232,11 +258,13 @@ table.submissions td.received {
 .MemoryLimitExceeded,
 .TimeLimitExceeded  {
     color: black;
+    white-space: nowrap;
 }
 
 .Evaluating { 
     color: black;
     font-style: oblique;
+    white-space: nowrap;
 }
 
 
@@ -260,3 +288,49 @@ table.submissions td.received {
 .sourceCode .co { color: darkgreen; }
 .sourceCode .st { color: darkgreen; }
 */
+
+/* -- Tabbing --- */
+
+/* Style the tab */
+.tab {
+    right: 0px;
+    left: 0px;
+    bottom: 2.5em;
+    overflow: hidden;
+    padding-top: 5px;
+    margin-top: 5px;
+    width: auto;
+    border-bottom: 1px solid black;
+    border-right: none;
+    border-top: none;
+    border-left: none;
+}
+
+/* Style the buttons that are used to open the tab content */
+button.tablinks {
+    background-color: inherit;
+    font-size: 100%;
+    float: left;
+    cursor: pointer;
+    padding: 10px 10px;
+    /* transition: 0.3s; */
+    border: none;
+}
+
+
+/* Create an active/current tablink class */
+button.tablinks.active {
+    background-color: darkcyan;
+    color: white;
+    border: none;
+}
+
+
+
+/* Style the tab content */
+.tabcontent {
+  display: none;
+/*  padding: 6px 12px; */
+/*  border: 1px solid #ccc; 
+  border-top: none; */
+}

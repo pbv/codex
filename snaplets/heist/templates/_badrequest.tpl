@@ -11,3 +11,6 @@
 </li>
 </ul>
 </apply>
+
+<apply template="_browse"/>
+<apply template="_footer"/>

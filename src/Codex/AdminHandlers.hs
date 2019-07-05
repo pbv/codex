@@ -62,7 +62,8 @@ import           Codex.Printout
 -- ensure that a user with admin privileges is logged in
 --
 handleBrowse :: FilePath -> Codex ()
-handleBrowse rqpath = withAdmin $ do
+handleBrowse rqpath = do
+  requireAdmin
   handleMethodOverride
     (method GET (handleGet rqpath)  <|>
      method POST (handleUpload rqpath) <|>
@@ -159,7 +160,7 @@ handleCreate base = do
 
 handleUpload :: FilePath -> Codex ()
 handleUpload rqpath = do
-  liftIO $ putStrLn ("handleUpload " ++ show rqpath)
+  --  liftIO $ putStrLn ("handleUpload " ++ show rqpath)
   root <- getDocumentRoot
   let filepath = root </> rqpath
   c <- liftIO $ doesDirectoryExist filepath
@@ -211,14 +212,16 @@ handleRename rqpath = do
 --  | Handle requests for submission listing
 --
 handleSubmissionList :: Codex ()
-handleSubmissionList =  withAdmin $ handleMethodOverride $ do
+handleSubmissionList = do
+  requireAdmin  
   patts <- getPatterns
   page <- fromMaybe 1 <$> readParam "page"
   order <- fromMaybe Ascending <$> readParam "order"
-  methods [GET,POST] (listSubmissions patts order page)
+  handleMethodOverride $ do 
+    methods [GET,POST] (listSubmissions patts order page)
     <|>
-   method PATCH (reevalSubmissions patts order >>
-                 listSubmissions patts order page)
+    method PATCH (reevalSubmissions patts order >>
+                    listSubmissions patts order page)
     <|>
     method (Method "CANCEL") (cancelPending >>
                               listSubmissions patts order page)
@@ -290,7 +293,7 @@ exportSubmissions' patts ord filetpl sep  = do
   return tmpPath
   where
     header = intercalate sep ["id", "user_id", "path", "language",
-                              "classify", "timing", "received"]
+                              "status", "chck", "received"]
     output :: Handle -> () -> Submission -> IO ()
     output h _ Submission{..} = do
       let row = intercalate sep [show submitId,
@@ -308,17 +311,21 @@ exportSubmissions' patts ord filetpl sep  = do
 
 -- | Handle admin requests for a single submission
 handleSubmissionAdmin :: SubmitId -> Codex ()
-handleSubmissionAdmin sid = withAdmin $ handleMethodOverride $ do
-    sub <- require (getSubmission sid) <|> notFound
-    method GET (report sub) <|>
-      method PATCH (reevaluate sub) <|>
+handleSubmissionAdmin sid = do
+  requireAdmin
+  sub <- require (getSubmission sid) <|> notFound
+  handleMethodOverride $ do 
+      method GET (report sub)
+      <|>
+      method PATCH (reevaluate sub)
+      <|>
       method DELETE (delete sub)
   where
     -- get report on a submission
     report :: Submission -> Codex ()
     report sub = do
       root <- getDocumentRoot
-      page <- liftIO $ readMarkdownFile (root </>submitPath sub)
+      page <- readMarkdownFile (root </>submitPath sub)
       tz <- liftIO getCurrentTimeZone
       renderWithSplices "_submission-admin" $ do
         pageSplices page
@@ -333,10 +340,10 @@ handleSubmissionAdmin sid = withAdmin $ handleMethodOverride $ do
     -- revaluate a single submission
     reevaluate :: Submission -> Codex ()
     reevaluate sub = do
-      let sid = submitId sub
+      -- let sid = submitId sub
       -- sqlite <- S.getSqliteState
       -- liftIO $ markEvaluating sqlite [sid]
       evaluate sub
-      redirectURL (SubmissionAdmin sid)
+      redirectURL (SubmissionAdmin (submitId sub))
 
 

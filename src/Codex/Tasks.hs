@@ -36,27 +36,10 @@ cancelQueue Queue{..}
   = liftIO $ modifyMVar_ threadList (\ids -> mapM_ killThread ids >> return [])
 
 
--- | fork an IO action controlled by a quantity semaphore
---
+-- | fork an IO action controlled by a quantity semaphore;
+-- this allows throttling evaluations such that only a maximum number
+-- of threads is running at a given time
 forkQSem :: MonadIO m => QSem -> IO () -> m ThreadId
 forkQSem qsem action
   =  liftIO $ forkIO $ bracket_ (waitQSem qsem) (signalQSem qsem) action
     
-
-                
-{-
--- | fork several threads with a semaphore
--- allows possible canceling
-forkTasks :: QSem -> Tasks -> [IO ()] -> IO ()
-forkTasks semph tasks actions =
-  modifyMVar_ tasks $ \tids -> do
-    mapM_ killThread tids
-    tids' <- mapM (forkSingle semph) actions
-    return tids'
--}
-
-{-
--- | initialize tasks for a given number of concurrent threads
-initPool :: MonadIO m => Int -> m Pool
-initPool n = liftIO $ Pool <$> newQSem n <*> newMVar []
--}

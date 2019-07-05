@@ -44,7 +44,7 @@ pythonDocTester = tester "doctest" $ do
 
 classify :: (ExitCode, Text, Text) -> Result
 classify (_, stdout, stderr)
-  | T.null stdout && match "OK" stderr = accepted stderr
+  | match "0 failed" stdout && match "OK" stderr = accepted (stdout <> stderr)
   | match "Time Limit" stderr          = timeLimitExceeded stderr
   | match "Memory Limit" stderr        = memoryLimitExceeded stderr
   | match "Exception raised" stdout    = runtimeError stdout

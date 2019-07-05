@@ -210,24 +210,22 @@ submitSplices tz Submission{..} = do
   "submit-lang" ## I.textSplice (fromLanguage $ codeLang submitCode)
   "submit-code" ##  I.textSplice (codeText submitCode)
   resultSplices submitResult
-  {-
-  "if-valid" ## I.ifElseISplice (submitTiming == Valid)
-  "if-early" ## I.ifElseISplice (submitTiming == Early)
-  "if-overdue" ## I.ifElseISplice (submitTiming == Overdue)
-  "if-accepted" ## I.ifElseISplice (resultClassify submitResult == Accepted)
-  "if-evaluating" ## I.ifElseISplice (resultClassify submitResult == Evaluating)
-   -}
 
 resultSplices :: Result -> ISplices
 resultSplices Result{..} = do
   "result-status" ## I.textSplice (T.pack $ show resultStatus)
-  "result-check" ## I.textSplice (T.pack $ show resultCheck)
+  "result-check" ## I.textSplice (checkText resultCheck)
   "result-report" ## I.textSplice resultReport
   "if-valid" ## I.ifElseISplice (resultCheck == Valid)
   "if-early" ## I.ifElseISplice (match "Early" resultCheck)
   "if-late" ## I.ifElseISplice (match "Late" resultCheck)
   "if-accepted" ## I.ifElseISplice (resultStatus == Accepted)
   "if-evaluating" ## I.ifElseISplice (resultStatus == Evaluating)
+
+checkText :: Check -> Text
+checkText Valid = "Valid"
+checkText (Invalid msg) = msg
+  
   
 match :: Text -> Check -> Bool
 match txt (Invalid msg) = T.isInfixOf txt msg
@@ -243,7 +241,7 @@ getPatterns = do
                    | field <- fields
                    ]
   return (zip (map T.decodeUtf8 fields) txts)
-  where fields = ["id", "user_id", "path", "language", "status", "check"]
+  where fields = ["id", "user_id", "path", "language", "status", "chck"]
 
 patternSplices :: Patterns -> ISplices
 patternSplices patts

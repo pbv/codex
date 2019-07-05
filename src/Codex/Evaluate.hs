@@ -82,7 +82,6 @@ evaluateWith schedule Submission{..} = do
     updateSubmission sqlite submitId result'
 
 
-
             
 checkTiming :: TimeEnv -> Constraint Time -> UTCTime -> Result -> Result
 checkTiming env constr time result 

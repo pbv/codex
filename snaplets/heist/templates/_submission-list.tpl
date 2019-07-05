@@ -56,8 +56,8 @@ function printsubmissions() {
       <th>user_id</th>
       <th>path</th>
       <th>language</th>
-      <th>classify</th>
-      <th>timing</th>
+      <th>status</th>
+      <th>chck</th>
       <th>received</th>
     </tr>
     <tr>
@@ -65,8 +65,8 @@ function printsubmissions() {
       <th><input type="text" name="user_id" size="8" value="${user_id}"/></th>
       <th><input type="text" name="path" size="20" value="${path}"/></th>
       <th><input type="text" name="language" size="8" value="${language}"/></th>
-      <th><input type="text" name="class" size="20" value="${class}"/></th>
-      <th><input type="text" name="timing" size="6" value="${timing}"/></th>
+      <th><input type="text" name="status" size="20" value="${status}"/></th>
+      <th><input type="text" name="chck" size="8" value="${chck}"/></th>
       <th/>
     </tr>
     <if-submissions>
@@ -74,10 +74,10 @@ function printsubmissions() {
 	<tr>
 	  <td class="submitid"><a href="${submission-admin-url}"><submit-id/></a></td>
 	  <td class="userid"><submit-user-id/></td>
-	  <td class="path"><a href="${page-url}"><submit-path/></a></td>
+	  <td class="path"><a href="${file-url}"><submit-path/></a></td>
 	  <td class="lang"><submit-lang/></td>
-	  <td class="classify ${submit-classify}"><submit-classify/></td>
-	  <td class="timing"><submit-timing/></td>
+	  <td class="status ${result-status}"><result-status/></td>
+	  <td class="check"><result-check/></td>
 	  <td class="received"><submit-time/></td>
 	</tr>
       </submissions>
@@ -92,11 +92,12 @@ function printsubmissions() {
     <option value=";">ponto-e-vírgula (;)</option>
     <option value="&#9">tabulação</option>
   </select>
-<input type="button" onClick="printsubmissions()" title="Gerar impressões" value="Gerar impressões"/>
+&emsp;<input type="button" onClick="printsubmissions()" title="Gerar impressões" value="Gerar impressões"/>
 <hr/>
 <input id="page" type="hidden" name="page" value="${page}"/>
 <input id="_method" type="hidden" name="_method" value="GET"/>
 </form>
 </apply>
+
 <apply template="_browse">
 </apply>

@@ -12,10 +12,10 @@
   <p class="info">Se a página não atualizar automaticamente,
       use o botão "reload" do "browser".</p>
 <else/>
-<h3>Resultado: <em><submit-classify/></em> (<em><submit-timing/></em>)</h3>
-<pre><submit-message/></pre>
+<h3>Resultado: <em><result-status/></em> (<em><result-check/></em>)</h3>
+<pre><result-report/></pre>
 <h3>Código</h3>
-<pre><submit-text/></pre> 
+<pre><submit-code/></pre> 
 <hr/>
 <script type="text/javascript">
   function confirmDelete() {
@@ -27,7 +27,7 @@
   }
 </script>
 
-  <a class="button" href="${report-url}">Visualizar</a> &nbsp;
+  <a class="button" type="button" onclick="window.open('${report-url}')">Visualizar</a> &nbsp;
   <form id="deleteform" method="POST" 
 	action="${submission-admin-url}" style="display:inline;">
     <input type="hidden" name="_method" value="DELETE"/>
@@ -41,6 +41,6 @@
 
 </if-evaluating>
 </apply>
+
 <apply template="_browse">
-  <li><a title="Editar folha de exercício"   href="${file-url}">Editar</a><li>
 </apply>

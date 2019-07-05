@@ -13,6 +13,5 @@
      <div id="content">
        <apply-content/>
      </div>
-     <apply template="_footer"/>
   </body>
 </html>

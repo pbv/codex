@@ -93,13 +93,13 @@ handlePage rqpath = do
   method GET (handleGet uid rqpath <|> notFound) <|>
     method POST (handlePost uid rqpath <|> badRequest)
 
--- | handle GET requests for pages and files
+-- | handle GET requests for pages and files          
 handleGet uid rqpath = do
   root <- getDocumentRoot
   let filepath = root </> rqpath
   guardFileExists filepath
   let rqdir = takeDirectory rqpath
-  let mime = fileType mimeTypes rqpath
+  let mime = fileType mimeTypes filepath
   if mime == "text/markdown" then do
     page <- readMarkdownFile filepath
     Handlers{handleView} <- gets _handlers
@@ -111,6 +111,8 @@ handleGet uid rqpath = do
     else
     -- serve the file if it is not markdown 
     serveFileAs mime filepath
+
+
 
 renderMarkdown :: Page -> Codex ()
 renderMarkdown page = renderWithSplices "_page" (pageSplices page)
@@ -135,8 +137,8 @@ handlePost uid rqpath = do
 handleGetReport :: SubmitId -> Codex ()
 handleGetReport sid = method GET $ do
   usr <- require (with auth currentUser) <|> unauthorized
-  let uid = authUserLogin usr
   sub <- require (getSubmission sid) <|> notFound
+  let uid = authUserLogin usr
   unless (isAdmin usr || submitUser sub == uid)
       unauthorized
   root <- getDocumentRoot
@@ -289,8 +291,37 @@ staticSplices = do
   "version" ## versionSplice
   "timeNow" ## nowSplice
   "if-evaluating" ## return []
+  "ifLoggedIn" ## ifLoggedIn auth
+  "ifLoggedOut" ## ifLoggedOut auth
   "loggedInName" ## loggedInName auth
   "ifAdmin" ## do mbAu <- lift (withTop auth currentUser)
                   I.ifElseISplice (maybe False isAdmin mbAu)
 
+
+
+{-
+-- | check that a resource can be accessed
+--
+accessControl :: AppUrl -> Codex ()
+accessControl Login
+  = return ()
+accessControl Logout
+  = return ()
+accessControl Register
+  = return ()
+accessControl (Page _)
+  = do require (with auth currentUser) <|> unauthorized
+       return ()
+accessControl (Report sid) = do
+  usr <- require (with auth currentUser) <|> unauthorized
+  sub <- require (getSubmission sid) <|> notFound
+  unless (isAdmin usr || submitUser sub == authUserLogin usr)
+    unauthorized
+accessControl (Files _)
+  = requireAdmin
+accessControl SubmissionList 
+  = requireAdmin
+accessControl (SubmissionAdmin _)
+  = requireAdmin
+-}  
 

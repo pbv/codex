@@ -35,7 +35,7 @@ pageMeta (Pandoc meta _) = meta
 pageDescription :: Page -> [Block]
 pageDescription (Pandoc _ blocks) = blocks
 
--- lookup title either as metadata or in the first header
+{-
 pageTitle :: Page -> Maybe [Inline]
 pageTitle p
   = case docTitle (pageMeta p) of
@@ -44,6 +44,25 @@ pageTitle p
   where
     firstHeader :: [Block] -> Maybe [Inline]
     firstHeader blocks = listToMaybe [h | Header _ _ h <- blocks]
+-}
+
+pageTitle :: Page -> Maybe [Inline]
+pageTitle p
+  = case pageTitleBlocks p of
+      (Header _ _ h : _) -> Just h
+      _                  -> Nothing
+
+-- | lookup title in metadata or take the first header (if any)
+pageTitleBlocks :: Page -> [Block]
+pageTitleBlocks p
+  = case docTitle (pageMeta p) of
+      [] -> firstHeader (pageDescription p)
+      inlines -> [Header 1 nullAttr inlines]
+  where
+    firstHeader :: [Block] -> [Block]
+    firstHeader blocks = take 1 [block | block@(Header _ _ _) <- blocks]
+
+
 
 
 -- list of accepted languages for an exercise

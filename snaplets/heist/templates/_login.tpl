@@ -1,11 +1,14 @@
 <apply template="_base">
 <h1>Bem-vindo!</h1>
 
+
 <p><em>Codex</em> é um sistema <em>web</em> para ensino que permite
 resolução de exercícios de programação com correção automática.</p>
 
-<p>Por favor autentique-se para iniciar a sessão
- ou  <a href="${register}">registe</a>  uma nova conta de utilizador.</p>
+<p>Por favor autentique-se para iniciar a sessão.</p>
+  <!--
+ ou  <a href="${register}">registe</a>  uma nova conta de utilizador.
+-->
 
 <form method="POST" action="${login}">
   <table>
@@ -24,5 +27,6 @@ resolução de exercícios de programação com correção automática.</p>
 
 <div class="warnings"><p><loginError/></p></div>
 </apply>
-<apply template="_browse">
-</apply>
+
+<apply template="_browse"/>
+<apply template="_footer"/>

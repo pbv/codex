@@ -12,7 +12,7 @@ import qualified Data.Text as T
 import qualified Data.Text.Encoding as T
 import qualified Data.Text.Encoding.Error as T
 
-import           Data.Maybe (fromMaybe, listToMaybe)
+import           Data.Maybe (isJust, fromMaybe, listToMaybe)
 import           Data.Aeson
 import qualified Data.HashMap.Strict as HM
 import           Data.Map.Syntax
@@ -106,25 +106,30 @@ authFullname au
     Just (String name) -> Just name
     _                  -> Nothing
 
+{-
 -- | Get user id and roles
 getUserRoles :: Codex (Maybe [Role])
 getUserRoles = do
   mAu <- with auth currentUser
   return (fmap userRoles mAu)
-
+-}
 
 isAdmin :: AuthUser -> Bool
 isAdmin au = Role "admin" `elem` userRoles au
 
--- | run a handle only under administrative login
-withAdmin :: Codex a -> Codex a
-withAdmin action = do
-  optlist <- getUserRoles
-  case optlist of
-    Nothing -> unauthorized
-    Just roles -> if Role "admin" `elem` roles then action
-                    else unauthorized
+-- | ensure that the logged user has administrative privileges
+requireAdmin :: Codex () 
+requireAdmin = do
+  usr <- require (with auth currentUser) <|> unauthorized
+  unless (isAdmin usr) unauthorized
 
+{-  
+  -- optlist <- getUserRoles
+  -- case optlist of
+  --   Nothing -> unauthorized
+  --   Just roles -> if Role "admin" `elem` roles then action
+  --                   else unauthorized
+-}
 
 -- | get all events from the configuration 
 ----------------------------------------------------------------
@@ -216,16 +221,23 @@ localTimeSplice tz t =
 pageSplices  :: Monad m => Page -> Splices (I.Splice m)
 pageSplices page = do
   "page-description" ## return (pageToHtml page)
-  -- NB: not used; maybe remove?
-  -- "if-exercise" ## I.ifElseISplice (pageIsExercise page)
+  "page-title" ## return (blocksToHtml $ pageTitleBlocks page)
 
 
 pageUrlSplices :: FilePath -> ISplices
 pageUrlSplices rqpath = do
-  let path = splitDirectories rqpath
-  let parent= if null path then [] else init path ++ ["index.md"]
-  "page-url" ## urlSplice (Page path)
-  "page-parent-url" ## urlSplice (Page parent)
+  let paths = splitDirectories rqpath
+  let paths' = parent paths
+  "page-url" ## urlSplice (Page paths)
+  "page-parent-url" ## urlSplice (Page paths')
+  "if-parent" ## I.ifElseISplice (paths' /= paths)
+
+parent :: [FilePath] -> [FilePath]
+parent [] = []
+parent fs
+  | last fs == "index.md" = drop2 fs ++ ["index.md"]
+  | otherwise             = init fs ++ ["index.md"]
+  where drop2 = reverse . drop 2 . reverse
 
 fileUrlSplices :: FilePath -> ISplices
 fileUrlSplices rqpath = do
@@ -366,21 +378,20 @@ withTimeSplices page action = do
         "valid-from" ## I.textSplice err
         "valid-until" ## I.textSplice err
         "time-left" ## I.textSplice err        
-      Right constr ->
-        timingSplices tz now constr
-
-
--- | splices related to the submission interval for an exercise
-timingSplices :: TimeZone -> UTCTime -> Constraint UTCTime -> ISplices
-timingSplices tz now constr = do
-  "valid-from" ##
-    I.textSplice $ maybe "N/A" (showTime tz) (lower constr)
-  "valid-until" ##
-    I.textSplice $ maybe "N/A" (showTime tz) (higher constr)
-  -- "current-timing" ## (caseSplice . timeInterval now) interval
-  "time-left" ##
-    I.textSplice $
-    maybe "N/A" (\t -> T.pack $ formatNominalDiffTime t) (timeLeft now constr)
+      Right constr -> do
+        "if-early" ## I.ifElseISplice (early now constr)
+        "if-late" ##  I.ifElseISplice (late now constr)
+        "if-valid" ## I.ifElseISplice (not (early now constr) &&
+                                       not (late now constr))
+        "if-limited" ## I.ifElseISplice (isJust (higher constr))
+        "valid-from" ##
+          I.textSplice $ maybe "N/A" (showTime tz) (lower constr)
+        "valid-until" ##
+          I.textSplice $ maybe "N/A" (showTime tz) (higher constr)
+        "time-left" ##
+          I.textSplice $
+          maybe "N/A" (\t -> T.pack $ formatNominalDiffTime t)
+          (timeLeft now constr)
 
 
     

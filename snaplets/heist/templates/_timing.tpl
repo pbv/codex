@@ -1,7 +1,12 @@
 <p class="info">
-  <current-timing>
-    <Early>Submissões visíveis após <valid-from/>.</Early>
-    <Valid>Submissões terminam em <valid-until/> (<time-left/>).</Valid>
-    <Overdue>Submissões terminaram em <valid-until/>.</Overdue>
-  </current-timing>
+  <if-early><icon-warning/>&nbsp; Submissões visíveis após <valid-from/>.
+    <else/>
+    <if-late><icon-warning/>&nbsp; Submissões terminaram em <valid-until/>.
+      <else/>
+      <if-limited>
+	Submissões terminam em <valid-until/>; tempo disponível: <time-left/>.
+      </if-limited>
+    </if-late>
+  </if-early>
 </p>
+

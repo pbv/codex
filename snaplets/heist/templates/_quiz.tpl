@@ -1,12 +1,37 @@
+
+<apply template="_browse">
+  <if-parent>
+    <li><a href="${page-parent-url}"
+	 title="Voltar à página anterior">&curvearrowleft;</a></li>    
+  </if-parent>
+  <!-- 
+  <li><button class="tablinks"
+	      value="Submeter"
+	      onclick="quiz_modified=false;document.forms['quiz'].submit()">Submeter</button></li>
+  <li><button class="tablinks" value="Limpar"
+	      onclick="resetAll()">Limpar</button></li>
+  -->
+  <ifAdmin>
+    <li><a title="Editar a página" href="${file-url}">Editar</a></li>
+  </ifAdmin>
+</apply>
+
+
 <apply template="_base">
   <mathjax-js/>
+    
   <div class="description">
     <quiz-preamble/>
   </div>
-
   <apply template="_timing"/>
   
   <form id="quiz" method="POST" action="${page-url}">
+  <p>
+    <input type="submit" value="Submeter"
+	   onclick="quiz_modified=false;"/> &emsp;
+    <input type="button" value="Limpar"
+	   onclick="resetAll()"/>
+  </p>
     <questions>
       <fieldset>
 	<question-description/>
@@ -17,14 +42,7 @@
 	</question-fillin>
       </fieldset>
     </questions>
-    <div>
-      <p><input type="submit" value="Submeter" onclick="quiz_modified=false;"/> &emsp;
-	<a href="${page-parent-url}"
-	   class="button">Voltar à página de índice</a> &emsp;
-	<input type="button" value="Limpar seleção" style="float:right"
-	       onclick="resetAll()"/>
-      </p>
-    </div>
+
   </form>
 
   <script>
@@ -59,6 +77,3 @@
 </apply>
 
 
-<apply template="_browse">
-  <li><a title="Editar a página de exercício" href="${file-url}">Editar</a></li>
-</apply>

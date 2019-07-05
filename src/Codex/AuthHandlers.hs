@@ -1,9 +1,12 @@
 {-# LANGUAGE OverloadedStrings #-}
-
+{-
+ - Handlers for authentication related stuff
+-}
 module Codex.AuthHandlers (
   handleLogin,
   handleLogout,
-  handleRegister
+  handleRegister,
+  
   ) where
 
 import           Data.ByteString.UTF8 (ByteString)
@@ -149,3 +152,5 @@ handleLogout = method GET $ do
 
 home :: AppUrl
 home = Page ["index.md"]
+
+

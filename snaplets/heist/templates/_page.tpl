@@ -6,5 +6,14 @@
 </apply>
 
 <apply template="_browse">
-  <li><a title="Editar página" href="${file-url}">Editar</a></li>
+  <if-parent>
+     <li><a href="${page-parent-url}"
+	    title="Voltar à página anterior">&curvearrowleft;</a></li>
+  </if-parent>
+  <!--
+  <ifAdmin>
+    <li><a class="admin"
+	   title="Editar esta página" href="${file-url}">Editar</a></li>
+  </ifAdmin>
+  -->
 </apply>

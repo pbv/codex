@@ -1,10 +1,22 @@
+
 <apply template="_base">
 <h1>Acesso não autorizado!</h1>
-<ul>
-<li>Para visualizar esta página nessita de estar autenticado.</li>
+
+<ifLoggedIn>
+  <ul>
+    <li>Não tem permissões para visualizar esta página.</li>
+  </ul>
+</ifLoggedIn>
+
 <ifLoggedOut>
-  <li>Se a sua sessão expirou por inatividade
-    tente <a href="${login}">autenticar-se novamente.</a></li>
+  <ul>
+    <li>Para visualizar esta página nessita de estar autenticado.</li>
+    <li>Volte à <a href="${login}">página de entrada</a>
+      para se autenticar.</li>
+  </ul>
 </ifLoggedOut>
-</ul>
 </apply>
+
+<apply template="_browse"/>
+<apply template="_footer"/>
+

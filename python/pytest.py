@@ -40,5 +40,6 @@ flags = doctest.IGNORE_EXCEPTION_DETAIL|doctest.ELLIPSIS|doctest.REPORT_ONLY_FIR
                                    extraglobs=vars(tstmod), 
                                    report=False,
                                    optionflags=flags)
-
+print()
+print("%d tests, %d failed." % (tested, failed))
 

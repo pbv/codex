@@ -9,7 +9,7 @@ module Codex.Time (
     TimeEnv,
     makeTimeEnv,
     Constraint(..),
-    early, late,  lower, higher,
+    early, late, lower, higher,
     fromLocalTime,
     fromUTCTime,
     timeLeft, 
@@ -71,26 +71,10 @@ data Constraint t
 
 
 early :: Ord t => t -> Constraint t -> Bool
-early t c = case lower c of
-              Nothing -> False
-              Just t' -> t < t'
-
-{-
-early t (And c1 c2) = early t c1 || early t c2
-early t (After t')  = t < t'
-early t _           = False
--}
-              
+early t c = maybe False (\l -> t<l) (lower c)
+           
 late :: Ord t => t -> Constraint t -> Bool
-late t c = case higher c of
-             Nothing -> False
-             Just t' -> t > t'
-
-{-
-late t (And c1 c2) = late t c1 || late t c2
-late t (Before t')  = t > t'
-late t _           = False
--}
+late t c = maybe False (\h -> t>h) (higher c)
 
 
 -- | lower and higher time required by a constraint
