@@ -23,6 +23,7 @@ import           Snap.Snaplet
 import           Snap.Snaplet.Router
 
 import           Codex.Utils
+import           Codex.Time (showTime)
 import           Codex.Types
 import           Codex.Application
 import           Codex.Handlers
@@ -30,7 +31,7 @@ import           Codex.Submission
 import           Codex.Page
 import           Codex.Tester.Result
 
-import           Text.Pandoc hiding (getZonedTime)
+import           Text.Pandoc hiding (getCurrentTimeZone, getZonedTime)
 import           Text.Pandoc.Builder
 
 import           Data.HashMap.Strict (HashMap)
@@ -107,6 +108,7 @@ userPrintout :: UserLogin -> [Submission] -> Codex Pandoc
 userPrintout uid  submissions = do
   Handlers{handlePrintout} <- gets _handlers
   root <- getDocumentRoot
+  tz <- liftIO getCurrentTimeZone
   now <- liftIO getZonedTime
   let login = T.unpack (fromLogin uid)
   fullname <- maybe login T.unpack <$> queryFullname uid
@@ -114,17 +116,17 @@ userPrintout uid  submissions = do
             \sub -> do
               page <- readMarkdownFile (root </> submitPath sub)
               content <- handlePrintout uid page sub
-              return (submissionPrintout page sub content)
+              return (submissionPrintout tz page sub content)
   return (-- setTitle (text title) $
           setAuthors [text $ fullname ++ " (" ++ login ++ ")"] $
           setDate (text $ show now) $
           doc $ mconcat blocks)
 
 
-submissionPrintout :: Page -> Submission -> Blocks -> Blocks
-submissionPrintout page sub@Submission{..}  content
+submissionPrintout :: TimeZone -> Page -> Submission -> Blocks -> Blocks
+submissionPrintout tz page sub@Submission{..}  content
   = mconcat [ header 1 title
-            , submissionHeader sub
+            , submissionHeader tz sub
             , content
             , codeBlock msg
             , horizontalRule ]
@@ -132,11 +134,16 @@ submissionPrintout page sub@Submission{..}  content
     title = maybe (text submitPath) fromList (pageTitle page)
     msg = T.unpack $ resultReport submitResult
 
-submissionHeader Submission{..}
+submissionHeader tz Submission{..}
   = header 2 (strong (text $ show $ resultStatus submitResult) <>
               space <>
-              emph (text $ "(" ++ show (resultCheck submitResult) ++ ")")) <>
+              emph (text $ "(" ++ checkText (resultCheck submitResult) ++ ")")) <>
     para (text ("Submission " ++ show submitId ++ "; " ++
-                 show submitTime ))
+                 T.unpack (showTime tz submitTime)))
 
+
+
+checkText :: Check -> String
+checkText Valid         = "Valid"
+checkText (Invalid msg) = "Invalid: " ++ T.unpack msg
 

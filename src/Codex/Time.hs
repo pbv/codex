@@ -9,7 +9,7 @@ module Codex.Time (
     TimeEnv,
     makeTimeEnv,
     Constraint(..),
-    early, late, lower, higher,
+    early, late, lower, higher, maxAttempts,
     fromLocalTime,
     fromUTCTime,
     timeLeft, 
@@ -59,7 +59,7 @@ fromLocalTime = Local
 fromUTCTime :: UTCTime -> Time
 fromUTCTime = UTC
 
--- | submission validity constraints;
+-- | validity check constraints;
 -- parametrized by the type for time
 data Constraint t
   = OK           -- ^ no constraint
@@ -99,19 +99,14 @@ timeLeft :: UTCTime -> Constraint UTCTime -> Maybe NominalDiffTime
 timeLeft t c = fmap (\t'-> diffUTCTime t' t) (higher c)
 
 
-{-
--- | interval parameterized by time 
-data Interval t
-  = Interval { lower :: !(Maybe t)
-             , higher :: !(Maybe t)
-             }
-    deriving (Eq, Read, Show, Functor, Traversable, Foldable)
+maxAttempts :: Constraint t -> Maybe Int
+maxAttempts (MaxAttempts n) = Just n
+maxAttempts (And c1 c2) 
+  = case catMaybes [maxAttempts c1, maxAttempts c2] of
+      [] -> Nothing
+      xs -> Just (minimum xs)
+maxAttempts _ = Nothing
 
--- | timing relation between a time and an interval
-data Timing
-  = Early | Valid | Overdue
-  deriving (Eq, Ord, Read, Show, Typeable)
--}
 
 --
 -- | parse a time constraint
@@ -228,7 +223,7 @@ symbol s = token (string s)
 ---- semantics
 -----------------------------------------------------------
 
--- | environments for evaluation of time expression 
+-- | environments for evaluation of time expressions 
 data TimeEnv
   = TimeEnv
     { timeZone :: TimeZone

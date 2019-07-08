@@ -2,8 +2,7 @@
 {-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 
---
--- Multiple choice quizzes
+-- | Quizzes with multiple choice & fill-in questions
 --
 module Codex.Quiz
   ( Quiz(..)
@@ -50,8 +49,8 @@ data Question
 
 data Choices
   = FillIn Text (Text -> Text)
-  -- bundle the answer key with a normalization function
-  -- for now, this always removes spaces
+  -- bundle answer key with a normalization function
+  -- for now: this just removes spaces
   | Alternatives Bool P.ListAttributes Alts
   -- list of multiple choices 
 
@@ -60,7 +59,7 @@ type Alts =  [(Key, Bool, [P.Block])]
 type Key = String
 
 -- | answers to a quiz 
--- mapping from question identifier to (possibly many) keys
+-- mapping from question identifier to (possibly many) answers
 newtype Answers = Answers (HashMap String [Key])
   deriving (Show, Semigroup, Monoid, ToJSON, FromJSON)
   
@@ -96,10 +95,10 @@ makeQuiz (P.Pandoc _ blocks)
 -- | group together questions with the same group attribute
 groupQuestions :: [Question] -> [[Question]]
 groupQuestions
-  = groupBy (\q q' -> group q `eq` group q')
+  = groupBy (\q q' -> name q `eq` name q')
   where
-    group = lookup "group" . headerAttrs . questionHeader 
-    eq (Just g) (Just g') = g == g'
+    name = lookup "group" . headerAttrs . questionHeader 
+    eq (Just n) (Just n') = n == n'
     eq _        _         = False
 
 -- | split a list of blocks into questions

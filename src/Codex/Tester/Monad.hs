@@ -2,7 +2,11 @@
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE RecordWildCards #-}
-
+{-
+-- a monad for writing testers for submissions
+-- allows access to a an environment, ruinning IO and failure (i.e. passing)
+--
+-}
 module Codex.Tester.Monad (
   Tester,
   runTester,
@@ -30,6 +34,7 @@ import           Control.Monad.Trans.Maybe
 import           Control.Monad.Trans.Reader
 
 import           Codex.Types (Page, Code, UserLogin)
+import           Codex.Submission.Types
 import           Text.Pandoc (Meta)
 import           Codex.Page
 import           Codex.Tester.Limits
@@ -42,33 +47,38 @@ newtype Tester a
   = Tester { unTester :: ReaderT TestEnv (MaybeT IO) a }
   deriving (Functor, Monad, Applicative, Alternative, MonadIO)
 
--- | testing environment
+-- | the testing environment
 data TestEnv
-   = TestEnv { _testConfig :: Config   -- ^ static configuration file
-             , _testPage :: Page       -- ^ exercise page
-             , _testPath :: FilePath   -- ^ file path to exercise page
-             , _testSubmitted :: Code  -- ^ submited language & code
-             , _testUser :: UserLogin  -- ^ user 
+   = TestEnv { _testConfig :: Config       -- ^ configuration record
+             , _testFilePath :: FilePath   -- ^ file path to exercise page
+             , _testPage :: Page           -- ^ exercise page
+             , _testSubmission :: Submission 
+             -- , _testSubmitted :: Code  -- ^ submited language & code
+             -- , _testUser :: UserLogin  -- ^ user 
              } 
 
 
 -- | run function for testers
-runTester ::
-  Config -> Page -> FilePath -> Code -> UserLogin -> Tester a
-  -> IO (Maybe a)
-runTester cfg page path code user action
-  = runMaybeT $ runReaderT (unTester action) (TestEnv cfg page path code user)
+runTester :: Tester a
+          -> Config -> FilePath -> Page -> Submission
+          -> IO (Maybe a)
+runTester m cfg filepath page sub 
+  = let env = TestEnv cfg filepath page sub
+    in runMaybeT $ runReaderT (unTester m) env
 
 
--- | fetch parameters from enviroment
+-- | fetch parameters from environment
 askConfig :: Tester Config
 askConfig = Tester (asks _testConfig)
 
 askPath :: Tester FilePath
-askPath = Tester (asks _testPath)
+askPath = Tester (asks _testFilePath)
 
 askSubmitted :: Tester Code
-askSubmitted = Tester (asks _testSubmitted)
+askSubmitted = Tester (submitCode <$> asks _testSubmission)
+
+askUser :: Tester UserLogin
+askUser = Tester (submitUser <$> asks _testSubmission)
 
 askPage :: Tester Page
 askPage = Tester (asks _testPage)
@@ -76,8 +86,6 @@ askPage = Tester (asks _testPage)
 askMetadata :: Tester Meta
 askMetadata = pageMeta <$> askPage
 
-askUser :: Tester UserLogin
-askUser = Tester (asks _testUser)
 
 -- | get a medata value from a field
 metadata :: FromMetaValue a => String -> Tester (Maybe a)

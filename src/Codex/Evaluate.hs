@@ -12,11 +12,11 @@ module Codex.Evaluate(
 import qualified Data.Text as T
 import           Data.Maybe
 import           Data.Time.Clock
--- import           Data.Time.LocalTime
 import           Control.Monad.State
 import           Control.Concurrent(ThreadId) 
 import           Control.Exception  (SomeException, catch)
 import           System.FilePath
+import           Text.Printf
 
 import           Snap.Snaplet
 import qualified Snap.Snaplet.SqliteSimple as S
@@ -73,13 +73,15 @@ evaluateWith schedule Submission{..} = do
   conf <- getSnapletUserConfig
   env <- getTimeEnv
   tester <- gets _tester
-  filepath <- fmap (</> submitPath) getDocumentRoot
+  filepath <- getDocumentRoot >>= return . (</> submitPath)
   schedule $ do
     updateSubmission sqlite submitId evaluating
     page <- readMarkdownFile filepath
-    result <- testWrapper tester conf page filepath submitUser submitCode
-    let result' = checkTiming env (pageValid page) submitTime result
-    updateSubmission sqlite submitId result'
+    let constr = pageValid page
+    (testWrapper tester conf filepath page Submission{..} >>=
+     return . checkTiming env constr submitTime >>=
+     checkAttempts sqlite constr Submission{..}  >>=
+     updateSubmission sqlite submitId)
 
 
             
@@ -88,40 +90,41 @@ checkTiming env constr time result
   = check result $ case evalConstraint env constr of
     Left err -> Invalid err
     Right constr'
-      | early time constr' -> Invalid "Early submission."
-      | late  time constr' -> Invalid "Late submission."
+      | early time constr' -> Invalid "Early submission. "
+      | late  time constr' -> Invalid "Late submission. "
       | otherwise -> Valid
 
 check :: Result -> Check -> Result
 check r c = r { resultCheck = resultCheck r <> c }
       
 
-{-
-checkAttempts :: MonadIO m
-              => Connection
-              -> UserLogin
-              -> FilePath
+-- | check maximum number of attempts
+checkAttempts :: S.Sqlite
               -> Constraint t
+              -> Submission
               -> Result
-              -> m Result
-checkAttempt sqlite uid path constr result
-  = case maxAttempts constr of
-      Fin max -> do 
-  | attempts > maxAttempts constr = Invalid "Too many attempts"
-  | otherwise                     = Valid
--}
+              -> IO Result
+checkAttempts sqlite constr submiss result
+  = check result <$>
+    case maxAttempts constr of
+      Nothing ->
+        return Valid
+      Just max -> do
+        count <- countEarlierSubmissions sqlite submiss
+        return $ if count < max then Valid
+                 else let msg = printf "Over %d submissions. " max
+                      in Invalid $ T.pack msg
 
 
 -- | wrapper to run a tester and catch any exception
 testWrapper :: Tester Result
             -> Config
-            -> Page
             -> FilePath
-            -> UserLogin
-            -> Code
+            -> Page
+            -> Submission
             -> IO Result
-testWrapper tester conf page path user code
-  = (fromMaybe invalidTester <$> runTester conf page path code user tester)
+testWrapper tester conf filepath page submiss
+  = (fromMaybe invalidTester <$> runTester tester conf filepath page submiss)
     `catch`
     (\(e::SomeException) -> return (miscError $ T.pack $ show e))
   

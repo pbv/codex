@@ -64,7 +64,7 @@ distinct k xs = do
   return xs'
 
 
--- | choose one element
+-- | choose one element from a list
 choose :: [a] -> Rand a
 choose [] = error "Rand.choose: empty list"
 choose xs = do

@@ -66,7 +66,7 @@ function printsubmissions() {
       <th><input type="text" name="path" size="20" value="${path}"/></th>
       <th><input type="text" name="language" size="8" value="${language}"/></th>
       <th><input type="text" name="status" size="20" value="${status}"/></th>
-      <th><input type="text" name="chck" size="8" value="${chck}"/></th>
+      <th><input type="text" name="chck" size="20" value="${chck}"/></th>
       <th/>
     </tr>
     <if-submissions>

@@ -31,7 +31,8 @@ import Data.Configurator.Types (Config)
 import Codex.Tasks
 import Codex.Types
 import Codex.Handlers
-import Codex.Tester
+import Codex.Tester.Monad
+import Codex.Tester.Result
 
 
 -- | URLs for our application

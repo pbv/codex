@@ -19,10 +19,10 @@ data Result
            }
   deriving (Eq, Read, Show, Typeable)
 
--- | result check for valid submissions 
+-- | validity check for submissions 
 data Check = Valid
-          | Invalid Text  -- ^ error message
-          deriving (Eq, Read, Show, Typeable)
+           | Invalid Text  -- ^ rejection message
+           deriving (Eq, Read, Show, Typeable)
 
 instance Semigroup Check where
   Invalid msg1 <> Invalid msg2 = Invalid (msg1 <> msg2)

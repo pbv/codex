@@ -10,11 +10,11 @@ module Codex.Submission (
   Ordering(..),
   insertSubmission,
   updateSubmission,
-  -- markEvaluating,
   getSubmission,
   deleteSubmission,
   getPageSubmissions,
   countPageSubmissions,
+  countEarlierSubmissions,
   getPatterns,
   patternSplices,
   withSubmissions,
@@ -45,15 +45,14 @@ import           Database.SQLite.Simple (NamedParam(..))
 import           Heist.Splices     as I
 import qualified Heist.Interpreted as I
 
-import           Control.Concurrent.MVar
 import           Control.Monad (mfilter)
+import           Control.Monad.Reader
 
 import           System.FilePath (splitDirectories)
 
 import           Codex.Application
 
 import           Codex.Utils
--- import           Codex.Time
 import           Codex.Types
 import           Codex.Tester.Result
 import           Codex.Submission.Types
@@ -68,31 +67,27 @@ insertSubmission uid path time code result = do
   let (Code lang text) = code
   let (Result status check report) = result
   withSqlite $ \conn -> do
-    S.execute conn
-      "INSERT INTO submissions \
-       \ (user_id, path, received, language, code, status, chck, report) \
-       \ VALUES(?, ?, ?, ?, ?, ?, ?, ?)"
-       (uid, path, time, lang, text, status, check, report)
-    sid <- fmap SubmitId (S.lastInsertRowId conn)
-    return (Submission sid uid path time code result)
+      S.execute conn
+        "INSERT INTO submissions \
+         \ (user_id, path, received, language, code, status, chck, report) \
+         \ VALUES(?, ?, ?, ?, ?, ?, ?, ?)"
+          (uid, path, time, lang, text, status, check, report)
+      sid <- fmap SubmitId (S.lastInsertRowId conn)
+      return (Submission sid uid path time code result)
 
 -- | update submission result after evaluation
 updateSubmission :: Sqlite -> SubmitId -> Result -> IO ()
 updateSubmission sqlite sid Result{..}  =
+  flip runReaderT sqlite $
+  execute "UPDATE submissions SET status=?, chck=?, report=? \
+           \ where id = ?" (resultStatus, resultCheck, resultReport, sid)
+
+  {-
   withMVar (sqliteConn sqlite) $ \conn ->
      S.execute conn
        "UPDATE submissions SET status=?, chck=?, report=? \
        \ where id = ?" (resultStatus, resultCheck, resultReport, sid)
-
-{-
--- | mark submissions to the "evaluating" state
-markEvaluating :: Sqlite -> [SubmitId] -> IO ()
-markEvaluating sqlite sids = do
-  withMVar (sqliteConn sqlite) $ \conn ->
-    S.withTransaction conn $
-    S.executeMany conn
-     "UPDATE submissions SET status='Evaluating' where id=?" (map Only sids)
--}
+    -}
 
 
 -- | get a single submission
@@ -115,7 +110,18 @@ countPageSubmissions uid path = do
             \ WHERE user_id = ?  AND path = ?" (uid,path)
   case r of
     [Only c] -> return c
-    _  -> error "countPageSubmissions: invalid result from database"
+    _  -> error "countPageSubmissions: invalid result"
+
+
+countEarlierSubmissions :: Sqlite -> Submission -> IO Int
+countEarlierSubmissions sqlite Submission{..} =
+  flip runReaderT sqlite $ do
+    r <- query "SELECT COUNT(*) FROM submissions \
+                \ WHERE user_id = ? AND path = ? AND received < ?"
+                          (submitUser, submitPath, submitTime)
+    case r of
+      [Only c] -> return c
+      _ -> error "countEarlierSubmissions: invalid result"
 
 
 -- | delete a single submission
