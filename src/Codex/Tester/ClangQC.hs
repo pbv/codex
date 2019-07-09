@@ -61,7 +61,7 @@ clangRunner limits gcc_cmd ghc_cmd qcArgs c_code props =
       chmod executable dir
       chmod readable exe_file
       -- execute and under safeExec and classify result
-      classify <$> safeExec limits exe_file qcArgs ""
+      classify <$> safeExec limits exe_file Nothing qcArgs ""
 
 classify :: (ExitCode, Text, Text) -> Result
 classify (_, stdout, stderr)

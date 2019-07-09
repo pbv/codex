@@ -124,12 +124,13 @@ runCompiler cmd args = do
 -- | safeExec with text input/output
 safeExec :: Limits
           -> FilePath           -- ^ command
+          -> Maybe FilePath     -- ^ optional working directory
           -> [String]           -- ^ arguments
           -> Text               -- ^ stdin
           -> IO (ExitCode, Text, Text)
              -- ^ code, stdout, stderr
-safeExec limits exec args stdin = do
-  (code, out, err) <- safeExecBS limits exec args (T.encodeUtf8 stdin)
+safeExec limits exec dir args stdin = do
+  (code, out, err) <- safeExecBS limits exec dir args (T.encodeUtf8 stdin)
   return (code,
            T.decodeUtf8With T.lenientDecode out,
            T.decodeUtf8With T.lenientDecode err)
@@ -138,14 +139,15 @@ safeExec limits exec args stdin = do
 -- | safeExec using streaming I/O to handle output limits
 --
 safeExecBS :: Limits
-         -> FilePath           -- ^ command
-         -> [String]           -- ^ arguments
-         -> ByteString         -- ^ stdin
-         -> IO (ExitCode, ByteString,ByteString)
-             -- ^ code, stdout, stderr
-safeExecBS Limits{..} exec args inbs = do
+           -> FilePath           -- ^ command
+           -> Maybe FilePath     -- ^ working directory
+           -> [String]           -- ^ arguments
+           -> ByteString         -- ^ stdin
+           -> IO (ExitCode, ByteString,ByteString)
+           --    ^ code, stdout, stderr
+safeExecBS Limits{..} exec dir args inbs = do
   (inp, out, err, pid) <-
-    Streams.runInteractiveProcess "safeexec" (args' ++ args) Nothing Nothing
+    Streams.runInteractiveProcess "safeexec" (args' ++ args) dir Nothing
   (do forkIO (produceStream inp inbs)
       a1 <- async (consumeStream outputLimit out)
       a2 <- async (consumeStream outputLimit err)

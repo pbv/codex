@@ -47,7 +47,7 @@ haskellRunner limits ghc qcArgs code props =
      runCompiler cmd args'
      chmod executable dir
      chmod readable exe_file
-     classify <$> safeExec limits exe_file qcArgs ""
+     classify <$> safeExec limits exe_file Nothing qcArgs ""
 
 header :: Text
 header = "module Submission where\n\n"

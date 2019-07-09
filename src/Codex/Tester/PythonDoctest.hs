@@ -39,7 +39,7 @@ pythonDocTester = tester "doctest" $ do
           runCompiler cmd (args' ++ extraArgs ++ [pyfile])
         _ -> fail "linter command not found in config file"
     classify <$>
-      safeExec limits python [pytest, scripts, testsPath, pyfile] "") `catch` return
+      safeExec limits python Nothing [pytest, scripts, testsPath, pyfile] "") `catch` return
 
 
 classify :: (ExitCode, Text, Text) -> Result

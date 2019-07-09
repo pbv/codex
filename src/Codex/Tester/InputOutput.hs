@@ -28,6 +28,8 @@ import           Text.Printf
 
 import           Control.Exception (catch)
 import           System.FilePath.Glob (glob)
+import           System.Directory(copyFile)
+import qualified ShellWords
 
 --
 -- | build and run scripts for testing standalone programs;
@@ -38,7 +40,8 @@ data Build =
   forall exec.
   Build { checkLanguage :: Language -> Bool
         , makeExec :: FilePath -> Code -> IO exec
-        , runExec  :: exec -> [String] -> Text -> IO (ExitCode, Text, Text)
+        , runExec  :: exec -> Maybe FilePath -> [String] -> Text
+                   -> IO (ExitCode, Text, Text)
         }
 
 
@@ -57,8 +60,8 @@ clangBuild = do
         chmod readable exe_file
         chmod executable tmpdir
         return exe_file
-  let run exe_file args stdin = do
-        safeExec limits exe_file args stdin
+  let run exe_file dir args stdin = do
+        safeExec limits exe_file dir args stdin
   return (Build (=="c") make run)
 
 
@@ -74,8 +77,8 @@ pythonBuild = do
         chmod readable pyfile
         chmod executable tmpdir
         return pyfile
-  let run pyfile args stdin = do
-        safeExec limits python (pyfile:args) stdin
+  let run pyfile dir args stdin = do
+        safeExec limits python dir (pyfile:args) stdin
   return (Build (=="python") make run)
 
 -- | builder for Java programs
@@ -97,10 +100,10 @@ javaBuild = do
         chmod readable classfile
         chmod executable tmpdir
         return classfile
-  let run classfile args stdin = do
-        let dir = takeDirectory classfile
-        let args' = java_args ++ ["-cp", dir, classname] ++ args
-        safeExec limits java args' stdin
+  let run classfile cwd args stdin = do
+        let classpath = takeDirectory classfile
+        let args' = java_args ++ ["-cp", classpath, classname] ++ args
+        safeExec limits java cwd args' stdin
   return (Build (=="java") make run)
 
 
@@ -134,12 +137,14 @@ stdioTester Build{..} = tester "stdio" $ do
   guard (checkLanguage lang)
   ---
   dir <- takeDirectory <$> askPath
+  filepatts <- map (dir</>) . fromMaybe [] <$> metadata "extra-files"
   inpatts <- map (dir</>) . fromMaybe [] <$> metadata "inputs"
   outpatts <- map (dir</>) . fromMaybe [] <$> metadata "outputs"
   assert (pure $ not (null inpatts)) "no inputs defined"
   assert (pure $ not (null outpatts)) "no outputs defined"
-  inputs <-  liftIO $ (sort . concat) <$> mapM glob inpatts
-  outputs <- liftIO $ (sort . concat) <$> mapM glob outpatts
+  inputs <-  liftIO $ expandFilePatts inpatts
+  outputs <- liftIO $ expandFilePatts outpatts
+  files <- liftIO $ expandFilePatts filepatts
   let i = length inputs
   let o = length outputs
   assert (pure $ i == o)
@@ -149,9 +154,19 @@ stdioTester Build{..} = tester "stdio" $ do
     "invalid number of command-line arguments"
   liftIO $
     (withTempDir "codex" $ \tmpdir -> do
+        -- make temp directory readable, writable and executable for user 
+        chmod (readable . writeable . executable) tmpdir
+        -- copy extra files
+        mapM_ (\f -> copyFile f (tmpdir </> takeFileName f)) files
+        -- make executable
         exe_file <- makeExec tmpdir code
-        runTests (runExec exe_file) $ zip3 args inputs outputs)
+        -- run all tests
+        runTests (runExec exe_file (Just tmpdir)) $ zip3 args inputs outputs)
     `catch` return
+
+
+expandFilePatts :: [String] -> IO [FilePath]
+expandFilePatts patts = concat <$> mapM ((fmap sort).glob) patts
 
 runTests ::
   ([String] -> Text -> IO (ExitCode, Text, Text)) ->
@@ -162,14 +177,19 @@ runTests action inouts = test 1 inouts
     total = length inouts
     test _ []
       = return $ accepted $ "Passed " <> T.pack (show total) <> " tests"
-    test n ((args,in_file,out_file) : files) = do
-      in_txt <- T.readFile in_file
-      out_txt <- T.readFile out_file
-      result <- classify in_txt out_txt <$> action (words args) in_txt
-      if resultStatus result == Accepted then
-        test (n+1) files
-        else
-        return (numberResult n total (T.pack args) result)
+    test n ((argStr,in_file,out_file) : files) = do
+      case ShellWords.parse argStr of
+        Left msg ->  return (miscError $
+                              "parse error in command-line arguments: "
+                              <> T.pack msg)
+        Right args -> do
+          in_txt <- T.readFile in_file
+          out_txt <- T.readFile out_file
+          result <- classify in_txt out_txt <$> action args in_txt
+          if resultStatus result == Accepted then
+            test (n+1) files
+            else
+            return (numberResult n total (T.pack argStr) result)
           
 numberResult :: Int -> Int -> Text -> Result -> Result
 numberResult num total args Result{..}

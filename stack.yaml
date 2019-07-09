@@ -13,6 +13,7 @@ extra-deps:
 - snaplet-sqlite-simple-1.0.0.2
 - xmlhtml-0.2.5.2
 - pwstore-fast-2.4.4
+- shellwords-0.1.2.1
 
 resolver: lts-12.13
 
