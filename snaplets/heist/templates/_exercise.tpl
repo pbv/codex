@@ -1,24 +1,15 @@
-<bind tag="icon-accepted"><img src="/static/icons/16x16/accepted.png"/></bind>
-<bind tag="icon-rejected"><img src="/static/icons/16x16/rejected.png"/></bind>
 <bind tag="icon-warning"><img src="/static/icons/16x16/warning.png"/></bind>
-<bind tag="icon-overdue"><img src="/static/icons/16x16/overdue.png"/></bind>
 <bind tag="icon-editor"><img src="/static/icons/16x16/editor.png"/></bind>
 <bind tag="valid-icon"><if-valid><else/><icon-warning/></if-valid></bind>
 
 <apply template="_browse">
   <if-parent>
-    <li><a href="${page-parent-url}"
+    <li><a href="${page-parent-url}" class="icon"
 	   title="Voltar à página anterior">&curvearrowleft;</a></li>
   </if-parent>
   <li><button class="tablinks" onclick="openTab(event, 'description-tab')" id="description">Descrição</button></li>
   <li><button class="tablinks" onclick="openTab(event, 'editor-tab')">Editor</button></li>
   <li><button class="tablinks" onclick="openTab(event, 'submissions-tab')">Submissões</button><li>
-    <!--
-  <ifAdmin>
-    <li><a class="admin"
-	   title="Editar esta página" href="${file-url}">Editar</a></li>
-  </ifAdmin>
-  -->
 </apply>
 
 <apply template="_base">
@@ -53,23 +44,17 @@
   <div id="editor-tab" class="tabcontents">
     <page-title/>
     <apply template="_timing"/>
-    <!-- <p class="info">Linguagens: <page-languages/>.</p>   -->
     <form id="codeform" method="POST" action="${page-url}">
       <p>
 	<input type="file" id="fileselect"
 	       accept="${language-extensions}"/> &nbsp;
 	<input-language-selector id="langselect" name="language" form="codeform"/> &emsp;
-	<input type="submit" value="Submeter"/> 
+	<input type="submit" value="Submeter"/>
+	&emsp;&emsp;&emsp;&emsp;&emsp;
+	<apply template="_fontsize"/>
       </p>
       <p><textarea id="code" name="code" style="display:none;"/></p>
       <div id="editor"><default-text/></div>
-      <!--
-      <p>
-	<input type="submit" value="Submeter"/> &emsp;
-	<a href="${page-parent-url}"
-	   class="button">Voltar à página de índice</a>
-      </p>
-      -->
     </form>
   </div>
 </apply>

@@ -21,7 +21,7 @@ import           Control.Monad.IO.Class
 import           Data.List (intersperse)
 
 import           Codex.Types
-import           Codex.Time
+import           Codex.Policy
 
 
 emptyPage :: Page
@@ -85,15 +85,11 @@ pageDefaultText = lookupFromMeta "code" . pageMeta
 pageTester :: Page -> Maybe Text
 pageTester = lookupFromMeta "tester" . pageMeta
 
--- | constraint for valid submissions
-pageValid :: Page -> Constraint Time
+-- | get policy constraint for submissions
+pageValid :: Page -> Policy TimeExpr
 pageValid p
-  = fromMaybe OK (lookupFromMeta "valid" (pageMeta p) >>= parseConstraint)
+  = fromMaybe OK (lookupFromMeta "valid" (pageMeta p) >>= parsePolicy)
 
--- metaInterval :: Meta -> Interval Time
--- metaInterval meta
---   = fromMaybe (Interval Nothing Nothing) $
---     (lookupFromMeta "valid" meta >>= parseInterval)
 
 -- | give feedback for submissions?
 pageFeedback :: Page -> Bool

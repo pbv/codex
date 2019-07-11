@@ -1,16 +1,9 @@
 
 <apply template="_browse">
   <if-parent>
-    <li><a href="${page-parent-url}"
+    <li><a href="${page-parent-url}" class="icon"
 	 title="Voltar à página anterior">&curvearrowleft;</a></li>    
   </if-parent>
-  <!-- 
-  <li><button class="tablinks"
-	      value="Submeter"
-	      onclick="quiz_modified=false;document.forms['quiz'].submit()">Submeter</button></li>
-  <li><button class="tablinks" value="Limpar"
-	      onclick="resetAll()">Limpar</button></li>
-  -->
   <ifAdmin>
     <li><a title="Editar a página" href="${file-url}">Editar</a></li>
   </ifAdmin>

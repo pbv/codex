@@ -31,7 +31,6 @@ import qualified Heist.Interpreted as I
 import qualified Text.Pandoc.Definition as P
 import qualified Text.Pandoc.Builder as P
 
-import           Data.Char
 import           Data.Maybe (fromMaybe)
 import qualified Data.Text           as T
 import qualified Data.Text.Encoding as T

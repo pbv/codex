@@ -6,9 +6,23 @@
 /* start up the editor */
 function startAceEditor(id) {
     var editor = ace.edit(id);
-    editor.setFontSize(16);
+    var size = window.localStorage.getItem('fontsize');
+    if (size == null)
+	size = "16";
+    editor.setFontSize(parseInt(size));
     return editor;
 }
+
+function changeFontSize(id, delta) {
+    var size = editor.getFontSize() + delta;
+    if (size < 8)
+	size = 8;
+    else if (size > 40)
+	size = 40;
+    editor.setFontSize(size);
+    window.localStorage.setItem('fontsize',size);
+}
+
 
 /* set the editing mode by file path extension 
 */

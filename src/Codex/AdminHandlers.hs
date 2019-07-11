@@ -81,7 +81,7 @@ handleGet rqpath = file <|> directory <|> notFound
       guardDirectoryExists filepath
       entries <- liftIO (listDir filepath)
       tz <- liftIO getCurrentTimeZone
-      renderWithSplices "_file-list" $ do
+      renderWithSplices "_file_list" $ do
         fileUrlSplices rqpath
         listingSplices tz rqpath entries
         messageSplices []
@@ -98,7 +98,7 @@ handleGet rqpath = file <|> directory <|> notFound
                "file-contents" ## I.textSplice contents
                "if-image-file" ## I.ifElseISplice (B.isPrefixOf "image" mime)
                "if-text-file" ## I.ifElseISplice (B.isPrefixOf "text" mime)
-      renderWithSplices "_file-edit" (fileUrlSplices rqpath >>
+      renderWithSplices "_file_edit" (fileUrlSplices rqpath >>
                                       pageUrlSplices rqpath >>
                                       fileSplices >>
                                       textEditorSplice)
@@ -171,7 +171,7 @@ handleUpload rqpath = do
     (doUpload filepath)
   entries <- liftIO (listDir filepath)
   tz <- liftIO getCurrentTimeZone
-  renderWithSplices "_file-list" (listingSplices tz rqpath entries >>
+  renderWithSplices "_file_list" (listingSplices tz rqpath entries >>
                                   messageSplices (catMaybes msgs))
 
 
@@ -244,7 +244,7 @@ listSubmissions patts order reqpage = do
   let offset = (page - 1) * entries  
   subs <- filterSubmissions patts order entries offset
   tz <- liftIO getCurrentTimeZone
-  renderWithSplices "_submission-list" $ do
+  renderWithSplices "_submission_list" $ do
     patternSplices patts
     "page" ## I.textSplice (T.pack $ show page)
     "order" ## I.textSplice (T.pack $ show order)
@@ -327,7 +327,7 @@ handleSubmissionAdmin sid = do
       root <- getDocumentRoot
       page <- readMarkdownFile (root </>submitPath sub)
       tz <- liftIO getCurrentTimeZone
-      renderWithSplices "_submission-admin" $ do
+      renderWithSplices "_submission_admin" $ do
         pageSplices page
         submitSplices tz sub
 

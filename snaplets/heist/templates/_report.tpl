@@ -6,15 +6,10 @@
 <bind tag="valid-icon"><if-valid><else/><icon-warning/></if-valid></bind>
 
 <apply template="_browse">
-  <li><a href="${page-url}"
+  <li><a href="${page-url}" class="icon"
 	 title="Voltar à página anterior">&curvearrowleft;</a></li>
   <li><button class="tablinks" onclick="openTab(event, 'report-tab')" id="report">Relatório</button></li>
   <li><button class="tablinks" onclick="openTab(event, 'editor-tab')">Editor</button></li>
-  <!--
-  <ifAdmin>
-     <li><a title="Editar página" href="${file-url}">Editar</a></li>
-  </ifAdmin>
-  -->
 </apply>
 
 
@@ -47,10 +42,8 @@
 
 
 <div id="editor-tab" class="tabcontents">
-  <h1><page-title/></h1>
-  <h2>Submissão <submit-id/></h2>
-  
-  
+  <page-title/>
+  <apply template="_timing"/>
   <form id="codeform" method="POST" action="${page-url}">
     <p>
       <input type="file" id="fileselect"
@@ -58,7 +51,9 @@
       <input-language-selector
 	id="langselect"  name="language"
 	form="codeform"  selected="${submit-lang}"/> &emsp;
-      <input type="submit" value="Re-submeter"/> 
+      <input type="submit" value="Re-submeter"/>
+      &emsp;&emsp;&emsp;&emsp;&emsp;
+      <apply template="_fontsize"/>
     </p>
     <p><textarea id="code" name="code" style="display:none;"/></p>
     <div id="editor"><submit-code/></div>

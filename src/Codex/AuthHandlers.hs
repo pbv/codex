@@ -22,8 +22,6 @@ import           Control.Monad
 import           Control.Monad.Trans
 import           Control.Monad.Trans.Except
 
-import           Data.Monoid
-
 import           Snap.Core
 import           Snap.Snaplet
 import           Snap.Snaplet.Auth
@@ -69,7 +67,7 @@ handleLoginSubmit = do
   ldap <- getLdap
   r <- with auth $ loginByUsername (T.decodeUtf8 user) (ClearText passwd) False
   case r of
-    Right au -> do
+    Right _ -> do
       addr <- getsRequest rqClientAddr
       logMsg (user <> " logged in from " <> addr)
       redirectURL home

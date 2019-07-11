@@ -7,7 +7,7 @@
 
 <apply template="_browse">
   <if-parent>
-     <li><a href="${page-parent-url}"
+     <li><a href="${page-parent-url}" class="icon"
 	    title="Voltar à página anterior">&curvearrowleft;</a></li>
   </if-parent>
   <!--

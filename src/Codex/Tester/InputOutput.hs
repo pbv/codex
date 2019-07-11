@@ -137,7 +137,7 @@ stdioTester Build{..} = tester "stdio" $ do
   guard (checkLanguage lang)
   ---
   dir <- takeDirectory <$> askPath
-  filepatts <- map (dir</>) . fromMaybe [] <$> metadata "extra-files"
+  filepatts <- map (dir</>) . fromMaybe [] <$> metadata "files"
   inpatts <- map (dir</>) . fromMaybe [] <$> metadata "inputs"
   outpatts <- map (dir</>) . fromMaybe [] <$> metadata "outputs"
   assert (pure $ not (null inpatts)) "no inputs defined"

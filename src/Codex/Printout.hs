@@ -23,7 +23,7 @@ import           Snap.Snaplet
 import           Snap.Snaplet.Router
 
 import           Codex.Utils
-import           Codex.Time (showTime)
+import           Codex.Policy (showTime)
 import           Codex.Types
 import           Codex.Application
 import           Codex.Handlers

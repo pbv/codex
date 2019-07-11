@@ -30,7 +30,7 @@ import           Codex.Utils
 import           Codex.Page
 import           Codex.Submission
 import           Codex.Tester
-import           Codex.Time
+import           Codex.Policy
 
 
 -- | insert a new submission into the database
@@ -84,28 +84,29 @@ evaluateWith schedule Submission{..} = do
      updateSubmission sqlite submitId)
 
 
+-- | append a policy check to a result
+update :: Result -> Check -> Result
+update r c = r { resultCheck = resultCheck r <> c }
+
             
-checkTiming :: TimeEnv -> Constraint Time -> UTCTime -> Result -> Result
+checkTiming :: TimeEnv -> Policy TimeExpr -> UTCTime -> Result -> Result
 checkTiming env constr time result 
-  = check result $ case evalConstraint env constr of
+  = update result $ case evalPolicy env constr of
     Left err -> Invalid err
     Right constr'
       | early time constr' -> Invalid "Early submission. "
       | late  time constr' -> Invalid "Late submission. "
       | otherwise -> Valid
-
-check :: Result -> Check -> Result
-check r c = r { resultCheck = resultCheck r <> c }
       
 
 -- | check maximum number of attempts
 checkAttempts :: S.Sqlite
-              -> Constraint t
+              -> Policy time
               -> Submission
               -> Result
               -> IO Result
 checkAttempts sqlite constr submiss result
-  = check result <$>
+  = update result <$>
     case maxAttempts constr of
       Nothing ->
         return Valid

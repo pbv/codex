@@ -223,6 +223,7 @@ resultSplices Result{..} = do
   "result-check" ## I.textSplice (checkText resultCheck)
   "result-report" ## I.textSplice resultReport
   "if-valid" ## I.ifElseISplice (resultCheck == Valid)
+  "if-invalid" ## I.ifElseISplice (resultCheck /= Valid)
   "if-early" ## I.ifElseISplice (match "Early" resultCheck)
   "if-late" ## I.ifElseISplice (match "Late" resultCheck)
   "if-accepted" ## I.ifElseISplice (resultStatus == Accepted)
@@ -231,7 +232,6 @@ resultSplices Result{..} = do
 checkText :: Check -> Text
 checkText Valid = "Valid"
 checkText (Invalid msg) = msg
-  
   
 match :: Text -> Check -> Bool
 match txt (Invalid msg) = T.isInfixOf txt msg

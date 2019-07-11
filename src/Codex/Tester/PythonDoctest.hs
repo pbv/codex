@@ -8,7 +8,6 @@ module Codex.Tester.PythonDoctest (
 
 import           Codex.Tester
 import           Data.Text(Text)
-import qualified Data.Text as T
 import           Data.Maybe(fromMaybe)
 import           Control.Exception (catch)
 

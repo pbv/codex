@@ -9,5 +9,7 @@ mimeTypes :: MimeMap
 mimeTypes
   = HM.union defaultMimeTypes $
     HM.fromList [(".mdown", "text/markdown"),
-                 (".md",  "text/markdown")
+                 (".md",  "text/markdown"),
+                 (".tst", "text/plain"),
+                 (".cfg", "text/plain")
                 ]

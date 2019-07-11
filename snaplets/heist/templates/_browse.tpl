@@ -1,11 +1,10 @@
-
 <div id="actions">
   <ifLoggedOut>
     <em>Codex <version/>. <timeNow/></em>
   </ifLoggedOut>
   <ifLoggedIn>
     <ul class="menubar">
-       <li><a href="${home}"
+       <li><a href="${home}" 
               title="Voltar ao ínício">Início</a></li>
        <apply-content/>
        <ifAdmin>

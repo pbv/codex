@@ -41,7 +41,7 @@ import qualified Data.Configurator.Types as Configurator
 
 import           Codex.Types
 import           Codex.Page
-import           Codex.Time
+import           Codex.Policy
 import           Codex.Application
 
 import           Data.Time.Clock
@@ -106,13 +106,6 @@ authFullname au
     Just (String name) -> Just name
     _                  -> Nothing
 
-{-
--- | Get user id and roles
-getUserRoles :: Codex (Maybe [Role])
-getUserRoles = do
-  mAu <- with auth currentUser
-  return (fmap userRoles mAu)
--}
 
 isAdmin :: AuthUser -> Bool
 isAdmin au = Role "admin" `elem` userRoles au
@@ -123,13 +116,6 @@ requireAdmin = do
   usr <- require (with auth currentUser) <|> unauthorized
   unless (isAdmin usr) unauthorized
 
-{-  
-  -- optlist <- getUserRoles
-  -- case optlist of
-  --   Nothing -> unauthorized
-  --   Just roles -> if Role "admin" `elem` roles then action
-  --                   else unauthorized
--}
 
 -- | get all events from the configuration 
 ----------------------------------------------------------------
@@ -137,7 +123,7 @@ getTimeEnv :: Codex TimeEnv
 getTimeEnv = do
   evcfg <- gets _eventcfg
   hm <- liftIO $ Configurator.getMap evcfg
-  let hm' = HM.map (\v -> Configurator.convert v >>= parseTime) hm
+  let hm' = HM.map (\v -> Configurator.convert v >>= parseTimeExpr) hm
   tz <- liftIO $ getCurrentTimeZone
   return $ makeTimeEnv tz (\k -> join (HM.lookup k hm'))
 
@@ -212,7 +198,8 @@ finishError code msg = do
 -- | format an UTC time as a local time string
 localTimeSplice :: Monad m => TimeZone -> UTCTime -> I.Splice m
 localTimeSplice tz t =
-  I.textSplice $ T.pack $ formatTime defaultTimeLocale "%c" $ utcToLocalTime tz t
+  I.textSplice $ T.pack $
+  formatTime defaultTimeLocale "%c" $ utcToLocalTime tz t
 
 
 -----------------------------------------------------------------------------
@@ -373,7 +360,7 @@ withTimeSplices page action = do
   now <- liftIO getCurrentTime
   env <- getTimeEnv
   flip withSplices action $ 
-    case evalConstraint env (pageValid page) of
+    case evalPolicy env (pageValid page) of
       Left err -> do
         "valid-from" ## I.textSplice err
         "valid-until" ## I.textSplice err
@@ -383,7 +370,8 @@ withTimeSplices page action = do
         "if-late" ##  I.ifElseISplice (late now constr)
         "if-valid" ## I.ifElseISplice (not (early now constr) &&
                                        not (late now constr))
-        "if-limited" ## I.ifElseISplice (isJust (higher constr))
+        "if-limited" ## I.ifElseISplice (isJust $ higher constr)
+        "if-max-attempts" ## I.ifElseISplice (isJust $ maxAttempts constr)
         "valid-from" ##
           I.textSplice $ maybe "N/A" (showTime tz) (lower constr)
         "valid-until" ##

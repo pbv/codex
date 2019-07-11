@@ -4,19 +4,23 @@
 {-# LANGUAGE DeriveFunctor #-}
 {-# LANGUAGE DeriveTraversable #-}
 
-module Codex.Time (
-    Time,    -- ^ export abstract types
+{-
+-- Policies for classifying submissions as valid or invalid
+-}
+
+module Codex.Policy (
+    TimeExpr,
     TimeEnv,
     makeTimeEnv,
-    Constraint(..),
+    Policy(..),
     early, late, lower, higher, maxAttempts,
     fromLocalTime,
     fromUTCTime,
     timeLeft, 
-    parseTime,
-    parseConstraint,
-    evalTime,
-    evalConstraint,
+    parseTimeExpr,
+    parsePolicy,
+    evalTimeExpr,
+    evalPolicy,
     showTime,
     formatNominalDiffTime
     ) where 
@@ -34,11 +38,11 @@ import           Text.ParserCombinators.ReadP
 type Name = Text             -- event names
 
 -- | time expressions
-data Time 
+data TimeExpr 
   = Event Name               -- ^ named event 
   | Local LocalTime          -- ^ local time constant
   | UTC UTCTime              -- ^ unversal time constant
-  | Add Diff Time            -- ^ add a time difference
+  | Add Diff TimeExpr        -- ^ add a time difference
   deriving (Eq, Read, Show)
 
 data Diff = Diff !Int !Unit
@@ -53,32 +57,32 @@ data Unit
   deriving (Eq, Read, Show)
 
 
-fromLocalTime :: LocalTime -> Time
+fromLocalTime :: LocalTime -> TimeExpr
 fromLocalTime = Local
 
-fromUTCTime :: UTCTime -> Time
+fromUTCTime :: UTCTime -> TimeExpr
 fromUTCTime = UTC
 
--- | validity check constraints;
--- parametrized by the type for time
-data Constraint t
+-- | policyt constraints for submissions;
+-- parametrized by the type for time values
+data Policy time
   = OK           -- ^ no constraint
-  | Before t     -- ^ before some time 
-  | After t      -- ^ after some time
-  | MaxAttempts Int  -- ^ maximum number of submissions
-  | And (Constraint t) (Constraint t)  -- ^ conjunction
+  | Before time  -- ^ before some time 
+  | After time   -- ^ after some time
+  | MaxAttempts Int  -- ^ less than a maximum number of submissions
+  | And (Policy time) (Policy time)  -- ^ conjunction
   deriving (Eq, Read, Show, Functor, Foldable, Traversable)
 
 
-early :: Ord t => t -> Constraint t -> Bool
+early :: Ord time => time -> Policy time -> Bool
 early t c = maybe False (\l -> t<l) (lower c)
            
-late :: Ord t => t -> Constraint t -> Bool
+late :: Ord time => time -> Policy time -> Bool
 late t c = maybe False (\h -> t>h) (higher c)
 
 
 -- | lower and higher time required by a constraint
-lower :: Ord t => Constraint t -> Maybe t
+lower :: Ord time => Policy time -> Maybe time
 lower (After t) = Just t 
 lower (And c1 c2)
   = case catMaybes [lower c1, lower c2] of
@@ -86,7 +90,7 @@ lower (And c1 c2)
       ts -> Just (maximum ts)
 lower _ = Nothing
 
-higher :: Ord t => Constraint t -> Maybe t
+higher :: Ord time => Policy time -> Maybe time
 higher (Before t)  = Just t 
 higher (And c1 c2)
   = case catMaybes [higher c1, higher c2] of
@@ -95,11 +99,11 @@ higher (And c1 c2)
 higher _ = Nothing
 
 
-timeLeft :: UTCTime -> Constraint UTCTime -> Maybe NominalDiffTime
+timeLeft :: UTCTime -> Policy UTCTime -> Maybe NominalDiffTime
 timeLeft t c = fmap (\t'-> diffUTCTime t' t) (higher c)
 
 
-maxAttempts :: Constraint t -> Maybe Int
+maxAttempts :: Policy time -> Maybe Int
 maxAttempts (MaxAttempts n) = Just n
 maxAttempts (And c1 c2) 
   = case catMaybes [maxAttempts c1, maxAttempts c2] of
@@ -109,17 +113,16 @@ maxAttempts _ = Nothing
 
 
 --
--- | parse a time constraint
+-- | parse a policy constraint
 --
-parseConstraint :: String -> Maybe (Constraint Time)
-parseConstraint str
+parsePolicy :: String -> Maybe (Policy TimeExpr)
+parsePolicy str
   = case readP_to_S (skipSpaces >> parseConstraintP) str of
        ((v, ""):_) -> Just v
        _           -> Nothing
 
-
--- | worker 
-parseConstraintP :: ReadP (Constraint Time)
+-- worker function
+parseConstraintP :: ReadP (Policy TimeExpr)
 parseConstraintP = (parseBaseP >>= cont) <++ return OK
   where cont b = do symbol "and"; b'<-parseBaseP; cont (And b b')
                  <++ return b
@@ -132,15 +135,15 @@ parseBaseP =
   do symbol "attempts"; MaxAttempts <$> integer
 
 
--- | parse time expressions
-parseTime :: String -> Maybe Time
-parseTime str
+-- | parse time expressions; wrapper
+parseTimeExpr :: String -> Maybe TimeExpr
+parseTimeExpr str
   = case readP_to_S (skipSpaces >> parseTimeP) str of
       ((t, ""):_) -> Just t
       _           -> Nothing
 
--- | worker function
-parseTimeP :: ReadP Time
+-- worker function
+parseTimeP :: ReadP TimeExpr
 parseTimeP = base >>= cont
   where
     base = (Event <$> eventName) <++ (Local <$> localTime)
@@ -150,11 +153,7 @@ parseTimeP = base >>= cont
       <++
       return t
 
-  -- t  <- base
-  -- ds <- many' timeDiff
-  -- return (foldr Add t ds)
-  -- where
-    
+  
 
 -- | parse local time strings
 localTime ::  ReadP LocalTime
@@ -200,13 +199,6 @@ unit = do
   do (symbol "second" <++ symbol "s"); return Second
 
 
--- | helper functions
-
--- | non-backtracking versions of the parsing combinators
--- many', many1' :: ReadP a -> ReadP [a]
--- many1' p = do x<-p; xs<-many' p; return (x:xs)
--- many' p = many1' p <++ return []
-
 
 -- | ignore trailing spaces
 --
@@ -227,21 +219,20 @@ symbol s = token (string s)
 data TimeEnv
   = TimeEnv
     { timeZone :: TimeZone
-    , timeEvents :: Name -> Maybe Time
+    , timeEvents :: Name -> Maybe TimeExpr
     }
 
 
-makeTimeEnv :: TimeZone -> (Name -> Maybe Time) -> TimeEnv
+makeTimeEnv :: TimeZone -> (Name -> Maybe TimeExpr) -> TimeEnv
 makeTimeEnv = TimeEnv
 
 
--- | evaluate a time expression;
--- top-level wrapper
-evalTime :: TimeEnv -> Time -> Either Text UTCTime
-evalTime env t = evalTime' env [] t
+-- | evaluate a time expression; wrapper
+evalTimeExpr :: TimeEnv -> TimeExpr -> Either Text UTCTime
+evalTimeExpr env t = evalTime' env [] t
 
--- | worker function
-evalTime' :: TimeEnv -> [Name] -> Time -> Either Text UTCTime
+-- worker function
+evalTime' :: TimeEnv -> [Name] -> TimeExpr -> Either Text UTCTime
 evalTime' env@TimeEnv{..} deps (Event name)
   | name `elem` deps =
       Left ("cyclic dependency: " <>
@@ -269,12 +260,12 @@ evalDiff (Diff value un) = fromIntegral value * toSeconds un
   
 
 --
--- | evaluate a submission constraint
+-- | evaluate a policy
 --
-evalConstraint :: TimeEnv
-               -> Constraint Time
-               -> Either Text (Constraint UTCTime)
-evalConstraint env = traverse (evalTime env)  
+evalPolicy :: TimeEnv
+           -> Policy TimeExpr
+           -> Either Text (Policy UTCTime)
+evalPolicy env = traverse (evalTimeExpr env)  
 
 
 -------------------------------------------------------------
