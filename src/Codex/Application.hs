@@ -24,8 +24,6 @@ import System.FastLogger (Logger)
 
 import Control.Monad.State (get)
 
-import Control.Concurrent.QSem (QSem)
-
 import Data.Configurator.Types (Config)
 
 import Codex.Tasks
@@ -62,8 +60,8 @@ data App = App
     , _db      :: Snaplet Sqlite
     , _tester  :: Tester Result    -- ^ exercise testers to use
     , _handlers :: Handlers Codex  -- ^ exercise handlers to use
-    , _queue   :: Queue            -- ^ queue for re-evaluation actions
-    , _semph   :: QSem             -- ^ semaphore for limiting currency 
+    , _queue   :: TaskQueue         -- ^ queue for re-evaluations
+    , _semph   :: TaskSemph        -- ^ semaphore for limiting user evaluations
     , _logger  :: Logger
     , _eventcfg :: Config          -- ^ events configuration
    }

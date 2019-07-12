@@ -15,6 +15,8 @@ module Codex.Tester.Utils
   , safeExec
   , unsafeExec
   , getQuickCheckArgs
+  , parseArgs
+  , globPatterns
   ) where
 
 
@@ -30,7 +32,7 @@ import           System.Exit
 import           System.Directory (doesFileExist, removeFile)
 import           System.Posix.Files
 import           System.Posix.Types (FileMode)
-
+import           System.FilePath.Glob(glob)
 
 import           Control.Concurrent (forkIO)
 import           Control.Concurrent.Async (async, wait)
@@ -48,7 +50,7 @@ import qualified Data.Text                      as T
 import qualified Data.Text.Encoding             as T
 import qualified Data.Text.Encoding.Error       as T
 
-  
+import           Data.List (sort)
 import           Data.Bits
 import           Data.Maybe(catMaybes)
 
@@ -56,6 +58,9 @@ import           Text.Pandoc(Meta)
 import           Codex.Page(lookupFromMeta)
 import           Codex.Tester.Result
 import           Codex.Tester.Limits
+
+import qualified ShellWords
+
 
 -- | match a piece of text
 match :: Text -> Text -> Bool
@@ -125,7 +130,7 @@ runCompiler cmd args = do
 safeExec :: Limits
           -> FilePath           -- ^ command
           -> Maybe FilePath     -- ^ optional working directory
-          -> [String]           -- ^ arguments
+          -> [String]           -- ^ comand line arguments
           -> Text               -- ^ stdin
           -> IO (ExitCode, Text, Text)
              -- ^ code, stdout, stderr
@@ -141,7 +146,7 @@ safeExec limits exec dir args stdin = do
 safeExecBS :: Limits
            -> FilePath           -- ^ command
            -> Maybe FilePath     -- ^ working directory
-           -> [String]           -- ^ arguments
+           -> [String]             -- ^ arguments
            -> ByteString         -- ^ stdin
            -> IO (ExitCode, ByteString,ByteString)
            --    ^ code, stdout, stderr
@@ -232,3 +237,21 @@ getQuickCheckArgs meta
       = fmap (\val -> "--" ++ key ++ "=" ++ val) (lookupFromMeta key meta)
 
 
+
+-- | parse a command line string
+parseArgs :: MonadIO m => String -> m [String]
+parseArgs txt = case ShellWords.parse txt of
+  Left msg ->
+    liftIO $ throwIO $ userError ("parse error in command-line arguments: " <> msg)
+  Right args ->
+    return args
+
+  
+globPatterns :: MonadIO m => [String] -> m [[FilePath]]
+globPatterns [] = return []
+globPatterns (patt:patts) = do
+  files <-sort <$> liftIO (glob patt)
+  when (null files) $
+    liftIO $ throwIO $ userError ("no files match " ++ show patt)
+  rest <- globPatterns patts
+  return (files:rest)

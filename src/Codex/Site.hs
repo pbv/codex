@@ -14,7 +14,6 @@ module Codex.Site
 ------------------------------------------------------------------------------
 
 import           Control.Applicative
-import           Control.Concurrent (newQSem)
 import           Control.Concurrent.MVar
 import           Control.Lens
 import           Control.Monad.State
@@ -251,8 +250,8 @@ codexInit tester =
     addRoutes routes
     -- | semaphore for limimit concurrent evaluations
     maxtasks <- liftIO $ Conf.require conf "system.max_concurrent"
-    semph <- liftIO $ newQSem maxtasks
-    queue <- newQueue
+    semph <- newTaskSemph maxtasks
+    queue <- newTaskQueue
     return App { _heist = h
                , _router = r
                , _sess = s

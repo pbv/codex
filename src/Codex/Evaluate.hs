@@ -13,7 +13,7 @@ import qualified Data.Text as T
 import           Data.Maybe
 import           Data.Time.Clock
 import           Control.Monad.State
-import           Control.Concurrent(ThreadId) 
+import           Control.Concurrent (ThreadId) 
 import           Control.Exception  (SomeException, catch)
 import           System.FilePath
 import           Text.Printf
@@ -22,6 +22,7 @@ import           Snap.Snaplet
 import qualified Snap.Snaplet.SqliteSimple as S
 
 import           Data.Configurator.Types(Config)
+import qualified Data.Configurator as Conf
 
 import           Codex.Types
 import           Codex.Application
@@ -48,21 +49,23 @@ newSubmission uid rqpath code = do
 evaluate :: Submission -> Codex ThreadId
 evaluate sub = do
   semph <- gets _semph
-  evaluateWith (forkQSem semph) sub
+  evaluateWith (forkTask semph) sub
 
--- | evaluate a list of submissions;
--- fork IO threads under a quantity semaphore for limiting concurrency;
--- record thread ids in a queue to allow canceling
+-- | re-evaluate a list of submissions;
+-- fork tasks under a (new) quantity semaphore for throttling concurrency;
+-- manage tasks a queue to allow canceling
 evaluateMany :: [Submission] -> Codex ()
 evaluateMany subs = do
-  semph <- gets _semph
+  conf <- getSnapletUserConfig
+  maxtasks <- liftIO $ Conf.require conf "system.max_concurrent"
+  semph <- newTaskSemph maxtasks
   queue <- gets _queue
-  sequence_ [evaluateWith (addQueue queue . forkQSem semph) sub
+  sequence_ [evaluateWith (addTask queue . forkTask semph) sub
             | sub <- subs]
 
 -- | cancel all pending evaluations
 cancelPending :: Codex ()
-cancelPending = cancelQueue =<< gets _queue 
+cancelPending = cancelTasks =<< gets _queue 
 
 
 -- | evaluate a single submission with a given scheduling strategy

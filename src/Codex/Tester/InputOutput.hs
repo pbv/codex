@@ -23,13 +23,11 @@ import           Data.Text (Text)
 import qualified Data.Text as T
 import qualified Data.Text.IO as T
 import           Data.Maybe (fromMaybe)
-import           Data.List(sort, zip3)
+import           Data.List(zip3)
 import           Text.Printf
 
 import           Control.Exception (catch)
-import           System.FilePath.Glob (glob)
 import           System.Directory(copyFile)
-import qualified ShellWords
 
 --
 -- | build and run scripts for testing standalone programs;
@@ -40,8 +38,11 @@ data Build =
   forall exec.
   Build { checkLanguage :: Language -> Bool
         , makeExec :: FilePath -> Code -> IO exec
-        , runExec  :: exec -> Maybe FilePath -> [String] -> Text
-                   -> IO (ExitCode, Text, Text)
+        , runExec  :: exec
+                   -> Maybe FilePath   -- working dir
+                   -> [String]         -- cmdline args 
+                   -> Text             -- stdin
+                   -> IO (ExitCode, Text, Text)  -- status, stdout, stderr
         }
 
 
@@ -90,8 +91,8 @@ javaBuild = do
   limits <- askLimits "language.java.limits"
   -- name for public class with the main entry point
   classname <- fromMaybe "Main" <$> metadata "class" 
-  let javac:javac_args = words javac_cmd
-  let java:java_args = words java_cmd
+  javac:javac_args <- parseArgs javac_cmd
+  java:java_args <- parseArgs java_cmd
   let make tmpdir (Code _ code) = do
         let java_file = tmpdir </> classname <.> "java"
         let classfile = tmpdir </> classname <.> "class"
@@ -114,7 +115,7 @@ haskellBuild = do
   limits <- askLimits "language.haskell.limits"
   -- name for the main module
   modname <- fromMaybe "Main" <$> metadata "module" 
-  let ghc:ghc_args = words ghc_cmd
+  ghc:ghc_args <- parseArgs ghc_cmd
   let make tmpdir (Code _ code) = do
         let hs_file = tmpdir </> modname <.> "hs"
         let exe_file = tmpdir </> modname
@@ -137,21 +138,24 @@ stdioTester Build{..} = tester "stdio" $ do
   guard (checkLanguage lang)
   ---
   dir <- takeDirectory <$> askPath
-  filepatts <- map (dir</>) . fromMaybe [] <$> metadata "files"
   inpatts <- map (dir</>) . fromMaybe [] <$> metadata "inputs"
   outpatts <- map (dir</>) . fromMaybe [] <$> metadata "outputs"
-  assert (pure $ not (null inpatts)) "no inputs defined"
-  assert (pure $ not (null outpatts)) "no outputs defined"
-  inputs <-  liftIO $ expandFilePatts inpatts
-  outputs <- liftIO $ expandFilePatts outpatts
-  files <- liftIO $ expandFilePatts filepatts
-  let i = length inputs
-  let o = length outputs
-  assert (pure $ i == o)
+  inputs <-  concat <$> globPatterns inpatts
+  outputs <- concat <$> globPatterns outpatts
+  let num_inputs = length inputs
+  let num_outs   = length outputs
+  assert (pure $ num_inputs == num_outs)
     "different number of inputs and outputs"
-  args <- fromMaybe (replicate i "") <$> metadata "arguments"
-  assert (pure $ length args == i)
-    "invalid number of command-line arguments"
+  assert (pure $ num_inputs /= 0)
+    "no test cases defined"
+    
+  argpatts <- map (dir</>) . fromMaybe [] <$> metadata "arguments"
+  argfiles <- concat <$> globPatterns argpatts
+  let argfiles' = map Just argfiles ++ repeat Nothing
+
+  filepatts <- map (dir</>) . fromMaybe [] <$> metadata "files"
+  files <- concat <$> globPatterns filepatts
+
   liftIO $
     (withTempDir "codex" $ \tmpdir -> do
         -- make temp directory readable, writable and executable for user 
@@ -161,41 +165,38 @@ stdioTester Build{..} = tester "stdio" $ do
         -- make executable
         exe_file <- makeExec tmpdir code
         -- run all tests
-        runTests (runExec exe_file (Just tmpdir)) $ zip3 args inputs outputs)
+        runTests (runExec exe_file (Just tmpdir)) $ zip3 argfiles' inputs outputs)
     `catch` return
 
 
-expandFilePatts :: [String] -> IO [FilePath]
-expandFilePatts patts = concat <$> mapM ((fmap sort).glob) patts
-
 runTests ::
   ([String] -> Text -> IO (ExitCode, Text, Text)) ->
-  [(String, FilePath, FilePath)] ->
+  [(Maybe FilePath, FilePath, FilePath)] ->
+  -- ^ optional file with cmdline args, input, output
   IO Result
-runTests action inouts = test 1 inouts
+runTests action tests
+  = loop 1 tests
   where
-    total = length inouts
-    test _ []
+    total = length tests
+    loop _ []
       = return $ accepted $ "Passed " <> T.pack (show total) <> " tests"
-    test n ((argStr,in_file,out_file) : files) = do
-      case ShellWords.parse argStr of
-        Left msg ->  return (miscError $
-                              "parse error in command-line arguments: "
-                              <> T.pack msg)
-        Right args -> do
-          in_txt <- T.readFile in_file
-          out_txt <- T.readFile out_file
-          result <- classify in_txt out_txt <$> action args in_txt
-          if resultStatus result == Accepted then
-            test (n+1) files
-            else
-            return (numberResult n total (T.pack argStr) result)
+    loop n ((opt_arg_file, in_file, out_file) : tests) = do
+      in_txt <- T.readFile in_file
+      out_txt <- T.readFile out_file
+      arg_str <- maybe (return "") readFile opt_arg_file
+      args <- parseArgs arg_str
+      result <- classify in_txt out_txt <$> action args in_txt
+      if resultStatus result == Accepted then
+        loop (n+1) tests
+        else
+        return (numberResult n total arg_str result)
           
-numberResult :: Int -> Int -> Text -> Result -> Result
+numberResult :: Int -> Int -> String -> Result -> Result
 numberResult num total args Result{..}
   = Result resultStatus Valid (test <> resultReport)
-  where test = T.pack (printf "*** Test %d / %d ***\n\n" num total) <>
-               "Command-line arguments:\n" <> sanitize args <> "\n"
+  where test
+          = T.pack (printf "*** Test %d / %d ***\n\n" num total) <>
+          "Command-line arguments:\n" <> T.pack args <> "\n"
           
 
 

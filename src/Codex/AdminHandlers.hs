@@ -262,13 +262,12 @@ listSubmissions patts order reqpage = do
                                  ("order", Just (T.pack $ show order)) :
                                 patts)
 
--- | Re-evaluate selected submissions 
+-- | Start re-evaluation of selected submissions 
 reevalSubmissions :: Patterns -> Codex.Submission.Ordering -> Codex ()
 reevalSubmissions patts order  = do
+  cancelPending
   count <- countSubmissions patts
   subs  <- filterSubmissions patts order count 0
-  -- sqlite <- S.getSqliteState
-  -- liftIO $ markEvaluating sqlite (map submitId subs)
   evaluateMany subs
 
 
