@@ -49,8 +49,8 @@ clangRunner limits gcc_cmd ghc_cmd qcArgs c_code props =
       let exe_file = dir </> "Main"
       T.writeFile c_file c_code
       T.writeFile hs_file props
-      let gcc:cc_args = words gcc_cmd
-      let ghc:hc_args = words ghc_cmd
+      gcc:cc_args <- parseArgs gcc_cmd
+      ghc:hc_args <- parseArgs ghc_cmd
       let cc_args'= cc_args ++ ["-c", c_file, "-o", obj_file]
       let hc_args'= hc_args ++ ["-i"++dir, obj_file, hs_file, "-o", exe_file]
       -- compile C code to object file

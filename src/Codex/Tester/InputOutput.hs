@@ -52,7 +52,7 @@ clangBuild :: Tester Build
 clangBuild = do
   cc_cmd <- configured "language.c.compiler"
   limits <- askLimits "language.c.limits"
-  let cc:cc_args = words cc_cmd
+  cc:cc_args <- parseArgs cc_cmd
   let make tmpdir (Code _ code) = do 
         let c_file = tmpdir </> "submit.c"
         let exe_file = tmpdir </> "submit"

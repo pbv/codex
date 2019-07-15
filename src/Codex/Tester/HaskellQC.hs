@@ -40,7 +40,7 @@ haskellRunner limits ghc qcArgs code props =
      let hs_file   = dir </> "Submission.hs"
      let main_file = dir </> "Main.hs"
      let exe_file = dir </> "Main"
-     let cmd:args = words ghc
+     cmd:args <- parseArgs ghc
      let args' = args ++ ["-i"++dir, main_file, "-o", exe_file]
      T.writeFile hs_file (header <> code)
      T.writeFile main_file props

@@ -35,17 +35,6 @@ pageMeta (Pandoc meta _) = meta
 pageDescription :: Page -> [Block]
 pageDescription (Pandoc _ blocks) = blocks
 
-{-
-pageTitle :: Page -> Maybe [Inline]
-pageTitle p
-  = case docTitle (pageMeta p) of
-      [] -> firstHeader (pageDescription p)
-      inlines -> Just inlines
-  where
-    firstHeader :: [Block] -> Maybe [Inline]
-    firstHeader blocks = listToMaybe [h | Header _ _ h <- blocks]
--}
-
 pageTitle :: Page -> Maybe [Inline]
 pageTitle p
   = case pageTitleBlocks p of
