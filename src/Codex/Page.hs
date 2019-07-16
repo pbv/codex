@@ -190,12 +190,21 @@ blocksToHtml blocks = pageToHtml (Pandoc nullMeta blocks)
 
 -- | read a file and parse markdown to a Pandoc document
 readMarkdownFile :: MonadIO m => FilePath -> m Pandoc
-readMarkdownFile filepath = liftIO $ do
-  txt <- T.readFile filepath
-  removeHTMLComments <$> runIOorExplode (readMarkdown opts txt)
-  where
-    opts = def { readerExtensions = pandocExtensions
-               }
+readMarkdownFile filepath = do
+  txt <- liftIO $ T.readFile filepath
+  return $ case parseDocument txt of
+             Left err -> docError err
+             Right (doc,msgs) -> docWarnings msgs  <> removeHTMLComments doc 
+
+parseDocument :: Text -> Either PandocError (Pandoc, [LogMessage])
+parseDocument txt = runPure $ do
+  doc <- readMarkdown pandocReaderOptions txt
+  msgs <- getLog
+  return (doc, msgs)
+  
+
+pandocReaderOptions :: ReaderOptions
+pandocReaderOptions = def {  readerExtensions = pandocExtensions }
 
 --
 -- | remove raw HTML comments from pages
@@ -212,3 +221,18 @@ removeHTMLComments = walk removeInline . walk removeBlock
         -- comment str = take 4 str == "<!--" 
         comment ('<':'!':'-':'-':_) = True
         comment _                   = False
+
+-- | report error and warning messages
+docError :: PandocError -> Pandoc
+docError err
+  = Pandoc mempty
+    [Div ("", ["errors"], []) [Para [Str "ERROR:", Space, Str (show err)]]]
+    
+docWarnings :: [LogMessage] -> Pandoc
+docWarnings []
+  = mempty
+docWarnings msgs
+  = Pandoc mempty
+    [Div ("", ["warnings"], [])
+      [Para [Str "WARNING:", Space, Str (show msg)] | msg <- msgs]]
+

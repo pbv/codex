@@ -69,7 +69,7 @@ data Policy time
   = OK           -- ^ no constraint
   | Before time  -- ^ before some time 
   | After time   -- ^ after some time
-  | MaxAttempts Int  -- ^ less than a maximum number of submissions
+  | LessThanAttempts Int -- ^ less than a maximum number of submissions
   | And (Policy time) (Policy time)  -- ^ conjunction
   deriving (Eq, Read, Show, Functor, Foldable, Traversable)
 
@@ -104,7 +104,7 @@ timeLeft t c = fmap (\t'-> diffUTCTime t' t) (higher c)
 
 
 maxAttempts :: Policy time -> Maybe Int
-maxAttempts (MaxAttempts n) = Just n
+maxAttempts (LessThanAttempts n) = Just n
 maxAttempts (And c1 c2) 
   = case catMaybes [maxAttempts c1, maxAttempts c2] of
       [] -> Nothing
@@ -132,7 +132,7 @@ parseBaseP =
   <++
   do symbol "after"; After <$> parseTimeP
   <++
-  do symbol "attempts"; MaxAttempts <$> integer
+  do symbol "attempts"; LessThanAttempts <$> integer
 
 
 -- | parse time expressions; wrapper

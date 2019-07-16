@@ -141,7 +141,7 @@ ol.submissions:after {
 .info {
    color: #0f0f0f;
    font-size: 90%;
-   font-style: oblique;
+   font-style: italic;
    /* vertical-align: text-top;*/
 }
 
@@ -153,12 +153,24 @@ ol.submissions:after {
 
 
 .warnings {
-  color: red;
+    margin-top: 4ex;
+    margin-bottom: 4ex;
+    padding-left: 1em;
+    padding-right: 1em;
+    color: red;
+    font-style: italic;
 }
 
+.errors  {
+    margin-top: 4ex;
+    margin-bottom: 4ex;
+    padding-left: 1em;
+    padding-right: 1em;
+    color: red;
+}
 
 .js-timer {
-  font-style: oblique;
+  font-style: italic;
 }
 
 

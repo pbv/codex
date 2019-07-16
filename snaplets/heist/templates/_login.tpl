@@ -25,7 +25,7 @@ resolução de exercícios de programação com correção automática.</p>
   </table>
 </form>
 
-<div class="warnings"><p><loginError/></p></div>
+<div class="errors"><p><loginError/></p></div>
 </apply>
 
 <apply template="_browse"/>
