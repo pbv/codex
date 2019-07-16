@@ -5,7 +5,7 @@
   <meta http-equiv="Content-Style-Type" content="text/css" />
   <meta name="generator" content="pandoc" />
   <meta name="author" content="Pedro Vasconcelos pbv@dcc.fc.up.pt, University of Porto, Portugal." />
-  <title>Codex User Guide</title>
+  <title>A Guide to Writting Codex Exercises</title>
   <style type="text/css">code{white-space: pre;}</style>
   <style type="text/css">
 div.sourceCode { overflow-x: auto; }
@@ -44,200 +44,94 @@ code > span.an { color: #60a0b0; font-weight: bold; font-style: italic; } /* Ann
 code > span.cv { color: #60a0b0; font-weight: bold; font-style: italic; } /* CommentVar */
 code > span.in { color: #60a0b0; font-weight: bold; font-style: italic; } /* Information */
   </style>
+  <script src="https://cdn.mathjax.org/mathjax/latest/MathJax.js?config=TeX-MML-AM_CHTML" type="text/javascript"></script>
+  <style>
+  .boxed {
+      margin: 2em;
+      padding: 1em; 
+      width: 50em;
+      border:
+      solid;border-width:1px;
+  }  
+  </style>
 </head>
 <body>
 <div id="header">
-<h1 class="title">Codex User Guide</h1>
+<h1 class="title">A Guide to Writting Codex Exercises</h1>
 <h2 class="author">Pedro Vasconcelos <a href="mailto:pbv@dcc.fc.up.pt">pbv@dcc.fc.up.pt</a>, University of Porto, Portugal.</h2>
-<h3 class="date">January 2017 (version 0.8)</h3>
+<h3 class="date">July 2019 (version 0.9.5)</h3>
 </div>
-<p><em>Codex</em> is a web system for setting up programming exercises with automatic assessment. Codex is intended for learning environments rather than programming contests (for the later, <a href="https://mooshak.dcc.fc.up.pt/">Mooshak</a> is a better tool). Its aims are:</p>
-<ul>
-<li><em>simple exercise authoring</em>; seting a new exercise requires writing just two text files (a text description and test specification);</li>
-<li><em>allow testing fragments</em> e.g. functions or classes rather than complete programs;</li>
-<li><em>provide good automatic feedback</em>; rather than just run a handful of tests and report an <em>accept/reject</em> result, Codex uses <a href="http://www.cse.chalmers.se/~rjmh/QuickCheck/manual.html">state-of-art</a> <a href="https://docs.python.org/3.7/library/doctest.html">automatic testing tools</a> to run tens or hundrends of tests; if an error is found, it reports a <em>short failure example</em>.</li>
-</ul>
-<p>Althought Codex is stil in an early development stage, it is already in use at the Faculty of Science of the University of Porto for teaching introductory courses on Python programming.</p>
-<p>This guide describes how to write exercises and test specifications for Codex.</p>
-<h1 id="pages"><span class="header-section-number">1</span> Pages</h1>
-<p>Codex exercise repositories are organized into <em>pages</em>. A page can contain formated text, links, tables, images, mathematics, etc. Codex pages are simple text files with the <code>.md</code> extension; <a href="https://en.wikipedia.org/wiki/Markdown">Markdown</a> is used for formating.</p>
-<h2 id="markdown-files"><span class="header-section-number">1.1</span> Markdown files</h2>
-<p>Let us start with an example page file:</p>
-<pre style="margin: 2em; padding: 1em; width: 50em; border: solid; border-width: 1px;"><code># This is a header
-
-## This is a sub-header
-
-This is the first paragraph. This sentence shows *emphasis*,
-**strong emphasis** and `monospace text`.
-
-This is another paragraph with an itemized list:
-
-1. first item;
-2. second item;
-3. last item.
-
-~~~python
-# a verbatim code block (with Python highlighting)
-def dist(x, y):
-   return sqrt(x*x + y*y)
-~~~
-
-This is a link to [Google&#39;s home page](http://www.google.com).
-
-You can also include LaTeX mathematics either 
-inline $h = \sqrt{x^2+y^2}$ or as displayed equations:
-$$ erf(x) = \frac{1}{\sqrt{x}}\int_{-x}^x e^{-t^2} dt\,. $$</code></pre>
-<p>The above text could be rendered into HTML as follows:</p>
-<div class="figure">
-<img src="example-render-1.png" alt="Example page rendering" style="border:solid; border-width:1px" />
-<p class="caption">Example page rendering</p>
-</div>
-<p>Codex uses the <a href="http://hackage.haskell.org/package/pandoc">Pandoc library</a> for reading and rendering Markdown and <a href="http://www.mathjax.org">MathJaX</a> for displaying mathematics. For details on the Markdown syntax accepted, check the <a href="http://pandoc.org/MANUAL.html#pandocs-markdown">Pandoc user manual</a>. Note that (unlike the usual Markdown behaviour) raw HTML markup commands will be escaped and rendered as ordinary text; this ensures that the generated HTML pages are always well-formed.</p>
-<h2 id="metadata-blocks"><span class="header-section-number">1.2</span> Metadata blocks</h2>
-<p>Markdown text can also include YAML metadata blocks delimited between 3 dashes (<code>---</code>) and 3 full stops (<code>...</code>); for example:</p>
+<h1 id="introduction"><span class="header-section-number">1</span> Introduction</h1>
+<h2 id="overview"><span class="header-section-number">1.1</span> Overview</h2>
+<p><em>Codex</em> is a web system for setting up programming exercises with automatic assessment. The main features are:</p>
+<dl>
+<dt><em>Simple exercise authoring</em></dt>
+<dd><p>The exercise statement is written human-readable plain-text file; that can easily be transfered, kept in a version repository, compared for changes, etc.;</p>
+</dd>
+<dt><em>Assessing program fragments</em></dt>
+<dd><p>Exercise can assess only individual functions, classes or methods rather than complete programs;</p>
+</dd>
+<dt><em>Provides automatic feedback</em></dt>
+<dd><p>Rather than report just an <em>accept/reject</em> result, Codex can use automatic testing techniques such as <a href="http://www.cse.chalmers.se/~rjmh/QuickCheck/manual.html">properties</a> or <a href="https://docs.python.org/3.7/library/doctest.html">documentation-tests</a> to report failure example to students.</p>
+</dd>
+<dt><em>Multiple types of exercises</em></dt>
+<dd><p>Codex supports testing code, mutiple-choice and fill-in questionaries.</p>
+</dd>
+</dl>
+<p>Codex is intended for learning environments rather than programming contests (for the later, check out <a href="https://mooshak.dcc.fc.up.pt/">Mooshak</a>). The system is currently being used at the Faculty of Science of the University of Porto for teaching introductory courses on Python and C programming.</p>
+<h2 id="pages-and-exercises"><span class="header-section-number">1.2</span> Pages and exercises</h2>
+<p>A Codex repository is organized as set of interlinked hypertext pages. <em>Pages</em> can contain text, links, tables, images and mathematical formulas written in <a href="https://en.wikipedia.org/wiki/Markdown">Markdown</a>.</p>
+<p>Markdown is a <a href="https://en.wikipedia.org/wiki/Markdown">lightweight text markup syntax</a> designed by John Gruber. Codex uses the <a href="http://hackage.haskell.org/package/pandoc">Pandoc library</a> for parsing Markdown which suports many extensions. In particular, it support LaTeX mathematics (rendered using <a href="http://www.mathjax.org">MathJaX</a>) For more details on the Pandoc-flavoured Markdown syntax accepted, check the <a href="http://pandoc.org/MANUAL.html#pandocs-markdown">Pandoc user manual</a>.</p>
+<p>Pages can be just plain documents or marked as <em>exercises</em>; the later allow student's submissions and trigger automatic assessment. Submissions are kept in a persistent database and students can review previous their submissions attempts (thought not anyone else's). The administrator can view and manage all submissions (e.g. re-evaluate or generate printouts).</p>
+<p>Comments can be written in HTML-style:</p>
+<pre><code>&lt;!-- This is the begining of comment;
+     it can go on for multiple lines
+--&gt;</code></pre>
+<p>Note that, unlike other Markdown readers, raw HTML markup is <strong>not</strong> allowed (it will be rendered as plain text).</p>
+<p>Codex uses Pandoc's YAML extension to specify metadata for pages, (e.g. set the type of execise, the programming languages allowed, the period for valid submissions, etc). Metadata blocks are delimited between &quot;<code>---</code>&quot; and &quot;<code>...</code>&quot;:</p>
 <pre><code>---
-author: Pedro Vasconcelos
-title: A sample exercise
-exercise: true
+tester: doctest
 language: python
+valid: &quot;after 25/05/2019 and before 15/06/2019&quot;
 ...</code></pre>
-<p>Metadata blocks can occur anywhere, but the convention is to put them at the beginning of the document. Several metatata blocks are allowed and equivalent to a single one with all collected fields.</p>
-<p>Some fields (like <code>author</code> and <code>title</code>) are generic, while others (like <code>exercise</code> and <code>language</code>) are specific to exercise testing in Codex. These are described in detail in a <a href="#metadata-fields">later section</a>.</p>
-<h2 id="exercise-pages"><span class="header-section-number">1.3</span> Exercise pages</h2>
-<p>A page marked with metadata <code>exercise: true</code> is an <em>exercise page</em>; this means that users will be able to:</p>
-<ul>
-<li><em>submit</em> solutions for automatic assessment;</li>
-<li><em>get feedback</em> on their submissions;</li>
-<li><em>view past submissions</em> and feedback;</li>
-<li><em>edit and re-submit</em> past submissions.</li>
-</ul>
-<p>Users must be logged-in to view pages and submit solutions; other than that, users can submit any number of attempts for any exercise. Previous submissions are kept in a persistent disk database; only the adminstrator can remove or re-evaluate submissions.</p>
-<p>Note that an exercise is identified by the exercise page's <em>request path</em> relative to the <code>/pub</code> handle; e.g. an exercise at URL <code>https://server.domain/pub/foo/bar.md</code> is identified as <code>foo/bar.md</code>. This means that the adminstrator is free to edit the exercise file and/or tests even after submissions have started (e.g. to correct errors); on the other hand, if the path is modified, any previous submissions are still recorder, but will no longer be associated with the modified exercise.</p>
-<h2 id="linking-exercise-pages"><span class="header-section-number">1.4</span> Linking exercise pages</h2>
-<p>The initial view for users is the <code>index.md</code> page at the root public directory; the adminstrator should edit this page to link other pages and exercises.</p>
-<p>For example, supose you have created 3 exercises <code>work1.md</code>, <code>work2.md</code> and <code>work3.md</code>; a minimal <code>index.md</code> page could be:</p>
-<pre style="margin:2em; padding:1em; width:50em; border: solid;border-width:1px;"><code># Welcome!
+<p>Such blocks can occur anywhere in a document; several metadata blocks are equivalent to a single block of all collected fields. (We suggest placing metadata only at the beginning or the the end of the document.)</p>
+<p>Exercises are marked by the <code>tester</code> field; the particular tester specifies the type of exercise and how assement is done (see the <a href="#testers">section on Testers</a>).</p>
+<!--
+Exercises are identified by the page's *request path* i.e. the
+relative path after `/page`; e.g. an exercise at the URL
+`/page/foo/bar.md` is identified as `foo/bar.md`.  This means that the
+exercise can be edited (e.g. to correct mistakes); however, if the
+file is renamed or moved any existing submissions will no longer be
+associated to the the modified exercise.
 
-Here is a list of available exercises:
+Users may submit multiple attempts for exercises. 
+Previous submissions are kept in a persistent SQLite
+database; only an administrator can remove or 
+re-evaluate submissions.
+-->
+<h2 id="document-structure"><span class="header-section-number">1.3</span> Document structure</h2>
+<p>All page files, images, etc. should be maintained inside the <code>public</code> directory and the starting page after login is the <code>index.md</code> page; this should link exercises or other sub-directories. For example, for 3 exercises <code>worksheet1.md</code>, <code>worksheet2.md</code> and <code>worksheet3.md</code>, a minimal <code>index.md</code> page could be:</p>
+<pre class="boxed"><code># Welcome!
 
-1. [](work1.md){.ex}
-2. [](work2.md){.ex}
-3. [](work3.md){.ex}</code></pre>
-<p>Exercise links should be marked with a special class <code>.ex</code>; this automatically fills the link anchor text with the exercise title. A short summary of previous submissions done by the logged-in user is also added.</p>
-<p>The adminstrator can edit the index page to choose the order of exercises, or group exercises using sections and sub-pages. It is also possible to add plain Markdown pages for documentation, or links to external resources.</p>
-<p>Note that exercise pages can be accessed and submitted even if they are not explicitly linked to the index page by simply typing the URL directly in the browser (after a login). You can use this feature to test new exercises before making them visible for users.</p>
-<h2 id="metadata-fields"><span class="header-section-number">1.5</span> Exercise metadata fields</h2>
-<dl>
-<dt><code>title</code></dt>
-<dd><p>Specify a title for exercise links; if this is field missing, the first header in the document is used instead.</p>
-</dd>
-<dt><code>exercise</code></dt>
-<dd><p>Mark a page as an exercise (true/false); this should be complemented by specifying the language and test cases.</p>
-</dd>
-<dt><code>language</code></dt>
-<dd><p>Specify the programming language for an exercise, e.g. <code>python</code>, <code>haskell</code>, <code>c</code></p>
-</dd>
-<dt><code>valid</code></dt>
-<dd><p>Specify valid submission time interval; the default is <code>always</code> which means submissions are always valid. Some alternatives:</p>
-<ul>
-<li><code>after 08:00 15/02/2017</code></li>
-<li><code>between 08:00 15/02/2017 and 12:00 15/02/2017</code></li>
-<li><code>until 16/02/2017</code></li>
-</ul>
-<p>Note that date (DD/MM/YYYY) and times (HH:MM) are relative to the server local timezone.</p>
-</dd>
-<dt><code>feedback</code></dt>
-<dd><p>Specify the level of feedback to report (0-100); 0 means no feedback, 50 shows classifications only, 100 shows classifications and failed test cases (default).</p>
-</dd>
-<dt><code>code</code></dt>
-<dd><p>Specify an initial &quot;skeleton&quot; for solutions; use an indented block for multiple lines, e.g.:</p>
-<pre><code>code: |
-  ~~~
-  # distance between two points in the plane
-  def distance(x1, y1, x2, y2):
-      # complete this definition
-  ~~~</code></pre>
-<p>Note the vertical bar (<code>|</code>) and indentation in the above example.</p>
-</dd>
-</dl>
-<p>The following fields are specific to programming languages.</p>
-<h3 id="python-specific-fields"><span class="header-section-number">1.5.1</span> Python-specific fields</h3>
-<dl>
-<dt><code>doctest</code></dt>
-<dd><p>Specifies the file path for a <em>doctest</em> script for testing Python submissions; if omitted, this defaults to the file name for exercise page with extension replaced by <code>.tst</code>, e.g. the default doctest for <code>foo/bar.md</code> is <code>foo/bar.tst</code>.</p>
-</dd>
-</dl>
-<h3 id="haskell--and-c-specific-fields"><span class="header-section-number">1.5.2</span> Haskell- and C-specific fields</h3>
-<dl>
-<dt><code>quickcheck</code></dt>
-<dd><p>Specifies the file name for a Haskell file containing QuickCheck script for Haskell or C submission testing.</p>
-</dd>
-<dt><code>maxSuccess</code></dt>
-<dd><p>Number of QuickCheck tests run.</p>
-</dd>
-<dt><code>maxSize</code></dt>
-<dd><p>Maximum size for QuickCheck generated test data.</p>
-</dd>
-<dt><code>maxDiscardRatio</code></dt>
-<dd><p>Maximum number of discarded tests per successful test before giving up.</p>
-</dd>
-<dt><code>randSeed</code></dt>
-<dd><p>Integer seed value for pseudo-random test data generation; use if you want to ensure reproducibility of QuickCheck tests.</p>
-</dd>
-</dl>
-<h1 id="assement-and-feedback"><span class="header-section-number">2</span> Assement and Feedback</h1>
-<p>Codex assesses submissions by testing them against test cases (either provided by the author or randomly-generated). The result is a <em>classification label</em>, a <em>timing label</em> and a (possibly empty) <em>detail text report</em>. Classification labels are similar to the ones used for <a href="https://icpc.baylor.edu/worldfinals/rules">ICPC programming contests</a> (e.g. <em>Accepted</em>, <em>WrongAnswer</em>, etc.).</p>
-<p>When submissions are rejected because of wrong answers, the text report includes a human-readable description of a failed test case; this is intended for the student to use as a starting point for understanding the problem and debugging.</p>
-<p>Note that Codex will <em>always</em> evaluate submissions (and report feedback if enabled) regardless of the time interval specified in the exercise; however:</p>
-<ul>
-<li>it will hide feedback for early submissions until the start of submission interval;</li>
-<li>late submissions are assessed as usual but additionally labelled <em>Overdue</em><a href="#fn1" class="footnoteRef" id="fnref1"><sup>1</sup></a>.</li>
-</ul>
-<h2 id="feedback"><span class="header-section-number">2.1</span> Feedback</h2>
-<h3 id="classification-labels"><span class="header-section-number">2.1.1</span> Classification labels</h3>
-<dl>
-<dt><em>Accepted</em></dt>
-<dd><p>The submission passed all tests.</p>
-</dd>
-<dt><em>WrongAnswer</em></dt>
-<dd><p>The submission was rejected because it failed at least one test case.</p>
-</dd>
-<dt><em>CompileError</em></dt>
-<dd><p>The submission was rejected because it caused a compile-time error.</p>
-</dd>
-<dt><em>RuntimeError</em></dt>
-<dd><p>The submission was rejected because it caused a runtime error (e.g. runtime exception, segmentation fault)</p>
-</dd>
-<dt><em>RuntimeLimitExceeded</em>, <em>MemoryLimitExceeded</em></dt>
-<dd><p>The submission was reject because it tried to use too much computing resources; this usually signals an erroneous program (e.g. non-terminating).</p>
-</dd>
-<dt><em>MiscError</em></dt>
-<dd><p>Some other error (e.g. incorrect metadata, test files, etc.)</p>
-</dd>
-<dt><em>Evaluating</em></dt>
-<dd><p>Temporary label assigned while evaluation is pending; end-users should never see this.</p>
-</dd>
-</dl>
-<h3 id="timing-labels"><span class="header-section-number">2.1.2</span> Timing labels</h3>
-<dl>
-<dt><em>Early</em></dt>
-<dd><p>Received before the start of submission interval.</p>
-</dd>
-<dt><em>Valid</em></dt>
-<dd><p>Received within the valid submission interval.</p>
-</dd>
-<dt><em>Overdue</em></dt>
-<dd><p>Received after the end of the submission interval.</p>
-</dd>
-</dl>
-<h2 id="specifying-test-cases"><span class="header-section-number">2.2</span> Specifying test cases</h2>
-<h3 id="python"><span class="header-section-number">2.2.1</span> Python</h3>
-<p>Test cases for Python submissions are specified using the <a href="https://docs.python.org/3.7/library/doctest.html"><em>doctest</em> library</a>.</p>
-<p>Consider an hypothetical simple exercise: compute rounded-down integral square roots. The exercise file <code>root.md</code> could be as follows:</p>
-<pre style="margin:2em; padding:1em; width:50em; border: solid;border-width:1px;"><code>---
-exercise: true
+This is minimal index page. Here is a list of available exercises:
+
+* [](worksheet1.md){.ex}
+* [](worksheet2.md){.ex}
+* [](worksheet3.md){.ex}</code></pre>
+<p>Links to exercise pages are marked with class attribute <code>.ex</code>; this fills-in automatically the exercise title (read from the markdown document) and a summary of previous submissions by the current user (read from the submission database).</p>
+<p>The adminstrator can edit the index page to the order of exercises, or group exercises using sections and sub-pages. It is also possible to add plain Markdown pages for documentation, or links to external resources.</p>
+<p>Note that:</p>
+<ol style="list-style-type: decimal">
+<li>Exercise pages can be accessed by their URL even if they are not explicitly linked to the index; this can be used test exercises before making them visible to students;</li>
+<li>If you intend to group exercises using sub-directories make sure <em>you include an <code>index.md</code> for each sub-directory</em>.</li>
+</ol>
+<h1 id="writting-exercises"><span class="header-section-number">2</span> Writting exercises</h1>
+<h2 id="an-example-programming-exercise"><span class="header-section-number">2.1</span> An example programming exercise</h2>
+<p>Consider the following simple Python programming exercise: <em>write a function <code>root</code> to compute rounded-down integral square roots</em>.</p>
+<p>First we set up an <em>exercise page</em> <code>sqroot.md</code>; this contains the exercise description shown to the student (and some metadata fields):</p>
+<pre class="boxed"><code>---
+tester: doctest
 language: python
-doctest: root.tst
 ...
 
 # Compute rounded-down integer square roots
@@ -247,21 +141,9 @@ of an integer number rounded-down to the nearest integer
 value.
 
 If the argument `x` is negative the function should
-throw a `ValueError` exception.
-
-Examples:
-
-~~~
-&gt;&gt;&gt; root(4)
-2
-&gt;&gt;&gt; root(5)
-2
-&gt;&gt;&gt; root(10)
-3
-~~~</code></pre>
-<p>Note that we illustrate some expected behaviour examples mimicking the Python shell interaction.</p>
-<p>The metadata field <code>doctest</code> specifies a <em>doctest</em> script with input values and output results; this a separate text file <code>root.tst</code>:</p>
-<pre style="margin:2em; padding:1em; width:50em; border: solid;border-width:1px;"><code>&gt;&gt;&gt; root(0)
+throw a `ValueError` exception.</code></pre>
+<p>We also need a <em>doctest script</em> <code>sqroot.tst</code> specifying the tets cases to try and expected results:</p>
+<pre class="boxed"><code>&gt;&gt;&gt; root(0)
 0
 &gt;&gt;&gt; root(1)
 1
@@ -279,72 +161,338 @@ Examples:
 Traceback (most recent call last):
   ...
 ValueError: math domain error</code></pre>
-<p>For each student submission, the above tests will be tried in order; testing terminates immediately if any of tests fails (with a wrong answer or a runtime exception) and the failed test case is used to produce the student report, e.g.:</p>
-<pre><code>Failed example:
+<p>These two files are all that we need. For each student submission the tests in the <em>doctest</em> script will be tried in order; testing terminates immediately if any of tests fails (with a wrong answer or a runtime exception) and the failed test case is used to produce a report, e.g.:</p>
+<pre class="boxed"><code>Failed example:
     root(2)
 Expected:
     1
 Got:
     1.4142135623730951</code></pre>
-<p>Some advices:</p>
-<ul>
-<li>order the test cases such that simplest input values occur first;</li>
-<li>be aware that <em>doctest</em> employs a straight textual matching of outputs (e.g. <code>0</code> and <code>0.0</code> are distinct);</li>
-<li>make sure you normalize floating-point results to avoid precision issues, e.g. use <code>round</code>(..., <em>n-decimals</em><code>)</code></li>
-<li>to discourage students from &quot;fixing&quot; submissions by copy-pasting failed tests, it is best to gerate a large number (50-100) of test cases (write a Python script);</li>
-<li>you can test the correct handling of invalid situations by requiring that proper exceptions are thrown;</li>
-<li>you can control the level of feedback using the <code>feedback</code> metadata field (e.g. omit actual test inputs).</li>
-</ul>
-<h3 id="haskell"><span class="header-section-number">2.2.2</span> Haskell</h3>
-<p>Haskell submissions can be tested using the <a href="http://www.cse.chalmers.se/~rjmh/QuickCheck/manual.html">QuickCheck library</a>. A QuickCheck specification consists of a set of <em>properties</em> and possibly <em>test data generators</em>; the QuickCheck library includes default generators for basic types, tuples, lists, etc.</p>
-<p>Consider the an example exercise: merging elements from two ordered lists; the page text file is as follows:</p>
-<pre style="margin:2em; padding:1em; width:50em; border: solid;border-width:1px;"><code>---
-exercise: true
-language: haskell
-quickcheck: merge.hs
+<p>Some remarks on writting <em>doctest</em> cases:</p>
+<ol style="list-style-type: decimal">
+<li>The first test case that fails is reported, thus so the <em>doctest</em> script should the include the simplest cases first;</li>
+<li>Be aware that the <code>doctest</code> library employs a textual matching of outputs (e.g. <code>0</code> and <code>0.0</code> are considered distinct); make sure you normalize floating-point results (e.g. using <code>round</code>)</li>
+<li>To discourage students from &quot;overfitting&quot; solutions to pass just the failing tests, it is best to generate a large number (50-100) of cases (write a Python script);</li>
+<li>Alternatively, you can hide test cases by setting the metadata field &quot;<code>feedback: no</code>&quot;;</li>
+<li>It is also possible test error handling by requiring that proper exceptions are thrown — see the <a href="https://docs.python.org/3/library/doctest.html#what-about-exceptions"><code>doctest</code> documentation</a>;</li>
+</ol>
+<h3 id="an-example-quiz"><span class="header-section-number">2.1.1</span> An example quiz</h3>
+<p>Setting up a multiple-choice or fill-in quiz requires only a Markdown exercise page:</p>
+<pre class="boxed"><code>---
+tester: quiz
+shuffle-questions: no
+shuffle-answers: yes
 ...
 
-# Merge two ordered lists
+# Example quiz
 
-Write a function `merge :: Ord a =&gt; [a] -&gt; [a] -&gt; [a]`{.haskell}
-that merges two lists in ascending order; the result list
-should preserve the ordering and contain all elements from
-both lists.</code></pre>
-<p>The QuickCheck script <code>merge.hs</code> is a straightforward translation of the above specification:</p>
-<div class="sourceCode" style="margin:2em; padding:1em; width:50em; border: solid;border-width:1px;"><pre class="sourceCode haskell"><code class="sourceCode haskell"><span class="kw">import </span><span class="dt">Test.QuickCheck</span>
-<span class="kw">import </span><span class="dt">Data.List</span> ((\\))
+This is an example of multiple-choice and fill-in questions.
 
-<span class="co">-- 1) merge preserves ordering</span>
-<span class="ot">prop_ordered ::</span> <span class="dt">OrderedList</span> <span class="dt">Int</span> <span class="ot">-&gt;</span> <span class="dt">OrderedList</span> <span class="dt">Int</span> <span class="ot">-&gt;</span> <span class="dt">Bool</span>
-prop_ordered (<span class="dt">Ordered</span> xs) (<span class="dt">Ordered</span> ys)
-    <span class="fu">=</span> ascending (Submit.merge xs ys)
+&lt;!-- Each question starts with a header with class &quot;question&quot; --&gt;
 
-<span class="co">-- 2) merge preserves elements</span>
-<span class="ot">prop_elements ::</span> <span class="dt">OrderedList</span> <span class="dt">Int</span> <span class="ot">-&gt;</span> <span class="dt">OrderedList</span> <span class="dt">Int</span> <span class="ot">-&gt;</span> <span class="dt">Bool</span>
-prop_elements (<span class="dt">Ordered</span> xs) (<span class="dt">Ordered</span> ys)
-    <span class="fu">=</span> permutation (Submit.merge xs ys) (xs <span class="fu">++</span> ys)
+## {.question answer=a}
 
-<span class="co">-- auxiliary definitions</span>
-<span class="co">-- check if a list is in ascending order</span>
-ascending xs <span class="fu">=</span> and (zipWith (<span class="fu">&lt;=</span>) xs (tail xs))
-<span class="co">-- check if two lists are permutations</span>
-permutation xs ys <span class="fu">=</span> null (xs \\ ys) <span class="fu">&amp;&amp;</span> null (ys \\ xs)</code></pre></div>
-<p>Some remarks:</p>
-<ul>
-<li>the user submission is implicitly imported qualified as a module <code>Submit</code>;</li>
-<li>all properties (e.g. functions starting with <code>prop_</code>) will be tested;</li>
-<li>note that although <code>merge</code> is polymorphic, we need to choose a monomorphic type for testing (<code>Int</code>);</li>
-<li>we used the default generators for <code>Int</code> and <code>OrderedList</code> wrapper defined in the QuickCheck library (no need to define a custom generator);</li>
-</ul>
-<h3 id="c"><span class="header-section-number">2.2.3</span> C</h3>
-<p>TO BE DONE</p>
-<hr />
-<p>Pedro Vasconcelos, 2017.</p>
-<div class="footnotes">
-<hr />
-<ol>
-<li id="fn1"><p>This behaviour allows both students to retry past exercises and leaves teachers freedom to decide how to rate late submissions.<a href="#fnref1">↩</a></p></li>
+Consider a relation $R \subseteq \mathbb{Z}\times\mathbb{Z}$ 
+definide by $x R y \iff \exists k \in\mathbb{Z} : y = k\times x$.
+What properties does this relation have?
+
+(a) reflexive, transitive e anti-symetric
+(b) reflexive, transitive e symetric
+(c) reflexive, not transitive and symetric
+
+&lt;!-- The next question allows multiple selections --&gt;
+
+## {.question .multiple answer=a answer=c answer=e}
+
+Select **all** true statements from the choices bellow.
+
+(a) Dogs have wings if cats have wings
+(b) Birds have wings if cats have wings
+(c) If cats have wings then birds have wings
+(d) Snakes have legs if and only if mice have tails
+(e) If frogs have fur and mice have eyes, then sharks have no teeth
+
+&lt;!-- A fill-in question; answers are compared textually ignoring spaces --&gt;
+
+## {.question .fillin answer=&quot;42&quot;}
+
+What is the answer to the fundamental question about ife, the universe
+and everything?</code></pre>
+<h3 id="testing-haskell-code-using-quickcheck"><span class="header-section-number">2.1.2</span> Testing Haskell code using Quickcheck</h3>
+<p>A QuickCheck specification is a Haskell main module that acts as a &quot;test harness&quot; for the student's code. It can define properties and possibly data generators; the Codex QuickCheck library includes default generators for basic types (tuples, lists, etc.) and combinators for building custom ones.</p>
+<p>Consider an example exercise:</p>
+<blockquote>
+<p>Write a Haskell function <code>strong :: String -&gt; Bool</code> that checks if a string is a <em>strong password</em> using the following criteria:</p>
+<ol style="list-style-type: decimal">
+<li>it must have at least 6 characteres in length;</li>
+<li>it must have an uppercase letter, a lowercase letter and a digit.</li>
 </ol>
-</div>
+</blockquote>
+<p>The QuickCheck specification for this exercise is as follows:</p>
+<div class="sourceCode"><pre class="sourceCode boxed haskell"><code class="sourceCode haskell"><span class="kw">module</span> <span class="dt">Main</span> <span class="kw">where</span>
+
+<span class="kw">import </span><span class="dt">Codex.QuickCheck</span>
+<span class="kw">import </span><span class="dt">Data.Char</span>
+<span class="kw">import </span><span class="dt">Submission</span> (strong) <span class="co">-- student&#39;s solution</span>
+
+<span class="co">-- | reference solution </span>
+<span class="ot">strong_spec ::</span> <span class="dt">String</span> <span class="ot">-&gt;</span> <span class="dt">Bool</span>
+strong_spec xs
+   <span class="fu">=</span> length xs <span class="fu">&gt;=</span> <span class="dv">6</span> <span class="fu">&amp;&amp;</span> any isUpper xs <span class="fu">&amp;&amp;</span> any isLower xs <span class="fu">&amp;&amp;</span> any isDigit xs
+
+<span class="co">-- | a generator for suitable strings</span>
+asciiString <span class="fu">=</span> listOf (choose (<span class="ch">&#39;0&#39;</span>, <span class="ch">&#39;z&#39;</span>))
+
+<span class="co">-- | correctness property: for all above strings,</span>
+<span class="co">-- the submission yields the same result as the reference solution</span>
+prop_correct
+  <span class="fu">=</span> forAllShrink <span class="st">&quot;str&quot;</span> asciiString shrink <span class="fu">$</span>
+    \xs <span class="ot">-&gt;</span> strong xs <span class="fu">?==</span> strong_spec xs <span class="fu">&lt;?&gt;</span> <span class="st">&quot;strong&quot;</span>
+                    
+main <span class="fu">=</span> quickCheckMain prop_correct</code></pre></div>
+<p>Some remarks:</p>
+<ol style="list-style-type: decimal">
+<li>The student's code is always imported from a separate module; names should be explicitly imported or qualified to prevent name colisions;</li>
+<li><code>asciiString</code> is a custom generator for strings with charateres from <code>0</code> to <code>z</code>: this generate letters, digits and some other simbols as well;</li>
+<li>The operator <code>?==</code> asserts that the left-hand side equals the (expected) right-hand side</li>
+<li>The operator <code>&lt;?&gt;</code> names the test for reporting;</li>
+<li>Finally, the <code>quickCheckMain</code> driver function handles setting up of the testing parameters and checks the property.</li>
+</ol>
+<p>The use of shrinking simplifies failing test cases automatically; for example, consider the following submission exhibiting a common logical error:</p>
+<div class="sourceCode"><pre class="sourceCode boxed haskell"><code class="sourceCode haskell"><span class="ot">forte ::</span> <span class="dt">String</span> <span class="ot">-&gt;</span> <span class="dt">Bool</span>
+   <span class="fu">=</span> length xs <span class="fu">&gt;=</span> <span class="dv">6</span> <span class="fu">&amp;&amp;</span> any (\x <span class="ot">-&gt;</span> isUpper x <span class="fu">||</span> isLower x <span class="fu">||</span> isDigit x) xs
+   <span class="co">-- WRONG!</span></code></pre></div>
+<p>Because of shrinking, the specification above QuickCheck <em>always</em> finds a simple counter-example:</p>
+<pre class="boxed"><code>*** Failed! (after 12 tests and 6 shrinks): 
+Expected:
+    False
+Got:
+    True
+Testing forte with:
+str = &quot;aaaaaa&quot;</code></pre>
+<h3 id="testing-c-code-using-quickcheck"><span class="header-section-number">2.1.3</span> Testing C code Using QuickCheck</h3>
+<p>It is also possible to use QuickCheck to test C code using the Haskell FFI. The test specification written in Haskell and uses the Haskell-to-C FFI to call the student's code.</p>
+<p>Consider the C version of the strong password example:</p>
+<blockquote>
+<p>Write a C function <code>int strong(char *str)</code> that checks if a NUL-terminated string is a <em>strong password</em> using the following criteria:</p>
+<ol style="list-style-type: decimal">
+<li>it must have at least 6 characteres in length;</li>
+<li>it must have an uppercase letter, a lowercase letter and a digit.</li>
+</ol>
+<p>The result should be 1 the string satifies the above criteria and 0 otherwise.</p>
+</blockquote>
+<p>The previous specification is adapted to test C as follows:</p>
+<div class="sourceCode"><pre class="sourceCode boxed haskell"><code class="sourceCode haskell"><span class="kw">module</span> <span class="dt">Main</span> <span class="kw">where</span>
+
+<span class="kw">import </span><span class="dt">Codex.QuickCheck</span>
+<span class="kw">import </span><span class="dt">Control.Monad</span>
+<span class="kw">import </span><span class="dt">Control.Exception</span>
+<span class="kw">import </span><span class="dt">System.IO.Unsafe</span>
+<span class="kw">import </span><span class="dt">Data.Char</span>
+
+foreign <span class="kw">import </span>ccall &quot;forte&quot; c_forte :: <span class="dt">CString</span> -&gt; <span class="dt">IO</span> <span class="dt">CInt</span>
+   <span class="co">-- use FFI to import students&#39; submission</span>
+
+<span class="co">-- | functional wrapper over C code</span>
+<span class="ot">c_forte_wrapper ::</span> <span class="dt">String</span> <span class="ot">-&gt;</span> <span class="dt">CInt</span>
+c_forte_wrapper str <span class="fu">=</span> unsafePerformIO <span class="fu">$</span> 
+  withCString str <span class="fu">$</span> \ptr <span class="ot">-&gt;</span> <span class="kw">do</span>
+     r <span class="ot">&lt;-</span> c_forte ptr
+     str&#39; <span class="ot">&lt;-</span> peekCAString ptr
+     unless (str <span class="fu">==</span> str&#39;) <span class="fu">$</span>
+          throwIO <span class="fu">$</span> userError <span class="st">&quot;modified argument string&quot;</span>
+     return r
+
+<span class="co">-- | functional specification</span>
+<span class="ot">forte_spec ::</span> <span class="dt">String</span> <span class="ot">-&gt;</span> <span class="dt">Bool</span>
+forte_spec xs
+   <span class="fu">=</span> length xs <span class="fu">&gt;=</span> <span class="dv">6</span> <span class="fu">&amp;&amp;</span> any isUpper xs <span class="fu">&amp;&amp;</span> any isLower xs <span class="fu">&amp;&amp;</span> any isDigit xs
+
+prop_correct
+  <span class="fu">=</span> forAllShrink <span class="st">&quot;str&quot;</span> asciiString shrink <span class="fu">$</span>
+    \xs <span class="ot">-&gt;</span> c_forte_wrapper xs <span class="fu">?==</span> fromIntegral (fromEnum (forte_spec xs))
+           <span class="fu">&lt;?&gt;</span> <span class="st">&quot;forte&quot;</span> 
+
+asciiString <span class="fu">=</span> listOf (choose (<span class="ch">&#39;0&#39;</span>, <span class="ch">&#39;z&#39;</span>))
+                      
+main <span class="fu">=</span> quickCheckMain prop_correct</code></pre></div>
+<p>Note that, along with function correctness, the wrapper code above also checks that student code does not overwrite the string buffer.</p>
+<h1 id="reference-guide"><span class="header-section-number">3</span> Reference guide</h1>
+<h2 id="results"><span class="header-section-number">3.1</span> Results</h2>
+<p>Codex assesses submissions using a <em>tester</em>; for programming exercises this typically requires running a test suite (either provided by the instrutor or randomly-generated). The result is a <em>classification label</em>, a <em>validity check</em> and a <em>detail report</em>.</p>
+<p>Classification labels are similar to the ones used for <a href="https://icpc.baylor.edu/worldfinals/rules">ICPC programming contests</a>:</p>
+<dl>
+<dt><em>Accepted</em></dt>
+<dd><p>The submission passed all tests.</p>
+</dd>
+<dt><em>WrongAnswer</em></dt>
+<dd><p>The submission was rejected because it failed at least one test.</p>
+</dd>
+<dt><em>CompileError</em></dt>
+<dd><p>The submission was rejected because it caused a static error (e.g. compiler error)</p>
+</dd>
+<dt><em>RuntimeError</em></dt>
+<dd><p>The submission was rejected because it caused a runtime error (e.g. runtime exception, segmentation fault)</p>
+</dd>
+<dt><em>RuntimeLimitExceeded</em>, <em>MemoryLimitExceeded</em></dt>
+<dd><p>The submission was reject because it tried to use too much computing resources; this usually signals an erroneous program (e.g. non-terminating).</p>
+</dd>
+<dt><em>MiscError</em></dt>
+<dd><p>Some other error (e.g. incorrect metadata, test files, etc.)</p>
+</dd>
+<dt><em>Evaluating</em></dt>
+<dd><p>Temporary label assigned during evaluation.</p>
+</dd>
+</dl>
+<p>Independentely of the classification above, the submission is marked <em>Valid</em> if it respects the constraints on time and maximum attempts (specified as metadata) and <em>Invalid</em> otherwise (with a suitable message).</p>
+<p>Note that Codex always evaluates submissions (and reports feedback if is enabled); this means that a late submission that passes all tests will be classified <em>Accepted (Invalid: Late submission)</em>.[^1] This behaviour is intencional: it allows students to retry past exercises and leaves the instructor freedom on how to consider such submissions.</p>
+<!--
+When submissions are rejected because of a wrong answer, the text
+report includes a human-readable description of a failed test case; this
+is intended for the student to use as a starting point for
+understanding the problem and debugging.
+
+Note that  regardless of the time interval specified in the
+exercise; however:
+
+* it will hide feedback for early submissions
+  until the start of submission interval;
+* late submissions are assessed as usual but
+  additionally labelled *Overdue*[^1].
+-->
+<h2 id="general-metadata"><span class="header-section-number">3.2</span> General metadata</h2>
+<p>The following metadata fields apply to all exercises types.</p>
+<dl>
+<dt><code>title</code></dt>
+<dd><p>Specifies the title for exercise links; if this is missing, the title is the first header in the document.</p>
+</dd>
+<dt><code>tester</code></dt>
+<dd><p>Specify the type of exercise (described in the following subsection).</p>
+</dd>
+<dt><code>valid</code></dt>
+<dd><p>Specify constraints on the time and maximum number for submission attempts; the default is no time constraint and an unlimited number of submssions. Some examples:</p>
+<pre><code>valid: &quot;after 08:00 15/02/2019&quot;
+valid: &quot;after 08:00 15/02/2019 and before 12:00 15/02/2019&quot;
+valid: &quot;before 16/02/2019&quot;
+valid: &quot;before 16/02/2019 and attempts 20&quot;</code></pre>
+<p>Date and times are relative to the server timezone.</p>
+</dd>
+</dl>
+<!-- You
+    may also use named events defined in a `events.cfg` configuration
+    file, e.g.
+    
+    ```
+    valid: "before #week1"
+    ```
+    
+    where the `events.cfg` file contains a line such as
+    
+    ```
+    week1 = 16/02/2019
+    ```
+-->
+<dl>
+<dt><code>feedback</code></dt>
+<dd><p>A boolean value (<code>yes</code>/<code>true</code> or <code>no</code>/<code>false</code>) controlling whether detailed feedback is shown (e.g. show the test case in case of test failure); the default is feedback enabled.</p>
+</dd>
+<dt><code>code</code></dt>
+<dd><p>Specify an initial code skeleton for programming exercises; use an indented block for multiple lines, e.g.:</p>
+<pre><code>code: |
+  ~~~
+  def distance(x1, y1, x2, y2):
+      #
+      # complete this definition
+      #
+  ~~~</code></pre>
+<p>Note the vertical bar (<code>|</code>) and indentation in the above example.</p>
+</dd>
+</dl>
+<h2 id="testers"><span class="header-section-number">3.3</span> Testers</h2>
+<h3 id="stdio"><span class="header-section-number">3.3.1</span> <code>stdio</code></h3>
+<p>Tests complete programs that read input from <code>stdin</code> and produce output on <code>stdout</code>; specific fields:</p>
+<dl>
+<dt><code>languages</code></dt>
+<dd><p>List all allowed languages for this exercise; e.g.:</p>
+<pre><code>languages: [c, java, python, haskell]</code></pre>
+<p>If only a single language is allowed, the singular option <code>language</code> may be used instead:</p>
+<pre><code>language: c</code></pre>
+</dd>
+<dt><code>inputs</code></dt>
+<dd><p>List of input files in order; glob patterns are allowed; e.g.</p>
+<p><code>inputs: [ &quot;exercise1/tests/example-in.txt&quot;, &quot;exercise1/tests/input*.txt&quot; ]</code></p>
+</dd>
+<dt><code>outputs</code></dt>
+<dd><p>List of expected output files in order; glob patterns are allowed; e.g.</p>
+<p><code>outputs: [ &quot;exercise1/tests/example-out.txt&quot;, &quot;exercise1/tests/output*.txt&quot; ]</code></p>
+<p>The number of output files much be the same as the number of inputs.</p>
+</dd>
+<dt><code>files</code></dt>
+<dd><p>List of extra files that will be copied to the temporary working directory while running the tests.</p>
+</dd>
+<dt><code>arguments</code></dt>
+<dd><p>List of files with command-line arguments for each of the test cases defined by input/output pairs; by default, the command-line arguments are empty.</p>
+</dd>
+</dl>
+<h3 id="doctest"><span class="header-section-number">3.3.2</span> <code>doctest</code></h3>
+<p>Test Python code using the <a href="https://docs.python.org/3/library/doctest.html"><code>doctest</code> library</a> for unit-testing simple functions, methods or classes. Extra options:</p>
+<dl>
+<dt><code>language</code></dt>
+<dd><p>Should be <code>python</code> (must be included).</p>
+</dd>
+<dt><code>tests</code></dt>
+<dd><p>Optional filename for doctests; by default this is the same file as the exercise with <code>.tst</code> as extension.</p>
+</dd>
+<dt><code>linter</code></dt>
+<dd><p>Boolean value specifying whether to run an external compile-time linter such as an <a href="http://mypy-lang.org/">optional static type checker</a>); the linter command is specified in the global configuration file; by default, the linter is not run.</p>
+</dd>
+<dt><code>linter-args</code></dt>
+<dd><p>Optional command-line arguments to pass the linter.</p>
+</dd>
+</dl>
+<h3 id="quickcheck"><span class="header-section-number">3.3.3</span> <code>quickcheck</code></h3>
+<p>Test Haskell or C code using a <a href="https://github.com/pbv/codex-quickcheck">custom version</a> of the <a href="http://hackage.haskell.org/package/QuickCheck">QuickCheck library</a>. Extra metata options:</p>
+<dl>
+<dt><code>language</code></dt>
+<dd><p>Languages accepted: <code>haskell</code> or <code>c</code>.</p>
+</dd>
+<dt><code>properties</code></dt>
+<dd><p>Haskell file with QuickCheck specification (generators and properties); defaults to the page filename with the extension replaced by <code>.hs</code>.</p>
+</dd>
+<dt><code>maxSuccess</code></dt>
+<dd><p>Number of tests to run.</p>
+</dd>
+<dt><code>maxSize</code></dt>
+<dd><p>Maximum size for generated test data.</p>
+</dd>
+<dt><code>maxDiscardRatio</code></dt>
+<dd><p>For conditional generators: the maximum number of discarded tests per successful test before giving up.</p>
+</dd>
+<dt><code>randSeed</code></dt>
+<dd><p>Integer seed value for pseudo-random data generation; use if you want to ensure reproducibility of tests.</p>
+</dd>
+</dl>
+<h3 id="quiz"><span class="header-section-number">3.3.4</span> <code>quiz</code></h3>
+<p>Multiple-choice and fill-in questionaries with optional shuffling of questions and answers. Extra options:</p>
+<dl>
+<dt><code>shuffle-questions</code></dt>
+<dd><p>Boolean value; specifies whether the order of questions should be shuffled; defaults to <code>false</code>. By default shuffling uses a deterministic algorithm based on the user login.</p>
+</dd>
+<dt><code>shuffle-answers</code></dt>
+<dd><p>Boolean value; specifies whether the order of answers within each question should be shuffled; default to <code>false</code>. By default shuffling uses a deterministic algorithm based on the user login.</p>
+</dd>
+<dt><code>random-seed</code></dt>
+<dd><p>Integer value; fix the PRNG seed used for shuffled instead of computing it from the user login.</p>
+</dd>
+<dt><code>correct-weight</code></dt>
+<dd><p>Fractional number from 0 to 1; this is the scoring weight for a correct item in a multiple-choice question. By default the correct item(s) score 1.</p>
+</dd>
+<dt><code>incorrect-weight</code></dt>
+<dd><p>Fractional number from 0 to 1; this is the scoring weight for an incorrect to a multiple-choice question. By default the score for each incorrect item is such that the sum of incorrect items equals minus the sum of corrects ones, e.g. for a three option question with a single correct option, an incorrect option scores <span class="math inline">\(-1/2\)</span>. To change change the penalty for wrong opttion to <span class="math inline">\(-1/3\)</span>:</p>
+<p><code>incorrect-weight: -1/3</code></p>
+</dd>
+</dl>
+<hr />
+<p>Pedro Vasconcelos, 2019.</p>
 </body>
 </html>

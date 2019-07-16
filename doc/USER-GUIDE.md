@@ -1,11 +1,13 @@
 ---
-title: Codex User Guide
+title: A Guide to Writting Codex Exercises
 author: Pedro Vasconcelos <pbv@dcc.fc.up.pt>, University of Porto, Portugal. 
 date: July 2019 (version 0.9.5)
 ...
 
 
 # Introduction
+
+## Overview
 
 *Codex* is a web system for setting up programming exercises with
 automatic assessment. The main features are:
@@ -23,7 +25,7 @@ rather than complete programs;
 
 *Provides automatic feedback*
 
-:    Rather than just report an *accept/reject* result,
+:    Rather than report just an *accept/reject* result,
 Codex can use automatic testing techniques such as
 [properties](http://www.cse.chalmers.se/~rjmh/QuickCheck/manual.html)
 or [documentation-tests](https://docs.python.org/3.7/library/doctest.html)
@@ -66,21 +68,22 @@ can review previous their submissions attempts (thought not
 anyone else's). The administrator can view and manage 
 all submissions (e.g. re-evaluate or generate printouts).
 
-Comments in Markdown pages can be written in HTML-style:
+Comments can be written in HTML-style:
 
 ~~~
 <!-- This is the begining of comment;
-     it can go on for multiple lines -->
+     it can go on for multiple lines
+-->
 ~~~
 
-Note that, unlike common Markdown readers, raw HTML markup
+Note that, unlike other Markdown readers, raw HTML markup
 is **not** allowed (it will be rendered as plain text).
 
 Codex uses Pandoc's YAML extension to specify metadata for pages,
 (e.g. set the type of execise, the  programming 
 languages allowed, the period for valid submissions, etc).
-Metadata blocks are delimited between `---` and 
-`...`:
+Metadata blocks are delimited between "`---`" and 
+"`...`":
 
     ---
     tester: doctest
@@ -148,9 +151,12 @@ Note that:
 2. If you intend to group exercises using sub-directories
    make sure *you include an `index.md` for each sub-directory*.
 
-## An example exercise
+# Writting exercises
 
-Consider the following simple Python programming exercise: *write a function to
+## An example programming exercise
+
+Consider the following simple Python programming
+exercise: *write a function `root` to
 compute rounded-down integral square roots*.
 
 First we set up an *exercise page*
@@ -213,123 +219,223 @@ Got:
     1.4142135623730951
 ~~~
 
+Some remarks on writting *doctest* cases:
+
+1. The first test case that fails is reported, thus
+   so the *doctest* script should the include
+   the simplest cases first;
+2. Be aware that the `doctest` library
+   employs a textual matching of outputs
+   (e.g. `0` and `0.0` are considered distinct); make sure you normalize
+   floating-point results (e.g. using `round`)
+4. To discourage students from "overfitting" solutions
+   to pass just the failing tests, it is best to generate
+   a large number (50-100) of cases (write a Python script);
+5. Alternatively, you can hide test cases by setting
+   the metadata field "`feedback: no`";
+6. It is also possible test error handling by requiring
+   that proper exceptions are thrown &mdash; see the [`doctest` documentation](https://docs.python.org/3/library/doctest.html#what-about-exceptions);
+
+### An example quiz
+
+Setting up a multiple-choice or fill-in quiz requires
+only a Markdown exercise page:
+
+~~~{.boxed}
+---
+tester: quiz
+shuffle-questions: no
+shuffle-answers: yes
+...
+
+# Example quiz
+
+This is an example of multiple-choice and fill-in questions.
+
+<!-- Each question starts with a header with class "question" -->
+
+## {.question answer=a}
+
+Consider a relation $R \subseteq \mathbb{Z}\times\mathbb{Z}$ 
+definide by $x R y \iff \exists k \in\mathbb{Z} : y = k\times x$.
+What properties does this relation have?
+
+(a) reflexive, transitive e anti-symetric
+(b) reflexive, transitive e symetric
+(c) reflexive, not transitive and symetric
+
+<!-- The next question allows multiple selections -->
+
+## {.question .multiple answer=a answer=c answer=e}
+
+Select **all** true statements from the choices bellow.
+
+(a) Dogs have wings if cats have wings
+(b) Birds have wings if cats have wings
+(c) If cats have wings then birds have wings
+(d) Snakes have legs if and only if mice have tails
+(e) If frogs have fur and mice have eyes, then sharks have no teeth
+
+<!-- A fill-in question; answers are compared textually ignoring spaces -->
+
+## {.question .fillin answer="42"}
+
+What is the answer to the fundamental question about ife, the universe
+and everything?
+~~~
+
+### Testing Haskell code using Quickcheck
+
+A QuickCheck specification is a Haskell main module that acts as a
+"test harness" for the student's code. It can define properties and
+possibly data generators; the Codex QuickCheck library includes
+default generators for basic types (tuples, lists, etc.)  and
+combinators for building custom ones.
+
+Consider an example exercise:
+
+> Write a Haskell function `strong :: String -> Bool`
+> that checks if a string is a *strong password* using
+> the following criteria:
+>
+> 1. it must have at least 6 characteres in length;
+> 2. it must have an uppercase letter, a lowercase letter and a digit.
+
+The QuickCheck specification for this exercise is as follows:
+
+~~~~{.boxed .haskell}
+module Main where
+
+import Codex.QuickCheck
+import Data.Char
+import Submission (strong) -- student's solution
+
+-- | reference solution 
+strong_spec :: String -> Bool
+strong_spec xs
+   = length xs >= 6 && any isUpper xs && any isLower xs && any isDigit xs
+
+-- | a generator for suitable strings
+asciiString = listOf (choose ('0', 'z'))
+
+-- | correctness property: for all above strings,
+-- the submission yields the same result as the reference solution
+prop_correct
+  = forAllShrink "str" asciiString shrink $
+    \xs -> strong xs ?== strong_spec xs <?> "strong"
+                    
+main = quickCheckMain prop_correct
+~~~~
+
+Some remarks:
+
+1. The student's code is always imported
+   from a separate module; names should be explicitly imported or qualified
+   to prevent name colisions;
+2. `asciiString` is a custom generator 
+   for strings with charateres from `0` to `z`:
+   this generate letters, digits and some other simbols as well;
+3. The operator `?==` asserts that the left-hand side
+   equals the (expected) right-hand side
+5. The operator `<?>` names the test for reporting;
+4. Finally, the `quickCheckMain` driver function handles
+   setting up of the testing parameters and checks the property.
+
+The use of shrinking simplifies failing test cases
+automatically; for example, consider the following submission
+exhibiting a common logical error:
+
+~~~{.boxed .haskell}
+forte :: String -> Bool
+   = length xs >= 6 && any (\x -> isUpper x || isLower x || isDigit x) xs
+   -- WRONG!
+~~~ 
+
+Because of shrinking, the specification above QuickCheck *always* finds a
+simple counter-example:
+
+~~~{.boxed}
+*** Failed! (after 12 tests and 6 shrinks): 
+Expected:
+	False
+Got:
+	True
+Testing forte with:
+str = "aaaaaa"
+~~~
+
+### Testing C code Using QuickCheck 
+
+It is also possible to use QuickCheck to test C code using the Haskell
+FFI. The test specification written in Haskell and uses the
+Haskell-to-C FFI to call the student's code.
+
+Consider the C version of the strong password example:
+
+> Write a C function `int strong(char *str)`
+> that checks if a NUL-terminated string is a *strong password* using
+> the following criteria:
+>
+> 1. it must have at least 6 characteres in length;
+> 2. it must have an uppercase letter, a lowercase letter and a digit.
+>
+> The result should be 1 the string satifies the above criteria
+> and 0 otherwise.
+
+The previous specification is adapted to test C as follows:
+
+~~~{.boxed .haskell}
+module Main where
+
+import Codex.QuickCheck
+import Control.Monad
+import Control.Exception
+import System.IO.Unsafe
+import Data.Char
+
+foreign import ccall "forte" c_forte :: CString -> IO CInt
+   -- use FFI to import students' submission
+
+-- | functional wrapper over C code
+c_forte_wrapper :: String -> CInt
+c_forte_wrapper str = unsafePerformIO $ 
+  withCString str $ \ptr -> do
+     r <- c_forte ptr
+     str' <- peekCAString ptr
+     unless (str == str') $
+          throwIO $ userError "modified argument string"
+     return r
+
+-- | functional specification
+forte_spec :: String -> Bool
+forte_spec xs
+   = length xs >= 6 && any isUpper xs && any isLower xs && any isDigit xs
+
+prop_correct
+  = forAllShrink "str" asciiString shrink $
+    \xs -> c_forte_wrapper xs ?== fromIntegral (fromEnum (forte_spec xs))
+           <?> "forte" 
+
+asciiString = listOf (choose ('0', 'z'))
+                      
+main = quickCheckMain prop_correct
+~~~
+
+Note that, along with function correctness,
+the wrapper code above also checks that student code does
+not overwrite the string buffer. 
 
 # Reference guide
-
-## Generic metadata 
-
-The following metadata fields apply to all exercises types.
-
-`title`
-
-:      Specifies the title for exercise links; if this is missing,
-the title is the first header in the document.
-
-`tester`
-
-:      Specify the type of exercise (described in the following subsection).
-
-
-`valid`
-
-:   Specify constraints on the time and maximum number for submission attempts; the default is no time constraint and an unlimited number of submssions.  Some examples:
-    
-    ```
-    valid: "after 08:00 15/02/2019"
-    valid: "after 08:00 15/02/2019 and before 12:00 15/02/2019"
-    valid: "before 16/02/2019"
-    valid: "before 16/02/2019 and max_attempts 20"
-    ```
- 
-    Date and times are relative to the server timezone.  <!-- You
-    may also use named events defined in a `events.cfg` configuration
-    file, e.g.
-    
-    ```
-    valid: "before #week1"
-    ```
-    
-    where the `events.cfg` file contains a line such as
-    
-    ```
-    week1 = 16/02/2019
-    ```
-	-->
-
-
-`feedback`
-
-:     A boolean value (`yes`/`true` or `no`/`false`) controlling whether
-detailed feedback is shown (e.g. show the test case in case of test failure);
-the default is feedback enabled.
-
-`code`
-
-:      Specify an initial code skeleton for programming exercises; use an indented block for multiple lines, e.g.:
-
-    ````
-    code: |
-      ~~~
-      def distance(x1, y1, x2, y2):
-          #
-          # complete this definition
-          #
-      ~~~
-    ````
-   Note the vertical bar (`|`) and indentation in the above example.
-
-
-
-<!--
-The following fields are specific to programming languages.
-
-### Python-specific fields
-
-`doctest`
-
-:     Specifies the file path for a *doctest* script for testing Python
-submissions; if omitted, this defaults to the file name for exercise
-page with extension replaced by `.tst`, e.g. the default doctest for
-`foo/bar.md` is `foo/bar.tst`.
-
-
-### Haskell- and C-specific fields
-
-`quickcheck`
-
-:     Specifies the file name for a Haskell file containing
-QuickCheck script for Haskell or C submission testing.
-
-
-`maxSuccess`
-
-:     Number of QuickCheck tests run.
-
-`maxSize`
-
-:     Maximum size for QuickCheck generated test data.
-
-`maxDiscardRatio`
-
-:     Maximum number of discarded tests per successful test before giving up.
-
-`randSeed`
-
-:     Integer seed value for pseudo-random test data generation;
-use if you want to ensure reproducibility of QuickCheck tests.
-
--->
-
-# Assement and Feedback 
 
 ## Results
 
 Codex assesses submissions using a *tester*; for
 programming exercises this typically requires running a test suite (either
-provided by the author or randomly-generated).
-The result 
-is a *classification labels*, a *validity check* and a (possibly empty)
-*detail text report*.  Classification labels are similar to the ones used for
+provided by the instrutor or randomly-generated).
+The result is a *classification label*, a *validity check* and
+a *detail report*.
+
+Classification labels are similar to the ones used for
 [ICPC programming contests](https://icpc.baylor.edu/worldfinals/rules):
 
 *Accepted*
@@ -365,18 +471,20 @@ compiler error)
 :     Temporary label assigned during evaluation.
 
 
-A submission is marked *Valid* if the it
-respects the constraints on time and maximum attempts or
-*Invalid* with a suitable message otherwise.
-Note that Codex always evaluates submissions (reporting
-feedback if enabled) and checks validity independent from classification:
-e.g. a program that passes all tests but is submitted too late will
+Independentely of the classification above,
+the submission is marked *Valid* if it
+respects the constraints on time and maximum attempts (specified
+as metadata) and
+*Invalid* otherwise (with a suitable message).
+
+Note that Codex always evaluates submissions (and reports
+feedback if is enabled); this means
+that a late submission that passes all tests will
 be classified *Accepted (Invalid: Late submission)*.[^1]
-
-[^1]: This behaviour allows students to retry past exercises and
-  leaves a supervisor freedom to decide how to consider
-  such submissions. 
-
+This behaviour is intencional: it
+allows students to retry past exercises and
+leaves the instructor freedom on how to consider
+such submissions. 
 
 <!--
 When submissions are rejected because of a wrong answer, the text
@@ -391,8 +499,74 @@ exercise; however:
   until the start of submission interval;
 * late submissions are assessed as usual but
   additionally labelled *Overdue*[^1].
-
 -->
+
+## General metadata 
+
+The following metadata fields apply to all exercises types.
+
+`title`
+
+:      Specifies the title for exercise links; if this is missing,
+the title is the first header in the document.
+
+`tester`
+
+:      Specify the type of exercise (described in the following subsection).
+
+
+`valid`
+
+:   Specify constraints on the time and maximum number for submission attempts; the default is no time constraint and an unlimited number of submssions.  Some examples:
+    
+    ```
+    valid: "after 08:00 15/02/2019"
+    valid: "after 08:00 15/02/2019 and before 12:00 15/02/2019"
+    valid: "before 16/02/2019"
+    valid: "before 16/02/2019 and attempts 20"
+    ```
+ 
+    Date and times are relative to the server timezone.
+
+<!-- You
+    may also use named events defined in a `events.cfg` configuration
+    file, e.g.
+    
+    ```
+    valid: "before #week1"
+    ```
+    
+    where the `events.cfg` file contains a line such as
+    
+    ```
+    week1 = 16/02/2019
+    ```
+-->
+
+
+`feedback`
+
+:     A boolean value (`yes`/`true` or `no`/`false`) controlling whether
+detailed feedback is shown (e.g. show the test case in case of test failure);
+the default is feedback enabled.
+
+`code`
+
+:      Specify an initial code skeleton for programming exercises;
+use an indented block for multiple lines, e.g.:
+
+    ````
+    code: |
+      ~~~
+      def distance(x1, y1, x2, y2):
+          #
+          # complete this definition
+          #
+      ~~~
+    ````
+   Note the vertical bar (`|`) and indentation in the above example.
+
+
 
 
 ## Testers
@@ -449,8 +623,7 @@ arguments are empty.
 
 Test Python code using
 the [`doctest` library](https://docs.python.org/3/library/doctest.html)
-for unit-testing 
-simple functions, methods or classes. Extra options:
+for unit-testing simple functions, methods or classes. Extra options:
 
 `language`
 
@@ -477,18 +650,18 @@ file as the exercise with `.tst` as extension.
 
 
 Test Haskell or C code
-using a [custom version](https://github.com/pbv/codex-quickcheck). of
+using a [custom version](https://github.com/pbv/codex-quickcheck) of
 the [QuickCheck library](http://hackage.haskell.org/package/QuickCheck).
-Extra options:
+Extra metata options:
 
 `language`
 
-:     Languages accepted: `haskell` or `c`.
+:     Languages accepted: `haskell` or `c`. 
 
 `properties`
 
 :     Haskell file with QuickCheck specification (generators and properties);
-defaults to the page filename with extension replaced by `.hs`.
+defaults to the page filename with the extension replaced by `.hs`.
 
 `maxSuccess`
 
@@ -550,103 +723,14 @@ change the penalty for wrong opttion to $-1/3$:
      ```
      incorrect-weight: -1/3
      ```
- 
-<!--
-
-## Specifying test cases
-
-### Python
-
-Test cases for Python submissions are specified
-using the [*doctest* library](https://docs.python.org/3.7/library/doctest.html).
 
 
-Some advices:
 
-1. order the test cases such that simplest input values occur first;
-2. be aware that *doctest* employs a straight textual matching of outputs
-(e.g. `0` and `0.0` are distinct);
-3. make sure you normalize floating-point results
-to avoid precision issues, e.g. use `round`(..., *n-decimals*`)`
-4. to discourage students from "fixing" submissions by copy-pasting
-failed tests, it is best to gerate a large number (50-100) of test
-cases (write a Python script);
-5. you can test the correct handling of invalid situations by requiring
-that proper exceptions are thrown;
-6. you can omit test cases from the report
-by setting `feedback: no` in the exercise metadata.
-
-
-### Haskell
-
-Haskell submissions can be tested using the
-[QuickCheck library](http://www.cse.chalmers.se/~rjmh/QuickCheck/manual.html).
-A QuickCheck specification consists of a set of *properties* and possibly
-*test data generators*; the QuickCheck library includes
-default generators for basic types, tuples, lists, etc.
-
-Consider the an example exercise: merging elements from two ordered lists;
-the page text file is as follows:
-
-~~~~{style="margin:2em; padding:1em; width:50em; border: solid;border-width:1px;"}
----
-exercise: true
-language: haskell
-quickcheck: merge.hs
-...
-
-# Merge two ordered lists
-
-Write a function `merge :: Ord a => [a] -> [a] -> [a]`{.haskell}
-that merges two lists in ascending order; the result list
-should preserve the ordering and contain all elements from
-both lists.
-~~~~
-
-The QuickCheck script `merge.hs` is a straightforward translation
-of the above specification:
-
-~~~~{.haskell style="margin:2em; padding:1em; width:50em; border: solid;border-width:1px;"}
-import Test.QuickCheck
-import Data.List ((\\))
-
--- 1) merge preserves ordering
-prop_ordered :: OrderedList Int -> OrderedList Int -> Bool
-prop_ordered (Ordered xs) (Ordered ys)
-    = ascending (Submit.merge xs ys)
-
--- 2) merge preserves elements
-prop_elements :: OrderedList Int -> OrderedList Int -> Bool
-prop_elements (Ordered xs) (Ordered ys)
-    = permutation (Submit.merge xs ys) (xs ++ ys)
-
--- auxiliary definitions
--- check if a list is in ascending order
-ascending xs = and (zipWith (<=) xs (tail xs))
--- check if two lists are permutations
-permutation xs ys = null (xs \\ ys) && null (ys \\ xs)
-~~~~
-
-Some remarks:
-
-* the user submission is implicitly imported qualified as a module `Submit`;
-* all properties (e.g. functions starting with `prop_`) will be tested;
-* note that although `merge` is polymorphic, we need to choose
-a monomorphic type for testing (`Int`); 
-* we used the default generators for `Int` and `OrderedList` wrapper 
-defined in the QuickCheck library (no need to define a custom generator);
-
-
-### C
-
-TO BE DONE 
-
--->
 
 
 ----
 
-Pedro Vasconcelos, 2017.
+Pedro Vasconcelos, 2019.
 
 
 
