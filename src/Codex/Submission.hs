@@ -69,7 +69,7 @@ insertSubmission uid path time code result = do
   withSqlite $ \conn -> do
       S.execute conn
         "INSERT INTO submissions \
-         \ (user_id, path, received, language, code, status, chck, report) \
+         \ (user_id, path, received, language, code, status, policy, report) \
          \ VALUES(?, ?, ?, ?, ?, ?, ?, ?)"
           (uid, path, time, lang, text, status, check, report)
       sid <- fmap SubmitId (S.lastInsertRowId conn)
@@ -79,15 +79,8 @@ insertSubmission uid path time code result = do
 updateSubmission :: Sqlite -> SubmitId -> Result -> IO ()
 updateSubmission sqlite sid Result{..}  =
   flip runReaderT sqlite $
-  execute "UPDATE submissions SET status=?, chck=?, report=? \
+  execute "UPDATE submissions SET status=?, policy=?, report=? \
            \ where id = ?" (resultStatus, resultCheck, resultReport, sid)
-
-  {-
-  withMVar (sqliteConn sqlite) $ \conn ->
-     S.execute conn
-       "UPDATE submissions SET status=?, chck=?, report=? \
-       \ where id = ?" (resultStatus, resultCheck, resultReport, sid)
-    -}
 
 
 -- | get a single submission
@@ -247,7 +240,7 @@ getPatterns = do
                    | field <- fields
                    ]
   return (zip (map T.decodeUtf8 fields) txts)
-  where fields = ["id", "user_id", "path", "language", "status", "chck"]
+  where fields = ["id", "user_id", "path", "language", "status", "policy"]
 
 patternSplices :: Patterns -> ISplices
 patternSplices patts

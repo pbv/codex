@@ -129,13 +129,13 @@ scoreQuestion weights question answers
   = scoreChoices weights (choices question) (lookupAnswer question answers)
 
 scoreChoices :: Weights -> Choices -> [Key] -> Score
-scoreChoices Weights{..} (Alternatives _ _ alts) selected
+scoreChoices Weights{..} (Alternatives _ attrs alts) selected
   | num_correct>0 && num_wrong>0
   = Score 1 answered correct wrong grade 
   | otherwise
   = mempty           -- invalid question; empty score
   where answered = if null selected then 0 else 1
-        key = [ label | (label,True,_) <- alts ]
+        key = [ label | (label,(True,_)) <- zip (listLabels attrs) alts ]
         num_alts = length alts
         num_correct = length key
         num_wrong = num_alts - num_correct

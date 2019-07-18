@@ -292,7 +292,7 @@ exportSubmissions' patts ord filetpl sep  = do
   return tmpPath
   where
     header = intercalate sep ["id", "user_id", "path", "language",
-                              "status", "chck", "received"]
+                              "status", "policy", "received"]
     output :: Handle -> () -> Submission -> IO ()
     output h _ Submission{..} = do
       let row = intercalate sep [show submitId,

@@ -1,13 +1,13 @@
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
+{-# LANGUAGE DeriveGeneric #-}
 
 --
--- Multiple choice quizzes
+-- | Multiple-choice and fill-in quizzes
 --
 module Codex.Handlers.Quiz
-  ( encodeAnswers
-  , decodeAnswers
+  ( decodeAnswers
   , quizHandlers
   ) where
 
@@ -48,18 +48,48 @@ import           Data.Time.LocalTime
 import           Control.Monad (guard)
 import           Control.Monad.IO.Class (liftIO)
 
+import           GHC.Generics
+
+-- | a quiz in text form together with selected answers
+data QuizAnswers
+  = QuizAnswers { quiz :: Text
+                , answers :: Answers
+                } deriving (Generic, Show)
   
+
+instance Aeson.ToJSON QuizAnswers where
+  toEncoding = Aeson.genericToEncoding Aeson.defaultOptions
+
+instance Aeson.FromJSON QuizAnswers   
+  -- derived implementation
+
+{-
 -- | convert quiz answers from/to text
 decodeAnswers :: Text -> Maybe Answers
 decodeAnswers = Aeson.decode . LB.fromStrict . T.encodeUtf8 
 
 encodeAnswers :: Answers -> Text
-encodeAnswers = T.decodeUtf8 . LB.toStrict . Aeson.encode 
+encodeAnswers = T.decodeUtf8 . LB.toStrict . Aeson.encode
+-}
 
--- | get quiz answers from HTTP form parameters 
+decodeAnswers :: Text -> Maybe Answers
+decodeAnswers txt =  answers <$> decodeQuizAnswers txt
+
+
+decodeQuizAnswers :: Text -> Maybe QuizAnswers
+decodeQuizAnswers = Aeson.decode . LB.fromStrict . T.encodeUtf8
+
+encodeQuizAnswers :: QuizAnswers -> Text
+encodeQuizAnswers = T.decodeUtf8 . LB.toStrict . Aeson.encode
+
+-- | get quiz answers from the HTTP parameters 
 --
-getFormAnswers :: MonadSnap m => m Answers
-getFormAnswers = answersFromParams <$> getParams
+getFormAnswers :: MonadSnap m => Quiz -> m Answers
+getFormAnswers Quiz{..}
+  = (answersFromParams . filterParams) <$> getParams
+  where
+    filterParams = Map.filterWithKey (\k _ -> k `elem` idents)
+    idents = map (B.fromString . identifier) questions
 
 -- | get quiz answers from HTTP form parameters 
 --
@@ -98,9 +128,8 @@ choicesSplices (FillIn keyText normalize) answers = do
   "question-fillin" ## I.ifElseISplice True
 
 choicesSplices (Alternatives multiples attrs alts) selected = do
-  let keys = sort [ label
-                  | (label, (_,True,_)) <- zip (listLabels attrs) alts
-                  ]
+  let lalts = zip (listLabels attrs) alts
+  let keys = sort [ label| (label, (True, _)) <- lalts ]
   let keyText = T.concat $ intersperse "," $ map T.pack keys
   let answerText = T.concat $ intersperse "," $ map T.pack selected
   "question-answer" ## I.textSplice answerText
@@ -109,12 +138,12 @@ choicesSplices (Alternatives multiples attrs alts) selected = do
   "list-start" ## I.textSplice (listStart attrs)
   "onclick-callback" ## if multiples then return []
                         else I.textSplice "onlyOne(this)"
-  let altSplices (label,truth,item) = do
+  let laltSplices (label,(truth,item)) = do
         "alternative-label" ## I.textSplice (T.pack label)
         "alternative" ## return (blocksToHtml item)
         "if-checked" ## I.ifElseISplice (label `elem` selected)
         "if-correct" ## I.ifElseISplice truth
-  "alternatives" ## I.mapSplices (I.runChildrenWith . altSplices) alts
+  "alternatives" ## I.mapSplices (I.runChildrenWith . laltSplices) lalts
   "question-fillin" ## I.ifElseISplice False
 
 
@@ -148,14 +177,15 @@ quizView uid rqpath page = do
 
 
 getSubmitAnswers :: Submission -> Maybe Answers
-getSubmitAnswers = decodeAnswers . codeText . submitCode
+getSubmitAnswers = decodeAnswers . codeText . submitCode 
 
 quizSubmit :: UserLogin -> FilePath -> Page -> Codex ()
 quizSubmit uid rqpath page = do
   guard (isQuiz page)
-  sel <- getFormAnswers
-  let json = encodeAnswers sel
-  sid <- newSubmission uid rqpath (Code "json" json)
+  let quiz = shuffleQuiz uid page
+  answers <- getFormAnswers quiz
+  let txt = encodeQuizAnswers (QuizAnswers (quizText quiz) answers)
+  sid <- newSubmission uid rqpath (Code "json" txt)
   redirectURL (Report sid)
 
 isQuiz :: Page -> Bool
@@ -205,10 +235,11 @@ ppChoices (FillIn keyText _) answers
     P.plain (P.emph "Answer:" <> P.text (T.unpack keyText))
 
 ppChoices (Alternatives _ attrs alts) selected
-  = P.orderedListWith attrs (map (ppAlternative selected) alts)
+  = P.orderedListWith attrs (map (ppAlternative selected) lalts)
+  where lalts = zip (listLabels attrs) alts
 
-ppAlternative :: [Key] -> (Key, Bool, [P.Block]) -> P.Blocks
-ppAlternative selected (label, truth, blocks)
+ppAlternative :: [Key] -> (Key, (Bool, [P.Block])) -> P.Blocks
+ppAlternative selected (label, (truth, blocks))
   = label1 <> P.fromList blocks <> label2
   where
     reply = label `elem` selected

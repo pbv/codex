@@ -66,15 +66,15 @@ code > span.in { color: #60a0b0; font-weight: bold; font-style: italic; } /* Inf
 <p><em>Codex</em> is a web system for setting up programming exercises with automatic assessment. The main features are:</p>
 <dl>
 <dt><em>Simple exercise authoring</em></dt>
-<dd><p>The exercise statement is written human-readable plain-text file; that can easily be transfered, kept in a version repository, compared for changes, etc.;</p>
+<dd><p>The exercise description is written in a human-readable Markdown format that can easily be transfered, kept in a version repository, compared for changes, etc.;</p>
 </dd>
-<dt><em>Assessing program fragments</em></dt>
-<dd><p>Exercise can assess only individual functions, classes or methods rather than complete programs;</p>
+<dt><em>Allows assessing program units</em></dt>
+<dd><p>Exercises can assess separate functions, classes or methods rather than just complete programs;</p>
 </dd>
 <dt><em>Provides automatic feedback</em></dt>
 <dd><p>Rather than report just an <em>accept/reject</em> result, Codex can use automatic testing techniques such as <a href="http://www.cse.chalmers.se/~rjmh/QuickCheck/manual.html">properties</a> or <a href="https://docs.python.org/3.7/library/doctest.html">documentation-tests</a> to report failure example to students.</p>
 </dd>
-<dt><em>Multiple types of exercises</em></dt>
+<dt><em>Allows multiple types of exercises</em></dt>
 <dd><p>Codex supports testing code, mutiple-choice and fill-in questionaries.</p>
 </dd>
 </dl>
@@ -84,9 +84,7 @@ code > span.in { color: #60a0b0; font-weight: bold; font-style: italic; } /* Inf
 <p>Markdown is a <a href="https://en.wikipedia.org/wiki/Markdown">lightweight text markup syntax</a> designed by John Gruber. Codex uses the <a href="http://hackage.haskell.org/package/pandoc">Pandoc library</a> for parsing Markdown which suports many extensions. In particular, it support LaTeX mathematics (rendered using <a href="http://www.mathjax.org">MathJaX</a>) For more details on the Pandoc-flavoured Markdown syntax accepted, check the <a href="http://pandoc.org/MANUAL.html#pandocs-markdown">Pandoc user manual</a>.</p>
 <p>Pages can be just plain documents or marked as <em>exercises</em>; the later allow student's submissions and trigger automatic assessment. Submissions are kept in a persistent database and students can review previous their submissions attempts (thought not anyone else's). The administrator can view and manage all submissions (e.g. re-evaluate or generate printouts).</p>
 <p>Comments can be written in HTML-style:</p>
-<pre><code>&lt;!-- This is the begining of comment;
-     it can go on for multiple lines
---&gt;</code></pre>
+<pre><code>&lt;!-- This is a comment; it can span multiple lines --&gt;</code></pre>
 <p>Note that, unlike other Markdown readers, raw HTML markup is <strong>not</strong> allowed (it will be rendered as plain text).</p>
 <p>Codex uses Pandoc's YAML extension to specify metadata for pages, (e.g. set the type of execise, the programming languages allowed, the period for valid submissions, etc). Metadata blocks are delimited between &quot;<code>---</code>&quot; and &quot;<code>...</code>&quot;:</p>
 <pre><code>---
@@ -94,7 +92,7 @@ tester: doctest
 language: python
 valid: &quot;after 25/05/2019 and before 15/06/2019&quot;
 ...</code></pre>
-<p>Such blocks can occur anywhere in a document; several metadata blocks are equivalent to a single block of all collected fields. (We suggest placing metadata only at the beginning or the the end of the document.)</p>
+<p>Metadata blocks can occur anywhere in a document; several blocks are equivalent to a single one with the (left-biased) union of all fields. (<em>Sugestion</em>: include metadata at the beginning or the the end of the document.)</p>
 <p>Exercises are marked by the <code>tester</code> field; the particular tester specifies the type of exercise and how assement is done (see the <a href="#testers">section on Testers</a>).</p>
 <!--
 Exercises are identified by the page's *request path* i.e. the
@@ -188,12 +186,13 @@ shuffle-answers: yes
 
 This is an example of multiple-choice and fill-in questions.
 
-&lt;!-- Each question starts with a header with class &quot;question&quot; --&gt;
+&lt;!-- Each question starts with a header (any level)
+     with class attribute &quot;question&quot; --&gt;
 
-## {.question answer=a}
+## Question 1 {.question answer=a}
 
 Consider a relation $R \subseteq \mathbb{Z}\times\mathbb{Z}$ 
-definide by $x R y \iff \exists k \in\mathbb{Z} : y = k\times x$.
+definied by $x R y \iff \exists k \in\mathbb{Z} : y = k\times x$.
 What properties does this relation have?
 
 (a) reflexive, transitive e anti-symetric
@@ -202,22 +201,51 @@ What properties does this relation have?
 
 &lt;!-- The next question allows multiple selections --&gt;
 
-## {.question .multiple answer=a answer=c answer=e}
+## Question 2 {.question .multiple answer=a answer=c answer=e}
 
 Select **all** true statements from the choices bellow.
 
-(a) Dogs have wings if cats have wings
-(b) Birds have wings if cats have wings
+(a) If cats have wings then dogs have wings
+(b) If bird have wings thgen cats have wings 
 (c) If cats have wings then birds have wings
 (d) Snakes have legs if and only if mice have tails
 (e) If frogs have fur and mice have eyes, then sharks have no teeth
 
 &lt;!-- A fill-in question; answers are compared textually ignoring spaces --&gt;
 
-## {.question .fillin answer=&quot;42&quot;}
+## Question 3 {.question .fillin answer=&quot;42&quot;}
 
-What is the answer to the fundamental question about ife, the universe
-and everything?</code></pre>
+According the &quot;The Hitchhiker&#39;s Guide to the Galaxy&quot;, what is the
+answer to the fundamental question about life, the universe and
+everything?</code></pre>
+<p>Each question has a unique identifier; because these are not defined in the above example, Pandoc would generate automatic identifiers based on the header text (e.g. <code>#question-1</code>, <code>#question-2</code>, <code>#question-3</code>). If the header has no text, then the automatic identifiers will be <code>#section</code>, <code>#section-1</code>, <code>#section-1</code>, etc. You can instead opt to set identifiers explicitly, e.g.:</p>
+<pre><code>## {#q1 .question answer=a}</code></pre>
+<p>Codex will shuffle questions and/or answers if the metadata options <code>shuffle-questions</code> and <code>shuffle-answers</code> are enabled; by default, neither questions nor answers are shuffled. Shuffling is deterministic for each student (i.e. it depends only on the user login).</p>
+<p>It is also possible to group variants of each question so that only one is randomly choosen for each student, e.g.:</p>
+<pre class="boxed"><code># {#questionA1 .question group=&quot;A&quot; ...}
+
+&lt;!-- first variant for A --&gt;
+
+# {#questionA2 .question group=&quot;A&quot; ...}
+
+&lt;!-- second variant for A --&gt;
+
+# {#questionA3 .question group=&quot;A&quot; ...}
+
+&lt;!-- third variant for A --&gt;
+
+# {#questionB1 .question group=&quot;B&quot; ...}
+
+&lt;!-- first variant for B --&gt;
+
+# {#questionB2 .question group=&quot;B&quot; ...}
+
+&lt;!-- second variant for B --&gt;
+
+# {#questionC .question ...}
+
+&lt;!-- this question has no group, so it always included --&gt;</code></pre>
+<p>From the above quiz, three questions will be selected: one from <code>#questionA1</code>, <code>#questionA2</code> and <code>#questionA3</code>; one of <code>#questionB1</code> and <code>#questionB2; and the</code>#questionC`. As with shuffling, the choice is pseudo-random but deterministic and depends only on the user login. Grouping can also be combined with shuffling, changing the order of questions and/or answers.</p>
 <h3 id="testing-haskell-code-using-quickcheck"><span class="header-section-number">2.1.2</span> Testing Haskell code using Quickcheck</h3>
 <p>A QuickCheck specification is a Haskell main module that acts as a &quot;test harness&quot; for the student's code. It can define properties and possibly data generators; the Codex QuickCheck library includes default generators for basic types (tuples, lists, etc.) and combinators for building custom ones.</p>
 <p>Consider an example exercise:</p>
@@ -490,6 +518,12 @@ valid: &quot;before 16/02/2019 and attempts 20&quot;</code></pre>
 <dt><code>incorrect-weight</code></dt>
 <dd><p>Fractional number from 0 to 1; this is the scoring weight for an incorrect to a multiple-choice question. By default the score for each incorrect item is such that the sum of incorrect items equals minus the sum of corrects ones, e.g. for a three option question with a single correct option, an incorrect option scores <span class="math inline">\(-1/2\)</span>. To change change the penalty for wrong opttion to <span class="math inline">\(-1/3\)</span>:</p>
 <p><code>incorrect-weight: -1/3</code></p>
+</dd>
+<dt><code>feedback</code></dt>
+<dd><p>Boolean value specifiying whether feedback on the replies should be given; should be set to <code>false</code> in in exam setting so that no feedback on correct/incorrect answers is given.</p>
+</dd>
+<dt><code>printout</code></dt>
+<dd><p>Boolean value specifiying whether to include a detailed transcript of questions and answer when producing a printout report (e.g. for exams); if set to <code>false</code> then the report will only include a summary (number of answered, correct and incorrect replies and a percentage score).</p>
 </dd>
 </dl>
 <hr />

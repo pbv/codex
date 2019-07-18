@@ -14,14 +14,14 @@ automatic assessment. The main features are:
 
 *Simple exercise authoring*
 
-:   The exercise statement is written human-readable plain-text file;
-that can easily be transfered, kept in a version repository,
+:    The exercise description is written in a human-readable Markdown
+format that can easily be transfered, kept in a version repository,
 compared for changes, etc.;
 
-*Assessing program fragments*
+*Allows assessing program units*
 
-:    Exercise can assess only individual functions, classes or methods
-rather than complete programs;
+:    Exercises can assess separate functions, classes or methods
+rather than just complete programs;
 
 *Provides automatic feedback*
 
@@ -31,7 +31,7 @@ Codex can use automatic testing techniques such as
 or [documentation-tests](https://docs.python.org/3.7/library/doctest.html)
 to report failure example to students.
 
-*Multiple types of exercises*
+*Allows multiple types of exercises*
 
 :     Codex supports testing code, mutiple-choice
 and fill-in questionaries.
@@ -71,9 +71,7 @@ all submissions (e.g. re-evaluate or generate printouts).
 Comments can be written in HTML-style:
 
 ~~~
-<!-- This is the begining of comment;
-     it can go on for multiple lines
--->
+<!-- This is a comment; it can span multiple lines -->
 ~~~
 
 Note that, unlike other Markdown readers, raw HTML markup
@@ -91,10 +89,11 @@ Metadata blocks are delimited between "`---`" and
     valid: "after 25/05/2019 and before 15/06/2019"
     ...
 
-Such blocks can occur anywhere in a document; several metadata
-blocks are equivalent to a single block of all collected fields.
-(We suggest placing metadata only at the beginning or the the end of
-the document.)
+Metadata blocks can occur anywhere in a document; several 
+blocks are equivalent to a single one with the (left-biased)
+union of all fields.
+(*Sugestion*: include
+metadata at the beginning or the the end of the document.)
  
 Exercises  are marked by the  `tester` field; the
 particular tester specifies the type of exercise and how assement
@@ -252,12 +251,13 @@ shuffle-answers: yes
 
 This is an example of multiple-choice and fill-in questions.
 
-<!-- Each question starts with a header with class "question" -->
+<!-- Each question starts with a header (any level)
+     with class attribute "question" -->
 
-## {.question answer=a}
+## Question 1 {.question answer=a}
 
 Consider a relation $R \subseteq \mathbb{Z}\times\mathbb{Z}$ 
-definide by $x R y \iff \exists k \in\mathbb{Z} : y = k\times x$.
+definied by $x R y \iff \exists k \in\mathbb{Z} : y = k\times x$.
 What properties does this relation have?
 
 (a) reflexive, transitive e anti-symetric
@@ -266,23 +266,80 @@ What properties does this relation have?
 
 <!-- The next question allows multiple selections -->
 
-## {.question .multiple answer=a answer=c answer=e}
+## Question 2 {.question .multiple answer=a answer=c answer=e}
 
 Select **all** true statements from the choices bellow.
 
-(a) Dogs have wings if cats have wings
-(b) Birds have wings if cats have wings
+(a) If cats have wings then dogs have wings
+(b) If bird have wings thgen cats have wings 
 (c) If cats have wings then birds have wings
 (d) Snakes have legs if and only if mice have tails
 (e) If frogs have fur and mice have eyes, then sharks have no teeth
 
 <!-- A fill-in question; answers are compared textually ignoring spaces -->
 
-## {.question .fillin answer="42"}
+## Question 3 {.question .fillin answer="42"}
 
-What is the answer to the fundamental question about ife, the universe
-and everything?
+According the "The Hitchhiker's Guide to the Galaxy", what is the
+answer to the fundamental question about life, the universe and
+everything?
 ~~~
+
+Each question has a unique identifier;
+because these are not defined in the above example,
+Pandoc would generate automatic identifiers 
+based on the header text (e.g. `#question-1`, `#question-2`,
+`#question-3`).
+If the header has no text, then the automatic identifiers
+will be `#section`, `#section-1`, `#section-1`, etc.
+You can instead opt to set identifiers explicitly, e.g.:
+
+~~~
+## {#q1 .question answer=a}
+~~~
+
+Codex will shuffle questions and/or answers
+if the metadata options `shuffle-questions` and
+`shuffle-answers` are enabled; by default, neither questions nor
+answers are shuffled. Shuffling is deterministic for each student
+(i.e. it depends only on the user login).
+
+It is also possible to group variants of each question
+so that only one is randomly choosen for each student, e.g.:
+
+~~~{.boxed}
+# {#questionA1 .question group="A" ...}
+
+<!-- first variant for A -->
+
+# {#questionA2 .question group="A" ...}
+
+<!-- second variant for A -->
+
+# {#questionA3 .question group="A" ...}
+
+<!-- third variant for A -->
+
+# {#questionB1 .question group="B" ...}
+
+<!-- first variant for B -->
+
+# {#questionB2 .question group="B" ...}
+
+<!-- second variant for B -->
+
+# {#questionC .question ...}
+
+<!-- this question has no group, so it always included -->
+~~~
+
+From the above quiz, three questions will be selected: one from
+`#questionA1`, `#questionA2` and `#questionA3`; one of `#questionB1`
+and `#questionB2; and the `#questionC`.  As with shuffling, the choice
+is pseudo-random but deterministic and depends only on the user login.
+Grouping can also be combined with shuffling, changing the order of
+questions and/or answers.
+
 
 ### Testing Haskell code using Quickcheck
 
@@ -724,8 +781,19 @@ change the penalty for wrong opttion to $-1/3$:
      incorrect-weight: -1/3
      ```
 
+`feedback`
 
+:    Boolean value specifiying whether feedback on the replies should be
+given; should be set to `false` in in exam setting so that no feedback
+on correct/incorrect answers is given.
 
+`printout`
+
+:    Boolean value specifiying whether to include a detailed
+transcript of questions and answer when producing a printout
+report (e.g. for exams); if set to `false` then the
+report will only include a summary (number of answered, correct
+and incorrect replies and a percentage score).
 
 
 ----

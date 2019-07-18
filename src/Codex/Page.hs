@@ -194,7 +194,7 @@ readMarkdownFile filepath = do
   txt <- liftIO $ T.readFile filepath
   return $ case parseDocument txt of
              Left err -> docError err
-             Right (doc,msgs) -> docWarnings msgs  <> removeHTMLComments doc 
+             Right (doc,msgs) -> docWarnings msgs  <> doc
 
 parseDocument :: Text -> Either PandocError (Pandoc, [LogMessage])
 parseDocument txt = runPure $ do
@@ -204,8 +204,12 @@ parseDocument txt = runPure $ do
   
 
 pandocReaderOptions :: ReaderOptions
-pandocReaderOptions = def {  readerExtensions = pandocExtensions }
+pandocReaderOptions
+  = def { readerExtensions = pandocExtensions
+        , readerStripComments = True
+        }
 
+{-
 --
 -- | remove raw HTML comments from pages
 --
@@ -221,6 +225,7 @@ removeHTMLComments = walk removeInline . walk removeBlock
         -- comment str = take 4 str == "<!--" 
         comment ('<':'!':'-':'-':_) = True
         comment _                   = False
+-}
 
 -- | report error and warning messages
 docError :: PandocError -> Pandoc

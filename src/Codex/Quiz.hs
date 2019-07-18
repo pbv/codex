@@ -13,6 +13,8 @@ module Codex.Quiz
   , shuffleQuiz
   , lookupAnswer
   , listLabels
+  , quizDocument
+  , quizText
   ) where
 
 import           Codex.Types
@@ -20,8 +22,13 @@ import           Codex.Page
 import           Codex.Random (Rand)
 import qualified Codex.Random as Rand
 
-import qualified Text.Pandoc.Definition as P
+import qualified Text.Pandoc.Builder as P
+-- import qualified Text.Pandoc.Definition as P
 import qualified Text.Pandoc.Walk as P
+import qualified Text.Pandoc.Writers.Markdown as P
+import qualified Text.Pandoc.Class as P
+import qualified Text.Pandoc.Options as P
+
 
 import           Data.Text (Text)
 import qualified Data.Text as T
@@ -54,7 +61,8 @@ data Choices
   | Alternatives Bool P.ListAttributes Alts
   -- list of multiple choices 
 
-type Alts =  [(Key, Bool, [P.Block])]
+type Alts =  [(Bool, [P.Block])]
+-- ^ right/wrong, description blocks
 
 type Key = String
 
@@ -62,12 +70,43 @@ type Key = String
 -- mapping from question identifier to (possibly many) answers
 newtype Answers = Answers (HashMap String [Key])
   deriving (Show, Semigroup, Monoid, ToJSON, FromJSON)
-  
+
 
 -- | lookup selections for a specific question
 lookupAnswer :: Question -> Answers -> [Key]
 lookupAnswer Question{..} (Answers hm) 
   = fromMaybe [] $ HashMap.lookup identifier hm
+
+-- | convert an already shuffled quiz into a Pandoc document 
+quizDocument :: Quiz -> P.Pandoc
+quizDocument Quiz{..}
+  = P.doc (P.fromList preamble <> mconcat (map questionDoc questions))
+
+questionDoc :: Question -> P.Blocks
+questionDoc Question{..}
+  =  P.fromList description <> choicesDoc choices
+
+choicesDoc :: Choices -> P.Blocks
+choicesDoc (FillIn _ _) = mempty
+choicesDoc (Alternatives _ attrs alts)
+  = P.orderedListWith attrs [P.fromList blocks | (_, blocks)<-alts]
+
+
+quizText :: Quiz -> Text
+quizText q
+  = case P.runPure (P.writeMarkdown pandocWriterOptions (quizDocument q)) of
+      Left err -> T.pack (show err)
+      Right txt -> txt
+  where
+
+pandocWriterOptions :: P.WriterOptions
+pandocWriterOptions
+  = P.def { P.writerExtensions = P.pandocExtensions
+          , P.writerSetextHeaders = False
+          }       
+  
+
+
 
 
 -- | deterministic shuffle questions & answers in a quiz
@@ -160,7 +199,7 @@ makeQuestion header rest
     posfix = drop 1 $ dropWhile (not . isList) rest
     (attrs,items) = fromMaybe (emptyAttrs,[]) $
                     getFirst $ P.query getList rest
-    alts = [ (label, truth, item)
+    alts = [ (truth, item)
            | (label, item) <- zip (listLabels attrs) items
            , let truth = label `elem` answers
            ]

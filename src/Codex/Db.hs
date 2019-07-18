@@ -41,7 +41,7 @@ initCmds = either (error.show) Map.assocs $ runMap $ do
             \language TEXT NOT NULL, \
             \code TEXT NOT NULL, \
             \status TEXT NOT NULL, \
-            \chck TEXT NOT NULL, \
+            \policy TEXT NOT NULL, \
             \report TEXT NOT NULL)",
             "CREATE INDEX user_index ON submissions(user_id)"
            ]
