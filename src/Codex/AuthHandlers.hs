@@ -40,9 +40,12 @@ import           Codex.LdapAuth
 ------------------------------------------------------------------------------
 -- | Handle login requests
 handleLogin :: Codex ()
-handleLogin =
-  method GET (loginForm "_login" Nothing) <|>
-  method POST handleLoginSubmit
+handleLogin = do
+  opt <- with auth currentUser
+  case opt of
+    Just _ -> redirectURL home
+    Nothing -> method GET (loginForm "_login" Nothing) <|>
+               method POST handleLoginSubmit
 
 
 -- | Render login and register form
