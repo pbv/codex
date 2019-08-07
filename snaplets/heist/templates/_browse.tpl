@@ -8,7 +8,7 @@
               title="Voltar ao ínício">Início</a></li>
        <apply-content/>
        <ifAdmin>
-	 <li><a class="admin" href="/admin"
+	 <li><a class="admin" href="${admin}"
 		title="Operações de adminstração">Admin</a></li>
        </ifAdmin>
     </ul>

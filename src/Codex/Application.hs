@@ -35,7 +35,8 @@ import Codex.Tester.Result
 
 -- | URLs for our application
 data AppUrl =
-    Login                  -- ^ session login / logout
+    Admin                  -- ^ admin operations 
+  | Login                  -- ^ session login / logout
   | Logout
   | Register
   | Page [FilePath]        -- ^ exercise page or other file

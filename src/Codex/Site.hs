@@ -195,6 +195,7 @@ routes =
 routeAppUrl :: AppUrl -> Codex ()
 routeAppUrl appUrl =
   case appUrl of
+    Admin -> render "_admin"
     Login  -> handleLogin 
     Logout -> handleLogout
     Register -> handleRegister 
@@ -237,7 +238,7 @@ codexInit tester =
     a <- nestSnaplet "auth" auth $ initSqliteAuth sess d
     addAuthSplices h auth
     js <- liftIO $ configSplices conf
-    addConfig h (mempty & scInterpretedSplices .~ (staticSplices `mappend` js))
+    addConfig h (mempty & scInterpretedSplices .~ (staticSplices <> js))
     -- auto-reload config file for events
     (evcfg, _) <- liftIO $ Conf.autoReload Conf.autoConfig [Conf.Required "events.cfg"]
     -- create a logger for user authentication
@@ -281,6 +282,7 @@ configSplices conf = do
 
 staticSplices :: ISplices
 staticSplices = do
+  "admin" ## urlSplice Admin
   "login" ## urlSplice Login
   "logout" ## urlSplice Logout
   "register" ## urlSplice Register
@@ -295,7 +297,6 @@ staticSplices = do
   "loggedInName" ## loggedInName auth
   "ifAdmin" ## do mbAu <- lift (withTop auth currentUser)
                   I.ifElseISplice (maybe False isAdmin mbAu)
-
 
 
 {-
