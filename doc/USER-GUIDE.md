@@ -14,8 +14,8 @@ automatic assessment. The main features are:
 
 *Simple exercise authoring*
 
-:    The exercise description is written in a human-readable Markdown
-format that can easily be transfered, kept in a version repository,
+:    Exercise descriptions are written in a human-readable Markdown
+format that can easily be copied, mailed, kept in a version repository,
 compared for changes, etc.;
 
 *Allows assessing program units*
@@ -33,39 +33,35 @@ to report failure example to students.
 
 *Allows multiple types of exercises*
 
-:     Codex supports testing code, mutiple-choice
-and fill-in questionaries.
+:     Codex supports testing code in several programming language and also
+mutiple-choice and fill-in questionaries.
 
 
 Codex is intended for learning environments rather than programming
-contests (for the later, check out [Mooshak](https://mooshak.dcc.fc.up.pt/)).  The system is currently being used at the Faculty of
-Science of the University of Porto for teaching introductory courses
-on Python and C programming.
+contests (for the later, check out
+[Mooshak](https://mooshak.dcc.fc.up.pt/)).  The system is currently
+being used at the Faculty of Science of the University of Porto for
+introductory courses on Python and C programming.
 
 ## Pages and exercises
 
-A Codex repository is  organized as set of interlinked
-hypertext pages.
-*Pages* can contain text, links, tables, images and mathematical formulas
-written in [Markdown](https://en.wikipedia.org/wiki/Markdown).
-
-Markdown is a
-[lightweight text markup syntax](https://en.wikipedia.org/wiki/Markdown)
-designed by John Gruber.
+A Codex exercise repository is organized as set of interlinked
+hypertext pages.  Pages are written in
+[Markdown](https://en.wikipedia.org/wiki/Markdown), 
+a lightweight text markup syntax originally proposed by John Gruber.
 Codex uses the 
 [Pandoc library](http://hackage.haskell.org/package/pandoc) for parsing
 Markdown which suports many extensions. In particular, it
 support LaTeX mathematics (rendered using
-[MathJaX](http://www.mathjax.org))
-For more details on the Pandoc-flavoured Markdown
-syntax accepted, check the [Pandoc user
+[MathJaX](http://www.mathjax.org)).
+For more details on the Pandoc-flavoured Markdown, check the [Pandoc user
 manual](http://pandoc.org/MANUAL.html#pandocs-markdown).
 
-Pages can be just plain documents or marked as *exercises*;
+Pages can be plain static documents or marked as *exercises*;
 the later allow student's submissions and trigger automatic assessment.
 Submissions are kept in a persistent database and students
-can review previous their submissions attempts (thought not
-anyone else's). The administrator can view and manage 
+can review  their previous attempts.
+The administrator can view and manage 
 all submissions (e.g. re-evaluate or generate printouts).
 
 Comments can be written in HTML-style:
@@ -77,9 +73,9 @@ Comments can be written in HTML-style:
 Note that, unlike other Markdown readers, raw HTML markup
 is **not** allowed (it will be rendered as plain text).
 
-Codex uses Pandoc's YAML extension to specify metadata for pages,
-(e.g. set the type of execise, the  programming 
-languages allowed, the period for valid submissions, etc).
+Codex uses Pandoc's YAML extension to specify metadata for pages
+e.g., define the exercise tester, programming 
+languages allowed, period for valid submissions, etc.
 Metadata blocks are delimited between "`---`" and 
 "`...`":
 
@@ -132,12 +128,13 @@ This is minimal index page. Here is a list of available exercises:
 * [](worksheet3.md){.ex}
 ~~~
 
-Links to exercise pages are marked with class attribute `.ex`; this
-fills-in automatically the exercise title (read from the markdown
+Note that the links above are marked with a special 
+class attribute `".ex"`; this
+fills-in the exercise title automatically (read from the markdown
 document) and a summary of previous submissions by the current user
 (read from the submission database).
 
-The adminstrator can edit the index page to the order
+The administrator should compose index pages to define order
 of exercises, or group exercises using sections and sub-pages.  It is also
 possible to add plain Markdown pages for documentation, or links to
 external resources.
@@ -154,13 +151,11 @@ Note that:
 
 ## An example programming exercise
 
-Consider the following simple Python programming
-exercise: *write a function `root` to
-compute rounded-down integral square roots*.
+Consider the following simple Python programming exercise: *write a
+function `root` to compute rounded-down integral square roots*.
 
-First we set up an *exercise page*
-`sqroot.md`; this contains the exercise description
-shown to the student (and some metadata fields):
+First we set up an *exercise page* `sqroot.md`; this contains the
+exercise description shown to the student (and some metadata fields):
 
 ~~~{.boxed}
 ---
@@ -238,7 +233,7 @@ Some remarks on writting *doctest* cases:
 ### An example quiz
 
 Setting up a multiple-choice or fill-in quiz requires
-only a Markdown exercise page:
+only a Markdown page:
 
 ~~~{.boxed}
 ---
@@ -286,23 +281,23 @@ everything?
 ~~~
 
 Each question has a unique identifier;
-because these are not defined in the above example,
-Pandoc would generate automatic identifiers 
+when these are not explicitly defined in the headers (as above)
+Pandoc generates identifiers automatically 
 based on the header text (e.g. `#question-1`, `#question-2`,
 `#question-3`).
 If the header has no text, then the automatic identifiers
 will be `#section`, `#section-1`, `#section-1`, etc.
-You can instead opt to set identifiers explicitly, e.g.:
+You can explicitly set header identifiers as follows:
 
 ~~~
 ## {#q1 .question answer=a}
 ~~~
 
-Codex will shuffle questions and/or answers
-if the metadata options `shuffle-questions` and
-`shuffle-answers` are enabled; by default, neither questions nor
-answers are shuffled. Shuffling is deterministic for each student
-(i.e. it depends only on the user login).
+If the metadata options `shuffle-questions` and `shuffle-answers` are
+enabled Codex will shuffle questions and/or answers. By default,
+neither questions nor answers are shuffled.  Shuffling is
+deterministic for each student (i.e. it depends only on the user
+login).
 
 It is also possible to group variants of each question
 so that only one is randomly choosen for each student, e.g.:
@@ -333,9 +328,9 @@ so that only one is randomly choosen for each student, e.g.:
 <!-- this question has no group, so it always included -->
 ~~~
 
-From the above quiz, three questions will be selected: one from
+From the above quiz, three questions will be chosen: one from
 `#questionA1`, `#questionA2` and `#questionA3`; one of `#questionB1`
-and `#questionB2; and the `#questionC`.  As with shuffling, the choice
+and `#questionB2`; and finally `#questionC`.  As with shuffling, the choice
 is pseudo-random but deterministic and depends only on the user login.
 Grouping can also be combined with shuffling, changing the order of
 questions and/or answers.
@@ -564,8 +559,9 @@ The following metadata fields apply to all exercises types.
 
 `title`
 
-:      Specifies the title for exercise links; if this is missing,
-the title is the first header in the document.
+:      Specifies the exercise title (used for hypertext links); if
+this is missing, then the first header in the exercise description
+is used.
 
 `tester`
 
@@ -769,7 +765,7 @@ By default the correct item(s) score 1.
 
 `incorrect-weight`
 
-:     Fractional number from 0 to 1; this is the scoring weight
+:     Fractional number from 0 to -1; this is the scoring weight
 for an incorrect to a multiple-choice question.
 By default the score for each incorrect item is such that
 the sum of incorrect items equals minus the sum of corrects ones,
