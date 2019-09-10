@@ -69,8 +69,8 @@ data Policy time
   = OK           -- ^ no constraint
   | Before time  -- ^ before some time 
   | After time   -- ^ after some time
-  | LessThanAttempts Int -- ^ less than a maximum number of submissions
   | And (Policy time) (Policy time)  -- ^ conjunction
+  | LessThanAttempts Int -- ^ maximum number of submissions
   deriving (Eq, Read, Show, Functor, Foldable, Traversable)
 
 

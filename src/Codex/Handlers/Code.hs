@@ -13,6 +13,7 @@ import          Codex.Application
 import          Codex.Utils
 import          Codex.Handlers
 import          Codex.Page
+import          Codex.Policy
 import          Codex.Submission
 import          Codex.AceEditor
 import          Codex.Evaluate
@@ -47,7 +48,7 @@ codeView uid rqpath page = do
     pageSplices page
     codeSplices page
     feedbackSplices page
-    submissionListSplices tz subs
+    submissionListSplices (pageValid page) tz subs
     textEditorSplice
     languageSplices (pageLanguages page) Nothing
 
@@ -87,13 +88,18 @@ codeSplices page = do
 
 
 -- | splices relating to a list of submissions
-submissionListSplices :: TimeZone -> [Submission] -> ISplices
-submissionListSplices tz list = do
+submissionListSplices :: Policy t -> TimeZone -> [Submission] -> ISplices
+submissionListSplices policy tz list = do
+  -- number of submissions made
   let count = length list
+  -- optional submissions left
+  let left = fmap (\n -> max 0 (n - count)) (maxAttempts policy)
   "submissions-count" ## I.textSplice (T.pack $ show count)
   "if-submitted" ## I.ifElseISplice (count > 0)
   "submissions-list" ##
-    I.mapSplices (I.runChildrenWith . submitSplices tz) list
+    I.mapSplices (I.runChildrenWith . submitSplices tz) list   
+  "submissions-left" ##
+    I.textSplice (maybe "N/A" (T.pack.show) left)
 
 
 

@@ -9,4 +9,9 @@
     </if-late>
   </if-early>
 </p>
+<if-max-attempts>
+  <p class="info">
+  Tentativas disponíveis: <submissions-left/>.
+  </p>
+</if-max-attempts>
 
