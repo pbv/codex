@@ -1,3 +1,4 @@
+{-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-
   Some helper handlers for our application monad
@@ -12,7 +13,7 @@ import qualified Data.Text as T
 import qualified Data.Text.Encoding as T
 import qualified Data.Text.Encoding.Error as T
 
-import           Data.Maybe (isJust, fromMaybe, listToMaybe)
+import           Data.Maybe (fromMaybe, listToMaybe)
 import           Data.Aeson
 import qualified Data.HashMap.Strict as HM
 import           Data.Map.Syntax
@@ -34,7 +35,7 @@ import qualified Text.XmlHtml as X
 import           Control.Monad (join)
 import           Control.Monad.State
 import           Control.Applicative 
-import           Control.Exception (SomeException)
+import           Control.Exception (SomeException(..))
 
 import qualified Data.Configurator as Configurator
 import qualified Data.Configurator.Types as Configurator
@@ -248,8 +249,6 @@ messageSplices mesgs = do
   where splice msg = "message" ## I.textSplice msg
 
 
-
-
 tagCaseSplice :: Monad m => Text -> I.Splice m
 tagCaseSplice tag = getParamNode >>= (I.runNodeList . select . X.childNodes)
    where
@@ -332,32 +331,6 @@ withTimeSplices :: Page -> Codex a -> Codex a
 withTimeSplices page action = do
   tz  <- liftIO getCurrentTimeZone
   now <- liftIO getCurrentTime
-  events <- getEvents
-  let optInt = evalInterval tz events (pageInterval page)
-  let splices = case optInt of
-        Left err -> do
-          "current-timing" ## I.textSplice (T.pack err)
-        Right interval -> timingSplices tz now interval
-  withSplices splices action
-
--- | splices related to the submission interval for an exercise
-timingSplices :: TimeZone -> UTCTime -> Interval UTCTime -> ISplices
-timingSplices tz now interval = do
-  let timeLeft = fmap (\t -> diffUTCTime t now) (higher interval)
-  "valid-from" ##
-    I.textSplice $ maybe "N/A" (showTime tz) (lower interval)
-  "valid-until" ##
-    I.textSplice $ maybe "N/A" (showTime tz) (higher interval)
-  "current-timing" ##
-    (caseSplice . timeInterval now) interval
-  "time-left" ##
-    I.textSplice $ maybe "N/A" (\t -> T.pack $ formatNominalDiffTime t) timeLeft
--}
-
-withTimeSplices :: Page -> Codex a -> Codex a
-withTimeSplices page action = do
-  tz  <- liftIO getCurrentTimeZone
-  now <- liftIO getCurrentTime
   env <- getTimeEnv
   flip withSplices action $ 
     case evalPolicy env (pageValid page) of
@@ -380,7 +353,15 @@ withTimeSplices page action = do
           I.textSplice $
           maybe "N/A" (\t -> T.pack $ formatNominalDiffTime t)
           (timeLeft now constr)
+-}
 
+
+getPolicy :: Page -> Codex (Policy UTCTime)
+getPolicy page = do
+  env <- getTimeEnv
+  case evalPolicy env =<< pagePolicy page of
+    Left err -> internalError (SomeException $ userError $ T.unpack err)
+    Right pol -> return pol
 
     
 feedbackSplices :: Page -> ISplices

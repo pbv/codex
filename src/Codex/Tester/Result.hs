@@ -13,27 +13,13 @@ import           Database.SQLite.Simple.ToField
 
 -- submission results
 data Result
-  = Result { resultStatus :: Status -- ^ see below
-           , resultCheck :: Check  -- ^ valid/invalid timing, etc
-           , resultReport :: Text -- ^ detailed report
+  = Result { resultStatus :: Status   -- ^ see below
+           , resultReport :: Text     -- ^ detailed report
            }
   deriving (Eq, Read, Show, Typeable)
 
--- | validity check for submissions 
-data Check = Valid
-           | Invalid Text  -- ^ rejection message
-           deriving (Eq, Read, Show, Typeable)
 
-instance Semigroup Check where
-  Invalid msg1 <> Invalid msg2 = Invalid (msg1 <> msg2)
-  Valid <> b  = b
-  a <> Valid  = a
-
-instance Monoid Check where
-  mempty = Valid
-  
-
--- | classification statuses, in increasing severity (?)
+-- | classification status, in increasing severity (?)
 data Status = Evaluating
             | MiscError
             | CompileError
@@ -56,15 +42,6 @@ instance FromField Status where
       parse ((s,""):_) = return s
       parse _  = returnError ConversionFailed f "invalid Status field"
 
-instance ToField Check where
-  toField = toField . show
-
-
-instance FromField Check where
-  fromField f = fromField f >>= parse . reads 
-    where
-      parse ((s,""):_) = return s
-      parse _  = returnError ConversionFailed f "invalid Check field"
   
 
 instance Exception Result -- default instance
@@ -72,21 +49,21 @@ instance Exception Result -- default instance
 
 -- | result construtors
 evaluating :: Result
-evaluating = Result Evaluating (Invalid "???") ""
+evaluating = Result Evaluating ""
 
 received, accepted,
   wrongAnswer, presentationError, compileError, runtimeError,
   timeLimitExceeded, memoryLimitExceeded, miscError :: Text -> Result
 
-received = Result Received Valid . trim maxLen
-accepted = Result Accepted Valid . trim maxLen
-wrongAnswer = Result WrongAnswer Valid . trim maxLen
-compileError = Result CompileError Valid . trim maxLen
-runtimeError = Result RuntimeError Valid . trim maxLen
-timeLimitExceeded = Result TimeLimitExceeded Valid . trim maxLen
-memoryLimitExceeded = Result MemoryLimitExceeded Valid . trim maxLen
-miscError = Result MiscError Valid . trim maxLen
-presentationError = Result PresentationError Valid . trim maxLen
+received = Result Received . trim maxLen
+accepted = Result Accepted  . trim maxLen
+wrongAnswer = Result WrongAnswer . trim maxLen
+compileError = Result CompileError . trim maxLen
+runtimeError = Result RuntimeError . trim maxLen
+timeLimitExceeded = Result TimeLimitExceeded . trim maxLen
+memoryLimitExceeded = Result MemoryLimitExceeded . trim maxLen
+miscError = Result MiscError  . trim maxLen
+presentationError = Result PresentationError . trim maxLen
 
 maxLen :: Int
 maxLen = 2000

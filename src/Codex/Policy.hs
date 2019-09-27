@@ -1,3 +1,4 @@
+{-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE DeriveDataTypeable #-}
 {-# LANGUAGE OverloadedStrings #-}
@@ -5,45 +6,48 @@
 {-# LANGUAGE DeriveTraversable #-}
 
 {-
--- Policies for classifying submissions as valid or invalid
+  Policies for classifying submissions as valid or invalid
 -}
 
 module Codex.Policy (
     TimeExpr,
     TimeEnv,
-    makeTimeEnv,
-    Policy(..),
-    early, late, lower, higher, maxAttempts,
-    fromLocalTime,
-    fromUTCTime,
-    timeLeft, 
+    Constr(..),
+    Policy,
+    -- early, late, lower, higher, maxAttempts,
+    -- fromLocalTime,
+    -- fromUTCTime,
+    -- timeLeft, 
+    -- parsePolicy,
+    -- evalTimeExpr,
+    -- timeLeft,
     parseTimeExpr,
     parsePolicy,
-    evalTimeExpr,
+    makeTimeEnv,
     evalPolicy,
     showTime,
     formatNominalDiffTime
     ) where 
 
 import           Data.Char
-import           Data.List (intersperse)
-import           Data.Maybe (catMaybes)
 import           Data.Text (Text)
 import qualified Data.Text as T
 import           Data.Time hiding (parseTime)
 
 import           Text.ParserCombinators.ReadP
 
+import           Control.Monad.Reader
+import           Control.Monad.Except
 
-type Name = Text             -- event names
 
 -- | time expressions
 data TimeExpr 
   = Event Name               -- ^ named event 
   | Local LocalTime          -- ^ local time constant
-  | UTC UTCTime              -- ^ unversal time constant
   | Add Diff TimeExpr        -- ^ add a time difference
   deriving (Eq, Read, Show)
+
+type Name = Text             -- event names
 
 data Diff = Diff !Int !Unit
   deriving (Eq, Read, Show)
@@ -57,85 +61,48 @@ data Unit
   deriving (Eq, Read, Show)
 
 
-fromLocalTime :: LocalTime -> TimeExpr
-fromLocalTime = Local
+-- | a submission policy is a list of constraints
+-- i.e. a conjunction
+type Policy t =  [Constr t] 
 
-fromUTCTime :: UTCTime -> TimeExpr
-fromUTCTime = UTC
-
--- | policyt constraints for submissions;
--- parametrized by the type for time values
-data Policy time
-  = OK           -- ^ no constraint
-  | Before time  -- ^ before some time 
-  | After time   -- ^ after some time
-  | And (Policy time) (Policy time)  -- ^ conjunction
-  | LessThanAttempts Int -- ^ maximum number of submissions
-  deriving (Eq, Read, Show, Functor, Foldable, Traversable)
-
-
-early :: Ord time => time -> Policy time -> Bool
-early t c = maybe False (\l -> t<l) (lower c)
-           
-late :: Ord time => time -> Policy time -> Bool
-late t c = maybe False (\h -> t>h) (higher c)
-
-
--- | lower and higher time required by a constraint
-lower :: Ord time => Policy time -> Maybe time
-lower (After t) = Just t 
-lower (And c1 c2)
-  = case catMaybes [lower c1, lower c2] of
-      [] -> Nothing
-      ts -> Just (maximum ts)
-lower _ = Nothing
-
-higher :: Ord time => Policy time -> Maybe time
-higher (Before t)  = Just t 
-higher (And c1 c2)
-  = case catMaybes [higher c1, higher c2] of
-      [] -> Nothing
-      ts -> Just (minimum ts)
-higher _ = Nothing
-
-
-timeLeft :: UTCTime -> Policy UTCTime -> Maybe NominalDiffTime
-timeLeft t c = fmap (\t'-> diffUTCTime t' t) (higher c)
-
-
-maxAttempts :: Policy time -> Maybe Int
-maxAttempts (LessThanAttempts n) = Just n
-maxAttempts (And c1 c2) 
-  = case catMaybes [maxAttempts c1, maxAttempts c2] of
-      [] -> Nothing
-      xs -> Just (minimum xs)
-maxAttempts _ = Nothing
-
+-- | policy constraints 
+-- | parametrized by the type for time
+data Constr t = Before t
+              | After t
+              | Attempts Int
+              deriving (Eq, Show, Functor)
 
 --
--- | parse a policy constraint
+-- | parse policy constraints
 --
-parsePolicy :: String -> Maybe (Policy TimeExpr)
+parsePolicy :: String -> Either Text (Policy TimeExpr)
 parsePolicy str
   = case readP_to_S (skipSpaces >> parseConstraintP) str of
-       ((v, ""):_) -> Just v
-       _           -> Nothing
+       ((cs, ""):_) -> return cs
+       ((_, txt):_) -> throwError ("can't parse constraint: " <>
+                                    T.pack (show txt))
+       _   -> throwError "can't parse constraint"
 
--- worker function
-parseConstraintP :: ReadP (Policy TimeExpr)
-parseConstraintP = (parseBaseP >>= cont) <++ return OK
-  where cont b = do symbol "and"; b'<-parseBaseP; cont (And b b')
-                 <++ return b
 
+-- | parse a list of constraints
+parseConstraintP :: ReadP [Constr TimeExpr]
+parseConstraintP = do c <- parseBaseP; go [c]
+                   <++ return  []
+  where go cs = do symbol "and"; c<-parseBaseP; go (c:cs)
+                <++ return (reverse cs)
+
+-- | parse a single constraint
+parseBaseP :: ReadP (Constr TimeExpr)
 parseBaseP =
   do (symbol "before" <++ symbol "until"); Before <$> parseTimeP
   <++
   do symbol "after"; After <$> parseTimeP
   <++
-  do symbol "attempts"; LessThanAttempts <$> integer
+  do symbol "attempts"; Attempts <$> integer
 
 
--- | parse time expressions; wrapper
+
+-- | parse time expressions; top-level wrapper funcion
 parseTimeExpr :: String -> Maybe TimeExpr
 parseTimeExpr str
   = case readP_to_S (skipSpaces >> parseTimeP) str of
@@ -211,42 +178,41 @@ integer = token (readS_to_P reads)
 symbol :: String -> ReadP String
 symbol s = token (string s)
 
------------------------------------------------------------
----- semantics
------------------------------------------------------------
 
--- | environments for evaluation of time expressions 
+-----------------------------------------------------------
+-- a Monad for evaluating time expressions 
+type TimeM = ExceptT Text (Reader TimeEnv)
+
+-- | environments
 data TimeEnv
   = TimeEnv
     { timeZone :: TimeZone
     , timeEvents :: Name -> Maybe TimeExpr
     }
 
-
 makeTimeEnv :: TimeZone -> (Name -> Maybe TimeExpr) -> TimeEnv
 makeTimeEnv = TimeEnv
 
 
 -- | evaluate a time expression; wrapper
-evalTimeExpr :: TimeEnv -> TimeExpr -> Either Text UTCTime
-evalTimeExpr env t = evalTime' env [] t
-
--- worker function
-evalTime' :: TimeEnv -> [Name] -> TimeExpr -> Either Text UTCTime
-evalTime' env@TimeEnv{..} deps (Event name)
-  | name `elem` deps =
-      Left ("cyclic dependency: " <>
-            T.concat (intersperse "->" $ reverse (name:deps)))
-  | otherwise =
-      case timeEvents name of
-        Nothing -> Left ("undefined event: " <> name)
-        Just t -> evalTime' env (name:deps) t
-evalTime' _ _ (UTC t)
-  = pure t
-evalTime' TimeEnv{..} _ (Local t)
-  = pure (localTimeToUTC timeZone t)     
-evalTime' env deps (Add d e)
-  = addUTCTime (evalDiff d) <$> evalTime' env deps e
+evalTimeExpr :: TimeExpr -> TimeM UTCTime
+evalTimeExpr t = evalTime' [] t
+  where
+    -- worker function
+    evalTime' :: [Name] -> TimeExpr -> TimeM UTCTime
+    evalTime' deps (Event name)
+      | name `elem` deps =
+          throwError ("cyclic dependency in event: " <> T.pack (show name))
+      | otherwise = do
+          TimeEnv{..} <- ask
+          case timeEvents name of
+            Nothing -> throwError ("undefined event: " <> T.pack (show name))
+            Just t -> evalTime' (name:deps) t
+    evalTime' _ (Local t) = do
+      TimeEnv{..} <- ask
+      return (localTimeToUTC timeZone t)     
+    evalTime' deps (Add d e)
+      = addUTCTime (evalDiff d) <$> evalTime' deps e
 
 
 evalDiff :: Diff -> NominalDiffTime
@@ -260,29 +226,34 @@ evalDiff (Diff value un) = fromIntegral value * toSeconds un
   
 
 --
--- | evaluate a policy
+-- | evaluate time expressions policy constraints
 --
-evalPolicy :: TimeEnv
-           -> Policy TimeExpr
-           -> Either Text (Policy UTCTime)
-evalPolicy env = traverse (evalTimeExpr env)  
+
+evalPolicy :: TimeEnv -> Policy TimeExpr -> Either Text (Policy UTCTime)
+evalPolicy env cs = runReader (runExceptT (mapM evalConstr cs)) env
+
+evalConstr :: Constr TimeExpr -> TimeM (Constr UTCTime)
+evalConstr (Before te)  = Before <$> evalTimeExpr te
+evalConstr (After te)   = After <$> evalTimeExpr te
+evalConstr (Attempts n) = return (Attempts n)
 
 
 -------------------------------------------------------------
--- pretty printing
+-- pretty printing times
 -------------------------------------------------------------
 
+-- format an UTC time as local time
 showTime :: TimeZone -> UTCTime -> Text
 showTime tz = T.pack . formatTime defaultTimeLocale "%c"  . utcToLocalTime tz
 
--- format a time difference
-formatNominalDiffTime :: NominalDiffTime -> String
+-- | format a time difference
+formatNominalDiffTime :: NominalDiffTime -> Text
 formatNominalDiffTime secs
-  | secs>=0  = unwords $
-               [show d ++ " dias" | d>0] ++
-               [show (h`rem`24) ++ " horas" | h>0] ++
-               [show (m`rem`60) ++ " mins" | m>0] ++
-               ["<1 min" | secs<60]
+  | secs>0  = T.pack $ unwords $
+              [shows d "d" | d>0] ++
+              [shows (h`rem`24) "h" | h>0] ++
+              [shows (m`rem`60) "m" | m>0] ++
+              ["<1 m" | secs<60]
   | otherwise = "--/--"
   where m = floor (secs / 60) :: Int
         h = m `div` 60

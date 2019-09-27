@@ -63,14 +63,6 @@ instance Aeson.ToJSON QuizAnswers where
 instance Aeson.FromJSON QuizAnswers   
   -- derived implementation
 
-{-
--- | convert quiz answers from/to text
-decodeAnswers :: Text -> Maybe Answers
-decodeAnswers = Aeson.decode . LB.fromStrict . T.encodeUtf8 
-
-encodeAnswers :: Answers -> Text
-encodeAnswers = T.decodeUtf8 . LB.toStrict . Aeson.encode
--}
 
 decodeAnswers :: Text -> Maybe Answers
 decodeAnswers txt =  answers <$> decodeQuizAnswers txt
@@ -172,7 +164,7 @@ quizView uid rqpath page = do
   let answers = fromMaybe mempty $ case subs of
                   [] -> Nothing
                   _ ->  getSubmitAnswers (last subs)
-  withTimeSplices page $
+  withPolicySplices uid rqpath page $
     renderWithSplices "_quiz" $ quizSplices quiz answers
 
 

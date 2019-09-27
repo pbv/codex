@@ -1,25 +1,34 @@
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE RecordWildCards #-}
+{-# LANGUAGE PatternGuards #-}
 
 module Codex.Evaluate(
   newSubmission,
   evaluate,
   evaluateMany,
-  cancelPending
+  cancelPending,
+  withPolicySplices,
   ) where
 
 import qualified Data.Text as T
 import           Data.Maybe
+import           Data.List (intersperse)
 import           Data.Time.Clock
+import           Data.Time.LocalTime
+import           Control.Monad.Writer
 import           Control.Monad.State
 import           Control.Concurrent (ThreadId) 
 import           Control.Exception  (SomeException, catch)
 import           System.FilePath
-import           Text.Printf
 
 import           Snap.Snaplet
+import           Snap.Snaplet.Heist
 import qualified Snap.Snaplet.SqliteSimple as S
+import           Heist.Splices     as I
+import qualified Heist.Interpreted as I
+import           Data.Map.Syntax
+
 
 import           Data.Configurator.Types(Config)
 import qualified Data.Configurator as Conf
@@ -39,7 +48,7 @@ import           Codex.Policy
 newSubmission :: UserLogin -> FilePath -> Code -> Codex SubmitId
 newSubmission uid rqpath code = do
   now <- liftIO getCurrentTime
-  sub <- insertSubmission uid rqpath now code evaluating
+  sub <- insertSubmission uid rqpath now code evaluating (invalid "?")
   evaluate sub
   return (submitId sub)
 
@@ -67,60 +76,29 @@ evaluateMany subs = do
 cancelPending :: Codex ()
 cancelPending = cancelTasks =<< gets _queue 
 
-
 -- | evaluate a single submission with a given scheduling strategy
 -- 
 evaluateWith :: (IO () -> Codex r) -> Submission -> Codex r
-evaluateWith schedule Submission{..} = do
-  sqlite <- S.getSqliteState
+evaluateWith async submission@Submission{..} = do
+  conn <- S.getSqliteState
   conf <- getSnapletUserConfig
   env <- getTimeEnv
   tester <- gets _tester
-  filepath <- getDocumentRoot >>= return . (</> submitPath)
-  schedule $ do
-    updateSubmission sqlite submitId evaluating
+  root <- getDocumentRoot
+  let filepath = root </> submitPath
+  async $ do    -- run the tester asynchronously
+    runSqlite conn $ updateSubmission submitId evaluating (invalid "?")
     page <- readMarkdownFile filepath
-    let constr = pageValid page
-    (testWrapper tester conf filepath page Submission{..} >>=
-     return . checkTiming env constr submitTime >>=
-     checkAttempts sqlite constr Submission{..}  >>=
-     updateSubmission sqlite submitId)
+    check <- case evalPolicy env =<< pagePolicy page of
+               Left err -> return (invalid err)
+               Right policy ->
+                 runSqlite conn $
+                 checkPolicy submitUser submitPath submitTime policy
+    result <- testWrapper tester conf filepath page submission 
+    runSqlite conn $ updateSubmission submitId result check
 
 
--- | append a policy check to a result
-update :: Result -> Check -> Result
-update r c = r { resultCheck = resultCheck r <> c }
-
-            
-checkTiming :: TimeEnv -> Policy TimeExpr -> UTCTime -> Result -> Result
-checkTiming env constr time result 
-  = update result $ case evalPolicy env constr of
-    Left err -> Invalid err
-    Right constr'
-      | early time constr' -> Invalid "Early submission. "
-      | late  time constr' -> Invalid "Late submission. "
-      | otherwise -> Valid
-      
-
--- | check maximum number of attempts
-checkAttempts :: S.Sqlite
-              -> Policy time
-              -> Submission
-              -> Result
-              -> IO Result
-checkAttempts sqlite constr submiss result
-  = update result <$>
-    case maxAttempts constr of
-      Nothing ->
-        return Valid
-      Just max -> do
-        count <- countEarlierSubmissions sqlite submiss
-        return $ if count < max then Valid
-                 else let msg = printf "Over %d submissions. " max
-                      in Invalid $ T.pack msg
-
-
--- | wrapper to run a tester and catch any exception
+-- | wrapper to run a tester and catch any exceptions
 testWrapper :: Tester Result
             -> Config
             -> FilePath
@@ -137,3 +115,66 @@ invalidTester :: Result
 invalidTester = miscError "no acceptable tester configured"
 
 
+withPolicySplices :: UserLogin -> FilePath -> Page -> Codex a -> Codex a
+withPolicySplices uid path page action = do
+  tz <- liftIO getCurrentTimeZone
+  now <- liftIO getCurrentTime
+  constrs <- getPolicy page
+  check <- checkPolicy uid path now constrs
+  earlier <- countPageSubmissions uid path
+  let allow = pageAllowInvalid page 
+  let
+    splice :: Constr UTCTime -> ISplices
+    splice (After start) = do
+      "submit-after" ## I.textSplice (showTime tz start)
+      "if-submit-after" ## I.ifElseISplice True
+      "if-submit-early" ## I.ifElseISplice (now < start)
+    splice (Before limit) = do
+      let remain = max 0 (diffUTCTime limit now)
+      "submit-before" ## I.textSplice (showTime tz limit)
+      "submit-time-remain" ## I.textSplice (formatNominalDiffTime remain)
+      "if-submit-before" ## I.ifElseISplice True
+      "if-submit-late" ## I.ifElseISplice (now > limit)
+    splice (Attempts limit) = do
+      let remain = max 0 (limit - earlier)
+      "submissions-attempts" ## I.textSplice (T.pack $ show limit)
+      "submissions-remain" ## I.textSplice (T.pack $ show remain)
+      "if-submit-attempts" ## I.ifElseISplice True
+  flip withSplices action $ do
+    "if-valid" ## I.ifElseISplice (check == Valid)
+    "if-allowed" ## I.ifElseISplice (allow || check == Valid)
+    "invalid-msg" ## case check of
+                       Valid -> return []
+                       Invalid msg -> I.textSplice msg
+    "if-submitted" ## I.ifElseISplice (earlier > 0)
+    "if-submit-after" ## I.ifElseISplice False
+    "if-submit-before" ## I.ifElseISplice False
+    "if-submit-attempts" ## I.ifElseISplice False
+    "if-submit-early" ## I.ifElseISplice False
+    "if-submit-late" ## I.ifElseISplice False
+    mapM_ splice constrs
+
+
+      
+-- | check the policy specified for a page
+checkPolicy :: S.HasSqlite m
+            => UserLogin -> FilePath -> UTCTime -> Policy UTCTime
+            -> m Validity
+checkPolicy  user path time constrs = do
+  (_, msgs) <- runWriterT (mapM_ (checkConstr user path time) constrs)
+  return $ if null msgs then Valid
+           else Invalid (T.concat $ intersperse ";" msgs)
+
+checkConstr :: S.HasSqlite m  
+             => UserLogin -> FilePath -> UTCTime -> Constr UTCTime 
+             -> WriterT [Text] m ()
+checkConstr user path time (Before highTime)
+  | time < highTime = return ()
+  | otherwise       = tell ["Late submission"]
+checkConstr user path time (After highTime)
+  | time > highTime = return ()
+  | otherwise       = tell ["Early submission"]
+checkConstr user path time (Attempts max) = do
+  earlier <- lift $ countEarlierSubmissions user path time
+  if earlier < max then return ()
+    else tell ["Too many submissions"]

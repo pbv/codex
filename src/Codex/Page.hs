@@ -74,10 +74,19 @@ pageDefaultText = lookupFromMeta "code" . pageMeta
 pageTester :: Page -> Maybe Text
 pageTester = lookupFromMeta "tester" . pageMeta
 
--- | get policy constraint for submissions
-pageValid :: Page -> Policy TimeExpr
-pageValid p
-  = fromMaybe OK (lookupFromMeta "valid" (pageMeta p) >>= parsePolicy)
+-- | get the policy constraints for submissions
+pagePolicy :: Page -> Either Text (Policy TimeExpr)
+pagePolicy page =
+  case lookupFromMeta "valid" (pageMeta page) of
+    Nothing -> return []
+    Just txt -> parsePolicy txt
+  
+--   = fromMaybe [] (lookupFromMeta "valid" (pageMeta p) >>= parsePolicy)
+
+-- | sallow invalid submissions?
+pageAllowInvalid :: Page -> Bool
+pageAllowInvalid p
+  = fromMaybe True $ lookupFromMeta "allow-invalid" $ pageMeta p
 
 
 -- | give feedback for submissions?

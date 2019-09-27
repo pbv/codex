@@ -193,7 +193,7 @@ runTests action tests
           
 numberResult :: Int -> Int -> String -> Result -> Result
 numberResult num total args Result{..}
-  = Result resultStatus Valid (test <> resultReport)
+  = Result resultStatus (test <> resultReport)
   where test
           = T.pack (printf "*** Test %d / %d ***\n\n" num total) <>
           "Command-line arguments:\n" <> T.pack args <> "\n"

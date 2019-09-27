@@ -137,13 +137,13 @@ submissionPrintout tz page sub@Submission{..}  content
 submissionHeader tz Submission{..}
   = header 2 (strong (text $ show $ resultStatus submitResult) <>
               space <>
-              emph (text $ "(" ++ checkText (resultCheck submitResult) ++ ")")) <>
+              emph (text $ "(" ++ checkText submitCheck ++ ")")) <>
     para (text ("Submission " ++ show submitId ++ "; " ++
                  T.unpack (showTime tz submitTime)))
 
 
 
-checkText :: Check -> String
+checkText :: Validity -> String
 checkText Valid         = "Valid"
 checkText (Invalid msg) = "Invalid: " ++ T.unpack msg
 

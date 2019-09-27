@@ -26,16 +26,17 @@
     <p class="info">Se a página não atualizar automaticamente,
       use o botão "reload" do "browser".</p>
     <else/>
-    <if-early>
-      <h3>Resultado: <em>Submissão antecipada</em></h3>
-      <p><em>Feedback</em> será visível após <valid-from/>.</p>
+    <if-submit-early>
+      <h3>Resultado: <em>???</em></h3>
+      <p>Submissão antecipada; resultado será visível
+	após <submit-after/>.</p>
       <else/>
       <h3>Resultado: <em><result-status/></em>
 	<if-valid><else/>&nbsp;(<em><result-check/></em>)</if-valid>
       </h3>
       <apply template="_timing"/>
       <if-feedback><pre><result-report/></pre></if-feedback>
-    </if-early>
+    </if-submit-early>
   </if-evaluating>
 </div>
 
@@ -44,20 +45,21 @@
 <div id="editor-tab" class="tabcontents">
   <page-title/>
   <apply template="_timing"/>
-  <form id="codeform" method="POST" action="${page-url}">
-    <p>
-      <input type="file" id="fileselect"
+  <if-allowed>
+    <form id="codeform" method="POST" action="${page-url}">
+      <p>
+	<input type="file" id="fileselect"
 	     accept="${language-extensions}"/> &nbsp;
-      <input-language-selector
-	id="langselect"  name="language"
-	form="codeform"  selected="${submit-lang}"/> &emsp;
-      <input type="submit" value="Re-submeter"/>
+	<input-language-selector
+	  id="langselect"  name="language"
+	  form="codeform"  selected="${submit-lang}"/> &emsp;
+	<input type="submit" value="Re-submeter"/>
       &emsp;&emsp;&emsp;&emsp;&emsp;
       <apply template="_fontsize"/>
-    </p>
+      </p>
     <p><textarea id="code" name="code" style="display:none;"/></p>
     <div id="editor"><submit-code/></div>
-  </form>
+    </form>
   
   <script type="text/javascript">
     var editor = startAceEditor('editor');
@@ -70,8 +72,13 @@
     
     document.getElementById('langselect').addEventListener('change',
     function() { editor.session.setMode(languageModes[this.selectedIndex]); } );
+    </script>
+    <language-constants-js/>
+    <default-language-js/>
+  </if-allowed>
+</div>
 
-
+<script>
 function openTab(evt, tabName) {
   // Declare all variables
   var i, tabcontent, tablinks;
@@ -94,11 +101,7 @@ function openTab(evt, tabName) {
  }
 
 document.getElementById("report").click();
-  </script>
-  
-  <language-constants-js/>
-  <default-language-js/>
-</div>
+</script>
   
 </apply>
 

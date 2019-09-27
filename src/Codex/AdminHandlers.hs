@@ -300,7 +300,7 @@ exportSubmissions' patts ord filetpl sep  = do
                                  show submitPath,
                                  show (codeLang submitCode),
                                  show (resultStatus submitResult),
-                                 show (resultCheck submitResult),
+                                 show submitCheck,
                                  show (show submitTime)
                                 ]
       hPutStrLn h row

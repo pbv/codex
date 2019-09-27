@@ -5,7 +5,7 @@
 -}
 
 module Codex.Submission (
-  Submission(..),
+  module Codex.Submission.Types,
   Patterns,
   Ordering(..),
   insertSubmission,
@@ -22,7 +22,7 @@ module Codex.Submission (
   filterSubmissions,
   countSubmissions,
   submitSplices,
-  submitLang
+  runSqlite
   ) where
 
 import           Prelude hiding (Ordering)
@@ -35,7 +35,7 @@ import qualified Data.Text          as T
 import qualified Data.Text.Encoding as T
 
 import           Data.List (intersperse)
-import           Data.Maybe(listToMaybe,fromMaybe)
+import           Data.Maybe(listToMaybe, fromMaybe)
 
 import           Snap.Core(getParam) -- hiding (path)
 import           Snap.Snaplet.SqliteSimple
@@ -62,25 +62,24 @@ import           Codex.Submission.Types
 -- | insert a new submission into the DB
 insertSubmission ::
   HasSqlite m =>
-  UserLogin -> FilePath -> UTCTime -> Code -> Result -> m Submission
-insertSubmission uid path time code result = do
+  UserLogin -> FilePath -> UTCTime -> Code -> Result -> Validity -> m Submission
+insertSubmission uid path time code result val = do
   let (Code lang text) = code
-  let (Result status check report) = result
+  let (Result status report) = result
   withSqlite $ \conn -> do
       S.execute conn
         "INSERT INTO submissions \
          \ (user_id, path, received, language, code, status, policy, report) \
          \ VALUES(?, ?, ?, ?, ?, ?, ?, ?)"
-          (uid, path, time, lang, text, status, check, report)
+          (uid, path, time, lang, text, status, val, report)
       sid <- fmap SubmitId (S.lastInsertRowId conn)
-      return (Submission sid uid path time code result)
+      return (Submission sid uid path time code result val)
 
 -- | update submission result after evaluation
-updateSubmission :: Sqlite -> SubmitId -> Result -> IO ()
-updateSubmission sqlite sid Result{..}  =
-  flip runReaderT sqlite $
+updateSubmission :: HasSqlite m => SubmitId -> Result -> Validity -> m ()
+updateSubmission sid Result{..} val  =
   execute "UPDATE submissions SET status=?, policy=?, report=? \
-           \ where id = ?" (resultStatus, resultCheck, resultReport, sid)
+           \ where id = ?" (resultStatus, val, resultReport, sid)
 
 
 -- | get a single submission
@@ -106,12 +105,12 @@ countPageSubmissions uid path = do
     _  -> error "countPageSubmissions: invalid result"
 
 
-countEarlierSubmissions :: Sqlite -> Submission -> IO Int
-countEarlierSubmissions sqlite Submission{..} =
-  flip runReaderT sqlite $ do
+countEarlierSubmissions ::
+  HasSqlite m => UserLogin -> FilePath -> UTCTime -> m Int
+countEarlierSubmissions uid path time = do
     r <- query "SELECT COUNT(*) FROM submissions \
                 \ WHERE user_id = ? AND path = ? AND received < ?"
-                          (submitUser, submitPath, submitTime)
+                          (uid, path, time)
     case r of
       [Only c] -> return c
       _ -> error "countEarlierSubmissions: invalid result"
@@ -209,26 +208,27 @@ submitSplices tz Submission{..} = do
   "submit-lang" ## I.textSplice (fromLanguage $ codeLang submitCode)
   "submit-code" ##  I.textSplice (codeText submitCode)
   resultSplices submitResult
+  checkSplices submitCheck
 
 resultSplices :: Result -> ISplices
 resultSplices Result{..} = do
-  "result-status" ## I.textSplice (T.pack $ show resultStatus)
-  "result-check" ## I.textSplice (checkText resultCheck)
+  "result-status" ## I.textSplice (statusText resultStatus)
   "result-report" ## I.textSplice resultReport
-  "if-valid" ## I.ifElseISplice (resultCheck == Valid)
-  "if-invalid" ## I.ifElseISplice (resultCheck /= Valid)
-  "if-early" ## I.ifElseISplice (match "Early" resultCheck)
-  "if-late" ## I.ifElseISplice (match "Late" resultCheck)
   "if-accepted" ## I.ifElseISplice (resultStatus == Accepted)
   "if-evaluating" ## I.ifElseISplice (resultStatus == Evaluating)
 
-checkText :: Check -> Text
-checkText Valid = "Valid"
-checkText (Invalid msg) = msg
-  
-match :: Text -> Check -> Bool
-match txt (Invalid msg) = T.isInfixOf txt msg
-match _   _             = False
+checkSplices :: Validity -> ISplices
+checkSplices check = do
+  "if-valid" ## I.ifElseISplice (check == Valid)
+  "result-check" ## I.textSplice (checkText check)
+
+
+statusText :: Status -> Text
+statusText = T.pack . show 
+
+checkText :: Validity -> Text
+checkText Valid         = "Valid"
+checkText (Invalid msg) = "Invalid: " <> msg
   
 
 
@@ -245,5 +245,8 @@ getPatterns = do
 patternSplices :: Patterns -> ISplices
 patternSplices patts
   = sequence_ [ field ## I.textSplice (fromMaybe "" pat) | (field, pat) <- patts]
+
+runSqlite :: Sqlite -> ReaderT Sqlite m a -> m a
+runSqlite conn  = flip runReaderT conn
 
 

@@ -13,7 +13,6 @@ import          Codex.Application
 import          Codex.Utils
 import          Codex.Handlers
 import          Codex.Page
-import          Codex.Policy
 import          Codex.Submission
 import          Codex.AceEditor
 import          Codex.Evaluate
@@ -22,7 +21,6 @@ import           Snap.Snaplet.Heist
 import           Snap.Snaplet.Router
 
 import qualified Heist.Interpreted                           as I
-import           Heist.Splices                               as I
 
 import qualified Text.Pandoc.Builder as P
 
@@ -34,7 +32,7 @@ import           Data.Time.LocalTime
 import           Control.Monad (guard)
 import           Control.Monad.IO.Class (liftIO)
 
--- is it an exercise page 
+-- | check for an exercise page 
 isExercise :: Page -> Bool
 isExercise = isJust . pageTester
 
@@ -44,11 +42,11 @@ codeView uid rqpath page = do
   guard (isExercise page)
   tz <- liftIO getCurrentTimeZone
   subs <- getPageSubmissions uid rqpath
-  withTimeSplices page $ renderWithSplices "_exercise" $ do
+  withPolicySplices uid rqpath page $ renderWithSplices "_exercise" $ do
     pageSplices page
     codeSplices page
     feedbackSplices page
-    submissionListSplices (pageValid page) tz subs
+    submissionListSplices tz subs
     textEditorSplice
     languageSplices (pageLanguages page) Nothing
 
@@ -64,10 +62,10 @@ codeSubmit uid rqpath page = do
 
 -- | report a code submission
 codeReport :: FilePath -> Page -> Submission -> Codex ()
-codeReport rqpath page sub = do
+codeReport rqpath page sub@Submission{..} = do
   guard (isExercise page)
-  tz <- liftIO getCurrentTimeZone   
-  withTimeSplices page $ renderWithSplices "_report" $ do
+  tz <- liftIO getCurrentTimeZone
+  withPolicySplices submitUser rqpath page $ renderWithSplices "_report" $ do
     urlSplices rqpath
     pageSplices page
     codeSplices page
@@ -88,20 +86,10 @@ codeSplices page = do
 
 
 -- | splices relating to a list of submissions
-submissionListSplices :: Policy t -> TimeZone -> [Submission] -> ISplices
-submissionListSplices policy tz list = do
-  -- number of submissions made
-  let count = length list
-  -- optional submissions left
-  let left = fmap (\n -> max 0 (n - count)) (maxAttempts policy)
-  "submissions-count" ## I.textSplice (T.pack $ show count)
-  "if-submitted" ## I.ifElseISplice (count > 0)
+submissionListSplices :: TimeZone -> [Submission] -> ISplices
+submissionListSplices tz list = do
   "submissions-list" ##
     I.mapSplices (I.runChildrenWith . submitSplices tz) list   
-  "submissions-left" ##
-    I.textSplice (maybe "N/A" (T.pack.show) left)
-
-
 
 
 codePrintout :: Page -> Submission -> Codex P.Blocks

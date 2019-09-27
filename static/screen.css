@@ -142,8 +142,14 @@ ol.submissions:after {
    color: #0f0f0f;
    font-size: 90%;
    font-style: italic;
-   /* vertical-align: text-top;*/
 }
+
+.error {
+   color: red;
+   font-size: 100%;
+   font-style: oblique;
+}
+
 
 .tag {  
    color: #505050;
@@ -158,7 +164,7 @@ ol.submissions:after {
     padding-left: 1em;
     padding-right: 1em;
     color: red;
-    font-style: italic;
+    font-style: oblique;
 }
 
 .errors  {
@@ -267,6 +273,14 @@ table.submissions td.path, td.userid {
 table.submissions td.received { 
   font-size: 80%;
  }
+
+
+
+table.submissions td.check {
+    width: 8em;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
 
 .Accepted {
   color: green; 

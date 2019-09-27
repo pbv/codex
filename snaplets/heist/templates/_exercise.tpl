@@ -24,42 +24,46 @@
     <page-title/>
     <if-submitted>
 	<h3>Submissões anteriores</h3>
-	<if-early>
+	<if-submit-early>
 	  <p><submissions-count/> submissões antecipadas;
-	    resultados estarão disponíveis após <valid-from/>.</p> 
-	<else/>    
-	<ol class="submissions">
-	  <submissions-list>
-	  <li>
-	    <a href="${report-url}"><submit-id/>&nbsp;<span class="${result-status}"><result-status/><valid-icon/></span></a>
-	  </li>
-	</submissions-list>
-      </ol>
-      </if-early>
-      <else/>
-      <p>Nenhuma submissão efetuada.</p>
+	    resultados visíveis depois de <submit-after/>.</p> 
+	  <else/>    
+	  <ol class="submissions">
+	    <submissions-list>
+	      <li>
+		<a href="${report-url}"><submit-id/>&nbsp;<span class="${result-status}"><result-status/></span></a>&nbsp;<valid-icon/>
+	      </li>
+	    </submissions-list>
+	  </ol>
+	</if-submit-early>
+	<else/>
+	<p>Nenhuma submissão efetuada.</p>
     </if-submitted>
   </div>
 
   <div id="editor-tab" class="tabcontents">
     <page-title/>
     <apply template="_timing"/>
-    <form id="codeform" method="POST" action="${page-url}">
-      <p>
-	<input type="file" id="fileselect"
-	       accept="${language-extensions}"/> &nbsp;
-	<input-language-selector id="langselect" name="language" form="codeform"/> &emsp;
-	<input type="submit" value="Submeter"/>
-	&emsp;&emsp;&emsp;&emsp;&emsp;
-	<apply template="_fontsize"/>
-      </p>
-      <p><textarea id="code" name="code" style="display:none;"/></p>
-      <div id="editor"><default-text/></div>
-    </form>
+    <if-allowed>
+      <form id="codeform" method="POST" action="${page-url}">
+	<p>
+	  <input type="file" id="fileselect"
+		 accept="${language-extensions}"/> &nbsp;
+	  <input-language-selector id="langselect" name="language" form="codeform"/> &emsp;
+	  <input type="submit" value="Submeter"/>
+    &emsp;&emsp;&emsp;&emsp;&emsp;
+    <apply template="_fontsize"/>
+	</p>
+	<p><textarea id="code" name="code" style="display:none;"/></p>
+	<div id="editor"><default-text/></div>
+      </form>
+    </if-allowed>
   </div>
 </apply>
 
 
+
+<if-allowed>
 <script type="text/javascript">
   var editor = startAceEditor('editor');
 
@@ -70,9 +74,13 @@
     function() { fileListener(editor, 'fileselect', 'langselect'); });
 					      
   document.getElementById('langselect').addEventListener('change',
-    function() { editor.session.setMode(languageModes[this.selectedIndex]); } );
+  function() { editor.session.setMode(languageModes[this.selectedIndex]); } );
+</script>
+<language-constants-js/>
+<default-language-js/>
+</if-allowed>
 
-
+<script>
 function openTab(evt, tabName) {
   // Declare all variables
   var i, tabcontent, tablinks;
@@ -96,8 +104,4 @@ function openTab(evt, tabName) {
 
 document.getElementById("description").click();
 </script>
-
-<language-constants-js/>
-<default-language-js/>
-
 
