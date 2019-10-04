@@ -1,5 +1,5 @@
 packages:
-- location: .
+- .
 
 allow-newer: true
 
