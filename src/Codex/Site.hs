@@ -1,5 +1,4 @@
 {-# LANGUAGE OverloadedStrings   #-}
-{-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE NamedFieldPuns #-}
 
@@ -17,8 +16,6 @@ import           Control.Applicative
 import           Control.Concurrent.MVar
 import           Control.Lens
 import           Control.Monad.State
-import           Control.Exception  (IOException)
-import           Control.Exception.Lifted  (catch)
 
 import           Data.Char (isAlphaNum)
 import           Data.ByteString.UTF8                        (ByteString)
@@ -26,8 +23,6 @@ import qualified Data.ByteString.UTF8                        as B
 import           Data.Map.Syntax
 
 import qualified Data.Text                                   as T
-import           Data.Maybe(fromMaybe)
-
 
 import           Heist
 import qualified Heist.Interpreted                           as I
@@ -48,7 +43,6 @@ import           Snap.Util.FileServe                         (fileType,
 import           Data.Time.Clock
 import           Data.Time.LocalTime
 
-
 import           System.FilePath
 
 import           System.FastLogger                    (newLogger, stopLogger)
@@ -64,25 +58,13 @@ import           Codex.Config
 import qualified Codex.Db           as  Db
 import           Codex.Page
 import           Codex.Handlers
-import           Codex.Handlers.Quiz
-import           Codex.Handlers.Code
 import           Codex.Submission
 import           Codex.Types
 import           Codex.Utils
--- import           Codex.Evaluate
 import           Codex.Tester
 import           Codex.Tasks
-
 import           Data.Version                                (showVersion)
 import           Paths_codex                                 (version)
-
-
-import           Text.Pandoc               hiding (Code,
-                                                   getCurrentTime,
-                                                   getCurrentTimeZone)
-import qualified Text.Pandoc as Pandoc 
-import           Text.Pandoc.Walk                            as Pandoc
-
            
 
 -- | handle file requests
@@ -92,30 +74,19 @@ handlePage rqpath = do
   method GET (handleGet uid rqpath <|> notFound) <|>
     method POST (handlePost uid rqpath <|> badRequest)
 
--- | handle GET requests for pages and files          
+-- | handle GET requests
 handleGet uid rqpath = do
   root <- getDocumentRoot
   let filepath = root </> rqpath
   guardFileExists filepath
-  let rqdir = takeDirectory rqpath
   let mime = fileType mimeTypes filepath
   if mime == "text/markdown" then do
     page <- readMarkdownFile filepath
     Handlers{handleView} <- gets _handlers
-    -- first try exercise handler, otherwise render markdown
-    withSplices (urlSplices rqpath)
-      (handleView uid rqpath page <|>
-       (renderMarkdown =<< fillExerciseLinks uid rqdir page)
-      )
+    withSplices (urlSplices rqpath) $ handleView uid rqpath page
     else
     -- serve the file if it is not markdown 
     serveFileAs mime filepath
-
-
-
-renderMarkdown :: Page -> Codex ()
-renderMarkdown page = renderWithSplices "_page" (pageSplices page)
-
 
 
 -- | handle POST requests
@@ -148,39 +119,6 @@ handleGetReport sid = method GET $ do
 
 
 
--- | fill titles and submission counts on exercise links
-fillExerciseLinks :: UserLogin -> FilePath -> Page -> Codex Page
-fillExerciseLinks uid rqdir page = do
-    root <- getDocumentRoot
-    walkM (fetchLink uid root rqdir) page
-
--- | fetch title and submissions count for exercise links
-fetchLink uid root rqdir elm@(Link attr@(_, classes,_) inlines target@(url,_))
-  | "ex" `elem` classes = do
-      let path = normalise (rqdir </> url)
-      title <- liftIO $ readPageTitle (root </> path)
-      count <- countPageSubmissions uid path
-      return (formatLink attr title target count)
-fetchLink uid root rqdir elm
-  = return elm
-
--- | format a single exercise link
-formatLink attr title target count
-  = Span nullAttr
-    [Link attr title target,
-     LineBreak,
-      Span ("", ["info"], [])
-      [Str "(",
-        Str (show count), Space, Str "submissões",
-        Str ")"]
-    ]
-
-readPageTitle :: FilePath -> IO [Inline]
-readPageTitle path
-  = fromMaybe [Pandoc.Code nullAttr path] <$> readTitle
-  where
-    readTitle = (pageTitle <$> readMarkdownFile path)
-                `catch` (\(_ :: IOException) -> return Nothing)
 
 
 ------------------------------------------------------------------------------
@@ -224,8 +162,8 @@ versionSplice = I.textSplice (T.pack (showVersion version))
 
 ------------------------------------------------------------------------------
 -- | The application initializer.
-codexInit :: Tester Result -> SnapletInit App App
-codexInit tester =
+codexInit :: Handlers Codex -> Tester Result -> SnapletInit App App
+codexInit handlers tester =
   makeSnaplet "codex" "Web server for programming exercises." Nothing $ do
     conf <- getSnapletUserConfig
     prefix <- liftIO $ Conf.require conf "url_prefix"
@@ -259,7 +197,7 @@ codexInit tester =
                , _auth = a
                , _db   = d
                , _tester = tester
-               , _handlers = quizHandlers <> codeHandlers
+               , _handlers = handlers
                , _queue = queue
                , _semph = semph
                , _logger  = logger

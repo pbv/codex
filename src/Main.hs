@@ -16,6 +16,7 @@ most cases you'll never need to modify this code.
 module Main where
 
 ------------------------------------------------------------------------------
+import           Control.Applicative
 import           Control.Exception (SomeException, try)
 import qualified Data.Text as T
 import           Snap.Http.Server
@@ -26,7 +27,11 @@ import           System.IO
 import           Codex.Site
 import           Codex.Application
 
--- specific testers
+
+import           Codex.Handlers.Code
+import           Codex.Handlers.Quiz
+import           Codex.Handlers.Markdown
+
 import           Codex.Tester
 import           Codex.Tester.PythonDoctest
 import           Codex.Tester.HaskellQC
@@ -39,24 +44,29 @@ import           Snap.Loader.Static
 
 
 app :: SnapletInit App App
-app = codexInit $
-      oneOf [ pythonDocTester
+app = codexInit handler testers
+
+handler = codeHandlers <> quizHandlers <> markdownHandlers
+
+testers = foldr1 (<|>)
+          [ pythonDocTester
             -- quickcheck testers
-            , haskellQCTester
-            , clangQCTester
+          , haskellQCTester
+          , clangQCTester
             -- I/O testers
-            , stdioTester =<< clangBuild
-            , stdioTester =<< javaBuild
-            , stdioTester =<< haskellBuild
-            , stdioTester =<< pythonBuild
-            -- multiple choice quizzes
-            , quizTester
+          , stdioTester =<< clangBuild
+          , stdioTester =<< javaBuild
+          , stdioTester =<< haskellBuild
+          , stdioTester =<< pythonBuild
+          -- multiple choice quizzes
+          , quizTester
             -- SQL tester
-            , sqlTester
+          , sqlTester
             -- trivial tester (accepts all submissions)
-            , nullTester
-            ]
-       
+          , nullTester
+          ]
+
+      
 ------------------------------------------------------------------------------
 -- | This is the entry point for this web server application. It supports
 -- easily switching between interpreting source and running statically compiled

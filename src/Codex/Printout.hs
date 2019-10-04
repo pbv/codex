@@ -23,7 +23,7 @@ import           Snap.Snaplet
 import           Snap.Snaplet.Router
 
 import           Codex.Utils
-import           Codex.Policy (showTime)
+import           Codex.Policy (formatLocalTime)
 import           Codex.Types
 import           Codex.Application
 import           Codex.Handlers
@@ -139,7 +139,7 @@ submissionHeader tz Submission{..}
               space <>
               emph (text $ "(" ++ checkText submitCheck ++ ")")) <>
     para (text ("Submission " ++ show submitId ++ "; " ++
-                 T.unpack (showTime tz submitTime)))
+                 T.unpack (formatLocalTime tz submitTime)))
 
 
 

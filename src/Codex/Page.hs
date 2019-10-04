@@ -218,23 +218,6 @@ pandocReaderOptions
         , readerStripComments = True
         }
 
-{-
---
--- | remove raw HTML comments from pages
---
-removeHTMLComments :: Page -> Page
-removeHTMLComments = walk removeInline . walk removeBlock
-  where removeInline (RawInline (Format "html") str)
-          | comment str = Space
-        removeInline elm = elm
-        removeBlock (RawBlock (Format "html") str)
-          | comment str = Null
-        removeBlock blk = blk
-        -- test a comment string
-        -- comment str = take 4 str == "<!--" 
-        comment ('<':'!':'-':'-':_) = True
-        comment _                   = False
--}
 
 -- | report error and warning messages
 docError :: PandocError -> Pandoc
@@ -249,4 +232,7 @@ docWarnings msgs
   = Pandoc mempty
     [Div ("", ["warnings"], [])
       [Para [Str "WARNING:", Space, Str (show msg)] | msg <- msgs]]
+
+
+
 

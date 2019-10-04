@@ -43,6 +43,13 @@ import           Codex.Tester
 import           Codex.Policy
 
 
+-- | a submission attempt by a user
+data Access = Access { accessUser :: UserLogin
+                     , accessPath :: FilePath
+                     , accessTime :: UTCTime
+                     }
+
+
 -- | insert a new submission into the database
 -- also schedule evaluation in separate thread
 newSubmission :: UserLogin -> FilePath -> Code -> Codex SubmitId
@@ -89,11 +96,14 @@ evaluateWith async submission@Submission{..} = do
   async $ do    -- run the tester asynchronously
     runSqlite conn $ updateSubmission submitId evaluating (invalid "?")
     page <- readMarkdownFile filepath
+    let attempt = Access { accessUser = submitUser
+                         , accessPath = submitPath
+                         , accessTime = submitTime
+                         }
     check <- case evalPolicy env =<< pagePolicy page of
                Left err -> return (invalid err)
                Right policy ->
-                 runSqlite conn $
-                 checkPolicy submitUser submitPath submitTime policy
+                 runSqlite conn $ checkPolicy attempt policy
     result <- testWrapper tester conf filepath page submission 
     runSqlite conn $ updateSubmission submitId result check
 
@@ -120,18 +130,22 @@ withPolicySplices uid path page action = do
   tz <- liftIO getCurrentTimeZone
   now <- liftIO getCurrentTime
   constrs <- getPolicy page
-  check <- checkPolicy uid path now constrs
+  let attempt = Access { accessUser = uid
+                       , accessPath = path
+                       , accessTime = now
+                       }
+  check <- checkPolicy attempt constrs
   earlier <- countPageSubmissions uid path
   let allow = pageAllowInvalid page 
   let
     splice :: Constr UTCTime -> ISplices
     splice (After start) = do
-      "submit-after" ## I.textSplice (showTime tz start)
+      "submit-after" ## I.textSplice (formatLocalTime tz start)
       "if-submit-after" ## I.ifElseISplice True
       "if-submit-early" ## I.ifElseISplice (now < start)
     splice (Before limit) = do
       let remain = max 0 (diffUTCTime limit now)
-      "submit-before" ## I.textSplice (showTime tz limit)
+      "submit-before" ## I.textSplice (formatLocalTime tz limit)
       "submit-time-remain" ## I.textSplice (formatNominalDiffTime remain)
       "if-submit-before" ## I.ifElseISplice True
       "if-submit-late" ## I.ifElseISplice (now > limit)
@@ -158,23 +172,21 @@ withPolicySplices uid path page action = do
       
 -- | check the policy specified for a page
 checkPolicy :: S.HasSqlite m
-            => UserLogin -> FilePath -> UTCTime -> Policy UTCTime
-            -> m Validity
-checkPolicy  user path time constrs = do
-  (_, msgs) <- runWriterT (mapM_ (checkConstr user path time) constrs)
+            => Access -> Policy UTCTime -> m Validity
+checkPolicy  attempt constrs = do
+  (_, msgs) <- runWriterT (mapM_ (checkConstr attempt) constrs)
   return $ if null msgs then Valid
            else Invalid (T.concat $ intersperse ";" msgs)
 
-checkConstr :: S.HasSqlite m  
-             => UserLogin -> FilePath -> UTCTime -> Constr UTCTime 
-             -> WriterT [Text] m ()
-checkConstr user path time (Before highTime)
-  | time < highTime = return ()
+checkConstr :: S.HasSqlite m
+            => Access -> Constr UTCTime -> WriterT [Text] m ()
+checkConstr Access{..} (Before highTime)
+  | accessTime < highTime = return ()
   | otherwise       = tell ["Late submission"]
-checkConstr user path time (After highTime)
-  | time > highTime = return ()
+checkConstr Access{..} (After highTime)
+  | accessTime > highTime = return ()
   | otherwise       = tell ["Early submission"]
-checkConstr user path time (Attempts max) = do
-  earlier <- lift $ countEarlierSubmissions user path time
+checkConstr Access{..} (Attempts max) = do
+  earlier <- lift $ countEarlierSubmissions accessUser accessPath accessTime
   if earlier < max then return ()
     else tell ["Too many submissions"]

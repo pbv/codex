@@ -1,9 +1,6 @@
-{-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE RecordWildCards #-}
-{-# LANGUAGE DeriveDataTypeable #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE DeriveFunctor #-}
-{-# LANGUAGE DeriveTraversable #-}
 
 {-
   Policies for classifying submissions as valid or invalid
@@ -14,18 +11,11 @@ module Codex.Policy (
     TimeEnv,
     Constr(..),
     Policy,
-    -- early, late, lower, higher, maxAttempts,
-    -- fromLocalTime,
-    -- fromUTCTime,
-    -- timeLeft, 
-    -- parsePolicy,
-    -- evalTimeExpr,
-    -- timeLeft,
     parseTimeExpr,
     parsePolicy,
     makeTimeEnv,
     evalPolicy,
-    showTime,
+    formatLocalTime,
     formatNominalDiffTime
     ) where 
 
@@ -243,8 +233,9 @@ evalConstr (Attempts n) = return (Attempts n)
 -------------------------------------------------------------
 
 -- format an UTC time as local time
-showTime :: TimeZone -> UTCTime -> Text
-showTime tz = T.pack . formatTime defaultTimeLocale "%c"  . utcToLocalTime tz
+formatLocalTime :: TimeZone -> UTCTime -> Text
+formatLocalTime tz
+  = T.pack . formatTime defaultTimeLocale "%c"  . utcToLocalTime tz
 
 -- | format a time difference
 formatNominalDiffTime :: NominalDiffTime -> Text

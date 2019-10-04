@@ -4,7 +4,7 @@ module Codex.Handlers where
 import           Codex.Types (UserLogin,Page)
 import           Codex.Submission.Types (Submission)
 import           Text.Pandoc.Builder (Blocks)
-import           Control.Applicative
+import           Control.Applicative 
 
 type ReqPath = FilePath
 

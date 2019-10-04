@@ -112,7 +112,7 @@ pandocWriterOptions
 -- | deterministic shuffle questions & answers in a quiz
 shuffleQuiz :: UserLogin -> Page -> Quiz
 shuffleQuiz uid page
-  = Rand.run (makeQuiz page >>= shuffle1 >>= shuffle2) seed
+  = Rand.run seed (makeQuiz page >>= shuffle1 >>= shuffle2) 
   where
     meta = pageMeta page
     seed = fromMaybe (hash uid) (lookupFromMeta "random-seed" meta)
