@@ -149,7 +149,7 @@ withPolicySplices uid path page action = do
       "submit-time-remain" ## I.textSplice (formatNominalDiffTime remain)
       "if-submit-before" ## I.ifElseISplice True
       "if-submit-late" ## I.ifElseISplice (now > limit)
-    splice (Attempts limit) = do
+    splice (MaxAttempts limit) = do
       let remain = max 0 (limit - earlier)
       "submissions-attempts" ## I.textSplice (T.pack $ show limit)
       "submissions-remain" ## I.textSplice (T.pack $ show remain)
@@ -186,7 +186,7 @@ checkConstr Access{..} (Before highTime)
 checkConstr Access{..} (After highTime)
   | accessTime > highTime = return ()
   | otherwise       = tell ["Early submission"]
-checkConstr Access{..} (Attempts max) = do
+checkConstr Access{..} (MaxAttempts max) = do
   earlier <- lift $ countEarlierSubmissions accessUser accessPath accessTime
   if earlier < max then return ()
     else tell ["Too many submissions"]

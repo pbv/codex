@@ -58,11 +58,11 @@ fillExerciseLinks uid rqdir page = do
     walkM (fetchLink uid root rqdir) $
       Rand.run seed (walkM shuffleLists page) 
 
-
+-- | shuffle exercise lists inside a marked container 
 shuffleLists :: Block -> Rand Block
 shuffleLists (Div (id, classes, attrs) blocks)
   | "shuffle" `elem` classes = do
-      let limit = lookup "choose" attrs >>= readMaybe
+      let limit = readMaybe =<< lookup "choose" attrs 
       blocks' <- mapM (shuffleList limit) blocks
       return (Div (id, classes, attrs) blocks')
 shuffleLists block

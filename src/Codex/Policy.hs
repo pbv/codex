@@ -57,9 +57,9 @@ type Policy t =  [Constr t]
 
 -- | policy constraints 
 -- | parametrized by the type for time
-data Constr t = Before t
-              | After t
-              | Attempts Int
+data Constr t = Before t         -- ^ submit before this time
+              | After t          -- ^ submit after this time
+              | MaxAttempts Int  -- ^ maximum number of submissions
               deriving (Eq, Show, Functor)
 
 --
@@ -88,7 +88,7 @@ parseBaseP =
   <++
   do symbol "after"; After <$> parseTimeP
   <++
-  do symbol "attempts"; Attempts <$> integer
+  do symbol "attempts"; MaxAttempts <$> integer
 
 
 
@@ -225,7 +225,8 @@ evalPolicy env cs = runReader (runExceptT (mapM evalConstr cs)) env
 evalConstr :: Constr TimeExpr -> TimeM (Constr UTCTime)
 evalConstr (Before te)  = Before <$> evalTimeExpr te
 evalConstr (After te)   = After <$> evalTimeExpr te
-evalConstr (Attempts n) = return (Attempts n)
+evalConstr (MaxAttempts n) = return (MaxAttempts n)
+
 
 
 -------------------------------------------------------------

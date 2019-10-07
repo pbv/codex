@@ -1,5 +1,7 @@
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE FlexibleInstances #-}
+{-# LANGUAGE ScopedTypeVariables #-}
+
 {-
   Definitions for document and exercise pages
 -}
@@ -16,9 +18,11 @@ import           Data.Maybe
 import qualified Data.Text as T
 import qualified Data.Text.IO as T
 import qualified Data.Map as Map
+import           Data.List (intersperse)
+
 import           Control.Applicative
 import           Control.Monad.IO.Class
-import           Data.List (intersperse)
+
 
 import           Codex.Types
 import           Codex.Policy
@@ -81,9 +85,7 @@ pagePolicy page =
     Nothing -> return []
     Just txt -> parsePolicy txt
   
---   = fromMaybe [] (lookupFromMeta "valid" (pageMeta p) >>= parsePolicy)
-
--- | sallow invalid submissions?
+-- | allow invalid submissions?
 pageAllowInvalid :: Page -> Bool
 pageAllowInvalid p
   = fromMaybe True $ lookupFromMeta "allow-invalid" $ pageMeta p
@@ -196,11 +198,15 @@ pageToHtml doc = case result of
 blocksToHtml :: [Block] -> [Node]
 blocksToHtml blocks = pageToHtml (Pandoc nullMeta blocks)
 
+  
+  -- pre <- T.readFile (takeDirectory filepath </> "prelude.md")
+  --    `catch`(\(_ :: IOException) -> return "")
+
 
 -- | read a file and parse markdown to a Pandoc document
 readMarkdownFile :: MonadIO m => FilePath -> m Pandoc
-readMarkdownFile filepath = do
-  txt <- liftIO $ T.readFile filepath
+readMarkdownFile filepath = liftIO $ do
+  txt <- T.readFile filepath
   return $ case parseDocument txt of
              Left err -> docError err
              Right (doc,msgs) -> docWarnings msgs  <> doc
