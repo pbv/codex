@@ -18,12 +18,12 @@ pythonDocTester = tester "doctest" $ do
   guard (lang == "python")
   ---
   python    <- configured "language.python.interpreter"
-  pytest    <- configured "language.python.pytest"
+  runtests  <- configured "language.python.runtests"
   scripts   <- configured "language.python.scripts"
-  linter    <- fromMaybe False <$> metadata "linter"
-  linterCmd <- fmap words <$> maybeConfigured "language.python.linter"
-  extraArgs <- (words . fromMaybe "") <$> metadata "linter-options"
-  limits  <- askLimits "language.python.limits"
+  limits    <- askLimits "language.python.limits"
+  linterOpt <- maybeConfigured "language.python.linter" >>=
+               traverse parseArgs
+  linterFlag <- fromMaybe False <$> metadata "linter"
   path    <- askPath
   testsPath <- fromMaybe (replaceExtension path ".tst") <$>
                metadataPath "tests"
@@ -32,22 +32,22 @@ pythonDocTester = tester "doctest" $ do
   chmod readable testsPath
   withTemp "submit.py" src $ \pyfile -> (do
     chmod readable pyfile
-    when linter $
-      case linterCmd of
-        Just (cmd:args') ->
-          runCompiler cmd (args' ++ extraArgs ++ [pyfile])
-        _ -> fail "linter command not found in config file"
+    when linterFlag $
+      case linterOpt of
+        Just (cmd:args) -> runCompiler cmd (args ++ [pyfile])
+        _ -> fail "missing python linter command in config file"
     classify <$>
-      safeExec limits python Nothing [pytest, scripts, testsPath, pyfile] "") `catch` return
+      safeExec limits python Nothing [runtests, scripts, testsPath, pyfile] "") `catch` return
 
 
 classify :: (ExitCode, Text, Text) -> Result
 classify (_, stdout, stderr)
-  | match "0 failed" stdout && match "OK" stderr = accepted (stdout <> stderr)
   | match "Time Limit" stderr          = timeLimitExceeded stderr
   | match "Memory Limit" stderr        = memoryLimitExceeded stderr
   | match "Exception raised" stdout    = runtimeError stdout
   | match "SyntaxError" stderr         = compileError stderr
-  | match "Failed" stdout              = wrongAnswer stdout
+  | match "Command exited with non-zero status" stderr
+                                       = wrongAnswer stdout
+  | match " 0 failed" stdout           = accepted stdout
   | otherwise                          = miscError (stdout <> stderr)
 

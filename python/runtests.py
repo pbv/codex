@@ -10,7 +10,7 @@ import doctest
 
 if len(sys.argv) != 4:
     sys.stderr.write("usage: "+sys.argv[0]+" <scripts-dir> <doctest-file> <python-file>\n")
-    exit (-1)
+    sys.exit (-1)
 
 
 scripts = sys.argv[1]
@@ -43,3 +43,7 @@ flags = doctest.IGNORE_EXCEPTION_DETAIL|doctest.ELLIPSIS|doctest.REPORT_ONLY_FIR
 print()
 print("%d tests, %d failed." % (tested, failed))
 
+if failed > 0:
+    sys.exit(1)
+else:
+    sys.exit(0)
