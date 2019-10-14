@@ -114,16 +114,21 @@ writeable mode =
   mode .|. ownerWriteMode .|. groupWriteMode .|. otherWriteMode
 
 
-
-
-runCompiler :: FilePath -> [String] -> IO ()
-runCompiler cmd args = do
-  (exitCode, out, err) <- readProcessWithExitCode cmd args ""
+-- | run a compiler (possibly under a safe sandbox)
+runCompiler :: Maybe Limits -> FilePath -> [String] -> IO ()
+runCompiler optLimits cmd args = do
+  (exitCode, out, err) <- case optLimits of
+    Nothing -> readTextProcessWithExitCode cmd args ""
+    Just limits -> safeExec limits cmd Nothing args ""   
   case exitCode of
-    ExitFailure _ ->
-      throwIO (compileError $ T.pack out <> T.pack err)
+    ExitFailure _ -> 
+      throwIO (compileError (out <> err))
     ExitSuccess ->
       return ()
+
+readTextProcessWithExitCode cmd args stdin = do
+  (exitCode, out, err) <- readProcessWithExitCode cmd args stdin
+  return (exitCode, T.pack out, T.pack err)
 
 
 -- | safeExec with text input/output

@@ -50,7 +50,7 @@ char *usage_file = "/dev/null";
 FILE *redirect;
 
 enum
-{ OK, OLE, MLE, TLE, RTLE, RF, IE };	/* for the output statistics */
+  { OK, OLE, MLE, TLE, RTLE, RF, IE, MISC };	/* for the output statistics */
 enum
 {
   PARSE, INPUT1,
@@ -403,6 +403,7 @@ int main (int argc, char **argv, char **envp)
   int tsource, ttarget;
   int v;
 
+  mark = OK;
   redirect = stderr;
   safe_signal (SIGPIPE, SIG_DFL);
 
@@ -523,9 +524,11 @@ int main (int argc, char **argv, char **envp)
 	    {
 	      if (WIFEXITED (status) != 0)
 		{
-		  if (WEXITSTATUS (status) != 0)
+		  if (WEXITSTATUS (status) != 0) {
 		    printstats ("Command exited with non-zero status (%d)\n",
 				WEXITSTATUS (status));
+		    mark = MISC;
+		  }
 		  else
 		    printstats ("OK\n");
 		}
@@ -542,14 +545,18 @@ int main (int argc, char **argv, char **envp)
 			mark = RF;
 		      else if (WTERMSIG (status) == SIGPIPE)
 			mark = IE;
-		      else
+		      else {
 			printstats ("Command terminated by signal (%d: %s)\n",
 				    WTERMSIG (status),
 				    name (WTERMSIG (status)));
+			mark = MISC;
+		      }
 		    }
-		  else if (WIFSTOPPED (status) != 0)
+		  else if (WIFSTOPPED (status) != 0) {
 		    printstats ("Command terminated by signal (%d: %s)\n",
 				WSTOPSIG (status), name (WSTOPSIG (status)));
+		    mark = MISC;
+		  }
 		  else
 		    printstats ("OK\n");
 
@@ -580,5 +587,8 @@ int main (int argc, char **argv, char **envp)
     }
   fclose (redirect);
 
-  return (EXIT_SUCCESS);
+  if(mark == OK)
+    return (EXIT_SUCCESS);
+  else
+    return (EXIT_FAILURE);
 }

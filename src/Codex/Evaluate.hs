@@ -55,10 +55,12 @@ data Access = Access { accessUser :: UserLogin
 newSubmission :: UserLogin -> FilePath -> Code -> Codex SubmitId
 newSubmission uid rqpath code = do
   now <- liftIO getCurrentTime
-  sub <- insertSubmission uid rqpath now code evaluating (invalid "?")
+  sub <- insertSubmission uid rqpath now code evaluating pending
   evaluate sub
   return (submitId sub)
 
+pending :: Validity
+pending = invalid "Waiting evaluation"
 
 -- | evaluate a submission
 -- fork an IO thread under a quantity semaphore for limiting concurrency 
@@ -94,7 +96,7 @@ evaluateWith async submission@Submission{..} = do
   root <- getDocumentRoot
   let filepath = root </> submitPath
   async $ do    -- run the tester asynchronously
-    runSqlite conn $ updateSubmission submitId evaluating (invalid "?")
+    runSqlite conn $ updateSubmission submitId evaluating pending
     page <- readMarkdownFile filepath
     let attempt = Access { accessUser = submitUser
                          , accessPath = submitPath

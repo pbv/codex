@@ -57,9 +57,9 @@ clangBuild = do
         let c_file = tmpdir </> "submit.c"
         let exe_file = tmpdir </> "submit"
         T.writeFile c_file code
-        runCompiler cc (cc_args ++ [c_file, "-o", exe_file])
-        chmod readable exe_file
-        chmod executable tmpdir
+        chmod (executable . readable . writeable) tmpdir
+        chmod readable c_file
+        runCompiler (Just limits) cc (cc_args ++ [c_file, "-o", exe_file])
         return exe_file
   let run exe_file dir args stdin = do
         safeExec limits exe_file dir args stdin
@@ -75,8 +75,8 @@ pythonBuild = do
   let make tmpdir (Code _ code)  = do
         let pyfile = tmpdir </> "submit.py"
         T.writeFile pyfile code
+        chmod (readable . executable) tmpdir
         chmod readable pyfile
-        chmod executable tmpdir
         return pyfile
   let run pyfile dir args stdin = do
         safeExec limits python dir (pyfile:args) stdin
@@ -89,17 +89,17 @@ javaBuild = do
   javac_cmd <- configured "language.java.compiler"
   java_cmd <- configured "language.java.runtime"
   limits <- askLimits "language.java.limits"
-  -- name for public class with the main entry point
-  classname <- fromMaybe "Main" <$> metadata "class" 
+  -- name for public java class with the main method
+  classname <- fromMaybe "Main" <$> metadata "java-main" 
   javac:javac_args <- parseArgs javac_cmd
   java:java_args <- parseArgs java_cmd
   let make tmpdir (Code _ code) = do
         let java_file = tmpdir </> classname <.> "java"
         let classfile = tmpdir </> classname <.> "class"
         T.writeFile java_file code
-        runCompiler javac (javac_args ++ [java_file])
-        chmod readable classfile
-        chmod executable tmpdir
+        chmod (executable . readable . writeable) tmpdir
+        chmod readable java_file
+        runCompiler (Just limits) javac (javac_args ++ [java_file])
         return classfile
   let run classfile cwd args stdin = do
         let classpath = takeDirectory classfile
@@ -113,16 +113,16 @@ haskellBuild :: Tester Build
 haskellBuild = do
   ghc_cmd <- configured "language.haskell.compiler"
   limits <- askLimits "language.haskell.limits"
-  -- name for the main module
-  modname <- fromMaybe "Main" <$> metadata "module" 
+  -- name for the Haskell main module
+  modname <- fromMaybe "Main" <$> metadata "haskell-main" 
   ghc:ghc_args <- parseArgs ghc_cmd
   let make tmpdir (Code _ code) = do
         let hs_file = tmpdir </> modname <.> "hs"
         let exe_file = tmpdir </> modname
         T.writeFile hs_file code
-        runCompiler ghc (ghc_args ++ [hs_file, "-o", exe_file])
-        chmod readable exe_file
-        chmod executable tmpdir
+        chmod (readable . writeable . executable) tmpdir
+        chmod readable hs_file        
+        runCompiler (Just limits) ghc (ghc_args ++ [hs_file, "-o", exe_file])
         return exe_file
   let run exe_file args stdin = do
         safeExec limits exe_file args stdin
@@ -201,28 +201,25 @@ numberResult num total args Result{..}
 
 
 classify ::  Text -> Text -> (ExitCode, Text, Text) -> Result
-classify input _ (ExitFailure c, _, err) 
+classify input _ (ExitFailure c, _, err)
+  | match "Time Limit" err =
+    timeLimitExceeded $ textInput input
+  | match "Memory Limit" err =
+    memoryLimitExceeded $ textInput input 
+  | match "Output Limit" err =
+    runtimeError $ T.unlines [textInput input, err]
+  | otherwise 
   = runtimeError $ T.unlines
     [ textInput input, ""
     , "Program exited with non-zero status: " <> T.pack (show c)
     , err
     ]
-classify input _ (_, _, err)
-  | match "Command terminated by signal" err ||
-    match "Command exited with non-zero status" err
-  = runtimeError $
-    T.unlines [textInput input, err ]
-classify input _ (_, _, err)
-  | match "Time Limit" err =
-    timeLimitExceeded $ textInput input 
-classify input _ (_, _, err)
-  | match "Memory Limit" err =
-    memoryLimitExceeded $ textInput input 
-classify input _ (_, _, err)
-  | match "Output Limit" err =
-    runtimeError $
-    T.unlines [textInput input, err]
-classify input expected (_, out, _) 
+-- classify input _ (_, _, err)
+--   | match "Command terminated by signal" err ||
+--     match "Command exited with non-zero status" err
+--   = runtimeError $
+--     T.unlines [textInput input, err ]
+classify input expected (ExitSuccess, out, _) 
   | T.strip out == T.strip expected
   = accepted "OK"
   | otherwise

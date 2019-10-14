@@ -141,12 +141,17 @@ scoreChoices Weights{..} (Alternatives _ attrs alts) selected
         num_wrong = num_alts - num_correct
         correct = length (selected `intersect` key)
         wrong = length (selected \\ key)
-        -- grade = (correct % num_correct) - (wrong % num_wrong)
-        positive = maybe (correct%num_correct) (*fromIntegral correct)
-                   rightWeight
-        negative = maybe (-wrong%num_wrong) (*fromIntegral wrong)
-                   wrongWeight
+        -- positive grade for correctly answered alternatives
+        positive = case rightWeight of
+          Nothing -> correct%num_correct
+          Just w -> w * fromIntegral correct
+        -- negative grade for incorrectly answered alternatives    
+        negative = case wrongWeight of
+          Nothing -> -wrong%num_wrong
+          Just w -> w * fromIntegral wrong
+        -- combined grade for this question
         grade = (-1) `max` (positive + negative) `min` 1
+          
 
 scoreChoices _ (FillIn keyText normalize) answers
   = Score 1 1 correct wrong grade

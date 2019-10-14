@@ -34,20 +34,21 @@ pythonDocTester = tester "doctest" $ do
     chmod readable pyfile
     when linterFlag $
       case linterOpt of
-        Just (cmd:args) -> runCompiler cmd (args ++ [pyfile])
+        Just (cmd:args) -> runCompiler Nothing cmd (args ++ [pyfile])
         _ -> fail "missing python linter command in config file"
-    classify <$>
-      safeExec limits python Nothing [runtests, scripts, testsPath, pyfile] "") `catch` return
+    let args = [runtests, scripts, testsPath, pyfile]
+    classify <$> safeExec limits python Nothing args "") `catch` return
 
 
 classify :: (ExitCode, Text, Text) -> Result
-classify (_, stdout, stderr)
+classify (ExitSuccess, stdout, _)      = accepted stdout  
+classify (ExitFailure _, stdout, stderr)
   | match "Time Limit" stderr          = timeLimitExceeded stderr
   | match "Memory Limit" stderr        = memoryLimitExceeded stderr
-  | match "Exception raised" stdout    = runtimeError stdout
   | match "SyntaxError" stderr         = compileError stderr
-  | match "Command exited with non-zero status" stderr
-                                       = wrongAnswer stdout
-  | match " 0 failed" stdout           = accepted stdout
+  | match "Exception raised" stdout    = runtimeError stdout
+  | match "failed" stdout              = wrongAnswer stdout
   | otherwise                          = miscError (stdout <> stderr)
+
+
 
