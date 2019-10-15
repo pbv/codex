@@ -201,37 +201,21 @@ numberResult num total args Result{..}
 
 
 classify ::  Text -> Text -> (ExitCode, Text, Text) -> Result
-classify input _ (ExitFailure c, _, err)
-  | match "Time Limit" err =
-    timeLimitExceeded $ textInput input
-  | match "Memory Limit" err =
-    memoryLimitExceeded $ textInput input 
-  | match "Output Limit" err =
-    runtimeError $ T.unlines [textInput input, err]
-  | otherwise 
-  = runtimeError $ T.unlines
-    [ textInput input, ""
-    , "Program exited with non-zero status: " <> T.pack (show c)
-    , err
-    ]
--- classify input _ (_, _, err)
---   | match "Command terminated by signal" err ||
---     match "Command exited with non-zero status" err
---   = runtimeError $
---     T.unlines [textInput input, err ]
 classify input expected (ExitSuccess, out, _) 
   | T.strip out == T.strip expected
   = accepted "OK"
   | otherwise
   = wrongAnswer $ textDiff expected input out
+classify input _ (ExitFailure c, _, err)
+  | match "Time Limit" err   = timeLimitExceeded $ textInput input
+  | match "Memory Limit" err = memoryLimitExceeded $ textInput input 
+  | match "Output Limit" err = runtimeError $ T.unlines [textInput input, err]
+  | otherwise = runtimeError $ T.unlines
+                [ textInput input, ""
+                , "Program exited with non-zero status: " <> T.pack (show c)
+                , err
+                ]
 
-{-
-classify input expected (_, out, _) 
-  = 
-  = (if T.strip out == T.strip expected
-      then presentationError
-      else wrongAnswer) $ textDiff expected input out
--}
 
 textInput :: Text -> Text
 textInput input =  "Input:\n" <> sanitize input

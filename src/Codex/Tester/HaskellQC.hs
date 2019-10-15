@@ -58,11 +58,9 @@ header = "module Submission where\n\n"
 classify :: (ExitCode, Text, Text) -> Result
 classify (ExitSuccess, stdout, _) = accepted stdout
 classify (ExitFailure _, stdout, stderr)
-  | match "Not in scope" stderr ||
-    match "parse error" stderr  ||
-    match "Couldn't match" stderr  = compileError stderr
-  | match "Time Limit" stderr   = timeLimitExceeded stderr
-  | match "Memory Limit" stderr = memoryLimitExceeded stderr
-  | match "Failed" stdout       = wrongAnswer stdout
-  | otherwise = miscError stderr
+  | match "Time Limit" stderr      = timeLimitExceeded stderr
+  | match "Memory Limit" stderr    = memoryLimitExceeded stderr
+  | match "Exception" stdout       = runtimeError stdout
+  | match "Failed!" stdout         = wrongAnswer stdout
+  | otherwise                      = miscError (stdout<>stderr)
 

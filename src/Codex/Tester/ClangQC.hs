@@ -68,17 +68,14 @@ clangRunner limits gcc_cmd ghc_cmd qcArgs c_code props =
 classify :: (ExitCode, Text, Text) -> Result
 classify (ExitSuccess, stdout, _)  = accepted stdout
 classify (ExitFailure _, stdout, stderr)
-  | match "Not in scope" stderr ||
-    match "parse error" stderr  ||
-    match "Couldn't match" stderr  = compileError stderr
-  | match "Time Limit" stderr   = timeLimitExceeded stdouterr
-  | match "Memory Limit" stderr = memoryLimitExceeded stdouterr
+  | match "Time Limit" stderr   = timeLimitExceeded msg
+  | match "Memory Limit" stderr = memoryLimitExceeded msg
   | match "Command terminated by signal" stderr
-                                = runtimeError stdouterr
-  | match "Failed" stdout       = wrongAnswer stdout 
+                                = runtimeError msg
+  | match "Failed!" stdout       = wrongAnswer stdout 
   | match "Command exited with non-zero status" stderr
-                                = runtimeError stdouterr
-  | otherwise                  = miscError stdouterr
-  where stdouterr = stdout <> stderr
+                                = runtimeError msg
+  | otherwise                  = miscError msg
+  where msg = stdout <> stderr
 
 
