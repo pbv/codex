@@ -66,8 +66,8 @@ pending = invalid "Waiting evaluation"
 -- fork an IO thread under a quantity semaphore for limiting concurrency 
 evaluate :: Submission -> Codex ThreadId
 evaluate sub = do
-  semph <- gets _semph
-  evaluateWith (forkTask semph) sub
+  qsem <- gets _semph
+  evaluateWith qsem sub
 
 -- | re-evaluate a list of submissions;
 -- fork tasks under a (new) quantity semaphore for throttling concurrency;
@@ -76,26 +76,36 @@ evaluateMany :: [Submission] -> Codex ()
 evaluateMany subs = do
   conf <- getSnapletUserConfig
   maxtasks <- liftIO $ Conf.require conf "system.max_concurrent"
-  semph <- newTaskSemph maxtasks
-  queue <- gets _queue
-  sequence_ [evaluateWith (addTask queue . forkTask semph) sub
-            | sub <- subs]
+  qsem <- liftIO $ newQSem maxtasks
+  cancelPending
+  tasks <- mapM (evaluateWith qsem) subs
+  setPending tasks
+
 
 -- | cancel all pending evaluations
 cancelPending :: Codex ()
-cancelPending = cancelTasks =<< gets _queue 
+cancelPending = setPending []
 
--- | evaluate a single submission with a given scheduling strategy
+-- | record pending tasks to allow cancelling
+setPending :: [ThreadId] -> Codex ()
+setPending tasks = do
+  tasksVar <- gets _pendingQ
+  liftIO $ modifyMVar_ tasksVar $
+              \tasks' -> mapM_ killThread tasks' >> return tasks
+  
+
+-- | evaluate a single submission with a quantity semaphore
 -- 
-evaluateWith :: (IO () -> Codex r) -> Submission -> Codex r
-evaluateWith async submission@Submission{..} = do
+evaluateWith :: QSem -> Submission -> Codex ThreadId
+evaluateWith qsem submission@Submission{..} = do
   conn <- S.getSqliteState
   conf <- getSnapletUserConfig
   env <- getTimeEnv
   tester <- gets _tester
   root <- getDocumentRoot
   let filepath = root </> submitPath
-  async $ do    -- run the tester asynchronously
+  -- run the tester asynchronously
+  liftIO $ forkIO $ withQSem qsem $ do 
     runSqlite conn $ updateSubmission submitId evaluating pending
     page <- readMarkdownFile filepath
     let attempt = Access { accessUser = submitUser
@@ -118,13 +128,12 @@ testWrapper :: Tester Result
             -> Submission
             -> IO Result
 testWrapper tester conf filepath page submiss
-  = (fromMaybe invalidTester <$> runTester tester conf filepath page submiss)
+  = (fromMaybe invalid <$> runTester tester conf filepath page submiss)
     `catch`
     (\(e::SomeException) -> return (miscError $ T.pack $ show e))
-  
-
-invalidTester :: Result
-invalidTester = miscError "no acceptable tester configured"
+  where  
+    invalid :: Result
+    invalid = miscError "no acceptable tester configured"
 
 
 withPolicySplices :: UserLogin -> FilePath -> Page -> Codex a -> Codex a

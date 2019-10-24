@@ -189,8 +189,8 @@ codexInit handlers tester =
     addRoutes routes
     -- | semaphore for limimit concurrent evaluations
     maxtasks <- liftIO $ Conf.require conf "system.max_concurrent"
-    semph <- newTaskSemph maxtasks
-    queue <- newTaskQueue
+    semph <- liftIO $ newQSem maxtasks
+    queue <- liftIO $ newMVar []
     return App { _heist = h
                , _router = r
                , _sess = s
@@ -198,7 +198,7 @@ codexInit handlers tester =
                , _db   = d
                , _tester = tester
                , _handlers = handlers
-               , _queue = queue
+               , _pendingQ = queue
                , _semph = semph
                , _logger  = logger
                , _eventcfg = evcfg
