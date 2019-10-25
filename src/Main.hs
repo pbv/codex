@@ -46,7 +46,7 @@ import           Snap.Loader.Static
 app :: SnapletInit App App
 app = codexInit handler testers
 
-handler =  quizHandlers <> codeHandlers <> markdownHandlers
+handler =  markdownHandlers <> quizHandlers <> codeHandlers 
 
 testers = foldr1 (<|>)
           [ pythonDocTester

@@ -1,7 +1,7 @@
 ---
 title: A Guide to Writting Codex Exercises
 author: Pedro Vasconcelos <pbv@dcc.fc.up.pt>, University of Porto, Portugal. 
-date: July 2019 (version 0.9.5)
+date: October 2019 (version 0.9.6)
 ...
 
 
@@ -52,29 +52,31 @@ a lightweight text markup syntax originally proposed by John Gruber.
 Codex uses the 
 [Pandoc library](http://hackage.haskell.org/package/pandoc) for parsing
 Markdown which suports many extensions. In particular, it
-support LaTeX mathematics (rendered using
+support LaTeX syntax for mathematical formulas (rendered using
 [MathJaX](http://www.mathjax.org)).
 For more details on the Pandoc-flavoured Markdown, check the [Pandoc user
 manual](http://pandoc.org/MANUAL.html#pandocs-markdown).
 
 Pages can be plain static documents or marked as *exercises*;
-the later allow student's submissions and trigger automatic assessment.
-Submissions are kept in a persistent database and students
-can review  their previous attempts.
-The administrator can view and manage 
+the later allow student to submit solutions and get automatic assessment.
+Submissions are kept in a persistent database so that students and
+instructors can review their previous attempts.
+The administrator can also view and manage 
 all submissions (e.g. re-evaluate or generate printouts).
 
-Comments can be written in HTML-style:
+Comments in pages can be written in HTML-style:
 
-~~~
+```
 <!-- This is a comment; it can span multiple lines -->
-~~~
+```
 
-Note that, unlike other Markdown readers, raw HTML markup
-is **not** allowed (it will be rendered as plain text).
+HTML syntax is also allowed for  `SPAN` inlines and `DIV` blocks 
+(used for specifying structure, e.g. for
+[shuffling exercises](#shuffling)).
+Other raw HTML markup will be escaped (and rendered as plain text).
 
-Codex uses Pandoc's YAML extension to specify metadata for pages
-e.g., define the exercise tester, programming 
+Codex expects YAML blocks to specify *metadata fields* for pages
+e.g., the exercise type, programming 
 languages allowed, period for valid submissions, etc.
 Metadata blocks are delimited between "`---`" and 
 "`...`":
@@ -581,6 +583,15 @@ is used.
  
     Date and times are relative to the server timezone.
 
+`allow-invalid`
+
+:    Boolean value; specifies whether to allow submissions after the
+valid period/maximum attempts. Default value is `true`: invalid
+submissions are allowed but marked as `Invalid` in the database.  If
+set to `false`, submissions are disabled after the time and/or
+attempts constraints have expired.
+
+
 <!-- You
     may also use named events defined in a `events.cfg` configuration
     file, e.g.
@@ -751,10 +762,9 @@ deterministic algorithm based on the user login.
 question should be shuffled; default to `false`.  By default shuffling
 uses a deterministic algorithm based on the user login.
 
-`random-seed`
+`shuffle-seed`
 
-:    Integer value; fix the PRNG seed used for shuffled instead of computing
-it from the user login.
+:    Integer value; fix the PRNG seed used for shuffling (the default seed is a hash value of the user login).
 
 
 `correct-weight`
@@ -790,6 +800,68 @@ transcript of questions and answer when producing a printout
 report (e.g. for exams); if set to `false` then the
 report will only include a summary (number of answered, correct
 and incorrect replies and a percentage score).
+
+# Extra 
+
+## Shuffling exercises  {#shuffling}
+
+
+You can shuffle exercises in a Markdown index page by using a 
+`DIV` block marked with class "`shuffle`". 
+For example, to shuffle 3 exercises:
+
+~~~{.boxed}
+<div class="shuffle">
+* [](exercise1.md){.ex}
+* [](exercise2.md){.ex}
+* [](exercise3.md){.ex}
+</div>
+~~~
+
+It is also possible to specify the number of exercises to choose.
+For example, randomly choose 2 out of 3 exercises:
+
+~~~{.boxed}
+<div class="shuffle" choose=2>
+* [](exercise1.md){.ex}
+* [](exercise2.md){.ex}
+* [](exercise3.md){.ex}
+</div>
+~~~
+
+Shuffleing blocks can be combined to produce questionaries with
+multiple alternatives picked pseudo-randomly for each user, e.g.:
+
+~~~{.boxed}
+# Question 1
+
+<div class="shuffle" choose=1>
+* [](question1a.md){.ex}
+* [](question1b.md){.ex}
+* [](question1c.md){.ex}
+</div>
+
+# Question 2
+
+<div class="shuffle" choose=1>
+* [](question2a.md){.ex}
+* [](question2b.md){.ex}
+* [](question2c.md){.ex}
+</div>
+~~~
+
+Shuffling is pseudo-random and deterministic: each user
+will always get the same choices from a given page.
+Alternatively, it is possible
+to fix a pseudo-random integer seed in the document metadata, e.g.:
+
+~~~
+...
+shuffle-seed: 123
+---
+~~~
+
+This way every user will see the same choices.
 
 
 ----

@@ -115,11 +115,11 @@ shuffleQuiz uid page
   = Rand.run seed (makeQuiz page >>= shuffle1 >>= shuffle2) 
   where
     meta = pageMeta page
-    seed = fromMaybe (hash uid) (lookupFromMeta "random-seed" meta)
+    seed = fromMaybe (hash uid) $ lookupFromMeta "shuffle-seed" meta
     opt1 = fromMaybe False $ lookupFromMeta "shuffle-questions" meta
     opt2 = fromMaybe False $ lookupFromMeta "shuffle-answers" meta
     shuffle1 = if opt1 then shuffleQuestions else return
-    shuffle2 = if opt2 then shuffleChoices else return 
+    shuffle2 = if opt2 then shuffleAlternatives else return 
 
 
 -- | split up a list of blocks into questions
@@ -217,9 +217,9 @@ shuffleQuestions :: Quiz -> Rand Quiz
 shuffleQuestions (Quiz preamble questions)
   = Quiz preamble <$> Rand.shuffle questions
 
--- | shuffle answers alternatives in multiple choice questions
-shuffleChoices :: Quiz -> Rand Quiz
-shuffleChoices (Quiz preamble questions)
+-- | shuffle alternatives in multiple choice questions
+shuffleAlternatives :: Quiz -> Rand Quiz
+shuffleAlternatives (Quiz preamble questions)
   = Quiz preamble <$> mapM shuffle questions
   where
     shuffle q@Question{..} = case choices of

@@ -59,7 +59,7 @@ code > span.in { color: #60a0b0; font-weight: bold; font-style: italic; } /* Inf
 <div id="header">
 <h1 class="title">A Guide to Writting Codex Exercises</h1>
 <h2 class="author">Pedro Vasconcelos <a href="mailto:pbv@dcc.fc.up.pt">pbv@dcc.fc.up.pt</a>, University of Porto, Portugal.</h2>
-<h3 class="date">July 2019 (version 0.9.5)</h3>
+<h3 class="date">October 2019 (version 0.9.6)</h3>
 </div>
 <h1 id="introduction"><span class="header-section-number">1</span> Introduction</h1>
 <h2 id="overview"><span class="header-section-number">1.1</span> Overview</h2>
@@ -80,12 +80,12 @@ code > span.in { color: #60a0b0; font-weight: bold; font-style: italic; } /* Inf
 </dl>
 <p>Codex is intended for learning environments rather than programming contests (for the later, check out <a href="https://mooshak.dcc.fc.up.pt/">Mooshak</a>). The system is currently being used at the Faculty of Science of the University of Porto for introductory courses on Python and C programming.</p>
 <h2 id="pages-and-exercises"><span class="header-section-number">1.2</span> Pages and exercises</h2>
-<p>A Codex exercise repository is organized as set of interlinked hypertext pages. Pages are written in <a href="https://en.wikipedia.org/wiki/Markdown">Markdown</a>, a lightweight text markup syntax originally proposed by John Gruber. Codex uses the <a href="http://hackage.haskell.org/package/pandoc">Pandoc library</a> for parsing Markdown which suports many extensions. In particular, it support LaTeX mathematics (rendered using <a href="http://www.mathjax.org">MathJaX</a>). For more details on the Pandoc-flavoured Markdown, check the <a href="http://pandoc.org/MANUAL.html#pandocs-markdown">Pandoc user manual</a>.</p>
-<p>Pages can be plain static documents or marked as <em>exercises</em>; the later allow student's submissions and trigger automatic assessment. Submissions are kept in a persistent database and students can review their previous attempts. The administrator can view and manage all submissions (e.g. re-evaluate or generate printouts).</p>
-<p>Comments can be written in HTML-style:</p>
+<p>A Codex exercise repository is organized as set of interlinked hypertext pages. Pages are written in <a href="https://en.wikipedia.org/wiki/Markdown">Markdown</a>, a lightweight text markup syntax originally proposed by John Gruber. Codex uses the <a href="http://hackage.haskell.org/package/pandoc">Pandoc library</a> for parsing Markdown which suports many extensions. In particular, it support LaTeX syntax for mathematical formulas (rendered using <a href="http://www.mathjax.org">MathJaX</a>). For more details on the Pandoc-flavoured Markdown, check the <a href="http://pandoc.org/MANUAL.html#pandocs-markdown">Pandoc user manual</a>.</p>
+<p>Pages can be plain static documents or marked as <em>exercises</em>; the later allow student to submit solutions and get automatic assessment. Submissions are kept in a persistent database so that students and instructors can review their previous attempts. The administrator can also view and manage all submissions (e.g. re-evaluate or generate printouts).</p>
+<p>Comments in pages can be written in HTML-style:</p>
 <pre><code>&lt;!-- This is a comment; it can span multiple lines --&gt;</code></pre>
-<p>Note that, unlike other Markdown readers, raw HTML markup is <strong>not</strong> allowed (it will be rendered as plain text).</p>
-<p>Codex uses Pandoc's YAML extension to specify metadata for pages e.g., define the exercise tester, programming languages allowed, period for valid submissions, etc. Metadata blocks are delimited between &quot;<code>---</code>&quot; and &quot;<code>...</code>&quot;:</p>
+<p>HTML syntax is also allowed for <code>SPAN</code> inlines and <code>DIV</code> blocks (used for specifying structure, e.g. for <a href="#shuffling">shuffling exercises</a>). Other raw HTML markup will be escaped (and rendered as plain text).</p>
+<p>Codex expects YAML blocks to specify <em>metadata fields</em> for pages e.g., the exercise type, programming languages allowed, period for valid submissions, etc. Metadata blocks are delimited between &quot;<code>---</code>&quot; and &quot;<code>...</code>&quot;:</p>
 <pre><code>---
 tester: doctest
 language: python
@@ -174,7 +174,7 @@ Got:
 <li>It is also possible test error handling by requiring that proper exceptions are thrown — see the <a href="https://docs.python.org/3/library/doctest.html#what-about-exceptions"><code>doctest</code> documentation</a>;</li>
 </ol>
 <h3 id="an-example-quiz"><span class="header-section-number">2.1.1</span> An example quiz</h3>
-<p>Setting up a multiple-choice or fill-in quiz requires only a Markdown exercise page:</p>
+<p>Setting up a multiple-choice or fill-in quiz requires only a Markdown page:</p>
 <pre class="boxed"><code>---
 tester: quiz
 shuffle-questions: no
@@ -404,6 +404,9 @@ valid: &quot;before 16/02/2019&quot;
 valid: &quot;before 16/02/2019 and attempts 20&quot;</code></pre>
 <p>Date and times are relative to the server timezone.</p>
 </dd>
+<dt><code>allow-invalid</code></dt>
+<dd><p>Boolean value; specifies whether to allow submissions after the valid period/maximum attempts. Default value is <code>true</code>: invalid submissions are allowed but marked as <code>Invalid</code> in the database. If set to <code>false</code>, submissions are disabled after the time and/or attempts constraints have expired.</p>
+</dd>
 </dl>
 <!-- You
     may also use named events defined in a `events.cfg` configuration
@@ -508,8 +511,8 @@ valid: &quot;before 16/02/2019 and attempts 20&quot;</code></pre>
 <dt><code>shuffle-answers</code></dt>
 <dd><p>Boolean value; specifies whether the order of answers within each question should be shuffled; default to <code>false</code>. By default shuffling uses a deterministic algorithm based on the user login.</p>
 </dd>
-<dt><code>random-seed</code></dt>
-<dd><p>Integer value; fix the PRNG seed used for shuffled instead of computing it from the user login.</p>
+<dt><code>shuffle-seed</code></dt>
+<dd><p>Integer value; fix the PRNG seed used for shuffling (the default seed is a hash value of the user login).</p>
 </dd>
 <dt><code>correct-weight</code></dt>
 <dd><p>Fractional number from 0 to 1; this is the scoring weight for a correct item in a multiple-choice question. By default the correct item(s) score 1.</p>
@@ -525,6 +528,41 @@ valid: &quot;before 16/02/2019 and attempts 20&quot;</code></pre>
 <dd><p>Boolean value specifiying whether to include a detailed transcript of questions and answer when producing a printout report (e.g. for exams); if set to <code>false</code> then the report will only include a summary (number of answered, correct and incorrect replies and a percentage score).</p>
 </dd>
 </dl>
+<h1 id="extra"><span class="header-section-number">4</span> Extra</h1>
+<h2 id="shuffling"><span class="header-section-number">4.1</span> Shuffling exercises</h2>
+<p>You can shuffle exercises in a Markdown index page by using a <code>DIV</code> block marked with class &quot;<code>shuffle</code>&quot;. For example, to shuffle 3 exercises:</p>
+<pre class="boxed"><code>&lt;div class=&quot;shuffle&quot;&gt;
+* [](exercise1.md){.ex}
+* [](exercise2.md){.ex}
+* [](exercise3.md){.ex}
+&lt;/div&gt;</code></pre>
+<p>It is also possible to specify the number of exercises to choose. For example, randomly choose 2 out of 3 exercises:</p>
+<pre class="boxed"><code>&lt;div class=&quot;shuffle&quot; choose=2&gt;
+* [](exercise1.md){.ex}
+* [](exercise2.md){.ex}
+* [](exercise3.md){.ex}
+&lt;/div&gt;</code></pre>
+<p>Shuffleing blocks can be combined to produce questionaries with multiple alternatives picked pseudo-randomly for each user, e.g.:</p>
+<pre class="boxed"><code># Question 1
+
+&lt;div class=&quot;shuffle&quot; choose=1&gt;
+* [](question1a.md){.ex}
+* [](question1b.md){.ex}
+* [](question1c.md){.ex}
+&lt;/div&gt;
+
+# Question 2
+
+&lt;div class=&quot;shuffle&quot; choose=1&gt;
+* [](question2a.md){.ex}
+* [](question2b.md){.ex}
+* [](question2c.md){.ex}
+&lt;/div&gt;</code></pre>
+<p>Shuffling is pseudo-random and deterministic: each user will always get the same choices from a given page. Alternatively, it is possible to fix a pseudo-random integer seed in the document metadata, e.g.:</p>
+<pre><code>...
+shuffle-seed: 123
+---</code></pre>
+<p>This way every user will see the same choices.</p>
 <hr />
 <p>Pedro Vasconcelos, 2019.</p>
 </body>

@@ -24,6 +24,7 @@ import           Data.Hashable (hash)
 
 import           Control.Exception  (IOException)
 import           Control.Exception.Lifted  (catch)
+import           Control.Monad (guard)
 import           Control.Monad.IO.Class (liftIO)
 
 import           Text.Pandoc hiding (Code,
@@ -31,10 +32,9 @@ import           Text.Pandoc hiding (Code,
                                      getCurrentTimeZone)
 import qualified Text.Pandoc as Pandoc 
 import           Text.Pandoc.Walk as Pandoc
+import           System.FilePath
 
 import           Snap.Snaplet.Heist
-
-import           System.FilePath
 
 
 --
@@ -42,8 +42,10 @@ import           System.FilePath
 --
 pageView :: UserLogin -> FilePath -> Page -> Codex ()
 pageView uid rqpath page = do
+  -- check that this is a plain markdown page, not an exercise
+  guard (pageTester page == Nothing)  
   let rqdir = takeDirectory rqpath
-  renderMarkdown =<< fillExerciseLinks uid rqdir page
+  renderMarkdown =<< fillExerciseLinks uid rqdir (runShuffleing uid page)
 
 renderMarkdown :: Page -> Codex ()
 renderMarkdown page = renderWithSplices "_page" (pageSplices page)
@@ -53,12 +55,17 @@ renderMarkdown page = renderWithSplices "_page" (pageSplices page)
 fillExerciseLinks :: UserLogin -> FilePath -> Page -> Codex Page
 fillExerciseLinks uid rqdir page = do
     root <- getDocumentRoot
-    let meta = pageMeta page
-    let seed = fromMaybe (hash uid) $ lookupFromMeta "random-seed" meta
-    walkM (fetchLink uid root rqdir) $
-      Rand.run seed (walkM shuffleLists page) 
+    walkM (fetchLink uid root rqdir) page
 
--- | shuffle exercise lists inside a marked container 
+-- | random shuffling for lists inside marked DIV blocks
+--
+runShuffleing :: UserLogin -> Page -> Page
+runShuffleing uid page
+  = Rand.run seed (walkM shuffleLists page)
+  where seed = fromMaybe (hash uid) $ lookupFromMeta "shuffle-seed" meta
+        meta = pageMeta page
+
+-- | worker functions
 shuffleLists :: Block -> Rand Block
 shuffleLists (Div (id, classes, attrs) blocks)
   | "shuffle" `elem` classes = do
