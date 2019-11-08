@@ -14,29 +14,28 @@ import           Control.Exception (catch)
 
 pythonDocTester :: Tester Result
 pythonDocTester = tester "doctest" $ do
-  Code lang src <- askSubmitted
+  Code lang src <- testCode
   guard (lang == "python")
   ---
   python    <- configured "language.python.interpreter"
   runtests  <- configured "language.python.runtests"
   scripts   <- configured "language.python.scripts"
-  limits    <- askLimits "language.python.limits"
-  linterOpt <- maybeConfigured "language.python.linter" >>=
-               traverse parseArgs
+  limits    <- configLimits "language.python.limits"
+  linterOpt <- maybeConfigured "language.python.linter" >>= traverse parseArgs
   linterFlag <- fromMaybe False <$> metadata "linter"
-  path    <- askPath
-  testsPath <- fromMaybe (replaceExtension path ".tst") <$>
-               metadataPath "tests"
-  assert (fileExists testsPath)
-    ("tests file not found: " <> show testsPath)
-  chmod readable testsPath
+  path  <- testFilePath
+  tstpath <- fromMaybe (replaceExtension path ".tst") <$>
+              metadataPath "tests"
+  assert (fileExists tstpath)
+    ("tests file not found: " <> show tstpath)
+  chmod readable tstpath
   withTemp "submit.py" src $ \pyfile -> (do
     chmod readable pyfile
     when linterFlag $
       case linterOpt of
         Just (cmd:args) -> runCompiler Nothing cmd (args ++ [pyfile])
         _ -> fail "missing python linter command in config file"
-    let args = [runtests, scripts, testsPath, pyfile]
+    let args = [runtests, scripts, tstpath, pyfile]
     classify <$> safeExec limits python Nothing args "") `catch` return
 
 

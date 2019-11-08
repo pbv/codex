@@ -58,10 +58,10 @@ instance Monoid Score where
 
 quizTester :: Tester Result
 quizTester = tester "quiz" $ do
-  Code lang text <- askSubmitted
+  Code lang text <- testCode
   guard (lang == "json")
-  page <- askPage
-  uid <- askUser
+  page <- testPage
+  uid <- testUser
   -- optional grading weights
   weights@Weights{..} <- Weights <$>
                          metadata "correct-weight" <*>

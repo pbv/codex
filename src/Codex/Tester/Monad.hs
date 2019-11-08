@@ -3,8 +3,8 @@
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE RecordWildCards #-}
 {-
--- a monad for writing testers for submissions
--- allows access to a an environment, ruinning IO and failure (i.e. passing)
+-- | Tester monad for writing testers for submissions
+-- | allows access to an environment, running IO and failure (i.e. passing)
 --
 -}
 module Codex.Tester.Monad (
@@ -12,13 +12,13 @@ module Codex.Tester.Monad (
   runTester,
   configured,
   maybeConfigured,
-  askLimits,
-  askConfig,
-  askPath,
-  askSubmitted,
-  askPage,
-  askMetadata,
-  askUser,
+  configLimits,
+  testConfig,
+  testFilePath,
+  testCode,
+  testPage,
+  testMetadata,
+  testUser,
   metadata,
   metadataPath,
   ) where
@@ -53,8 +53,6 @@ data TestEnv
              , _testFilePath :: FilePath   -- ^ file path to exercise page
              , _testPage :: Page           -- ^ exercise page
              , _testSubmission :: Submission 
-             -- , _testSubmitted :: Code  -- ^ submited language & code
-             -- , _testUser :: UserLogin  -- ^ user 
              } 
 
 
@@ -68,61 +66,60 @@ runTester m cfg filepath page sub
 
 
 -- | fetch parameters from environment
-askConfig :: Tester Config
-askConfig = Tester (asks _testConfig)
+testConfig :: Tester Config
+testConfig = Tester (asks _testConfig)
 
-askPath :: Tester FilePath
-askPath = Tester (asks _testFilePath)
+testFilePath :: Tester FilePath
+testFilePath = Tester (asks _testFilePath)
 
-askSubmitted :: Tester Code
-askSubmitted = Tester (submitCode <$> asks _testSubmission)
+testCode :: Tester Code
+testCode = Tester (submitCode <$> asks _testSubmission)
 
-askUser :: Tester UserLogin
-askUser = Tester (submitUser <$> asks _testSubmission)
+testUser :: Tester UserLogin
+testUser = Tester (submitUser <$> asks _testSubmission)
 
-askPage :: Tester Page
-askPage = Tester (asks _testPage)
+testPage :: Tester Page
+testPage = Tester (asks _testPage)
 
-askMetadata :: Tester Meta
-askMetadata = pageMeta <$> askPage
+testMetadata :: Tester Meta
+testMetadata = pageMeta <$> testPage
 
 
--- | get a medata value from a field
+-- | get a medata value given the key
 metadata :: FromMetaValue a => String -> Tester (Maybe a)
 metadata key = do
-  meta <- askMetadata
+  meta <- testMetadata
   return (lookupFromMeta key meta)
 
--- | get an absolute path from metadata field
+-- | get an relative path from metadata 
 metadataPath :: String -> Tester (Maybe FilePath)
 metadataPath key = do
-  dir <- takeDirectory <$> askPath   -- directory for exercise page
-  fmap (dir </>) <$> metadata key
-                      -- lookup key and make absolute path if found
+  dir <- takeDirectory <$> testFilePath  -- directory for exercise page
+  fmap (dir </>) <$> metadata key     -- lookup and make a relative path
 
 
 -- | fetch a configured value; return Nothing if key not present
 maybeConfigured :: Configured a => Name -> Tester (Maybe a)
 maybeConfigured key = do
-  cfg <- askConfig
+  cfg <- testConfig
   liftIO $ Conf.lookup cfg key
 
 -- | fetch a configuration value
 -- throws an exception if key is not present
 configured :: Configured a => Name -> Tester a
 configured key = do
-  cfg <- askConfig
+  cfg <- testConfig
   liftIO $ Conf.require cfg key
 
 
 -- | ask configured limits from the tester environment
 -- overrides default config with the specific one
-askLimits :: Name -> Tester Limits
-askLimits key = do
-  cfg <- askConfig
+configLimits :: Name -> Tester Limits
+configLimits key = do
+  cfg <- testConfig
   liftIO $ do
-    def  <- configLimits (Conf.subconfig "limits" cfg)
-    spec <- configLimits (Conf.subconfig key cfg)
+    def  <- lookupLimits (Conf.subconfig "limits" cfg)
+    spec <- lookupLimits (Conf.subconfig key cfg)
     return (spec <> def)
                   
 

@@ -17,19 +17,18 @@ import           Codex.Tester
 
 clangQCTester :: Tester Result
 clangQCTester = tester "quickcheck" $ do
-  Code lang src <- askSubmitted
+  Code lang src <- testCode
   guard (lang == "c")
-  path <- askPath
+  path <- testFilePath
   qcpath <- fromMaybe (replaceExtension path ".hs")
-            <$>
-            metadataPath "properties"
+            <$> metadataPath "properties"
   assert (fileExists qcpath)
     ("properties file not found: " <> show qcpath)
   props  <- liftIO (T.readFile qcpath)
   ghc    <- configured "language.haskell.compiler"
   gcc    <- configured "language.c.compiler"
-  limits <- askLimits "language.haskell.limits"
-  qcArgs <- getQuickCheckArgs <$> askMetadata
+  limits <- configLimits "language.haskell.limits"
+  qcArgs <- getQuickCheckArgs <$> testMetadata
   -- append an optional header (for includes, prototypes, etc.)
   header <- fromMaybe "" <$> metadata "header"
   let code = header <> "\n" <> src

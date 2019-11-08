@@ -4,7 +4,7 @@
 -}
 module Codex.Tester.Limits (
   Limits(..),
-  configLimits,
+  lookupLimits,
   ) where
 
 
@@ -53,8 +53,8 @@ instance Semigroup Limits where
 
 
 -- | lookup limits from a subconfig 
-configLimits :: Config -> IO Limits
-configLimits cfg = do
+lookupLimits :: Config -> IO Limits
+lookupLimits cfg = do
   cpu  <- Configurator.lookup cfg "max_cpu"
   clock<- Configurator.lookup cfg "max_clock"
   mem  <- Configurator.lookup cfg "max_memory"

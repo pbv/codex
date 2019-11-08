@@ -19,7 +19,7 @@ sqlTester = sqlSelectTester <|> sqlEditTester <|> sqlSchemaTester
 
 sqlSelectTester :: Tester Result
 sqlSelectTester = tester "select" $ do
-  Code lang src <- askSubmitted
+  Code lang src <- testCode
   guard (lang == "sql")
   ---
   evaluator <- configured "language.sql.evaluator.select"
@@ -40,7 +40,7 @@ sqlSelectTester = tester "select" $ do
 
 sqlEditTester :: Tester Result
 sqlEditTester = tester "edit" $ do
-  Code lang src <- askSubmitted
+  Code lang src <- testCode
   guard (lang == "sql")
   ---
   evaluator <- configured "language.sql.evaluator.edit"
@@ -66,7 +66,7 @@ sqlEditTester = tester "edit" $ do
 
 sqlSchemaTester :: Tester Result
 sqlSchemaTester = tester "schema" $ do
-  Code lang src <- askSubmitted
+  Code lang src <- testCode
   guard (lang == "sql")
   ---
   evaluator <- configured "language.sql.evaluator.schema"
