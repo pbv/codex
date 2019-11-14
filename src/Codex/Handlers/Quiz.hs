@@ -119,7 +119,7 @@ choicesSplices (FillIn keyText normalize) answers = do
                                    normalize keyText)
   "question-fillin" ## I.ifElseISplice True
 
-choicesSplices (Alternatives multiples attrs alts) selected = do
+choicesSplices (Alternatives selection attrs alts) selected = do
   let lalts = zip (listLabels attrs) alts
   let keys = sort [ label| (label, (True, _)) <- lalts ]
   let keyText = T.concat $ intersperse "," $ map T.pack keys
@@ -128,8 +128,9 @@ choicesSplices (Alternatives multiples attrs alts) selected = do
   "question-answer-key" ## I.textSplice keyText
   "list-type" ## I.textSplice (listType attrs)
   "list-start" ## I.textSplice (listStart attrs)
-  "onclick-callback" ## if multiples then return []
-                        else I.textSplice "onlyOne(this)"
+  "onclick-callback" ## case selection of
+                          Multiple -> return []
+                          Single -> I.textSplice "onlyOne(this)"
   let laltSplices (label,(truth,item)) = do
         "alternative-label" ## I.textSplice (T.pack label)
         "alternative" ## return (blocksToHtml item)

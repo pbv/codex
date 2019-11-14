@@ -8,6 +8,7 @@ module Codex.Quiz
   ( Quiz(..)
   , Question(..)
   , Choices(..)
+  , Selection(..)
   , Answers(..)
   , Key
   , shuffleQuiz
@@ -58,8 +59,10 @@ data Choices
   = FillIn Text (Text -> Text)
   -- bundle answer key with a normalization function
   -- for now: this just removes spaces
-  | Alternatives Bool P.ListAttributes Alts
+  | Alternatives Selection P.ListAttributes Alts
   -- list of multiple choices 
+
+data Selection = Single | Multiple
 
 type Alts =  [(Bool, [P.Block])]
 -- ^ right/wrong, description blocks
@@ -112,10 +115,11 @@ pandocWriterOptions
 -- | deterministic shuffle questions & answers in a quiz
 shuffleQuiz :: UserLogin -> Page -> Quiz
 shuffleQuiz uid page
-  = Rand.run seed (makeQuiz page >>= shuffle1 >>= shuffle2) 
+  = Rand.run (seed+salt) (makeQuiz page >>= shuffle1 >>= shuffle2) 
   where
     meta = pageMeta page
     seed = fromMaybe (hash uid) $ lookupFromMeta "shuffle-seed" meta
+    salt = fromMaybe 0 $ lookupFromMeta "shuffle-salt" meta
     opt1 = fromMaybe False $ lookupFromMeta "shuffle-questions" meta
     opt2 = fromMaybe False $ lookupFromMeta "shuffle-answers" meta
     shuffle1 = if opt1 then shuffleQuestions else return
@@ -203,7 +207,9 @@ makeQuestion header rest
            | (label, item) <- zip (listLabels attrs) items
            , let truth = label `elem` answers
            ]
-    multiples = "multiple" `elem` headerClasses header
+    multiples
+      | "multiple" `elem` headerClasses header = Multiple
+      | otherwise                              = Single
     emptyAttrs = (1, P.DefaultStyle, P.DefaultDelim)
     isList (P.OrderedList _ _) = True
     isList _                   = False
