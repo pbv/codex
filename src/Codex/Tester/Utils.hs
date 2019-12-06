@@ -133,12 +133,12 @@ readTextProcessWithExitCode cmd args stdin = do
 
 -- | safeExec with text input/output
 safeExec :: Limits
-          -> FilePath           -- ^ command
-          -> Maybe FilePath     -- ^ optional working directory
-          -> [String]           -- ^ comand line arguments
-          -> Text               -- ^ stdin
-          -> IO (ExitCode, Text, Text)
-             -- ^ code, stdout, stderr
+         -> FilePath           -- ^ command
+         -> Maybe FilePath     -- ^ optional working directory
+         -> [String]           -- ^ comand line arguments
+         -> Text               -- ^ stdin
+         -> IO (ExitCode, Text, Text)
+         -- ^ code, stdout, stderr
 safeExec limits exec dir args stdin = do
   (code, out, err) <- safeExecBS limits exec dir args (T.encodeUtf8 stdin)
   return (code,

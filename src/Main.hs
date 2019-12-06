@@ -61,7 +61,7 @@ testers = foldr1 (<|>)
           -- multiple choice quizzes
           , quizTester
             -- SQL tester
-          , sqlTester
+          , sqliteTester
             -- trivial tester (accepts all submissions)
           , nullTester
           ]

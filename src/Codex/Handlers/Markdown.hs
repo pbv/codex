@@ -18,12 +18,13 @@ import qualified Codex.Random as Rand
 import           Codex.Utils
 import           Codex.Submission
 
+import qualified Data.Text as T
 import           Data.Maybe(fromMaybe)
 import           Text.Read(readMaybe)
 import           Data.Hashable (hash)
 
 import           Control.Exception  (IOException)
-import           Control.Exception.Lifted  (catch)
+import           Control.Exception.Lifted  (try, catch)
 import           Control.Monad (guard)
 import           Control.Monad.IO.Class (liftIO)
 
@@ -45,24 +46,22 @@ pageView uid rqpath page = do
   -- check that this is a plain markdown page, not an exercise
   guard (pageTester page == Nothing)  
   let rqdir = takeDirectory rqpath
-  renderMarkdown =<< fillExerciseLinks uid rqdir (runShuffleing uid page)
+  (fillExerciseLinks uid rqdir $
+    fillUserLinks uid $
+    runShuffleing uid page) >>= renderMarkdown
 
 renderMarkdown :: Page -> Codex ()
 renderMarkdown page = renderWithSplices "_page" (pageSplices page)
 
 
--- | fill titles and submission counts on exercise links
-fillExerciseLinks :: UserLogin -> FilePath -> Page -> Codex Page
-fillExerciseLinks uid rqdir page = do
-    root <- getDocumentRoot
-    walkM (fetchLink uid root rqdir) page
 
 -- | random shuffling for lists inside marked DIV blocks
 --
 runShuffleing :: UserLogin -> Page -> Page
 runShuffleing uid page
-  = Rand.run seed (walkM shuffleLists page)
+  = Rand.run (seed+salt) (walkM shuffleLists page)
   where seed = fromMaybe (hash uid) $ lookupFromMeta "shuffle-seed" meta
+        salt = fromMaybe 0 $ lookupFromMeta "shuffle-salt" meta
         meta = pageMeta page
 
 -- | worker functions
@@ -86,16 +85,22 @@ shuffleList _ block =
 shuffle' :: Maybe Int -> [a] -> Rand [a]
 shuffle' limit xs = maybe id take limit <$> Rand.shuffle xs 
 
-  
+
+-- | fill titles and submission counts on exercise links
+fillExerciseLinks :: UserLogin -> FilePath -> Page -> Codex Page
+fillExerciseLinks uid rqdir page = do
+    root <- getDocumentRoot
+    walkM (exerciseLinks uid root rqdir) page
+
 -- | fetch title and submissions count for exercise links
-fetchLink :: UserLogin -> FilePath -> FilePath -> Inline -> Codex Inline
-fetchLink uid root rqdir (Link attr@(_, classes,_) _ target@(url,_))
+exerciseLinks :: UserLogin -> FilePath -> FilePath -> Inline -> Codex Inline
+exerciseLinks uid root rqdir (Link attr@(_, classes,_) _ target@(url,short))
   | "ex" `elem` classes = do
       let path = normalise (rqdir </> url)
       title <- liftIO $ readPageTitle (root </> path)
       count <- countPageSubmissions uid path
       return (formatLink attr title target count)
-fetchLink uid root rqdir elm
+exerciseLinks uid root rqdir elm
   = return elm
 
 -- | format a single exercise link
@@ -109,12 +114,35 @@ formatLink attr title target count
         Str ")"]
     ]
 
+
+fillUserLinks :: UserLogin -> Page -> Page
+fillUserLinks uid = walk (userLinks uid)
+  
+-- jpp hack: replace %u in exercise URLs with the user login
+userLinks ::  UserLogin -> Inline -> Inline
+userLinks uid (Link attr@(_, classes,_) inlines target@(url,short))
+  | "user" `elem` classes = 
+      let url' = replaceUserField (T.unpack $ fromLogin uid) url
+          target' = (url', short)
+      in (Link attr inlines target')
+userLinks _ elm = elm
+
+  
+replaceUserField :: String -> String -> String
+replaceUserField uid ('%':'u':rest) = uid ++ rest
+replaceUserField uid (first:rest) = first : replaceUserField uid rest
+replaceUserField _   [] = []
+
+
+
 readPageTitle :: FilePath -> IO [Inline]
-readPageTitle path
-  = fromMaybe [Pandoc.Code nullAttr path] <$> readTitle
+readPageTitle path = do
+  result <- try (readMarkdownFile path)
+  return $ case result of
+    Left (_ :: IOException) -> brokenLink 
+    Right page -> fromMaybe brokenLink (pageTitle page)
   where
-    readTitle = (pageTitle <$> readMarkdownFile path)
-                `catch` (\(_ :: IOException) -> return Nothing)
+    brokenLink = [Pandoc.Code nullAttr path]
 
 
 markdownHandlers :: Handlers Codex

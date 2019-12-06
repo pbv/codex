@@ -1,41 +1,79 @@
 {-# LANGUAGE OverloadedStrings #-}
+--
+-- | Test SQL queries using SQLite interpreter
+--
 module Codex.Tester.Sql (
-  sqlTester,
-  sqlSelectTester,
-  sqlEditTester,
-  sqlSchemaTester,
+  sqliteTester,
   ) where
 
 import           Codex.Tester
-import           Data.Text(Text)
+import           Data.Maybe (fromMaybe)
 import qualified Data.Text as T
-import           Control.Exception
-import           Control.Applicative
+import           Data.List (sort)
+import           Control.Exception (throwIO, catch)
+import           System.FilePath (takeFileName)
 
 
-sqlTester :: Tester Result
-sqlTester = sqlSelectTester <|> sqlEditTester <|> sqlSchemaTester
-
-
-sqlSelectTester :: Tester Result
-sqlSelectTester = tester "select" $ do
-  Code lang src <- testCode
+sqliteTester :: Tester Result
+sqliteTester = tester "sqlite" $ do
+  Code lang query <- testCode
   guard (lang == "sql")
   ---
-  evaluator <- configured "language.sql.evaluator.select"
-  confArgs <- getOptConfArgs "language.sql.args"
-              [ ("-H", "host")
-              , ("-P", "port")
-              , ("-u", "user_guest")
-              , ("-p", "pass_guest")
-              ]
-  metaArgs <- getOptMetaArgs
-              [ ("-d", "db-name") ]
-  answer <- getSqlAnswer
-  withTemp "answer.sql" (T.pack answer) $ \answerFilePath ->
-    withTemp "submit.sql" src $ \submittedFilePath ->
-      classify <$> unsafeExec evaluator
-        (confArgs ++ metaArgs ++ ["-A", answerFilePath,"-S", submittedFilePath]) ""
+  limits <- configLimits "language.sqlite.limits"
+  cmdline <- configured "language.sqlite.command" >>= parseArgs
+  answer <- fromMaybe "" <$> metadata "answer"
+  assert (pure $ answer /= "") "missing SQL query answer in metadata"
+  dir <- takeDirectory <$> testFilePath
+  inpatts <- map (dir</>) . fromMaybe [] <$> metadata "databases"
+  assert (pure $ not $ null inpatts) "missing SQL databases in metadata"
+  inputs <- concat <$> globPatterns inpatts
+  ordering <- fromMaybe False <$> metadata "ignore-order"
+  let normalize = case ordering of
+        False -> T.strip
+        True -> T.unlines . sort . T.lines
+  liftIO (runTests limits cmdline answer query normalize inputs
+           `catch` return)
+
+runTests _      []               _      _     _         _       =
+  throwIO $ userError "no SQLite command in config file"
+runTests limits (sqlcmd:sqlargs) answer query normalize inputs  = do
+    loop 1 inputs
+  where
+    total = length inputs
+    runQuery db sql = do
+      (exitCode, stdout, stderr) <-
+        safeExec limits sqlcmd Nothing (sqlargs++["-init", db]) sql
+      case exitCode of
+        ExitSuccess -> return stdout
+        ExitFailure _ -> throwIO $ runtimeError stderr
+    ---
+    loop _ []
+      = return $ accepted $ "Passed " <> T.pack (show total) <> " tests"
+    loop n (db : rest) = do
+      obtained <- runQuery db query
+      expected <- runQuery db answer
+      if normalize obtained == normalize expected then
+        loop (n+1) rest
+        else
+        return $ wrongAnswer $
+                 T.unlines [ "Test " <> T.pack (show n) <> " / " <>
+                             T.pack (show total) <>
+                             " using database " <>
+                             T.pack (takeFileName db) 
+                           , ""
+                           , "EXPECTED:"
+                           , expected
+                           , ""
+                           , "OBTAINED:"
+                           , obtained
+                           ]
+      
+
+{-
+
+
+-- sqlTester :: Tester Result
+-- sqlTester = sqlSelectTester <|> sqlEditTester <|> sqlSchemaTester
 
 
 sqlEditTester :: Tester Result
@@ -127,3 +165,4 @@ getSqlAnswer  = do
       liftIO $ throwIO $ miscError "missing answer-sql in metadata"
     Just answer ->
       return answer
+-}
