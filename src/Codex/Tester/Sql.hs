@@ -3,24 +3,31 @@
 -- | Test SQL queries using SQLite interpreter
 --
 module Codex.Tester.Sql (
-  sqliteTester,
+  sqliteTester
   ) where
 
 import           Codex.Tester
+import           Control.Applicative ((<|>))
 import           Data.Maybe (fromMaybe)
 import qualified Data.Text as T
 import           Data.List (sort)
 import           Control.Exception (throwIO, catch)
 import           System.FilePath (takeFileName)
 
-
 sqliteTester :: Tester Result
-sqliteTester = tester "sqlite" $ do
+sqliteTester = queryTester <|> updateTester
+
+
+--
+-- | Tester for queries
+--
+queryTester :: Tester Result
+queryTester = tester "sqlite-query" $ do
   Code lang query <- testCode
   guard (lang == "sql")
   ---
   limits <- configLimits "language.sqlite.limits"
-  cmdline <- configured "language.sqlite.command" >>= parseArgs
+  sqlite <- configured "language.sqlite.command" >>= parseArgs
   answer <- fromMaybe "" <$> metadata "answer"
   assert (pure $ answer /= "") "missing SQL query answer in metadata"
   dir <- takeDirectory <$> testFilePath
@@ -31,12 +38,12 @@ sqliteTester = tester "sqlite" $ do
   let normalize = case ordering of
         False -> T.strip
         True -> T.unlines . sort . T.lines
-  liftIO (runTests limits cmdline answer query normalize inputs
+  liftIO (runQueries limits sqlite answer query normalize inputs
            `catch` return)
 
-runTests _      []               _      _     _         _       =
+runQueries _      []               _      _     _         _       =
   throwIO $ userError "no SQLite command in config file"
-runTests limits (sqlcmd:sqlargs) answer query normalize inputs  = do
+runQueries limits (sqlcmd:sqlargs) answer query normalize inputs  = do
     loop 1 inputs
   where
     total = length inputs
@@ -44,7 +51,12 @@ runTests limits (sqlcmd:sqlargs) answer query normalize inputs  = do
       (exitCode, stdout, stderr) <-
         safeExec limits sqlcmd Nothing (sqlargs++["-init", db]) sql
       case exitCode of
-        ExitSuccess -> return stdout
+        ExitSuccess ->
+          -- NB: SQLite can exit with zero code in many errors,
+          -- so we need to check stderr 
+          if match "Error" stderr then
+            throwIO $ runtimeError stderr
+            else return stdout
         ExitFailure _ -> throwIO $ runtimeError stderr
     ---
     loop _ []
@@ -69,100 +81,67 @@ runTests limits (sqlcmd:sqlargs) answer query normalize inputs  = do
                            ]
       
 
-{-
 
-
--- sqlTester :: Tester Result
--- sqlTester = sqlSelectTester <|> sqlEditTester <|> sqlSchemaTester
-
-
-sqlEditTester :: Tester Result
-sqlEditTester = tester "edit" $ do
-  Code lang src <- testCode
+-- 
+-- | Tester for updates
+--
+updateTester = tester "sqlite-update" $ do
+  Code lang update <- testCode
   guard (lang == "sql")
   ---
-  evaluator <- configured "language.sql.evaluator.edit"
-  confArgs <- getOptConfArgs "language.sql.args"
-             [ ("-H", "host")
-             , ("-P", "port")
-             , ("-uS", "user_schema")
-             , ("-pS", "pass_schema")
-             , ("-uE", "user_edit")
-             , ("-pE", "pass_edit")
-             , ("-D", "prefix")
-             ]
-  metaArgs <- getOptMetaArgs
-             [ ("-i", "db-init-sql")
-             , ("-I", "db-init-file")
-             ]
-  answer <- getSqlAnswer
-  withTemp "answer.sql" (T.pack answer) $ \answerFilePath ->
-    withTemp "submit.sql" src $ \submittedFilePath ->
-      classify <$> unsafeExec evaluator
-        (confArgs ++ metaArgs ++ ["-A", answerFilePath,"-S", submittedFilePath]) ""
+  limits <- configLimits "language.sqlite.limits"
+  sqlite <- configured "language.sqlite.command" >>= parseArgs
+  sqldiff<- configured "language.sqlite.diff" >>= parseArgs
+  answer <- fromMaybe "" <$> metadata "answer"
+  assert (pure $ answer /= "") "missing SQL query answer in metadata"
+  dir <- takeDirectory <$> testFilePath
+  inpatts <- map (dir</>) . fromMaybe [] <$> metadata "databases"
+  assert (pure $ not $ null inpatts) "missing SQL databases in metadata"
+  inputs <- concat <$> globPatterns inpatts
+  liftIO (runUpdates limits sqlite sqldiff answer update inputs
+           `catch` return)
 
-
-sqlSchemaTester :: Tester Result
-sqlSchemaTester = tester "schema" $ do
-  Code lang src <- testCode
-  guard (lang == "sql")
-  ---
-  evaluator <- configured "language.sql.evaluator.schema"
-  confArgs <- getOptConfArgs "language.sql.args"
-             [ ("-H", "host")
-             , ("-P", "port")
-             , ("-u", "user_schema")
-             , ("-p", "pass_schema")
-             , ("-D", "prefix")
-             ]
-  metaArgs <- getOptMetaArgs
-             [ ("-i", "db-init-sql")
-             , ("-I", "db-init-file")
-             ]
-  answer <- getSqlAnswer
-  withTemp "answer.sql" (T.pack answer) $ \answerFilePath ->
-    withTemp "submit.sql" src $ \submittedFilePath ->
-      classify <$> unsafeExec evaluator
-        (confArgs ++ metaArgs ++ ["-A", answerFilePath,"-S", submittedFilePath]) ""
-
-
-getOptConfArgs :: Text -> [(String, Text)] -> Tester [String]
-getOptConfArgs prefix opts =
-  concat <$> mapM optConfArg opts
+runUpdates  _      []            _               _      _      _      =
+  throwIO $ userError "no SQLite command in config file"
+runUpdates  _      _            []               _      _      _      =
+  throwIO $ userError "no SQLite diff command in config file"
+  
+runUpdates limits (sqlite:args) (sqldiff:args') answer update inputs = do
+  loop 1 inputs
   where
-    optConfArg (opt, key) = do
-      cnf <- maybeConfigured (prefix<>"."<>key)
-      return $ maybe [] (\x -> [opt, x]) cnf
+    total = length inputs
+    runDiff db1 db2 = do
+      (exitCode, stdout, stderr) <-
+        safeExec limits sqldiff Nothing (args' ++ [db1, db2]) ""
+      case exitCode of
+        ExitSuccess -> if match "Error" stderr 
+                       then throwIO $ runtimeError stderr
+                            else return stdout 
+        ExitFailure _ -> throwIO $ runtimeError stderr
+    runUpdate db sql file = do
+      (exitCode, _, stderr) <-
+        safeExec limits sqlite Nothing (args++["-init", db, file]) sql
+      case exitCode of
+        ExitSuccess ->
+          -- NB: SQLite can exit with zero code in many errors,
+          -- so we need to check stderr 
+          if match "Error" stderr then
+            throwIO $ runtimeError ("runUpdate: "<>stderr)
+            else return ()
+        ExitFailure _ -> throwIO $ runtimeError ("runUpdate: "<> stderr)
+    ---
+    loop _ []
+      = return $ accepted $ "Passed " <> T.pack (show total) <> " tests"
+    loop n (db : rest) = do
+      stdout <- withTemp "expected.db" "" $ \expectf ->
+                  withTemp "observed.db" "" $ \observef -> do
+                  chmod (readable . writeable) expectf
+                  chmod (readable . writeable) observef
+                  runUpdate db answer expectf
+                  runUpdate db update observef
+                  runDiff observef expectf
+      if T.null stdout then loop (n+1) rest
+        else throwIO $ wrongAnswer stdout
 
-
-getOptMetaArgs :: [(String, String)] -> Tester [String]
-getOptMetaArgs opts
-  = concat <$> mapM optMetaArg opts
-  where
-    optMetaArg (opt,key) = maybe [] (\x -> [opt, x]) <$> metadata key
-
-
-
-
-classify :: (ExitCode, Text, Text) -> Result
-classify (ExitSuccess, stdout, _)
-  | T.isPrefixOf "Accepted" stdout              = accepted (dropFirstLn stdout)
-  | T.isPrefixOf "Wrong Answer" stdout          = wrongAnswer (dropFirstLn stdout)
-  | T.isPrefixOf "Runtime Error" stdout         = runtimeError (dropFirstLn stdout)
-  | T.isPrefixOf "Compile Error" stdout         = compileError (dropFirstLn stdout)
-  | T.isPrefixOf "Time Limit Exceeded" stdout   = timeLimitExceeded (dropFirstLn stdout)
-  | T.isPrefixOf "Memory Limit Exceeded" stdout = memoryLimitExceeded (dropFirstLn stdout)
-  where
-    dropFirstLn = T.dropWhile (/='\n')
-classify (_, stdout, stderr)                    = miscError (stdout <> stderr)
-
-
-getSqlAnswer :: Tester String
-getSqlAnswer  = do
-  opt <- metadata "answer-sql"
-  case opt of
-    Nothing ->
-      liftIO $ throwIO $ miscError "missing answer-sql in metadata"
-    Just answer ->
-      return answer
--}
+  
+    
