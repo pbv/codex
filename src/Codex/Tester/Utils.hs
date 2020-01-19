@@ -35,9 +35,9 @@ import           System.Posix.Types (FileMode)
 import           System.FilePath.Glob(glob)
 
 import           Control.Concurrent (forkIO)
-import           Control.Concurrent.Async (async, wait)
+import           Control.Concurrent.Async (concurrently)
 import           System.Process (readProcessWithExitCode,
-                                  terminateProcess, waitForProcess)
+                                 waitForProcess)
 import           System.IO.Streams (InputStream, OutputStream)
 import qualified System.IO.Streams as Streams
 
@@ -50,6 +50,7 @@ import qualified Data.Text                      as T
 import qualified Data.Text.Encoding             as T
 import qualified Data.Text.Encoding.Error       as T
 
+import           Data.Int (Int64)
 import           Data.List (sort)
 import           Data.Bits
 import           Data.Maybe(catMaybes)
@@ -151,28 +152,26 @@ safeExec limits exec dir args stdin = do
 safeExecBS :: Limits
            -> FilePath           -- ^ command
            -> Maybe FilePath     -- ^ working directory
-           -> [String]             -- ^ arguments
+           -> [String]           -- ^ arguments
            -> ByteString         -- ^ stdin
            -> IO (ExitCode, ByteString,ByteString)
-           --    ^ code, stdout, stderr
+           -- ^ code, stdout, stderr
 safeExecBS Limits{..} exec dir args inbs = do
-  (inp, out, err, pid) <-
-    Streams.runInteractiveProcess "safeexec" (args' ++ args) dir Nothing
+  (inp, outstream, errstream, pid) <-
+    (Streams.runInteractiveProcess "safeexec" (args' ++ args) dir Nothing)
   (do forkIO (produceStream inp inbs)
-      a1 <- async (consumeStream outputLimit out)
-      a2 <- async (consumeStream outputLimit err)
-      outbs <- wait a1
-      errbs <- wait a2
+      (outbs, errbs) <- concurrently
+                        (consumeStream outputLimit outstream)
+                        (consumeStream outputLimit errstream) 
       code <- waitForProcess pid
       return (code, outbs, errbs)
-    ) `catch` (\(e ::SomeException) ->
-                  do terminateProcess pid
-                     code <- waitForProcess pid
+    ) `catch` (\(e :: SomeException) ->
+                  do code <- waitForProcess pid
                      return (code, "", B.pack $ show e)
-              )
+              ) 
   where
-    outputLimit = maybe 30000 fromIntegral maxFSize
-    -- default output limit: 30K bytes
+    -- default output limit: 50K bytes
+    outputLimit = maybe 50000 fromIntegral maxFSize
     mkArg opt = maybe [] (\c -> [opt, show c])
     args' = mkArg "--cpu" maxCpuTime
             ++
@@ -192,31 +191,23 @@ safeExecBS Limits{..} exec dir args inbs = do
 
 
 
-produceStream :: OutputStream a -> a -> IO ()
-produceStream s v = do
-  Streams.write (Just v) s
-  Streams.write Nothing s
+produceStream :: OutputStream ByteString -> ByteString -> IO ()
+produceStream out bs
+  = Streams.fromByteString bs >>= Streams.connectTo out
 
 
--- | consume a stream and accumulate output
--- throws an exception if maximum size exceeded
-consumeStream :: Int -> InputStream ByteString -> IO ByteString
-consumeStream maxSize inp = do
-  buf <- worker maxSize inp mempty
-  return (LB.toStrict . B.toLazyByteString $ buf)
-  where
-    worker :: Int -> InputStream ByteString -> B.Builder -> IO B.Builder
-    worker size inp buf = do
-      response <- Streams.read inp
-      case response of
-        Nothing -> return buf
-        Just bytes ->
-          let k = B.length bytes
-          in if k > size then
-               ioError $ userError "Output Limit Exceeded"
-             else
-               worker (size - k) inp (buf <> B.byteString bytes)
-
+-- | concatenate bytes from an input stream upto a specified limit
+-- NB: this function consumes the input stream until the end
+--
+consumeStream :: Int64 -> InputStream ByteString -> IO ByteString
+consumeStream limit stream = do
+  (stream, getCount) <- Streams.countInput stream
+  LB.toStrict . B.toLazyByteString <$>  
+    Streams.foldM (\builder bs -> do
+                      c <- getCount
+                      if c > limit
+                        then return builder
+                        else return (builder <> B.byteString bs)) mempty stream
   
 unsafeExec :: FilePath                 -- ^ command
           -> [String]                  -- ^ arguments
