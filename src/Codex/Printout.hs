@@ -124,25 +124,22 @@ userPrintout uid  submissions = do
 
 
 submissionPrintout :: TimeZone -> Page -> Submission -> Blocks -> Blocks
-submissionPrintout tz page sub@Submission{..}  content
+submissionPrintout tz page Submission{..}  content
   = mconcat [ header 1 title
-            , submissionHeader tz sub
+            , headline
             , content
-            , codeBlock msg
-            , horizontalRule ]
+            , horizontalRule
+            ]
   where
     title = maybe (text submitPath) fromList (pageTitle page)
-    msg = T.unpack $ resultReport submitResult
-
-submissionHeader tz Submission{..}
-  = header 2 (strong (text $ show $ resultStatus submitResult) <>
-              space <>
-              emph (text $ "(" ++ checkText submitCheck ++ ")")) <>
-    para (text ("Submission " ++ show submitId ++ "; " ++
-                 T.unpack (formatLocalTime tz submitTime)))
-
-
-
+    headline
+      = header 2 (strong (text $ show $ resultStatus submitResult) <>
+                  space <>
+                  emph (text $ "(" ++ checkText submitCheck ++ ")")) <>
+        para (text ("Submission " ++ show submitId ++ "; " ++
+                    T.unpack (formatLocalTime tz submitTime))
+             )
+  
 checkText :: Validity -> String
 checkText Valid         = "Valid"
 checkText (Invalid msg) = "Invalid: " ++ T.unpack msg

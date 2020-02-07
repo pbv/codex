@@ -13,8 +13,11 @@ import qualified Data.Text as T
 import qualified Data.Text.Encoding as T
 import qualified Data.Text.Encoding.Error as T
 
+import qualified Data.ByteString.Lazy as LB
+
 import           Data.Maybe (fromMaybe, listToMaybe)
-import           Data.Aeson
+import qualified Data.Aeson as Aeson
+import           Data.Aeson (FromJSON, ToJSON)
 import qualified Data.HashMap.Strict as HM
 import           Data.Map.Syntax
 
@@ -80,7 +83,7 @@ queryFullname uid = do
     list <- query "SELECT meta_json FROM snap_auth_user WHERE login = ?" (Only uid)
     return $ case list of
       (txt:_) -> do
-        hm <- decodeStrict (T.encodeUtf8 txt) :: Maybe (HM.HashMap Text Text)
+        hm <- Aeson.decodeStrict (T.encodeUtf8 txt) :: Maybe (HM.HashMap Text Text)
         HM.lookup "fullname" hm
       _ -> Nothing
 
@@ -104,7 +107,7 @@ authUserLogin = UserLogin . userLogin
 authFullname :: AuthUser -> Maybe Text
 authFullname au
   = case HM.lookup "fullname" (userMeta au) of
-    Just (String name) -> Just name
+    Just (Aeson.String name) -> Just name
     _                  -> Nothing
 
 
@@ -368,3 +371,9 @@ feedbackSplices :: Page -> ISplices
 feedbackSplices page = do
   "if-feedback" ## I.ifElseISplice (pageFeedback page)
 
+
+decodeText :: FromJSON a => Text -> Maybe a
+decodeText = Aeson.decode . LB.fromStrict . T.encodeUtf8
+
+encodeText :: ToJSON a  => a -> Text
+encodeText = T.decodeUtf8 . LB.toStrict . Aeson.encode

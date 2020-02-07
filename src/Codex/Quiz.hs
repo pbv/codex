@@ -1,6 +1,7 @@
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
+{-# LANGUAGE DeriveGeneric #-}
 
 -- | Quizzes with multiple choice & fill-in questions
 --
@@ -11,11 +12,12 @@ module Codex.Quiz
   , Selection(..)
   , Answers(..)
   , Key
+  , QuizAnswers(..)
   , shuffleQuiz
   , lookupAnswer
   , listLabels
-  , quizDocument
-  , quizText
+  , quizToDocument
+  , quizToText
   ) where
 
 import           Codex.Types
@@ -24,7 +26,6 @@ import           Codex.Random (Rand)
 import qualified Codex.Random as Rand
 
 import qualified Text.Pandoc.Builder as P
--- import qualified Text.Pandoc.Definition as P
 import qualified Text.Pandoc.Walk as P
 import qualified Text.Pandoc.Writers.Markdown as P
 import qualified Text.Pandoc.Class as P
@@ -40,13 +41,16 @@ import           Data.Hashable
 
 import           Data.HashMap.Strict (HashMap)
 import qualified Data.HashMap.Strict as HashMap
+import qualified Data.Aeson as Aeson
 import           Data.Aeson (ToJSON, FromJSON)
 import           Data.List (groupBy)
 
+import           GHC.Generics
+
 -- | a quiz has a preamble and a list of questions
 data Quiz
-  = Quiz { preamble :: [P.Block]
-         , questions :: [Question]
+  = Quiz { preamble :: [P.Block]         -- ^ description preamble
+         , questions :: [Question]       -- ^ list of questions
          }
 
 data Question
@@ -57,22 +61,32 @@ data Question
 
 data Choices
   = FillIn Text (Text -> Text)
-  -- bundle answer key with a normalization function
-  -- for now: this just removes spaces
+  -- ^ fill-in answer key and a normalization function
   | Alternatives Selection P.ListAttributes Alts
-  -- list of multiple choices 
+  -- ^ list of multiple choices 
 
 data Selection = Single | Multiple
 
 type Alts =  [(Bool, [P.Block])]
--- ^ right/wrong, description blocks
-
-type Key = String
+  -- ^ alternatives: right/wrong and description
 
 -- | answers to a quiz 
 -- mapping from question identifier to (possibly many) answers
 newtype Answers = Answers (HashMap String [Key])
   deriving (Show, Semigroup, Monoid, ToJSON, FromJSON)
+
+type Key = String
+
+-- | a quiz together with answers
+data QuizAnswers
+  = QuizAnswers { quiz :: Text
+                , answers :: Answers
+                } deriving (Generic, Show)
+
+instance ToJSON QuizAnswers where
+  toEncoding = Aeson.genericToEncoding Aeson.defaultOptions
+
+instance FromJSON QuizAnswers  -- derived implementation
 
 
 -- | lookup selections for a specific question
@@ -81,8 +95,8 @@ lookupAnswer Question{..} (Answers hm)
   = fromMaybe [] $ HashMap.lookup identifier hm
 
 -- | convert an already shuffled quiz into a Pandoc document 
-quizDocument :: Quiz -> P.Pandoc
-quizDocument Quiz{..}
+quizToDocument :: Quiz -> P.Pandoc
+quizToDocument Quiz{..}
   = P.doc (P.fromList preamble <> mconcat (map questionDoc questions))
 
 questionDoc :: Question -> P.Blocks
@@ -95,12 +109,12 @@ choicesDoc (Alternatives _ attrs alts)
   = P.orderedListWith attrs [P.fromList blocks | (_, blocks)<-alts]
 
 
-quizText :: Quiz -> Text
-quizText q
-  = case P.runPure (P.writeMarkdown pandocWriterOptions (quizDocument q)) of
-      Left err -> T.pack (show err)
-      Right txt -> txt
-  where
+quizToText :: Quiz -> Text
+quizToText q =
+  case P.runPure (P.writeMarkdown pandocWriterOptions $ quizToDocument q)
+  of
+    Left err -> T.pack (show err)
+    Right txt -> txt
 
 pandocWriterOptions :: P.WriterOptions
 pandocWriterOptions
@@ -108,9 +122,6 @@ pandocWriterOptions
           , P.writerSetextHeaders = False
           }       
   
-
-
-
 
 -- | deterministic shuffle questions & answers in a quiz
 shuffleQuiz :: UserLogin -> Page -> Quiz

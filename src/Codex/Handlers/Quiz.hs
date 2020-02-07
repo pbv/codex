@@ -2,13 +2,13 @@
 {-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE DeriveGeneric #-}
+{-# LANGUAGE TypeApplications #-}
 
 --
 -- | Multiple-choice and fill-in quizzes
 --
 module Codex.Handlers.Quiz
-  ( decodeAnswers
-  , quizHandlers
+  ( quizHandlers
   ) where
 
 import           Codex.Types
@@ -19,6 +19,7 @@ import           Codex.Evaluate
 import           Codex.Utils
 import           Codex.Handlers
 import           Codex.Quiz
+import           Codex.Tester.Result 
 
 import           Snap.Core hiding (path)
 import           Snap.Snaplet.Heist
@@ -31,48 +32,27 @@ import qualified Heist.Interpreted as I
 import qualified Text.Pandoc.Definition as P
 import qualified Text.Pandoc.Builder as P
 
+import           Data.Ratio
 import           Data.Maybe (fromMaybe)
 import qualified Data.Text           as T
-import qualified Data.Text.Encoding as T
 import           Data.Text(Text)
 import qualified Data.ByteString.UTF8 as B
-import qualified Data.ByteString.Lazy as LB
 
 import qualified Data.HashMap.Strict as HashMap
 import qualified Data.Map            as Map
 import qualified Data.Aeson          as Aeson
+import           Data.Aeson.Types    as Aeson
 import           Data.Map.Syntax
 import           Data.List (intersperse, sort)
 import           Data.Time.LocalTime
 
-import           Control.Monad (guard)
+import           Control.Monad (guard, join)
 import           Control.Monad.IO.Class (liftIO)
 
-import           GHC.Generics
-
--- | a quiz in text form together with selected answers
-data QuizAnswers
-  = QuizAnswers { quiz :: Text
-                , answers :: Answers
-                } deriving (Generic, Show)
-  
-
-instance Aeson.ToJSON QuizAnswers where
-  toEncoding = Aeson.genericToEncoding Aeson.defaultOptions
-
-instance Aeson.FromJSON QuizAnswers   
-  -- derived implementation
-
+import           Text.Printf
 
 decodeAnswers :: Text -> Maybe Answers
-decodeAnswers txt =  answers <$> decodeQuizAnswers txt
-
-
-decodeQuizAnswers :: Text -> Maybe QuizAnswers
-decodeQuizAnswers = Aeson.decode . LB.fromStrict . T.encodeUtf8
-
-encodeQuizAnswers :: QuizAnswers -> Text
-encodeQuizAnswers = T.decodeUtf8 . LB.toStrict . Aeson.encode
+decodeAnswers txt = answers <$> decodeText txt
 
 -- | get quiz answers from the HTTP parameters 
 --
@@ -177,7 +157,7 @@ quizSubmit uid rqpath page = do
   guard (isQuiz page)
   let quiz = shuffleQuiz uid page
   answers <- getFormAnswers quiz
-  let txt = encodeQuizAnswers (QuizAnswers (quizText quiz) answers)
+  let txt = encodeText (QuizAnswers (quizToText quiz) answers)
   sid <- newSubmission uid rqpath (Code "json" txt)
   redirectURL (Report sid)
 
@@ -196,10 +176,63 @@ quizReport rqpath page sub = do
     pageSplices page
     feedbackSplices page
     submitSplices tz sub
+    summarySplice (submitResult sub)
     quizSplices quiz answers
+
+
+summarySplice Result{..} = 
+  "quiz-report-summary" ##
+    maybe (return []) I.textSplice (reportSummary <$> decodeText resultReport)
+
 
 verbosePrintout :: Page -> Bool
 verbosePrintout = fromMaybe True . lookupFromMeta "printout" . pageMeta 
+
+-------------------------------------------------------------------
+-- Summary
+-------------------------------------------------------------------
+
+type Fraction  = Ratio Int
+                  
+-- report the summary in human-readable text
+reportSummary :: Map.Map String Aeson.Value -> Text
+reportSummary summary
+  = T.unlines $ map T.pack
+    [ maybe "" (printf "Number of questions: %d") num_questions
+    , maybe "" (printf "Total number of options: %d") num_options
+    , maybe "" (printf "Number of correct choices: %d") num_correct
+    , maybe "" (printf "Number of incorrect choices: %d") num_incorrect
+    , "Weight for correct choices: " <>
+      maybe "default" showFraction correct_weight
+    , "Weight for incorrect choices: " <>
+      maybe "default" showFraction incorrect_weight
+    , maybe "" (printf "Score: %.2f%%") score_percent
+    ]
+  where
+    fetch :: FromJSON v => String -> Maybe v
+    fetch name = Map.lookup name summary >>=
+                 Aeson.parseMaybe Aeson.parseJSON 
+
+    num_questions = fetch @Int "number_of_questions"
+    num_options   = fetch @Int "number_of_options"
+    num_correct   = fetch @Int "correct_selections"
+    num_incorrect = fetch @Int "incorrect_selections"
+    
+    correct_weight
+      = join (fetch @(Maybe Fraction) "correct_weight_ratio")
+    incorrect_weight
+      = join (fetch @(Maybe Fraction) "incorrect_weight_ratio")
+    score_percent = (100*) <$> fetch @Double "score_percent"
+
+   
+showFraction :: (Integral a, Show a) => Ratio a -> String
+showFraction r
+  = show (numerator r) ++
+    if (denominator r /= 1) then
+      "/" ++ show (denominator r)
+    else ""
+
+
 
 ----------------------------------------------------------------------
 -- | handler for generating printouts for quizzes
@@ -207,8 +240,12 @@ verbosePrintout = fromMaybe True . lookupFromMeta "printout" . pageMeta
 quizPrintout :: UserLogin -> Page -> Submission -> Codex P.Blocks
 quizPrintout _ page Submission{..}  = do
   guard (isQuiz page)
-  return (if verbosePrintout page then ppQuiz quiz answers else mempty)
+  return (content <> P.codeBlock report)
   where
+    content = if verbosePrintout page then ppQuiz quiz answers
+              else mempty
+    report = maybe "" T.unpack $
+              reportSummary <$> (decodeText $ resultReport submitResult)
     quiz = shuffleQuiz submitUser page
     answers = fromMaybe mempty $ decodeAnswers $ codeText $ submitCode
 

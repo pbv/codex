@@ -23,7 +23,7 @@
     <else/>
     <h3>Resultado: <em><result-status/></em><if-valid><else/>&nbsp;(<em><result-check/></em>)</if-valid></h3>
     <if-feedback>
-      <pre><result-report/></pre>
+      <pre><quiz-report-summary/></pre>
       <questions>
 	<fieldset>
 	  <question-description/>

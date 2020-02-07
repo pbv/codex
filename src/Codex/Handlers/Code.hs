@@ -16,7 +16,8 @@ import          Codex.Page
 import          Codex.Submission
 import          Codex.AceEditor
 import          Codex.Evaluate
-
+import          Codex.Tester.Result
+  
 import           Snap.Snaplet.Heist
 import           Snap.Snaplet.Router
 
@@ -97,7 +98,9 @@ codePrintout page Submission{..} = do
   guard (isExercise page)
   let lang = T.unpack $ fromLanguage $ codeLang submitCode
   let code = T.unpack $ codeText submitCode
-  return $ P.codeBlockWith ("", [lang, "numberLines"], []) code
+  let report = T.unpack $ resultReport submitResult
+  return (P.codeBlockWith ("", [lang, "numberLines"], []) code <>
+          P.codeBlock report)
 
 
 

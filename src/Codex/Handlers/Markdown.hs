@@ -24,13 +24,13 @@ import           Text.Read(readMaybe)
 import           Data.Hashable (hash)
 
 import           Control.Exception  (IOException)
-import           Control.Exception.Lifted  (try, catch)
+import           Control.Exception.Lifted  (try)
 import           Control.Monad (guard)
 import           Control.Monad.IO.Class (liftIO)
 
 import           Text.Pandoc hiding (Code,
-                                     getCurrentTime,
-                                     getCurrentTimeZone)
+                                      getCurrentTime,
+                                      getCurrentTimeZone)
 import qualified Text.Pandoc as Pandoc 
 import           Text.Pandoc.Walk as Pandoc
 import           System.FilePath
@@ -94,13 +94,13 @@ fillExerciseLinks uid rqdir page = do
 
 -- | fetch title and submissions count for exercise links
 exerciseLinks :: UserLogin -> FilePath -> FilePath -> Inline -> Codex Inline
-exerciseLinks uid root rqdir (Link attr@(_, classes,_) _ target@(url,short))
+exerciseLinks uid root rqdir (Link attr@(_, classes,_) _ target@(url,_))
   | "ex" `elem` classes = do
       let path = normalise (rqdir </> url)
       title <- liftIO $ readPageTitle (root </> path)
       count <- countPageSubmissions uid path
       return (formatLink attr title target count)
-exerciseLinks uid root rqdir elm
+exerciseLinks _uid _root _rqdir elm
   = return elm
 
 -- | format a single exercise link
@@ -120,7 +120,7 @@ fillUserLinks uid = walk (userLinks uid)
   
 -- jpp hack: replace %u in exercise URLs with the user login
 userLinks ::  UserLogin -> Inline -> Inline
-userLinks uid (Link attr@(_, classes,_) inlines target@(url,short))
+userLinks uid (Link attr@(_, classes,_) inlines _target@(url,short))
   | "user" `elem` classes = 
       let url' = replaceUserField (T.unpack $ fromLogin uid) url
           target' = (url', short)
