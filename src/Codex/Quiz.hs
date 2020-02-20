@@ -74,6 +74,12 @@ type Key = String
 newtype Answers = Answers (HashMap String [Key])
   deriving (Show, Semigroup, Monoid, ToJSON, FromJSON)
 
+answerKeys :: Choices -> [Key]
+answerKeys (FillIn key _)
+  = [T.unpack key]
+answerKeys (Alternatives _ attrs alts)
+  = [key | (key, (True,_)) <- zip (listLabels attrs) alts]
+
 
 -- | lookup selections for a specific question
 lookupAnswer :: Question -> Answers -> [Key]
@@ -87,11 +93,19 @@ quizDocument Quiz{..}
 
 questionDoc :: Question -> P.Blocks
 questionDoc Question{..}
-  =  P.fromList description <> choicesDoc choices
+  =  P.fromList (choicesHeader description (answerKeys choices)) <>
+     choicesAlts choices
 
-choicesDoc :: Choices -> P.Blocks
-choicesDoc (FillIn _ _) = mempty
-choicesDoc (Alternatives _ attrs alts)
+choicesHeader
+  (P.Header n (id,classes,kvs) inlines : rest) answers
+  = P.Header n (id,classes,kvs') inlines : rest
+  where kvs' = [("answers", a) | a<-answers] ++ kvs
+choicesHeader _ _
+  = error "choicesHeader: question must begin with header"
+
+choicesAlts :: Choices -> P.Blocks
+choicesAlts (FillIn _ _) = mempty
+choicesAlts (Alternatives _ attrs alts)
   = P.orderedListWith attrs [P.fromList blocks | (_, blocks)<-alts]
 
 
