@@ -4,6 +4,7 @@
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE ScopedTypeVariables #-}
+{-# LANGUAGE TypeApplications #-}
 
 module Codex.Tester.Quiz (
   quizTester
@@ -12,49 +13,51 @@ module Codex.Tester.Quiz (
 
 import           Codex.Tester
 import           Codex.Page 
-import           Codex.Quiz
-import           Codex.Handlers.Quiz (decodeAnswers)
+import           Codex.Utils (decodeText, encodeText)
+import           Codex.Quiz hiding (questions)
 import qualified Data.Text as T
 
 import           Data.Maybe
 import           Data.Ratio
 import           Data.List (intersect, (\\))
+import qualified Data.Map as Map
+import           Data.Map(Map)
 
 import           Data.Char (isSpace)
-import           Text.Printf(printf)
+
+import           Data.Aeson (toJSON, Value)
 
 type Fraction = Ratio Int
 
 -- | grading parameters
 data Weights
-  = Weights { rightWeight :: Maybe Fraction
-            , wrongWeight :: Maybe Fraction
+  = Weights { correctWeight :: Maybe Fraction
+            , incorrectWeight :: Maybe Fraction
             }
     deriving Show
 
+-- | scoring a Quiz
+-- invariant:  numOptions == numCorrect + numIncorrect
+data Scores
+  = Scores { numOptions :: !Int    -- ^ total number of options
+           , numCorrect :: !Int    -- ^ number of correct selections
+           , numIncorrect :: !Int  -- ^ number of incorrect selections
+           , scoresList :: [Fraction] -- ^ scores for questions
+           }
+  deriving (Show)
 
--- | a record for grading quizzes
-data Score
-  = Score { total   :: !Int       -- ^ total number of questions
-          , answered :: !Int      -- ^ number of answered questions
-          , correct :: !Int       -- ^ number of correctly answered
-          , wrong   :: !Int       -- ^ number of wrongly answered
-          , accum   :: !Fraction  -- ^ accumulated grades
-          }
-  deriving Show
+-- | joining scorings
+instance Semigroup Scores where
+  s <> s'
+    = Scores { numOptions = numOptions s + numOptions s'
+             , numCorrect = numCorrect s + numCorrect s'
+             , numIncorrect = numIncorrect s + numIncorrect s'
+             , scoresList = scoresList s ++ scoresList s'
+             }
 
--- | joining scores
-instance Semigroup Score where
-  s1 <> s2
-    = Score { total   = total s1 + total s2
-            , answered = answered s1 + answered s2
-            , correct = correct s1 + correct s2
-            , wrong   = wrong s1 + wrong s2
-            , accum   = accum s1 + accum s2
-            }
+instance Monoid Scores where
+  mempty = Scores 0 0 0 []
 
-instance Monoid Score where
-  mempty = Score 0 0 0 0 0
 
 quizTester :: Tester Result
 quizTester = tester "quiz" $ do
@@ -63,32 +66,38 @@ quizTester = tester "quiz" $ do
   page <- testPage
   uid <- testUser
   -- optional grading weights
-  weights@Weights{..} <- Weights <$>
-                         metadata "correct-weight" <*>
+  weights <- Weights <$> metadata "correct-weight" <*>
                          metadata "incorrect-weight"
   let quiz = shuffleQuiz uid page
-  let answers = fromMaybe mempty (decodeAnswers text)
-  let Score{..} = scoreQuiz weights quiz answers
-  let percent = realToFrac (100 * accum / fromIntegral total) :: Double
-  return $
-    accepted $
-    T.unlines $ map T.pack
-       [ printf "Answered %d of %d questions." answered total
-       , printf "%d correct and %d incorrect replies." correct wrong
-       , "Weight for correct choice answers: " ++ showWeight rightWeight
-       , "Weight for wrong choice answers: " ++ showWeight wrongWeight
-       , printf "Score: %.2f%%" percent
-       ]
-  where
-    showWeight :: Maybe Fraction -> String
-    showWeight Nothing = "default"
-    showWeight (Just w) = showFrac w
+  let selected = fromMaybe mempty (answers <$> decodeText text)
+  let scores = scoreQuiz weights quiz selected
+  let summary = makeSummary weights scores
+  return $ accepted $ encodeText summary
 
-showFrac :: (Integral a, Show a) => Ratio a -> String
-showFrac r = show (numerator r) ++
-             if (denominator r /= 1) then
-               "/" ++ show (denominator r)
-             else ""
+
+makeSummary :: Weights -> Scores -> Map String Value
+makeSummary Weights{..} Scores{..}
+  = Map.fromList $
+    [ ("number_of_questions", toJSON numQuestions)
+    , ("number_of_options", toJSON numOptions)
+    , ("correct_selections", toJSON numCorrect)
+    , ("incorrect_selections", toJSON numIncorrect)
+    , ("correct_weight_ratio", toJSON correctWeight)
+    , ("correct_weight_percent", toJSON (percent <$> correctWeight))
+    , ("incorrect_weight_ratio", toJSON incorrectWeight)
+    , ("incorrect_weight_percent", toJSON (percent <$> incorrectWeight))
+    , ("score_ratio", toJSON score)
+    , ("score_percent", toJSON (percent score))
+    ]
+  where
+    percent :: Fraction -> Double
+    percent = realToFrac
+    numQuestions = length scoresList
+    score = if numQuestions > 0
+            then sum scoresList / fromIntegral numQuestions
+            else 0
+        
+
 
 instance (Integral a, Read a) => FromMetaValue (Ratio a) where
   fromMeta v = fromMeta v >>= readFrac
@@ -118,35 +127,35 @@ readFrac r =
     
 -- | score all questions in a quiz
 --
-scoreQuiz :: Weights -> Quiz -> Answers -> Score
+scoreQuiz :: Weights -> Quiz -> Answers -> Scores 
 scoreQuiz weights (Quiz _ questions) answers
   = mconcat [scoreQuestion weights q answers | q<-questions]
 
 -- | score a single question
 --
-scoreQuestion :: Weights -> Question -> Answers -> Score
+scoreQuestion :: Weights -> Question -> Answers -> Scores 
 scoreQuestion weights question answers 
   = scoreChoices weights (choices question) (lookupAnswer question answers)
 
-scoreChoices :: Weights -> Choices -> [Key] -> Score
+scoreChoices :: Weights -> Choices -> [Key] -> Scores 
 scoreChoices Weights{..} (Alternatives _ attrs alts) selected
   | num_correct>0 && num_wrong>0
-  = Score 1 answered correct wrong grade 
+  = Scores num_keys correct wrong [grade]
   | otherwise
-  = mempty           -- invalid question; empty score
-  where answered = if null selected then 0 else 1
-        key = [ label | (label,(True,_)) <- zip (listLabels attrs) alts ]
+  = mempty           -- invalid question; no score
+  where key = [ label | (label,(True,_)) <- zip (listLabels attrs) alts ]
+        num_keys = length key
         num_alts = length alts
         num_correct = length key
         num_wrong = num_alts - num_correct
         correct = length (selected `intersect` key)
         wrong = length (selected \\ key)
         -- positive grade for correctly answered alternatives
-        positive = case rightWeight of
+        positive = case correctWeight of
           Nothing -> correct%num_correct
           Just w -> w * fromIntegral correct
         -- negative grade for incorrectly answered alternatives    
-        negative = case wrongWeight of
+        negative = case incorrectWeight of
           Nothing -> -wrong%num_wrong
           Just w -> w * fromIntegral wrong
         -- combined grade for this question
@@ -154,7 +163,7 @@ scoreChoices Weights{..} (Alternatives _ attrs alts) selected
           
 
 scoreChoices _ (FillIn keyText normalize) answers
-  = Score 1 1 correct wrong grade
+  = Scores 1 correct wrong [grade]
   where grade = fromIntegral correct 
         correct = if normalize answerText == normalize keyText
                   then 1 else 0
