@@ -138,24 +138,21 @@ stdioTester Build{..} = tester "stdio" $ do
   guard (checkLanguage lang)
   ---
   dir <- takeDirectory <$> testFilePath
-  inpatts <- map (dir</>) . fromMaybe [] <$> metadata "inputs"
-  outpatts <- map (dir</>) . fromMaybe [] <$> metadata "outputs"
-  inputs <-  concat <$> globPatterns inpatts
-  outputs <- concat <$> globPatterns outpatts
+  -- input and output files
+  inputs <-  globPatterns dir =<< metadataWithDefault "inputs" []
+  outputs <- globPatterns dir =<< metadataWithDefault "outputs" []
   let num_inputs = length inputs
   let num_outs   = length outputs
   assert (pure $ num_inputs == num_outs)
     "different number of inputs and outputs"
   assert (pure $ num_inputs /= 0)
     "no test cases defined"
-    
-  argpatts <- map (dir</>) . fromMaybe [] <$> metadata "arguments"
-  argfiles <- concat <$> globPatterns argpatts
+  --  files with command line arguments
+  argfiles <- globPatterns dir =<< metadataWithDefault "arguments" []
   let argfiles' = map Just argfiles ++ repeat Nothing
-
-  filepatts <- map (dir</>) . fromMaybe [] <$> metadata "files"
-  files <- concat <$> globPatterns filepatts
-
+  --- extra files to copy to temp directory
+  files <- globPatterns dir =<< metadataWithDefault "files" []
+  --
   liftIO $
     (withTempDir "codex" $ \tmpdir -> do
         -- make temp directory readable, writable and executable for user 
