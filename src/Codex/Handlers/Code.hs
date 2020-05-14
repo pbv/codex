@@ -17,6 +17,7 @@ import          Codex.Submission
 import          Codex.AceEditor
 import          Codex.Evaluate
 import          Codex.Tester.Result
+import          Codex.Pythontutor
   
 import           Snap.Snaplet.Heist
 import           Snap.Snaplet.Router
@@ -72,6 +73,7 @@ codeReport rqpath page sub@Submission{..} = do
     codeSplices page
     feedbackSplices page
     submitSplices tz sub
+    pythontutorSplices page sub
     textEditorSplice
     languageSplices (pageLanguages page) (Just $ submitLang sub)
 

@@ -35,7 +35,13 @@
 	<if-valid><else/>&nbsp;(<em><result-check/></em>)</if-valid>
       </h3>
       <apply template="_timing"/>
-      <if-feedback><pre><result-report/></pre></if-feedback>
+      <if-feedback>
+	<if-pythontutor>
+	 <a href="${pythontutor-url}" 
+           target="_blank"> Clicar para simular caso falhado </a>
+	</if-pythontutor>
+        <pre><result-report/></pre>
+      </if-feedback>
     </if-submit-early>
   </if-evaluating>
 </div>

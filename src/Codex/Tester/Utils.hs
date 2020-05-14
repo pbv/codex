@@ -33,7 +33,6 @@ import           System.Directory (doesFileExist, removeFile)
 import           System.Posix.Files
 import           System.Posix.Types (FileMode)
 import           System.FilePath.Glob(glob)
-import           System.FilePath ((</>))
 
 import           Control.Concurrent (forkIO)
 import           Control.Concurrent.Async (concurrently)
@@ -237,21 +236,18 @@ getQuickCheckArgs meta
 
 -- | parse a command line string
 parseArgs :: MonadIO m => String -> m [String]
-parseArgs ""
-  = return [] -- special case to signal empty arguments
 parseArgs txt = case ShellWords.parse txt of
   Left msg ->
     liftIO $ throwIO $ userError ("parse error in command-line arguments: " <> msg)
   Right args ->
     return args
 
-
-globPattern :: MonadIO m => String -> m [FilePath]
-globPattern patt = do                        
-  files <- sort <$> liftIO (glob patt)
+  
+globPatterns :: MonadIO m => [String] -> m [[FilePath]]
+globPatterns [] = return []
+globPatterns (patt:patts) = do
+  files <-sort <$> liftIO (glob patt)
   when (null files) $
     liftIO $ throwIO $ userError ("no files match " ++ show patt)
-  return files
-
-globPatterns :: MonadIO m => FilePath -> [String] -> m [FilePath]
-globPatterns dir patts = concat <$> mapM (globPattern . (dir</>)) patts
+  rest <- globPatterns patts
+  return (files:rest)

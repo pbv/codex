@@ -12,6 +12,8 @@ import           Data.Char(toUpper)
 import qualified Data.Text as T
 import qualified Data.Text.Encoding as T
 import qualified Data.Text.Encoding.Error as T
+import           Snap.Internal.Parsing
+import           Data.ByteString.Builder
 
 import qualified Data.ByteString.Lazy as LB
 
@@ -20,6 +22,7 @@ import qualified Data.Aeson as Aeson
 import           Data.Aeson (FromJSON, ToJSON)
 import qualified Data.HashMap.Strict as HM
 import           Data.Map.Syntax
+import           Data.Map.Internal (fromList)
 
 import           Snap.Core hiding (path)
 import           Snap.Snaplet
@@ -377,3 +380,12 @@ decodeText = Aeson.decode . LB.fromStrict . T.encodeUtf8
 
 encodeText :: ToJSON a  => a -> Text
 encodeText = T.decodeUtf8 . LB.toStrict . Aeson.encode
+
+-- |
+
+ctutor :: B.ByteString -> B.ByteString -> B.ByteString
+ctutor url code
+  = LB.toStrict $ toLazyByteString $
+    byteString url <>
+    buildUrlEncoded (fromList [("code", [code])])
+
