@@ -326,9 +326,11 @@ handleSubmissionAdmin sid = do
       root <- getDocumentRoot
       page <- readMarkdownFile (root </>submitPath sub)
       tz <- liftIO getCurrentTimeZone
+      userName <- queryFullname (submitUser sub)
       renderWithSplices "_submission_admin" $ do
         pageSplices page
         submitSplices tz sub
+        "submit-user-name" ## I.textSplice $ fromMaybe "?" userName
 
     -- delete a submission
     delete :: Submission -> Codex ()

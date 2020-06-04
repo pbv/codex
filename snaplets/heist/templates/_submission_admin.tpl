@@ -6,7 +6,7 @@
 <apply template="_base">
 <h1><page-title/></h1>
 <h2>Submissão <submit-id/></h2>
-<p>Enviada por <code><submit-user-id/></code> em <submit-time/>.</p>
+<p>Enviada por <code><submit-user-id/></code> (<submit-user-name/>) em <submit-time/>.</p>
 <if-evaluating>
   <p><img src="/static/images/spinner.svg"></p>
   <p class="info">Se a página não atualizar automaticamente,
