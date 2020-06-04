@@ -10,6 +10,7 @@ function startAceEditor(id) {
     if (size == null)
 	size = "16";
     editor.setFontSize(parseInt(size));
+    editor.getSession().setUseSoftTabs(true);
     return editor;
 }
 
@@ -31,6 +32,7 @@ function setAceEditorModeExt(editor, path) {
     var modelist = ace.require("ace/ext/modelist");
     var mode = modelist.getModeForPath(path).mode;
     editor.getSession().setMode(mode);
+    editor.getSession().setUseSoftTabs(true);
 }
 
 
@@ -46,6 +48,7 @@ function readFile(editor, browserId) {
             fileReader.onload = function (e) { 
 		editor.setValue(fileReader.result);
 		editor.moveCursorTo(0,0);
+		editor.getSession().setUseSoftTabs(true);
             } 
             fileReader.readAsText(fileTobeRead);
 	    return fileTobeRead.name;
