@@ -31,10 +31,9 @@ queryTester = tester "sqlite-query" $ do
   answer <- fromMaybe "" <$> metadata "answer"
   assert (pure $ answer /= "") "missing SQL query answer in metadata"
   dir <- takeDirectory <$> testFilePath
-  inpatts <- map (dir</>) . fromMaybe [] <$> metadata "databases"
-  assert (pure $ not $ null inpatts) "missing SQL databases in metadata"
-  inputs <- concat <$> globPatterns inpatts
-  ordering <- fromMaybe False <$> metadata "ignore-order"
+  inputs <- globPatterns dir =<< metadataWithDefault "databases" []
+  assert (pure $ not $ null inputs) "missing SQL databases metadata"
+  ordering <- metadataWithDefault "ignore-order" False
   let normalize = if ordering then T.unlines . sort . T.lines else T.strip
   liftIO (runQueries limits sqlite answer query normalize inputs
            `catch` return)
@@ -90,12 +89,11 @@ updateTester = tester "sqlite-update" $ do
   limits <- configLimits "language.sqlite.limits"
   sqlite <- configured "language.sqlite.command" >>= parseArgs
   sqldiff<- configured "language.sqlite.diff" >>= parseArgs
-  answer <- fromMaybe "" <$> metadata "answer"
+  answer <- metadataWithDefault "answer" ""
   assert (pure $ answer /= "") "missing SQL query answer in metadata"
   dir <- takeDirectory <$> testFilePath
-  inpatts <- map (dir</>) . fromMaybe [] <$> metadata "databases"
-  assert (pure $ not $ null inpatts) "missing SQL databases in metadata"
-  inputs <- concat <$> globPatterns inpatts
+  inputs <- globPatterns dir =<< metadataWithDefault "databases" []
+  assert (pure $ not $ null inputs) "missing SQL databases in metadata"
   liftIO (runUpdates limits sqlite sqldiff answer update inputs
            `catch` return)
 

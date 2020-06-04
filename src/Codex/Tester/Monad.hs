@@ -20,6 +20,7 @@ module Codex.Tester.Monad (
   testMetadata,
   testUser,
   metadata,
+  metadataWithDefault,
   metadataPath,
   ) where
 
@@ -39,7 +40,7 @@ import           Text.Pandoc (Meta)
 import           Codex.Page
 import           Codex.Tester.Limits
 import           System.FilePath
-
+import           Data.Maybe (fromMaybe)
 
 -- | a monad for testing scripts
 -- allows access to a test environment, IO and failure (i.e. passing)
@@ -97,6 +98,10 @@ metadataPath key = do
   dir <- takeDirectory <$> testFilePath  -- directory for exercise page
   fmap (dir </>) <$> metadata key     -- lookup and make a relative path
 
+
+-- | get a optional value given the default
+metadataWithDefault :: FromMetaValue a => String -> a -> Tester a
+metadataWithDefault key def = fromMaybe def <$> metadata key
 
 -- | fetch a configured value; return Nothing if key not present
 maybeConfigured :: Configured a => Name -> Tester (Maybe a)

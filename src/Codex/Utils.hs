@@ -71,19 +71,23 @@ getStaticRoot = do
   liftIO (Configurator.require conf "system.static_root")
 
 
--- | lookup full name for a user login in Db
+-- | lookup full name for a user login from the DB
+-- performs a fist query to check if the metadata exists; this hack
+-- is needed because the Sqlite backend inserts NULL for empty metadata
+--
 queryFullname :: UserLogin -> Codex (Maybe Text)
 queryFullname uid = do
-  -- this hugly hack is needed because the Sqlite backend inserts NULL
-  -- fields for empty metadata; maybe we could handle this better?
-  Only check:_ <- query "SELECT meta_json is NULL from snap_auth_user WHERE login = ?" (Only uid) 
+  Only check:_ <- query "SELECT meta_json is NULL \
+                        \ from snap_auth_user WHERE login = ?" (Only uid) 
   if check  then
     return Nothing
     else do
-    list <- query "SELECT meta_json FROM snap_auth_user WHERE login = ?" (Only uid)
+    list <- query "SELECT meta_json \
+                  \ FROM snap_auth_user WHERE login = ?" (Only uid)
     return $ case list of
       (txt:_) -> do
-        hm <- Aeson.decodeStrict (T.encodeUtf8 txt) :: Maybe (HM.HashMap Text Text)
+        hm <- Aeson.decodeStrict (T.encodeUtf8 txt)
+                :: Maybe (HM.HashMap Text Text)
         HM.lookup "fullname" hm
       _ -> Nothing
 
@@ -95,20 +99,14 @@ getUserLogin = do
   mAu <- with auth currentUser
   return (fmap authUserLogin mAu)
 
-getFullname :: Codex (Maybe Text)
-getFullname = do
-  mAu <- with auth currentUser
-  return (mAu >>=  authFullname)
-
-
 authUserLogin :: AuthUser -> UserLogin
 authUserLogin = UserLogin . userLogin
 
 authFullname :: AuthUser -> Maybe Text
 authFullname au
   = case HM.lookup "fullname" (userMeta au) of
-    Just (Aeson.String name) -> Just name
-    _                  -> Nothing
+      Just (Aeson.String name) -> Just name
+      _                  -> Nothing
 
 
 isAdmin :: AuthUser -> Bool
