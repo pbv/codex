@@ -1,10 +1,9 @@
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE RecordWildCards #-}
-{-# LANGUAGE PatternGuards #-}
 
 module Codex.Evaluate(
-  newSubmission,
+  evaluateNew,
   evaluate,
   evaluateMany,
   cancelPending,
@@ -18,7 +17,8 @@ import           Data.Time.Clock
 import           Data.Time.LocalTime
 import           Control.Monad.Writer
 import           Control.Monad.State
-import           Control.Concurrent (ThreadId) 
+import           Control.Monad.Reader
+import           Control.Concurrent (ThreadId)
 import           Control.Exception  (SomeException, catch)
 import           System.FilePath
 
@@ -38,7 +38,7 @@ import           Codex.Application
 import           Codex.Tasks
 import           Codex.Utils
 import           Codex.Page
-import           Codex.Submission
+import           Codex.Submission 
 import           Codex.Tester
 import           Codex.Policy
 
@@ -52,10 +52,10 @@ data Access = Access { accessUser :: UserLogin
 
 -- | insert a new submission into the database
 -- also schedule evaluation in separate thread
-newSubmission :: UserLogin -> FilePath -> Code -> Codex SubmitId
-newSubmission uid rqpath code = do
+evaluateNew :: UserLogin -> FilePath -> Code -> Codex SubmitId
+evaluateNew uid rqpath code = do
   now <- liftIO getCurrentTime
-  sub <- insertSubmission uid rqpath now code evaluating pending
+  sub <- newSubmission uid rqpath now code evaluating pending
   evaluate sub
   return (submitId sub)
 
@@ -63,7 +63,7 @@ pending :: Validity
 pending = invalid "Waiting evaluation"
 
 -- | evaluate a submission
--- fork an IO thread under a quantity semaphore for limiting concurrency 
+-- fork an IO thread under a quantity semaphore for limiting concurrency
 evaluate :: Submission -> Codex ThreadId
 evaluate sub = do
   qsem <- gets _semph
@@ -92,10 +92,10 @@ setPending tasks = do
   tasksVar <- gets _pendingQ
   liftIO $ modifyMVar_ tasksVar $
               \tasks' -> mapM_ killThread tasks' >> return tasks
-  
+
 
 -- | evaluate a single submission with a quantity semaphore
--- 
+--
 evaluateWith :: QSem -> Submission -> Codex ThreadId
 evaluateWith qsem submission@Submission{..} = do
   conn <- S.getSqliteState
@@ -105,8 +105,8 @@ evaluateWith qsem submission@Submission{..} = do
   root <- getDocumentRoot
   let filepath = root </> submitPath
   -- run the tester asynchronously
-  liftIO $ forkIO $ withQSem qsem $ do 
-    runSqlite conn $ updateSubmission submitId evaluating pending
+  liftIO $ forkIO $ withQSem qsem $ do
+    runSqlite conn $ updateResult submitId evaluating pending
     page <- readMarkdownFile filepath
     let attempt = Access { accessUser = submitUser
                          , accessPath = submitPath
@@ -116,8 +116,8 @@ evaluateWith qsem submission@Submission{..} = do
                Left err -> return (invalid err)
                Right policy ->
                  runSqlite conn $ checkPolicy attempt policy
-    result <- testWrapper tester conf filepath page submission 
-    runSqlite conn $ updateSubmission submitId result check
+    result <- testWrapper tester conf filepath page submission
+    runSqlite conn $ updateResult submitId result check
 
 
 -- | wrapper to run a tester and catch any exceptions
@@ -131,7 +131,7 @@ testWrapper tester conf filepath page submiss
   = (fromMaybe invalid <$> runTester tester conf filepath page submiss)
     `catch`
     (\(e::SomeException) -> return (miscError $ T.pack $ show e))
-  where  
+  where
     invalid :: Result
     invalid = miscError "no acceptable tester configured"
 
@@ -146,8 +146,8 @@ withPolicySplices uid path page action = do
                        , accessTime = now
                        }
   check <- checkPolicy attempt constrs
-  earlier <- countPageSubmissions uid path
-  let allow = pageAllowInvalid page 
+  earlier <- countSubmissions uid path
+  let allow = pageAllowInvalid page
   let
     splice :: Constr UTCTime -> ISplices
     splice (After start) = do
@@ -180,7 +180,7 @@ withPolicySplices uid path page action = do
     mapM_ splice constrs
 
 
-      
+
 -- | check the policy specified for a page
 checkPolicy :: S.HasSqlite m
             => Access -> Policy UTCTime -> m Validity
@@ -198,6 +198,10 @@ checkConstr Access{..} (After highTime)
   | accessTime > highTime = return ()
   | otherwise       = tell ["Early submission"]
 checkConstr Access{..} (MaxAttempts max) = do
-  earlier <- lift $ countEarlierSubmissions accessUser accessPath accessTime
+  earlier <- lift $ countEarlier accessUser accessPath accessTime
   if earlier < max then return ()
     else tell ["Too many submissions"]
+
+
+runSqlite :: S.Sqlite -> ReaderT S.Sqlite m a -> m a
+runSqlite conn  = flip runReaderT conn

@@ -42,7 +42,7 @@ codeView :: UserLogin -> FilePath -> Page -> Codex ()
 codeView uid rqpath page = do
   guard (isExercise page)
   tz <- liftIO getCurrentTimeZone
-  subs <- getPageSubmissions uid rqpath
+  subs <- getSubmissions uid rqpath
   withPolicySplices uid rqpath page $ renderWithSplices "_exercise" $ do
     pageSplices page
     codeSplices page
@@ -58,7 +58,7 @@ codeSubmit uid rqpath page = do
   text <- require (getTextParam "code")
   lang <- Language <$> require (getTextParam "language")
   guard (lang `elem` pageLanguages page) 
-  sid <- newSubmission uid rqpath (Code lang text)
+  sid <- evaluateNew uid rqpath (Code lang text)
   redirectURL (Report sid)
 
 -- | report a code submission
@@ -71,7 +71,7 @@ codeReport rqpath page sub@Submission{..} = do
     pageSplices page
     codeSplices page
     feedbackSplices page
-    submitSplices tz sub
+    submissionSplices tz sub
     textEditorSplice
     languageSplices (pageLanguages page) (Just $ submitLang sub)
 
@@ -90,7 +90,7 @@ codeSplices page = do
 submissionListSplices :: TimeZone -> [Submission] -> ISplices
 submissionListSplices tz list = do
   "submissions-list" ##
-    I.mapSplices (I.runChildrenWith . submitSplices tz) list   
+    I.mapSplices (I.runChildrenWith . submissionSplices tz) list   
 
 
 codePrintout :: Page -> Submission -> Codex P.Blocks

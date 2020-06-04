@@ -11,7 +11,7 @@ module Codex.AdminHandlers(
   handleSubmissionList
   ) where
 
- 
+
 import           Snap.Core hiding (path)
 import           Snap.Snaplet.Heist
 -- import qualified Snap.Snaplet.SqliteSimple                   as S
@@ -213,11 +213,11 @@ handleRename rqpath = do
 --
 handleSubmissionList :: Codex ()
 handleSubmissionList = do
-  requireAdmin  
+  requireAdmin
   patts <- getPatterns
   page <- fromMaybe 1 <$> readParam "page"
   order <- fromMaybe Ascending <$> readParam "order"
-  handleMethodOverride $ do 
+  handleMethodOverride $ do
     methods [GET,POST] (listSubmissions patts order page)
     <|>
     method PATCH (reevalSubmissions patts order >>
@@ -229,19 +229,19 @@ handleSubmissionList = do
     method (Method "EXPORT") (exportSubmissions patts order)
     <|>
     method (Method "PRINT") (generatePrintouts patts order)
-            
+
 
 -- | List submissions
 listSubmissions :: Patterns -> Codex.Submission.Ordering -> Int -> Codex ()
 listSubmissions patts order reqpage = do
-  count <- countSubmissions patts
+  count <- countMatching patts
   let entries = 50   -- # entries per page
   let npages
         | count>0 = ceiling (fromIntegral count / fromIntegral entries :: Double)
         | otherwise = 1
   -- restrict to visible pages
   let page = 1 `max` reqpage `min` npages
-  let offset = (page - 1) * entries  
+  let offset = (page - 1) * entries
   subs <- filterSubmissions patts order entries offset
   tz <- liftIO getCurrentTimeZone
   renderWithSplices "_submission_list" $ do
@@ -252,7 +252,8 @@ listSubmissions patts order reqpage = do
     "if-ascending" ## I.ifElseISplice (order == Ascending)
     "if-submissions" ## I.ifElseISplice (count > 0)
     "page-count" ## I.textSplice (T.pack $ show npages)
-    "submissions" ## I.mapSplices (I.runChildrenWith . submitSplices tz) subs
+    "submissions" ##
+      I.mapSplices (I.runChildrenWith . submissionSplices tz) subs
     "submissions-prev-url" ## urlParamsSplice SubmissionList
                                (("page", Just (T.pack $ show $ page-1)) :
                                 ("order", Just (T.pack $ show order)) :
@@ -262,11 +263,11 @@ listSubmissions patts order reqpage = do
                                  ("order", Just (T.pack $ show order)) :
                                 patts)
 
--- | Start re-evaluation of selected submissions 
+-- | Start re-evaluation of selected submissions
 reevalSubmissions :: Patterns -> Codex.Submission.Ordering -> Codex ()
 reevalSubmissions patts order  = do
   cancelPending
-  count <- countSubmissions patts
+  count <- countMatching patts
   subs  <- filterSubmissions patts order count 0
   evaluateMany subs
 
@@ -313,7 +314,7 @@ handleSubmissionAdmin :: SubmitId -> Codex ()
 handleSubmissionAdmin sid = do
   requireAdmin
   sub <- require (getSubmission sid) <|> notFound
-  handleMethodOverride $ do 
+  handleMethodOverride $ do
       method GET (report sub)
       <|>
       method PATCH (reevaluate sub)
@@ -328,7 +329,7 @@ handleSubmissionAdmin sid = do
       tz <- liftIO getCurrentTimeZone
       renderWithSplices "_submission_admin" $ do
         pageSplices page
-        submitSplices tz sub
+        submissionSplices tz sub
 
     -- delete a submission
     delete :: Submission -> Codex ()
@@ -339,10 +340,5 @@ handleSubmissionAdmin sid = do
     -- revaluate a single submission
     reevaluate :: Submission -> Codex ()
     reevaluate sub = do
-      -- let sid = submitId sub
-      -- sqlite <- S.getSqliteState
-      -- liftIO $ markEvaluating sqlite [sid]
       evaluate sub
       redirectURL (SubmissionAdmin (submitId sub))
-
-

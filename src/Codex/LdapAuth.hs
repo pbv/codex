@@ -20,7 +20,7 @@ import qualified Data.HashMap.Strict as HM
 import           Data.Maybe (maybeToList, fromMaybe)
 
 import           Data.Char (isAlphaNum,toLower)
-import           Data.Aeson.Types 
+import           Data.Aeson.Types
 
 import           Data.Time.Clock
 import           Snap.Snaplet.Auth
@@ -47,12 +47,12 @@ type Attrs = HashMap Text Value
 ldapAuth ::
   IAuthBackend r =>
   r -> LdapConf -> ByteString -> ByteString -> IO (Either AuthFailure AuthUser)
-ldapAuth r ldapConf user passwd
-  | validLogin userS 
+ldapAuth r ldapConf user passwd 
+  | validLogin userS
     = do entries <- ldapBindSearch ldapConf userS passwdS
          case entries of
            Right (entry:_) -> let attrs = convertEntry ldapConf entry
-                              in updateUserAttrs r (T.pack userS) attrs 
+                              in updateUserAttrs r (T.pack userS) attrs
            _ -> return (Left (AuthError "LDAP authentication failed"))
   | otherwise = return (Left (AuthError "Invalid user login"))
 
@@ -64,13 +64,13 @@ validLogin :: String -> Bool
 validLogin = all (\x -> isAlphaNum x || x=='_' || x=='-' || x=='.' || x=='@')
 
 
-  
+
 -- | attempt LDAP bind, check user password and search LDAP entries
 ldapBindSearch :: LdapConf -> String -> String
                -> IO (Either Ldap.LdapError [Ldap.SearchEntry])
-ldapBindSearch LdapConf{..} uid passwd 
+ldapBindSearch LdapConf{..} uid passwd
   = Ldap.with ldapHost ldapPort $ \ldap -> do
-          Ldap.bind ldap ldapDn ldapPasswd 
+          Ldap.bind ldap ldapDn ldapPasswd
           Ldap.search ldap ldapDn (Ldap.scope Ldap.BaseObject) ldapFilter []
   where
     ldapDn = Ldap.Dn ("uid=" <> T.pack uid <> "," <> ldapBase)
@@ -86,7 +86,7 @@ convertEntry LdapConf{..} (Ldap.SearchEntry _ attrlist) =
                      key' <- maybeToList (HM.lookup key ldapMap),
                      let entry = T.concat (map (T.pack . B.toString) vals)
                    ]
-  
+
 
 -- | update or create a user with given attributes
 updateUserAttrs :: IAuthBackend r =>
@@ -100,7 +100,7 @@ updateUserAttrs r login attrs = do
                          , userCreatedAt = (mbAu >>= userCreatedAt)
                                            `mplus` Just now
                          , userUpdatedAt = Just now
-                         , userCurrentLoginAt = Just now        
+                         , userCurrentLoginAt = Just now
                          , userMeta = HM.union attrs' attrs
                          }
   save r user
@@ -123,7 +123,7 @@ makeLdapConf base attrs URI{..} =
   do host <- fmap uriRegName uriAuthority
      let optPort = readMaybe =<< fmap uriPort uriAuthority
      case uriScheme of
-      "ldap:" -> 
+      "ldap:" ->
         return LdapConf { ldapHost = Ldap.Plain host
                         , ldapPort = fromMaybe defaultLdapPort optPort
                         , ldapBase = base
@@ -137,9 +137,9 @@ makeLdapConf base attrs URI{..} =
                         , ldapMap = attrs
                         }
       _ -> Nothing
-        
 
-                  
+
+
 defaultLdapPort, defaultLdapsPort :: Ldap.PortNumber
 defaultLdapPort  = 389
 defaultLdapsPort = 636

@@ -63,14 +63,14 @@ data Choices
   = FillIn Text (Text -> Text)
   -- ^ fill-in answer key and a normalization function
   | Alternatives Selection P.ListAttributes Alts
-  -- ^ list of multiple choices 
+  -- ^ list of multiple choices
 
 data Selection = Single | Multiple
 
 type Alts =  [(Bool, [P.Block])]
   -- ^ alternatives: right/wrong and description
 
--- | answers to a quiz 
+-- | answers to a quiz
 -- mapping from question identifier to (possibly many) answers
 newtype Answers = Answers (HashMap String [Key])
   deriving (Show, Semigroup, Monoid, ToJSON, FromJSON)
@@ -91,10 +91,10 @@ instance FromJSON QuizAnswers  -- derived implementation
 
 -- | lookup selections for a specific question
 lookupAnswer :: Question -> Answers -> [Key]
-lookupAnswer Question{..} (Answers hm) 
+lookupAnswer Question{..} (Answers hm)
   = fromMaybe [] $ HashMap.lookup identifier hm
 
--- | convert an already shuffled quiz into a Pandoc document 
+-- | convert an already shuffled quiz into a Pandoc document
 quizToDocument :: Quiz -> P.Pandoc
 quizToDocument Quiz{..}
   = P.doc (P.fromList preamble <> mconcat (map questionDoc questions))
@@ -120,13 +120,13 @@ pandocWriterOptions :: P.WriterOptions
 pandocWriterOptions
   = P.def { P.writerExtensions = P.pandocExtensions
           , P.writerSetextHeaders = False
-          }       
-  
+          }
+
 
 -- | deterministic shuffle questions & answers in a quiz
 shuffleQuiz :: UserLogin -> Page -> Quiz
 shuffleQuiz uid page
-  = Rand.run (seed+salt) (makeQuiz page >>= shuffle1 >>= shuffle2) 
+  = Rand.run (seed+salt) (makeQuiz page >>= shuffle1 >>= shuffle2)
   where
     meta = pageMeta page
     seed = fromMaybe (hash uid) $ lookupFromMeta "shuffle-seed" meta
@@ -134,7 +134,7 @@ shuffleQuiz uid page
     opt1 = fromMaybe False $ lookupFromMeta "shuffle-questions" meta
     opt2 = fromMaybe False $ lookupFromMeta "shuffle-answers" meta
     shuffle1 = if opt1 then shuffleQuestions else return
-    shuffle2 = if opt2 then shuffleAlternatives else return 
+    shuffle2 = if opt2 then shuffleAlternatives else return
 
 
 -- | split up a list of blocks into questions
@@ -151,7 +151,7 @@ groupQuestions :: [Question] -> [[Question]]
 groupQuestions
   = groupBy (\q q' -> name q `eq` name q')
   where
-    name = lookup "group" . headerAttrs . questionHeader 
+    name = lookup "group" . headerAttrs . questionHeader
     eq (Just n) (Just n') = n == n'
     eq _        _         = False
 
@@ -209,7 +209,7 @@ makeQuestion header rest
   where
     header' = removeKey "answer" header
     answers = [a | ("answer",a) <- headerAttrs header]
-    normalize = T.filter (not.isSpace) 
+    normalize = T.filter (not.isSpace)
     prefix = takeWhile (not . isList) rest
     posfix = drop 1 $ dropWhile (not . isList) rest
     (attrs,items) = fromMaybe (emptyAttrs,[]) $
@@ -226,7 +226,7 @@ makeQuestion header rest
     isList _                   = False
     getList (P.OrderedList attrs items)  = First (Just (attrs, items))
     getList _                            = First Nothing
-    
+
 
 
 -- | shuffle questions and answers
@@ -271,12 +271,10 @@ makeRoman 0 = ""
 makeRoman n
   | n>0 = symbols ++ makeRoman (n - value)
   | otherwise = error "lowerRoman: negative argument"
-  where (value, symbols) = head $ dropWhile ((>n).fst) numerals
+  where (value, symbols) = head [ (val,sym) | (val,sym) <-numerals, val<=n ]
 
 numerals :: [(Int, String)]
 numerals =
   [ (1000, "m"), (900, "cm"), (500, "d"), (400, "cd"),
     (100, "c"), (90, "xc"), (50, "l"), (40, "xl"),
     (10, "x"),  (9, "ix"), (5, "v"), (4, "iv"), (1, "i") ]
-
-

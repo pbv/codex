@@ -8,21 +8,21 @@ module Codex.Submission (
   module Codex.Submission.Types,
   Patterns,
   Ordering(..),
-  insertSubmission,
-  updateSubmission,
+  newSubmission,
+  updateResult,
   getSubmission,
+  getSubmissions,
   deleteSubmission,
-  getPageSubmissions,
-  countPageSubmissions,
-  countEarlierSubmissions,
+  countSubmissions,
+  countEarlier,
+  countAccepted,
   getPatterns,
   patternSplices,
   withSubmissions,
-  withFilterSubmissions,
   filterSubmissions,
-  countSubmissions,
-  submitSplices,
-  runSqlite
+  withFilterSubmissions,
+  countMatching,
+  submissionSplices,
   ) where
 
 import           Prelude hiding (Ordering)
@@ -37,7 +37,7 @@ import qualified Data.Text.Encoding as T
 import           Data.List (intersperse)
 import           Data.Maybe(listToMaybe, fromMaybe)
 
-import           Snap.Core(getParam) -- hiding (path)
+import           Snap.Core(getParam)
 import           Snap.Snaplet.SqliteSimple
 import           Snap.Snaplet.Router
 import qualified Database.SQLite.Simple as S
@@ -46,7 +46,6 @@ import           Heist.Splices     as I
 import qualified Heist.Interpreted as I
 
 import           Control.Monad (mfilter)
-import           Control.Monad.Reader
 
 import           System.FilePath (splitDirectories)
 
@@ -60,10 +59,10 @@ import           Codex.Submission.Types
 
 
 -- | insert a new submission into the DB
-insertSubmission ::
-  HasSqlite m =>
-  UserLogin -> FilePath -> UTCTime -> Code -> Result -> Validity -> m Submission
-insertSubmission uid path time code result val = do
+newSubmission :: HasSqlite m
+              =>  UserLogin -> FilePath -> UTCTime -> Code
+              -> Result -> Validity -> m Submission
+newSubmission uid path time code result val = do
   let (Code lang text) = code
   let (Result status report) = result
   withSqlite $ \conn -> do
@@ -75,9 +74,10 @@ insertSubmission uid path time code result val = do
       sid <- fmap SubmitId (S.lastInsertRowId conn)
       return (Submission sid uid path time code result val)
 
--- | update submission result after evaluation
-updateSubmission :: HasSqlite m => SubmitId -> Result -> Validity -> m ()
-updateSubmission sid Result{..} val  =
+-- | update a submission result after evaluation
+updateResult :: HasSqlite m =>
+                SubmitId -> Result -> Validity -> m ()
+updateResult sid Result{..} val  =
   execute "UPDATE submissions SET status=?, policy=?, report=? \
            \ where id = ?" (resultStatus, val, resultReport, sid)
 
@@ -89,15 +89,15 @@ getSubmission sid =
 
 
 -- | get all submissions for a user and exercise page
-getPageSubmissions :: HasSqlite m => UserLogin -> FilePath -> m [Submission]
-getPageSubmissions uid path =
+getSubmissions :: HasSqlite m => UserLogin -> FilePath -> m [Submission]
+getSubmissions uid path =
   query "SELECT * FROM submissions \
        \ WHERE user_id = ? AND path = ? ORDER BY received" (uid, path)
 
 
 -- | count user submissions to an exercise page
-countPageSubmissions :: HasSqlite m => UserLogin -> FilePath -> m Int
-countPageSubmissions uid path = do
+countSubmissions :: HasSqlite m => UserLogin -> FilePath -> m Int
+countSubmissions uid path = do
   r <- query "SELECT COUNT(*) FROM submissions \
             \ WHERE user_id = ?  AND path = ?" (uid,path)
   case r of
@@ -105,15 +105,24 @@ countPageSubmissions uid path = do
     _  -> error "countPageSubmissions: invalid result"
 
 
-countEarlierSubmissions ::
+countAccepted :: HasSqlite m => UserLogin -> FilePath -> m Int
+countAccepted uid path =  do
+  r <- query "SELECT COUNT(*) FROM submissions \
+            \ WHERE user_id = ?  AND path = ? \
+            \ AND status = 'Accepted'" (uid,path)
+  case r of
+    [Only c] -> return c
+    _  -> error "countAccepted: invalid result"
+
+countEarlier ::
   HasSqlite m => UserLogin -> FilePath -> UTCTime -> m Int
-countEarlierSubmissions uid path time = do
+countEarlier uid path time = do
     r <- query "SELECT COUNT(*) FROM submissions \
                 \ WHERE user_id = ? AND path = ? AND received < ?"
                           (uid, path, time)
     case r of
       [Only c] -> return c
-      _ -> error "countEarlierSubmissions: invalid result"
+      _ -> error "countEarlier: invalid result"
 
 
 -- | delete a single submission
@@ -150,13 +159,13 @@ sqlOrdering :: Ordering -> Text
 sqlOrdering Ascending  = "ASC"
 sqlOrdering Descending = "DESC"
 
-countSubmissions :: HasSqlite m => Patterns -> m Int
-countSubmissions patts = withSqlite $ \conn -> do
+countMatching :: HasSqlite m => Patterns -> m Int
+countMatching patts = withSqlite $ \conn -> do
   let sql = "SELECT COUNT(*) FROM submissions " <> sqlPatterns patts
   r <- S.queryNamed conn (S.Query sql) (namedParams patts)
   case r of
      [Only c] -> return c
-     _ -> error "countSubmissions: invalid result from database"
+     _ -> error "countMatching: invalid result from database"
 
 
 filterSubmissions ::
@@ -195,8 +204,8 @@ withSubmissions a f = do
 
 
 -- | splices relating to a single submission
-submitSplices :: TimeZone -> Submission -> ISplices
-submitSplices tz Submission{..} = do
+submissionSplices :: TimeZone -> Submission -> ISplices
+submissionSplices tz Submission{..} = do
   "submit-id" ##  I.textSplice (T.pack $ show submitId)
   "report-url" ## urlSplice (Report submitId)
   "submission-admin-url" ## urlSplice (SubmissionAdmin submitId)
@@ -246,7 +255,5 @@ patternSplices :: Patterns -> ISplices
 patternSplices patts
   = sequence_ [ field ## I.textSplice (fromMaybe "" pat) | (field, pat) <- patts]
 
-runSqlite :: Sqlite -> ReaderT Sqlite m a -> m a
-runSqlite conn  = flip runReaderT conn
 
 

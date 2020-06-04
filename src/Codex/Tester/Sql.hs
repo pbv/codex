@@ -35,15 +35,13 @@ queryTester = tester "sqlite-query" $ do
   assert (pure $ not $ null inpatts) "missing SQL databases in metadata"
   inputs <- concat <$> globPatterns inpatts
   ordering <- fromMaybe False <$> metadata "ignore-order"
-  let normalize = case ordering of
-        False -> T.strip
-        True -> T.unlines . sort . T.lines
+  let normalize = if ordering then T.unlines . sort . T.lines else T.strip
   liftIO (runQueries limits sqlite answer query normalize inputs
            `catch` return)
 
 runQueries _      []               _      _     _         _       =
   throwIO $ userError "no SQLite command in config file"
-runQueries limits (sqlcmd:sqlargs) answer query normalize inputs  = do
+runQueries limits (sqlcmd:sqlargs) answer query normalize inputs  =
     loop 1 inputs
   where
     total = length inputs
@@ -53,7 +51,7 @@ runQueries limits (sqlcmd:sqlargs) answer query normalize inputs  = do
       case exitCode of
         ExitSuccess ->
           -- NB: SQLite can exit with zero code in many errors,
-          -- so we need to check stderr 
+          -- so we need to check stderr
           if match "Error" stderr then
             throwIO $ runtimeError stderr
             else return stdout
@@ -71,7 +69,7 @@ runQueries limits (sqlcmd:sqlargs) answer query normalize inputs  = do
                  T.unlines [ "Test " <> T.pack (show n) <> " / " <>
                              T.pack (show total) <>
                              " using database " <>
-                             T.pack (takeFileName db) 
+                             T.pack (takeFileName db)
                            , ""
                            , "EXPECTED:"
                            , expected
@@ -79,10 +77,10 @@ runQueries limits (sqlcmd:sqlargs) answer query normalize inputs  = do
                            , "OBTAINED:"
                            , obtained
                            ]
-      
 
 
--- 
+
+--
 -- | Tester for updates
 --
 updateTester = tester "sqlite-update" $ do
@@ -105,8 +103,8 @@ runUpdates  _      []            _               _      _      _      =
   throwIO $ userError "no SQLite command in config file"
 runUpdates  _      _            []               _      _      _      =
   throwIO $ userError "no SQLite diff command in config file"
-  
-runUpdates limits (sqlite:args) (sqldiff:args') answer update inputs = do
+
+runUpdates limits (sqlite:args) (sqldiff:args') answer update inputs =
   loop 1 inputs
   where
     total = length inputs
@@ -114,9 +112,9 @@ runUpdates limits (sqlite:args) (sqldiff:args') answer update inputs = do
       (exitCode, stdout, stderr) <-
         safeExec limits sqldiff Nothing (args' ++ [db1, db2]) ""
       case exitCode of
-        ExitSuccess -> if match "Error" stderr 
+        ExitSuccess -> if match "Error" stderr
                        then throwIO $ runtimeError stderr
-                            else return stdout 
+                            else return stdout
         ExitFailure _ -> throwIO $ runtimeError stderr
     runUpdate db sql file = do
       (exitCode, _, stderr) <-
@@ -124,10 +122,9 @@ runUpdates limits (sqlite:args) (sqldiff:args') answer update inputs = do
       case exitCode of
         ExitSuccess ->
           -- NB: SQLite can exit with zero code in many errors,
-          -- so we need to check stderr 
-          if match "Error" stderr then
-            throwIO $ runtimeError ("runUpdate: "<>stderr)
-            else return ()
+          -- so we need to check stderr
+          when (match "Error" stderr) $
+            throwIO $ runtimeError ("runUpdate: " <> stderr)
         ExitFailure _ -> throwIO $ runtimeError ("runUpdate: "<> stderr)
     ---
     loop _ []
@@ -142,6 +139,3 @@ runUpdates limits (sqlite:args) (sqldiff:args') answer update inputs = do
                   runDiff observef expectf
       if T.null stdout then loop (n+1) rest
         else throwIO $ wrongAnswer stdout
-
-  
-    

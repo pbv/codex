@@ -14,7 +14,7 @@ module Codex.Handlers.Quiz
 import           Codex.Types
 import           Codex.Page
 import           Codex.Application
-import           Codex.Submission
+import           Codex.Submission 
 import           Codex.Evaluate
 import           Codex.Utils
 import           Codex.Handlers
@@ -140,7 +140,7 @@ quizView :: UserLogin -> FilePath -> Page -> Codex ()
 quizView uid rqpath page = do
   guard (isQuiz page)
   let quiz = shuffleQuiz uid page
-  subs <- getPageSubmissions uid rqpath
+  subs <- getSubmissions uid rqpath
   -- fill-in last submitted answers
   let answers = fromMaybe mempty $ case subs of
                   [] -> Nothing
@@ -158,7 +158,7 @@ quizSubmit uid rqpath page = do
   let quiz = shuffleQuiz uid page
   answers <- getFormAnswers quiz
   let txt = encodeText (QuizAnswers (quizToText quiz) answers)
-  sid <- newSubmission uid rqpath (Code "json" txt)
+  sid <- evaluateNew uid rqpath (Code "json" txt)
   redirectURL (Report sid)
 
 isQuiz :: Page -> Bool
@@ -175,7 +175,7 @@ quizReport rqpath page sub = do
     urlSplices rqpath
     pageSplices page
     feedbackSplices page
-    submitSplices tz sub
+    submissionSplices tz sub
     summarySplice (submitResult sub)
     quizSplices quiz answers
 

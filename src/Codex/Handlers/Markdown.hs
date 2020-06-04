@@ -98,7 +98,7 @@ exerciseLinks uid root rqdir (Link attr@(_, classes,_) _ target@(url,_))
   | "ex" `elem` classes = do
       let path = normalise (rqdir </> url)
       title <- liftIO $ readPageTitle (root </> path)
-      count <- countPageSubmissions uid path
+      count <- countSubmissions uid path
       return (formatLink attr title target count)
 exerciseLinks _uid _root _rqdir elm
   = return elm
