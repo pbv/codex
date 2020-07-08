@@ -1,11 +1,18 @@
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE RecordWildCards #-}
-module Codex.Pythontutor where
 
-import           Data.Maybe
+module Codex.Pythontutor (
+  pythontutorSplices
+  ) where
+
+import           Data.Text (Text)
 import qualified Data.Text as T
-import qualified Data.Text.Encoding as T
-import qualified Text.Regex as T
+
+import qualified Data.ByteString.UTF8 as B
+import qualified Text.Regex as RE
+
+import           Control.Monad (guard)
+import qualified Data.Map as Map
 
 import           Heist.Splices     as I
 import qualified Heist.Interpreted as I
@@ -19,37 +26,61 @@ import           Codex.Types
 import           Codex.Utils
 
 
+
 pythontutorSplices :: Page -> Submission -> ISplices
-pythontutorSplices page sub@Submission{..} = do
-  "if-pythontutor" ## I.ifElseISplice (usePythonTutor page submitResult)
-  "pythontutor-url" ## if (usePythonTutor page submitResult) 
-                       then I.textSplice (linkEncode (fromJust (pageTutor page)) (genTutorCode sub)) 
-                       else I.textSplice (T.empty)
+pythontutorSplices page sub
+  =  case (getTutorURL page >>= makeTutorLink sub) of
+      Just url -> do
+        "if-pythontutor" ## I.ifElseISplice True
+        "pythontutor-url" ## I.textSplice url
+      Nothing -> do
+        "if-pythontutor" ## I.ifElseISplice False        
+        "pythontutor-url" ## return []
 
-usePythonTutor :: Page -> Result -> Bool
-usePythonTutor page Result{..} = (isJust $ pageTutor page) && (resultStatus == WrongAnswer)
 
-pageTutor :: Page -> Maybe T.Text
-pageTutor = lookupFromMeta "pythontutor" . pageMeta
+-- | get the base URL for the Pythontutor site
+-- e.g. http://www.pythontutor.com/c.html
+getTutorURL :: Page  -> Maybe Text
+getTutorURL = lookupFromMeta "pythontutor" . pageMeta
 
-genTutorCode :: Submission -> T.Text
-genTutorCode Submission{..} = (codeText submitCode) <> (formatResult $ resultReport submitResult)
+-- | construct a C tutor link with the student's submission and a test main
+-- Note: this requires several convertions between various string types;
+-- perhaps it could be made more efficient in the future?
+makeTutorLink :: Submission -> Text -> Maybe Text
+makeTutorLink Submission{..} url  = do
+  guard (resultStatus submitResult == WrongAnswer)
+  let code = codeText submitCode <> "\n" <> testMain (resultReport submitResult)
+  let params = Map.singleton "code" [B.fromString $ T.unpack code]
+  return (T.pack $ B.toString $ queryURL (B.fromString $ T.unpack url) params)
 
-linkEncode :: T.Text -> T.Text -> T.Text
-linkEncode url code = T.decodeUtf8 $ ctutor (T.encodeUtf8 url) $ T.encodeUtf8 code
 
-matchText :: String -> T.Text -> Bool
-matchText regex t = isJust $ T.matchRegex (T.mkRegex regex) $ T.unpack t
+testMain :: Text -> Text
+testMain report
+  = case getTestCase (T.unpack report) of
+      Nothing ->  "/** couldn't construct a test main **/"
+      Just TestMain{..} ->
+        T.unlines [ "int main(void) {"
+                  , T.pack testInit
+                  , T.pack testCall <> ";"
+                  , "/**"
+                  , T.pack testMsg
+                  , "**/"
+                  , "}"
+                  ]
 
-formatResult :: T.Text -> T.Text
-formatResult t = getCMain $ getResArgs $ dropWhile (not . matchText "Testing") tl
- where tl = T.lines t
+-- | extract test main function from the report
+data TestMain = TestMain { testInit :: String
+                         , testCall :: String
+                         , testMsg :: String
+                         }
+                deriving Show
 
-getResArgs :: [T.Text] -> [T.Text]
-getResArgs tl = (takeWhile (not . matchText "(Expected|Exception)") (tail tl)) ++ [getResFunc (tl!!0)]
+getTestCase :: String -> Maybe TestMain
+getTestCase str = do
+  (_, _, str1, call:_) <- RE.matchRegexAll (RE.mkRegex "Testing (.*) with:") str
+  (args, str2, str3, _) <- RE.matchRegexAll (RE.mkRegex "(Expected|Exception):") str1
+  return TestMain { testCall = call, testInit = args, testMsg = str2 ++ str3 }
 
-getResFunc :: T.Text -> T.Text
-getResFunc t = (T.dropWhileEnd (/=')') $ T.dropWhile (/=' ') t) <> ";"
 
-getCMain :: [T.Text] -> T.Text
-getCMain args = T.unlines $ (["int main() {"] ++ args ++ ["}"])
+
+

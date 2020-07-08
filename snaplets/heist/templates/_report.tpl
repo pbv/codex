@@ -36,11 +36,11 @@
       </h3>
       <apply template="_timing"/>
       <if-feedback>
-	<if-pythontutor>
-	 <a href="${pythontutor-url}" 
-           target="_blank"> Clicar para simular caso falhado </a>
-	</if-pythontutor>
         <pre><result-report/></pre>
+	<if-pythontutor>
+	  <p><a href="${pythontutor-url}" class="button"
+		target="_blank">Executar usando o <em>PythonTutor</em></a><p>
+	</if-pythontutor>
       </if-feedback>
     </if-submit-early>
   </if-evaluating>
