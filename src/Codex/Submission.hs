@@ -200,9 +200,6 @@ withSubmissions a f = do
   let sql = "SELECT * FROM submissions ORDER BY id ASC"
   withSqlite (\conn -> S.fold_ conn sql a f)
 
-
-
-
 -- | splices relating to a single submission
 submissionSplices :: TimeZone -> Submission -> ISplices
 submissionSplices tz Submission{..} = do
@@ -216,13 +213,15 @@ submissionSplices tz Submission{..} = do
   "submit-time" ## localTimeSplice tz submitTime
   "submit-lang" ## I.textSplice (fromLanguage $ codeLang submitCode)
   "submit-code" ##  I.textSplice (codeText submitCode)
+  --"submit-code-url" ## I.textSplice (linkEncode (codeText submitCode))
   resultSplices submitResult
   checkSplices submitCheck
 
 resultSplices :: Result -> ISplices
 resultSplices Result{..} = do
   "result-status" ## I.textSplice (statusText resultStatus)
-  "result-report" ## I.textSplice resultReport
+  "result-report" ## I.textSplice (resultReport)
+  --"result-report-url" ## I.textSplice (linkEncode resultReport)
   "if-accepted" ## I.ifElseISplice (resultStatus == Accepted)
   "if-evaluating" ## I.ifElseISplice (resultStatus == Evaluating)
 
@@ -256,4 +255,7 @@ patternSplices patts
   = sequence_ [ field ## I.textSplice (fromMaybe "" pat) | (field, pat) <- patts]
 
 
+-- |
 
+--linkEncode :: Text -> Text
+--linkEncode t = T.decodeUtf8 $ U.urlEncode True $ T.encodeUtf8 t

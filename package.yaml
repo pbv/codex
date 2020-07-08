@@ -1,5 +1,5 @@
 name:                codex
-version:             0.9.7
+version:             0.9.8
 github:              "pbv/codex"
 license:             MIT
 author:              "Pedro Baltazar Vasconcelos"
@@ -60,6 +60,8 @@ dependencies:
 - utf8-string
 - web-routes
 - xmlhtml
+- http-types
+- regex-compat
 
 executables:
   codex-server:

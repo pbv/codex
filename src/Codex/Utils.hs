@@ -7,11 +7,13 @@ module Codex.Utils where
 
 import           Data.ByteString.UTF8 (ByteString)
 import qualified Data.ByteString.UTF8 as B
+import           Data.ByteString.Builder
 
 import           Data.Char(toUpper)
 import qualified Data.Text as T
 import qualified Data.Text.Encoding as T
 import qualified Data.Text.Encoding.Error as T
+import           Snap.Internal.Parsing
 
 import qualified Data.ByteString.Lazy as LB
 
@@ -19,7 +21,10 @@ import           Data.Maybe (fromMaybe, listToMaybe)
 import qualified Data.Aeson as Aeson
 import           Data.Aeson (FromJSON, ToJSON)
 import qualified Data.HashMap.Strict as HM
+
+import           Data.Map (Map)
 import           Data.Map.Syntax
+import           Data.Map.Internal (fromList)
 
 import           Snap.Core hiding (path)
 import           Snap.Snaplet
@@ -375,3 +380,9 @@ decodeText = Aeson.decode . LB.fromStrict . T.encodeUtf8
 
 encodeText :: ToJSON a  => a -> Text
 encodeText = T.decodeUtf8 . LB.toStrict . Aeson.encode
+
+
+-- | make a query URL
+queryURL :: ByteString -> Map ByteString [ByteString] -> ByteString
+queryURL url params
+  = LB.toStrict $ toLazyByteString $ byteString url <> "#" <> buildUrlEncoded params

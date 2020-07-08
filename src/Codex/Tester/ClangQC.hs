@@ -13,14 +13,13 @@ import           Data.Maybe (fromMaybe)
 
 import           Control.Exception (catch)
 import           Codex.Tester
-import           System.Directory (copyFile)
+
 
 clangQCTester :: Tester Result
 clangQCTester = tester "quickcheck" $ do
   Code lang src <- testCode
   guard (lang == "c")
   path <- testFilePath
-  let dir = takeDirectory path
   qcpath <- fromMaybe (replaceExtension path ".hs")
             <$> metadataPath "properties"
   assert (fileExists qcpath)
@@ -30,24 +29,19 @@ clangQCTester = tester "quickcheck" $ do
   gcc    <- configured "language.c.compiler"
   limits <- configLimits "language.haskell.limits"
   qcArgs <- getQuickCheckArgs <$> testMetadata
-  -- optional extra files to copy over
-  files <- globPatterns dir =<< metadataWithDefault "files" []
-  -- optional header for includes, prototypes, etc.
-  header <- metadataWithDefault "header" ""
+  -- append an optional header (for includes, prototypes, etc.)
+  header <- fromMaybe "" <$> metadata "header"
   let code = header <> "\n" <> src
-  liftIO (clangRunner limits gcc ghc qcArgs files code props `catch` return)
+  liftIO (clangRunner limits gcc ghc qcArgs code props `catch` return)
 
 clangRunner :: Limits
             -> String
             -> String
             -> [String]
-            -> [FilePath]
             -> Text
             -> Text -> IO Result
-clangRunner limits gcc_cmd ghc_cmd qcArgs files c_code props =
+clangRunner limits gcc_cmd ghc_cmd qcArgs c_code props =
   withTempDir "codex" $ \dir -> do
-      -- copy extra files to temp dir
-      mapM_ (\f -> copyFile f (dir</>takeFileName f)) files
       let c_file  = dir </> "submit.c"
       let hs_file = dir </> "Main.hs"
       let obj_file = dir </> "submit.o"
@@ -82,5 +76,3 @@ classify (ExitFailure _, stdout, stderr)
                                 = runtimeError msg
   | otherwise                  = miscError msg
   where msg = stdout <> stderr
-
-

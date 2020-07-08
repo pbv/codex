@@ -1,22 +1,16 @@
 <apply template="_base">
 <script>
-  function reevaluate() {
-  var r = confirm("Re-avaliar submissões?");
-  if (r) {
-    var form = document.getElementById("listform");
-    var param = document.getElementById("_method");
-    param.value = "PATCH";
-    form.submit();
-  }
+function reevaluate() {
+  var form = document.getElementById("listform");
+  var param = document.getElementById("_method");
+  param.value = "PATCH";
+  form.submit();
 }
 function cancel() {
-  var r = confirm("Cancelar re-avaliações?");
-  if (r) {
-    var form = document.getElementById("listform");
-    var param = document.getElementById("_method");
-    param.value = "CANCEL";
-    form.submit();
-  }
+  var form = document.getElementById("listform");
+  var param = document.getElementById("_method");
+  param.value = "CANCEL";
+  form.submit();
 }
 function listsubmissions() {
   var form = document.getElementById("listform");
