@@ -24,7 +24,6 @@ import qualified Data.HashMap.Strict as HM
 
 import           Data.Map (Map)
 import           Data.Map.Syntax
-import           Data.Map.Internal (fromList)
 
 import           Snap.Core hiding (path)
 import           Snap.Snaplet

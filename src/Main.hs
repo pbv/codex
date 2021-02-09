@@ -34,8 +34,8 @@ import           Codex.Handlers.Markdown
 
 import           Codex.Tester
 import           Codex.Tester.PythonDoctest
-import           Codex.Tester.HaskellQC
-import           Codex.Tester.ClangQC
+import           Codex.Tester.QuickCheck
+import           Codex.Tester.Hspec
 import           Codex.Tester.InputOutput
 import           Codex.Tester.Quiz
 import           Codex.Tester.Sql
@@ -52,6 +52,7 @@ testers = foldr1 (<|>)
           [ pythonDocTester
             -- quickcheck testers
           , haskellQCTester
+          , hspecTester
           , clangQCTester
             -- I/O testers
           , stdioTester =<< clangBuild

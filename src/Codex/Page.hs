@@ -192,17 +192,13 @@ pageToHtml doc = case result of
     opts = def { writerExtensions = pandocExtensions
                , writerHTMLMathMethod = MathJax "/mathjax"
                -- , writerHighlightStyle = Nothing
-               , writerHighlightStyle = Just monochrome
+               --, writerHighlightStyle = Just monochrome
                }
 
 blocksToHtml :: [Block] -> [Node]
 blocksToHtml blocks = pageToHtml (Pandoc nullMeta blocks)
 
   
-  -- pre <- T.readFile (takeDirectory filepath </> "prelude.md")
-  --    `catch`(\(_ :: IOException) -> return "")
-
-
 -- | read a file and parse markdown to a Pandoc document
 readMarkdownFile :: MonadIO m => FilePath -> m Pandoc
 readMarkdownFile filepath = liftIO $ do

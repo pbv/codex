@@ -14,7 +14,7 @@ module Codex.Tester.Utils
   , runCompiler
   , safeExec
   , unsafeExec
-  , getQuickCheckArgs
+  , getMetaArgs
   , parseArgs
   , globPatterns
   ) where
@@ -24,7 +24,7 @@ import           Data.Text(Text)
 import qualified Data.Text.IO as T
 
 import           Control.Exception hiding (assert)
-import           Control.Monad       (when, unless)
+import           Control.Monad       (when, unless,  guard)
 import           Control.Monad.Trans
 import           System.IO
 import           System.IO.Temp
@@ -220,20 +220,24 @@ unsafeExec exec args inp = do
   return (code, T.pack out, T.pack err)
 
 
--- get QuickCheck runner command line arguments
-getQuickCheckArgs :: Meta -> [String]
-getQuickCheckArgs meta
-  = catMaybes
-    [ lookupArg "maxSuccess"
-    , lookupArg "maxSize"
-    , lookupArg "maxDiscardRatio"
-    , lookupArg "randSeed"
-    ]
-  where
-    lookupArg key
-      = fmap (\val -> "--" ++ key ++ "=" ++ val) (lookupFromMeta key meta)
+        
+--
+-- get comand line arguments from metadata field values
+-- first list are keys that take arguments;
+-- second list are keys that control on/off switches
+--
+getMetaArgs :: [String] -> [String] -> Meta -> [String]
+getMetaArgs argKeys switchKeys meta
+  = catMaybes ([ do str <- lookupFromMeta key meta
+                    Just ("--" ++ key ++ "=" ++ str)
+               | key <- argKeys ]
+                ++
+               [ do bool <- lookupFromMeta key meta
+                    if bool then Just ("--" ++ key) else Nothing
+                | key <- switchKeys ]
+              )
 
-
+                 
 
 -- | parse a command line string
 parseArgs :: MonadIO m => String -> m [String]

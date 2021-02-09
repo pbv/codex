@@ -18,7 +18,7 @@ data Handlers m = Handlers
   , handleSubmit :: UserLogin -> ReqPath -> Page -> m ()
     -- ^ submit a solution
   , handleReport :: UserLogin -> ReqPath -> Page -> Submission -> m ()
-    -- ^ view a submissoin report
+    -- ^ view a submission report
   , handlePrintout :: UserLogin -> Page -> Submission -> m Blocks
     -- ^ produce submission printout (as a Pandoc fragment)
   }
