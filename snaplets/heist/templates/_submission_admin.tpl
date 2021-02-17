@@ -2,9 +2,11 @@
 <bind tag="icon-rejected"><img src="/static/icons/16x16/rejected.png"/></bind>
 <bind tag="icon-overdue"><img src="/static/icons/16x16/overdue.png"/></bind>
 <bind tag="icon-editor"><img src="/static/icons/16x16/editor.png"/></bind>
-
+<bind tag="icon-warning">&#9888;</bind>
+<bind tag="valid-icon"><if-valid><else/><icon-warning/></if-valid></bind>
 <apply template="_base">
-<h1><page-title/></h1>
+  <apply template="_browse"/>
+  <page-title/>
 <h2>Submissão <submit-id/></h2>
 <p>Enviada por <code><submit-user-id/></code> (<submit-user-name/>) em <submit-time/>.</p>
 <if-evaluating>
@@ -12,7 +14,8 @@
   <p class="info">Se a página não atualizar automaticamente,
       use o botão "reload" do "browser".</p>
 <else/>
-<h3>Resultado: <em><result-status/></em> (<em><result-check/></em>)</h3>
+<h3>Resultado: <em><result-status/></em></h3>
+<if-valid><else/><p><icon-warning/> Submissão inválida: <em><invalid-msg/></em></p></if-valid>
 <pre><result-report/></pre>
 <h3>Código</h3>
 <pre><submit-code/></pre> 
@@ -42,5 +45,3 @@
 </if-evaluating>
 </apply>
 
-<apply template="_browse">
-</apply>

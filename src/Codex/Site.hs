@@ -153,7 +153,7 @@ loggedInName authmgr = do
 
 -- | splice for current date & time
 nowSplice :: I.Splice Codex
-nowSplice = do tz <- liftIO getCurrentTimeZone
+nowSplice = do tz<- liftIO getCurrentTimeZone
                t <- liftIO getCurrentTime
                localTimeSplice tz t
 
@@ -188,9 +188,9 @@ codexInit handlers tester =
     liftIO $ withMVar c $ \conn -> Db.createTables conn
     addRoutes routes
     -- | semaphore for limimit concurrent evaluations
-    maxtasks <- liftIO $ Conf.require conf "system.max_concurrent"
-    semph <- liftIO $ newQSem maxtasks
-    queue <- liftIO $ newMVar []
+    nslots <- liftIO $ Conf.require conf "system.max_concurrent"
+    taskGroup <- createTaskGroup nslots
+    queue <- createQueue
     return App { _heist = h
                , _router = r
                , _sess = s
@@ -198,8 +198,8 @@ codexInit handlers tester =
                , _db   = d
                , _tester = tester
                , _handlers = handlers
-               , _pendingQ = queue
-               , _semph = semph
+               , _queue = queue
+               , _taskGroup = taskGroup
                , _logger  = logger
                , _eventcfg = evcfg
                }

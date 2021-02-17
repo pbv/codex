@@ -7,14 +7,11 @@ module Codex.Evaluate(
   evaluate,
   evaluateMany,
   cancelPending,
-  withPolicySplices,
   ) where
 
 import qualified Data.Text as T
 import           Data.Maybe
-import           Data.List (intersperse)
-import           Data.Time.Clock
-import           Data.Time.LocalTime
+import           Data.Time (getCurrentTime)
 import           Control.Monad.Writer
 import           Control.Monad.State
 import           Control.Monad.Reader
@@ -23,11 +20,7 @@ import           Control.Exception  (SomeException, catch)
 import           System.FilePath
 
 import           Snap.Snaplet
-import           Snap.Snaplet.Heist
 import qualified Snap.Snaplet.SqliteSimple as S
-import           Heist.Splices     as I
-import qualified Heist.Interpreted as I
-import           Data.Map.Syntax
 
 
 import           Data.Configurator.Types(Config)
@@ -43,13 +36,6 @@ import           Codex.Tester
 import           Codex.Policy
 
 
--- | a submission attempt by a user
-data Access = Access { accessUser :: UserLogin
-                     , accessPath :: FilePath
-                     , accessTime :: UTCTime
-                     }
-
-
 -- | insert a new submission into the database
 -- also schedule evaluation in separate thread
 evaluateNew :: UserLogin -> FilePath -> Code -> Codex SubmitId
@@ -63,59 +49,48 @@ pending :: Validity
 pending = invalid "Waiting evaluation"
 
 -- | evaluate a submission
--- fork an IO thread under a quantity semaphore for limiting concurrency
+-- use the global task group for limiting concurrency
 evaluate :: Submission -> Codex ThreadId
-evaluate sub = do
-  qsem <- gets _semph
-  evaluateWith qsem sub
+evaluate submission = do
+  taskGroup <- gets _taskGroup
+  evaluateWith taskGroup submission
 
 -- | re-evaluate a list of submissions;
--- fork tasks under a (new) quantity semaphore for throttling concurrency;
--- manage tasks a queue to allow canceling
+-- create a new task group for limiting concurrency;
+-- add tasks to the global queue to allow canceling
 evaluateMany :: [Submission] -> Codex ()
-evaluateMany subs = do
+evaluateMany submissions = do
   conf <- getSnapletUserConfig
-  maxtasks <- liftIO $ Conf.require conf "system.max_concurrent"
-  qsem <- liftIO $ newQSem maxtasks
-  cancelPending
-  tasks <- mapM (evaluateWith qsem) subs
-  setPending tasks
+  taskGroup <- liftIO $
+               createTaskGroup =<< Conf.require conf "system.max_concurrent"
+  pending <- gets _queue
+  forM_ submissions
+    (\sub -> do threadId <- evaluateWith taskGroup sub
+                addQueue threadId pending) 
 
 
 -- | cancel all pending evaluations
 cancelPending :: Codex ()
-cancelPending = setPending []
-
--- | record pending tasks to allow cancelling
-setPending :: [ThreadId] -> Codex ()
-setPending tasks = do
-  tasksVar <- gets _pendingQ
-  liftIO $ modifyMVar_ tasksVar $
-              \tasks' -> mapM_ killThread tasks' >> return tasks
+cancelPending
+  = cancelAll =<< gets _queue
 
 
 -- | evaluate a single submission with a quantity semaphore
 --
-evaluateWith :: QSem -> Submission -> Codex ThreadId
-evaluateWith qsem submission@Submission{..} = do
+evaluateWith :: TaskGroup -> Submission -> Codex ThreadId
+evaluateWith taskGroup submission@Submission{..} = do
   conn <- S.getSqliteState
   conf <- getSnapletUserConfig
-  env <- getTimeEnv
+  timeEnv <- getTimeEnv
   tester <- gets _tester
   root <- getDocumentRoot
   let filepath = root </> submitPath
-  -- run the tester asynchronously
-  liftIO $ forkIO $ withQSem qsem $ do
+  forkTask taskGroup $ do
+    -- run the tester code asynchronously
     runSqlite conn $ updateResult submitId evaluating pending
     page <- readMarkdownFile filepath
-    let attempt = Access { accessUser = submitUser
-                         , accessPath = submitPath
-                         , accessTime = submitTime
-                         }
-    check <- case evalPolicy env =<< pagePolicy page of
-               Left err -> return (invalid err)
-               Right policy ->
-                 runSqlite conn $ checkPolicy attempt policy
+    let policy = getPolicy page
+    check <- runSqlite conn $ checkPolicy timeEnv policy submission 
     result <- testWrapper tester conf filepath page submission
     runSqlite conn $ updateResult submitId result check
 
@@ -134,73 +109,6 @@ testWrapper tester conf filepath page submiss
   where
     invalid :: Result
     invalid = miscError "no acceptable tester configured"
-
-
-withPolicySplices :: UserLogin -> FilePath -> Page -> Codex a -> Codex a
-withPolicySplices uid path page action = do
-  tz <- liftIO getCurrentTimeZone
-  now <- liftIO getCurrentTime
-  constrs <- getPolicy page
-  let attempt = Access { accessUser = uid
-                       , accessPath = path
-                       , accessTime = now
-                       }
-  check <- checkPolicy attempt constrs
-  earlier <- countSubmissions uid path
-  let allow = pageAllowInvalid page
-  let
-    splice :: Constr UTCTime -> ISplices
-    splice (After start) = do
-      "submit-after" ## I.textSplice (formatLocalTime tz start)
-      "if-submit-after" ## I.ifElseISplice True
-      "if-submit-early" ## I.ifElseISplice (now < start)
-    splice (Before limit) = do
-      let remain = max 0 (diffUTCTime limit now)
-      "submit-before" ## I.textSplice (formatLocalTime tz limit)
-      "submit-time-remain" ## I.textSplice (formatNominalDiffTime remain)
-      "if-submit-before" ## I.ifElseISplice True
-      "if-submit-late" ## I.ifElseISplice (now > limit)
-    splice (MaxAttempts limit) = do
-      let remain = max 0 (limit - earlier)
-      "submissions-attempts" ## I.textSplice (T.pack $ show limit)
-      "submissions-remain" ## I.textSplice (T.pack $ show remain)
-      "if-submit-attempts" ## I.ifElseISplice True
-  flip withSplices action $ do
-    "if-valid" ## I.ifElseISplice (check == Valid)
-    "if-allowed" ## I.ifElseISplice (allow || check == Valid)
-    "invalid-msg" ## case check of
-                       Valid -> return []
-                       Invalid msg -> I.textSplice msg
-    "if-submitted" ## I.ifElseISplice (earlier > 0)
-    "if-submit-after" ## I.ifElseISplice False
-    "if-submit-before" ## I.ifElseISplice False
-    "if-submit-attempts" ## I.ifElseISplice False
-    "if-submit-early" ## I.ifElseISplice False
-    "if-submit-late" ## I.ifElseISplice False
-    mapM_ splice constrs
-
-
-
--- | check the policy specified for a page
-checkPolicy :: S.HasSqlite m
-            => Access -> Policy UTCTime -> m Validity
-checkPolicy  attempt constrs = do
-  (_, msgs) <- runWriterT (mapM_ (checkConstr attempt) constrs)
-  return $ if null msgs then Valid
-           else Invalid (T.concat $ intersperse ";" msgs)
-
-checkConstr :: S.HasSqlite m
-            => Access -> Constr UTCTime -> WriterT [Text] m ()
-checkConstr Access{..} (Before highTime)
-  | accessTime < highTime = return ()
-  | otherwise       = tell ["Late submission"]
-checkConstr Access{..} (After highTime)
-  | accessTime > highTime = return ()
-  | otherwise       = tell ["Early submission"]
-checkConstr Access{..} (MaxAttempts max) = do
-  earlier <- lift $ countEarlier accessUser accessPath accessTime
-  if earlier < max then return ()
-    else tell ["Too many submissions"]
 
 
 runSqlite :: S.Sqlite -> ReaderT S.Sqlite m a -> m a

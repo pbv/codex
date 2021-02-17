@@ -16,6 +16,7 @@ import          Codex.Page
 import          Codex.Submission
 import          Codex.AceEditor
 import          Codex.Evaluate
+import          Codex.Policy
 import          Codex.Tester.Result
 import          Codex.Pythontutor
   
@@ -44,13 +45,15 @@ codeView uid rqpath page = do
   guard (isExercise page)
   tz <- liftIO getCurrentTimeZone
   subs <- getSubmissions uid rqpath
-  withPolicySplices uid rqpath page $ renderWithSplices "_exercise" $ do
+  otherSplices <- policySplices page uid rqpath
+  renderWithSplices "_exercise" $ do
     pageSplices page
     codeSplices page
-    feedbackSplices page
+    optionsSplices page
     submissionListSplices tz subs
     textEditorSplice
     languageSplices (pageLanguages page) Nothing
+    otherSplices
 
 
 codeSubmit :: UserLogin -> FilePath -> Page -> Codex ()
@@ -67,15 +70,17 @@ codeReport :: FilePath -> Page -> Submission -> Codex ()
 codeReport rqpath page sub@Submission{..} = do
   guard (isExercise page)
   tz <- liftIO getCurrentTimeZone
-  withPolicySplices submitUser rqpath page $ renderWithSplices "_report" $ do
+  otherSplices <- policySplices page submitUser submitPath
+  renderWithSplices "_report" $ do
     urlSplices rqpath
     pageSplices page
+    optionsSplices page
     codeSplices page
-    feedbackSplices page
     submissionSplices tz sub
     pythontutorSplices page sub
     textEditorSplice
     languageSplices (pageLanguages page) (Just $ submitLang sub)
+    otherSplices
 
 
 -- | splices related to code exercises
@@ -91,6 +96,7 @@ codeSplices page = do
 -- | splices relating to a list of submissions
 submissionListSplices :: TimeZone -> [Submission] -> ISplices
 submissionListSplices tz list = do
+  "submissions-count" ## I.textSplice (T.pack $ show $ length list)
   "submissions-list" ##
     I.mapSplices (I.runChildrenWith . submissionSplices tz) list   
 

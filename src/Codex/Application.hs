@@ -61,8 +61,8 @@ data App = App
     , _db      :: Snaplet Sqlite
     , _tester  :: Tester Result    -- ^ exercise testers to use
     , _handlers :: Handlers Codex  -- ^ exercise handlers to use
-    , _pendingQ :: PendingQ        -- ^ queue for pending evaluations
-    , _semph   :: QSem             -- ^ semaphore for throttling evaluations
+    , _taskGroup :: TaskGroup      -- ^ task group for controlling concurrency
+    , _queue   :: Queue            -- ^ queue for pending re-evaluations
     , _logger  :: Logger
     , _eventcfg :: Config          -- ^ events configuration
    }

@@ -1,4 +1,5 @@
 <apply template="_base">
+  <apply template="_browse"/>
 <script>
 function reevaluate() {
   var form = document.getElementById("listform");
@@ -99,5 +100,3 @@ function printsubmissions() {
 </form>
 </apply>
 
-<apply template="_browse">
-</apply>

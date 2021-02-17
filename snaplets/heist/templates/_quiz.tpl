@@ -1,23 +1,20 @@
-
-<apply template="_browse">
-  <if-parent>
-    <li><a href="${page-parent-url}" class="icon"
-	 title="Voltar à página anterior">&curvearrowleft;</a></li>    
-  </if-parent>
-  <ifAdmin>
-    <li><a title="Editar a página" href="${file-url}">Editar</a></li>
-  </ifAdmin>
-</apply>
-
-
 <apply template="_base">
   <mathjax-js/>
+  <apply template="_browse">
+    <if-parent>
+      <li><a href="${page-parent-url}" class="icon"
+	     title="Voltar à página anterior">&curvearrowleft;</a></li>    
+    </if-parent>
+    <ifAdmin>
+      <li><a title="Editar a página" href="${file-url}">Editar</a></li>
+    </ifAdmin>
+  </apply>
     
   <div class="description">
     <quiz-preamble/>
   </div>
   <apply template="_timing"/>
-  
+ 
   <form id="quiz" method="POST" action="${page-url}">
   <p>
     <input type="submit" value="Submeter"

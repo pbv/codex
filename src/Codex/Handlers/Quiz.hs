@@ -145,8 +145,8 @@ quizView uid rqpath page = do
   let answers = fromMaybe mempty $ case subs of
                   [] -> Nothing
                   _ ->  getSubmitAnswers (last subs)
-  withPolicySplices uid rqpath page $
-    renderWithSplices "_quiz" $ quizSplices quiz answers
+  -- withPolicySplices uid rqpath page $
+  renderWithSplices "_quiz" $ quizSplices quiz answers
 
 
 getSubmitAnswers :: Submission -> Maybe Answers
@@ -174,7 +174,7 @@ quizReport rqpath page sub = do
   renderWithSplices "_answers" $ do
     urlSplices rqpath
     pageSplices page
-    feedbackSplices page
+    optionsSplices page
     submissionSplices tz sub
     summarySplice (submitResult sub)
     quizSplices quiz answers

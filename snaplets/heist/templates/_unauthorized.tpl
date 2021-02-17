@@ -1,4 +1,3 @@
-
 <apply template="_base">
 <h1>Acesso não autorizado!</h1>
 
@@ -15,8 +14,8 @@
       para se autenticar.</li>
   </ul>
 </ifLoggedOut>
-</apply>
-
 <apply template="_browse"/>
 <apply template="_footer"/>
+</apply>
+
 

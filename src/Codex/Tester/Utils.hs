@@ -24,7 +24,7 @@ import           Data.Text(Text)
 import qualified Data.Text.IO as T
 
 import           Control.Exception hiding (assert)
-import           Control.Monad       (when, unless,  guard)
+import           Control.Monad       (when, unless)
 import           Control.Monad.Trans
 import           System.IO
 import           System.IO.Temp

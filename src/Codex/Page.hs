@@ -10,7 +10,7 @@ module Codex.Page where
 import           Text.Pandoc hiding (Code)
 import qualified Text.Pandoc ( Inline(Code) )
 import           Text.Pandoc.Walk
-import           Text.Pandoc.Highlighting (monochrome)
+-- import           Text.Pandoc.Highlighting (monochrome)
 import           Text.XmlHtml
 import           Text.Blaze.Renderer.XmlHtml
 
@@ -25,7 +25,7 @@ import           Control.Monad.IO.Class
 
 
 import           Codex.Types
-import           Codex.Policy
+--import           Codex.Policy
 
 
 emptyPage :: Page
@@ -78,23 +78,15 @@ pageDefaultText = lookupFromMeta "code" . pageMeta
 pageTester :: Page -> Maybe Text
 pageTester = lookupFromMeta "tester" . pageMeta
 
--- | get the policy constraints for submissions
-pagePolicy :: Page -> Either Text (Policy TimeExpr)
-pagePolicy page =
-  case lookupFromMeta "valid" (pageMeta page) of
-    Nothing -> return []
-    Just txt -> parsePolicy txt
-  
--- | allow invalid submissions?
-pageAllowInvalid :: Page -> Bool
-pageAllowInvalid p
-  = fromMaybe True $ lookupFromMeta "allow-invalid" $ pageMeta p
 
 
--- | give feedback for submissions?
-pageFeedback :: Page -> Bool
-pageFeedback = fromMaybe True . lookupFromMeta "feedback" . pageMeta 
+-- | hide detailed feedback for submissions?
+pageShowFeedback :: Page -> Bool
+pageShowFeedback = fromMaybe False . lookupFromMeta "show-feedback" . pageMeta 
 
+-- | hide results for invalid submissions?
+pageHideInvalid :: Page -> Bool
+pageHideInvalid = fromMaybe False . lookupFromMeta "hide-invalid" . pageMeta 
 
 
 -- | read from a metadata value

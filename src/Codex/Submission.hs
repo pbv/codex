@@ -58,6 +58,7 @@ import           Codex.Submission.Types
 
 
 
+
 -- | insert a new submission into the DB
 newSubmission :: HasSqlite m
               =>  UserLogin -> FilePath -> UTCTime -> Code
@@ -213,30 +214,29 @@ submissionSplices tz Submission{..} = do
   "submit-time" ## localTimeSplice tz submitTime
   "submit-lang" ## I.textSplice (fromLanguage $ codeLang submitCode)
   "submit-code" ##  I.textSplice (codeText submitCode)
-  --"submit-code-url" ## I.textSplice (linkEncode (codeText submitCode))
   resultSplices submitResult
-  checkSplices submitCheck
+  validitySplices submitCheck
 
 resultSplices :: Result -> ISplices
 resultSplices Result{..} = do
   "result-status" ## I.textSplice (statusText resultStatus)
-  "result-report" ## I.textSplice (resultReport)
-  --"result-report-url" ## I.textSplice (linkEncode resultReport)
+  "result-report" ## I.textSplice resultReport
   "if-accepted" ## I.ifElseISplice (resultStatus == Accepted)
   "if-evaluating" ## I.ifElseISplice (resultStatus == Evaluating)
 
-checkSplices :: Validity -> ISplices
-checkSplices check = do
+validitySplices :: Validity -> ISplices
+validitySplices check = do
   "if-valid" ## I.ifElseISplice (check == Valid)
-  "result-check" ## I.textSplice (checkText check)
+  "if-invalid" ## I.ifElseISplice (check /= Valid)
+  "invalid-msg" ## I.textSplice (invalidMsg check)
 
 
 statusText :: Status -> Text
 statusText = T.pack . show 
 
-checkText :: Validity -> Text
-checkText Valid         = "Valid"
-checkText (Invalid msg) = "Invalid: " <> msg
+invalidMsg :: Validity -> Text
+invalidMsg Valid         = ""
+invalidMsg (Invalid msg) = msg
   
 
 
@@ -254,8 +254,3 @@ patternSplices :: Patterns -> ISplices
 patternSplices patts
   = sequence_ [ field ## I.textSplice (fromMaybe "" pat) | (field, pat) <- patts]
 
-
--- |
-
---linkEncode :: Text -> Text
---linkEncode t = T.decodeUtf8 $ U.urlEncode True $ T.encodeUtf8 t

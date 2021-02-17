@@ -8,10 +8,9 @@
 	     title="Voltar ao diretório anterior"
 	     href="${file-parent-url}">&curvearrowleft;</a>
     </ifAdmin>
-</apply>
-
+  </apply>
  
- <h1><file-path/></h1>
+ <h1>/<file-path/></h1>
   <p>Mime-type: <file-mime/></p>
   <if-image-file>
     <img src="${page-url}"/>

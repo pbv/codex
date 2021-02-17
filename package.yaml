@@ -1,10 +1,10 @@
 name:                codex
-version:             0.9.8
+version:             0.9.9
 github:              "pbv/codex"
 license:             MIT
 author:              "Pedro Baltazar Vasconcelos"
 maintainer:          "pbv@dcc.fc.up.pt"
-copyright:           "2019 Pedro Baltazar Vasconcelos"
+copyright:           "2021 Pedro Baltazar Vasconcelos"
 
 extra-source-files:
 - README.md

@@ -39,17 +39,17 @@ import qualified Heist.Interpreted as I
 import qualified Text.XmlHtml as X
 
 
-import           Control.Monad (join)
+--import           Control.Monad (join)
 import           Control.Monad.State
 import           Control.Applicative 
 import           Control.Exception (SomeException(..))
 
 import qualified Data.Configurator as Configurator
-import qualified Data.Configurator.Types as Configurator
+-- import qualified Data.Configurator.Types as Configurator
 
 import           Codex.Types
 import           Codex.Page
-import           Codex.Policy
+--import           Codex.Policy
 import           Codex.Application
 
 import           Data.Time.Clock
@@ -123,16 +123,8 @@ requireAdmin = do
   unless (isAdmin usr) unauthorized
 
 
--- | get all events from the configuration 
-----------------------------------------------------------------
-getTimeEnv :: Codex TimeEnv
-getTimeEnv = do
-  evcfg <- gets _eventcfg
-  hm <- liftIO $ Configurator.getMap evcfg
-  let hm' = HM.map (\v -> Configurator.convert v >>= parseTimeExpr) hm
-  tz <- liftIO $ getCurrentTimeZone
-  return $ makeTimeEnv tz (\k -> join (HM.lookup k hm'))
-
+{-
+-}
 
 -- | get submission id from request parameters
 getSubmitId :: Codex (Maybe SubmitId)
@@ -331,47 +323,11 @@ logMsg msg = do
   logger <- gets _logger
   liftIO $ FastLogger.logMsg logger =<< FastLogger.timestampedLogEntry msg
 
-{-
-withTimeSplices :: Page -> Codex a -> Codex a
-withTimeSplices page action = do
-  tz  <- liftIO getCurrentTimeZone
-  now <- liftIO getCurrentTime
-  env <- getTimeEnv
-  flip withSplices action $ 
-    case evalPolicy env (pageValid page) of
-      Left err -> do
-        "valid-from" ## I.textSplice err
-        "valid-until" ## I.textSplice err
-        "time-left" ## I.textSplice err        
-      Right constr -> do
-        "if-early" ## I.ifElseISplice (early now constr)
-        "if-late" ##  I.ifElseISplice (late now constr)
-        "if-valid" ## I.ifElseISplice (not (early now constr) &&
-                                       not (late now constr))
-        "if-limited" ## I.ifElseISplice (isJust $ higher constr)
-        "if-max-attempts" ## I.ifElseISplice (isJust $ maxAttempts constr)
-        "valid-from" ##
-          I.textSplice $ maybe "N/A" (showTime tz) (lower constr)
-        "valid-until" ##
-          I.textSplice $ maybe "N/A" (showTime tz) (higher constr)
-        "time-left" ##
-          I.textSplice $
-          maybe "N/A" (\t -> T.pack $ formatNominalDiffTime t)
-          (timeLeft now constr)
--}
-
-
-getPolicy :: Page -> Codex (Policy UTCTime)
-getPolicy page = do
-  env <- getTimeEnv
-  case evalPolicy env =<< pagePolicy page of
-    Left err -> internalError (SomeException $ userError $ T.unpack err)
-    Right pol -> return pol
-
     
-feedbackSplices :: Page -> ISplices
-feedbackSplices page = do
-  "if-feedback" ## I.ifElseISplice (pageFeedback page)
+optionsSplices :: Page -> ISplices
+optionsSplices page = do
+  "if-show-feedback" ## I.ifElseISplice (pageShowFeedback page)
+  "if-hide-invalid" ## I.ifElseISplice (pageHideInvalid page)
 
 
 decodeText :: FromJSON a => Text -> Maybe a
