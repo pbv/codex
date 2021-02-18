@@ -5,35 +5,37 @@
       <li><a href="${page-parent-url}" class="icon"
 	     title="Voltar à página anterior">&curvearrowleft;</a></li>    
     </if-parent>
-    <ifAdmin>
+    <!-- <ifAdmin>
       <li><a title="Editar a página" href="${file-url}">Editar</a></li>
-    </ifAdmin>
+    </ifAdmin> -->
   </apply>
     
   <div class="description">
     <quiz-preamble/>
   </div>
   <apply template="_timing"/>
- 
-  <form id="quiz" method="POST" action="${page-url}">
-  <p>
-    <input type="submit" value="Submeter"
-	   onclick="quiz_modified=false;"/> &emsp;
-    <input type="button" value="Limpar"
-	   onclick="resetAll()"/>
-  </p>
-    <questions>
-      <fieldset>
-	<question-description/>
-	<question-fillin>
+  <if-available>
+    <form id="quiz" method="POST" action="${page-url}">
+      <p><input type="submit" value="Submeter"
+	       onclick="quiz_modified=false;"/> &emsp;
+	<input type="button" value="Limpar"
+	       onclick="resetAll()"/></p>
+      <questions>
+	<fieldset>
+	  <question-description/>
+	  <question-fillin>
 	  <apply template="_fillin"/>
 	  <else/>
 	  <apply template="_choices"/>	  
-	</question-fillin>
-      </fieldset>
-    </questions>
-
-  </form>
+	  </question-fillin>
+	</fieldset>
+      </questions>
+      <p><input type="submit" value="Submeter"
+	       onclick="quiz_modified=false;"/> &emsp;
+	<input type="button" value="Limpar"
+	       onclick="resetAll()"/></p>
+    </form>
+  </if-available>
 
   <script>
     var quiz_modified = false;

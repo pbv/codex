@@ -123,8 +123,6 @@ requireAdmin = do
   unless (isAdmin usr) unauthorized
 
 
-{-
--}
 
 -- | get submission id from request parameters
 getSubmitId :: Codex (Maybe SubmitId)
@@ -327,7 +325,7 @@ logMsg msg = do
 optionsSplices :: Page -> ISplices
 optionsSplices page = do
   "if-show-feedback" ## I.ifElseISplice (pageShowFeedback page)
-  "if-hide-invalid" ## I.ifElseISplice (pageHideInvalid page)
+  "if-lock-invalid" ## I.ifElseISplice (pageLockInvalid page)
 
 
 decodeText :: FromJSON a => Text -> Maybe a

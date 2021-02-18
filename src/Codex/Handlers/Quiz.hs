@@ -14,8 +14,9 @@ module Codex.Handlers.Quiz
 import           Codex.Types
 import           Codex.Page
 import           Codex.Application
-import           Codex.Submission 
+import           Codex.Submission
 import           Codex.Evaluate
+import           Codex.Policy
 import           Codex.Utils
 import           Codex.Handlers
 import           Codex.Quiz
@@ -145,8 +146,10 @@ quizView uid rqpath page = do
   let answers = fromMaybe mempty $ case subs of
                   [] -> Nothing
                   _ ->  getSubmitAnswers (last subs)
-  -- withPolicySplices uid rqpath page $
-  renderWithSplices "_quiz" $ quizSplices quiz answers
+  otherSplices <- policySplices page uid rqpath
+  renderWithSplices "_quiz" $ do
+    quizSplices quiz answers
+    otherSplices
 
 
 getSubmitAnswers :: Submission -> Maybe Answers

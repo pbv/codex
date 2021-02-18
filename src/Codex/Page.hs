@@ -82,11 +82,11 @@ pageTester = lookupFromMeta "tester" . pageMeta
 
 -- | hide detailed feedback for submissions?
 pageShowFeedback :: Page -> Bool
-pageShowFeedback = fromMaybe False . lookupFromMeta "show-feedback" . pageMeta 
+pageShowFeedback = fromMaybe False . lookupFromMeta "feedback" . pageMeta 
 
--- | hide results for invalid submissions?
-pageHideInvalid :: Page -> Bool
-pageHideInvalid = fromMaybe False . lookupFromMeta "hide-invalid" . pageMeta 
+-- | lock submissions when invalid ?
+pageLockInvalid :: Page -> Bool
+pageLockInvalid = fromMaybe True . lookupFromMeta "lock" . pageMeta 
 
 
 -- | read from a metadata value
@@ -98,11 +98,18 @@ instance FromMetaValue Text where
 
 instance FromMetaValue Bool where
   fromMeta (MetaBool b) = Just b
+  fromMeta (MetaInlines [Str txt])
+    | txt == "yes"      = Just True
+    | txt == "no"       = Just False
   fromMeta _            = Nothing
 
 instance FromMetaValue Int where
   fromMeta (MetaString s) =
     case reads s of
+      ((n,""):_) -> Just n
+      _ -> Nothing
+  fromMeta (MetaInlines [Str txt]) =
+    case reads txt of
       ((n,""):_) -> Just n
       _ -> Nothing
   fromMeta _ = Nothing

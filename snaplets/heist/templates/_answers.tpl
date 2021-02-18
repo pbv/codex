@@ -1,3 +1,4 @@
+<bind tag="icon-warning">&#9888;</bind>
 <bind tag="boxcheck"><span style="font-size: 133%;">&#x2612;</span></bind>
 <bind tag="boxuncheck"><span style="font-size: 133%;">&#x2610;</span></bind>
 <bind tag="checkmark"><span style="color:green; font-size: 133%;">&#x2714;</span></bind>
@@ -5,14 +6,14 @@
 <bind tag="missmark"><span style="color:black; font-size: 133%;">&#x21e0;</span></bind>
 <bind tag="spinner"><img src="/static/images/spinner.svg"></bind>
 
-<apply template="_browse">
-  <li><a href="${page-url}"
-	 title="Voltar à página anterior">&curvearrowleft;</a></li>
-</apply>
 
 
 <apply template="_base">
   <mathjax-js/>
+  <apply template="_browse">
+    <li><a href="${page-url}"
+	   title="Voltar à página anterior">&curvearrowleft;</a></li>
+  </apply>
   
   <h2>Submissão <submit-id/></h2>
   <p>Enviada por <code><submit-user-id/></code> em <submit-time/>.</p>
@@ -21,8 +22,9 @@
     <p class="info">Se a página não atualizar automaticamente,
       use o botão "reload" do "browser".</p>
     <else/>
-    <h3>Resultado: <em><result-status/></em><if-valid><else/>&nbsp;(<em><result-check/></em>)</if-valid></h3>
-    <if-feedback>
+    <h3>Resultado: <em><result-status/></em></h3>
+    <if-valid><else/><icon-warning/>Inválida: <em><invalid-msg/></em></if-valid>
+    <if-show-feedback>
       <pre><quiz-report-summary/></pre>
       <questions>
 	<fieldset>
@@ -54,7 +56,7 @@
 	  </question-fillin>
       </fieldset>
       </questions>
-    </if-feedback>
+    </if-show-feedback>
   </if-evaluating>
 </apply>
 

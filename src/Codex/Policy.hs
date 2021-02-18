@@ -91,6 +91,9 @@ data Unit
   deriving (Eq, Read, Show)
 
 
+emptySubmission :: UserLogin -> FilePath -> UTCTime -> Submission
+emptySubmission user path time
+  = Submission undefined user path time undefined undefined undefined
 
 -------------------------------------------------------------------------
 -- geting policy from metadata
@@ -409,7 +412,7 @@ policySplices :: Page
               -> Codex ISplices
 policySplices page submitUser submitPath = do
   let policy@Policy{..} = getPolicy page
-  let hide = pageHideInvalid page
+  let lock = pageLockInvalid page
   env <- getTimeEnv
   now <- liftIO getCurrentTime
   count <- countEarlier submitUser submitPath now
@@ -422,7 +425,7 @@ policySplices page submitUser submitPath = do
                               (formatLocalTime (timeZone env) <$> constr)
   return $ do
     "timing" ## I.textSplice constrText
-    "if-available" ## I.ifElseISplice (check == Valid || not hide)
+    "if-available" ## I.ifElseISplice (check == Valid || not lock)
     "if-max-attempts" ## I.ifElseISplice (maxAttempts /= Nothing)
     "submissions-attempts" ## I.textSplice (T.pack $ show count)
     "max-attempts" ## case maxAttempts of
@@ -433,6 +436,3 @@ policySplices page submitUser submitPath = do
       Just limit -> let remain = max 0 (limit-count)
                     in I.textSplice (T.pack $ show remain)
 
-emptySubmission :: UserLogin -> FilePath -> UTCTime -> Submission
-emptySubmission user path time
-  = Submission undefined user path time undefined undefined undefined

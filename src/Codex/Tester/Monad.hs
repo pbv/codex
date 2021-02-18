@@ -33,7 +33,7 @@ import           Control.Applicative
 import           Control.Monad.Trans
 import           Control.Monad.Trans.Maybe 
 import           Control.Monad.Trans.Reader
-
+import           Control.Monad.Fail 
 import           Codex.Types (Page, Code, UserLogin)
 import           Codex.Submission.Types
 import           Text.Pandoc (Meta)
@@ -46,7 +46,8 @@ import           Data.Maybe (fromMaybe)
 -- allows access to a test environment, IO and failure (i.e. passing)
 newtype Tester a
   = Tester { unTester :: ReaderT TestEnv (MaybeT IO) a }
-  deriving (Functor, Monad, Applicative, Alternative, MonadIO)
+  deriving (Functor, Monad, Applicative, Alternative, MonadIO, MonadFail)
+
 
 -- | the testing environment
 data TestEnv
