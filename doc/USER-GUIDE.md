@@ -1,7 +1,7 @@
 ---
 title: A Guide to Writting Codex Exercises
 author: Pedro Vasconcelos <pbv@dcc.fc.up.pt>, University of Porto, Portugal. 
-date: October 2019 (version 0.9.6)
+date: February 2021 (version 0.9.9)
 ...
 
 
@@ -130,16 +130,15 @@ This is minimal index page. Here is a list of available exercises:
 * [](worksheet3.md){.ex}
 ~~~
 
-Note that the links above are marked with a special 
-class attribute `".ex"`; this
-fills-in the exercise title automatically (read from the markdown
-document) and a summary of previous submissions by the current user
-(read from the submission database).
+The links are marked with a class attribute `".ex"`; this fills-in the
+exercise title automatically (read from the markdown document) and a
+summary of previous submissions by the current user (read from the
+submission database).
 
-The administrator should compose index pages to define order
-of exercises, or group exercises using sections and sub-pages.  It is also
-possible to add plain Markdown pages for documentation, or links to
-external resources.
+The administrator should compose index pages to define order of
+exercises, or group exercises using sections and sub-pages.  It is
+also possible to add plain Markdown pages for documentation, or links
+to external resources.
 
 Note that:
 
@@ -375,24 +374,24 @@ asciiString = listOf (choose ('0', 'z'))
 -- | correctness property: for all above strings,
 -- the submission yields the same result as the reference solution
 prop_correct
-  = forAllShrink "str" asciiString shrink $
-    \xs -> strong xs ?== strong_spec xs <?> "strong"
+  = testing "strong" $ 
+    forAllShrink "str" asciiString shrink $
+    \xs -> strong xs ?== strong_spec xs 
                     
 main = quickCheckMain prop_correct
 ~~~~
 
 Some remarks:
 
-1. The student's code is always imported
-   from a separate module; names should be explicitly imported or qualified
-   to prevent name colisions;
-2. `asciiString` is a custom generator 
-   for strings with charateres from `0` to `z`:
-   this generate letters, digits and some other simbols as well;
-3. The operator `?==` asserts that the left-hand side
-   equals the (expected) right-hand side
-5. The operator `<?>` names the test for reporting;
-4. Finally, the `quickCheckMain` driver function handles
+1. The student's code is always imported from a separate module; names
+   should be explicitly imported or qualified to prevent name
+   colisions;
+2. `asciiString` is a custom generator for strings with charateres
+   from `0` to `z`: this generate letters, digits and some other
+   simbols as well;
+3. The operator `?==` asserts that the left-hand side equals the
+   (expected) right-hand side
+4. The `quickCheckMain` main function handles
    setting up of the testing parameters and checks the property.
 
 The use of shrinking simplifies failing test cases
@@ -466,28 +465,26 @@ forte_spec xs
    = length xs >= 6 && any isUpper xs && any isLower xs && any isDigit xs
 
 prop_correct
-  = forAllShrink "str" asciiString shrink $
+  = testing "forte(str)" $ 
+    forAllShrink "str" asciiString shrink $
     \xs -> c_forte_wrapper xs ?== fromIntegral (fromEnum (forte_spec xs))
-           <?> "forte" 
 
 asciiString = listOf (choose ('0', 'z'))
                       
 main = quickCheckMain prop_correct
 ~~~
 
-Note that, along with function correctness,
-the wrapper code above also checks that student code does
-not overwrite the string buffer. 
+Note that, along with function correctness, the wrapper code above
+also checks that student code does not overwrite the string buffer.
 
 # Reference guide
 
 ## Results
 
-Codex assesses submissions using a *tester*; for
-programming exercises this typically requires running a test suite (either
-provided by the instrutor or randomly-generated).
-The result is a *classification label*, a *validity check* and
-a *detail report*.
+Codex assesses submissions using a *tester*; for programming exercises
+this typically requires running a test suite (either provided by the
+instrutor or randomly-generated).  The result is a *classification
+label*, a *validity check* and a *detail report*.
 
 Classification labels are similar to the ones used for
 [ICPC programming contests](https://icpc.baylor.edu/worldfinals/rules):
@@ -509,11 +506,13 @@ compiler error)
 *RuntimeError*
 
 :     The submission was rejected because it caused a runtime error
-(e.g. runtime exception, segmentation fault)
+      (e.g. runtime exception, segmentation fault)
 
 *RuntimeLimitExceeded*, *MemoryLimitExceeded*
 
-:     The submission was reject because it tried to use too much computing resources; this usually signals an erroneous program (e.g. non-terminating).
+:     The submission was reject because it tried to use too much
+      computing resources; this usually signals an erroneous program
+      (e.g. non-terminating).
 
 *MiscError*
 
@@ -525,20 +524,16 @@ compiler error)
 :     Temporary label assigned during evaluation.
 
 
-Independentely of the classification above,
-the submission is marked *Valid* if it
-respects the constraints on time and maximum attempts (specified
-as metadata) and
-*Invalid* otherwise (with a suitable message).
+Independentely of the classification above, the submission is marked
+*Valid* if it respects the constraints on time and maximum attempts
+(specified as metadata) and *Invalid* otherwise (with a suitable
+message).
 
-Note that Codex always evaluates submissions (and reports
-feedback if is enabled); this means
-that a late submission that passes all tests will
-be classified *Accepted (Invalid: Late submission)*.[^1]
-This behaviour is intencional: it
-allows students to retry past exercises and
-leaves the instructor freedom on how to consider
-such submissions. 
+Note that Codex always evaluates submissions (and reports feedback if
+is enabled); this means that a late submission that passes all tests
+will be classified *Accepted (Invalid: Late submission)*.[^1] This
+behaviour is intencional: it allows students to retry past exercises
+and leaves the instructor freedom on how to consider such submissions.
 
 <!--
 When submissions are rejected because of a wrong answer, the text
@@ -562,35 +557,45 @@ The following metadata fields apply to all exercises types.
 `title`
 
 :      Specifies the exercise title (used for hypertext links); if
-this is missing, then the first header in the exercise description
-is used.
+       this is missing, then the first header in the exercise
+       description is used.
 
 `tester`
 
 :      Specify the type of exercise (described in the following subsection).
 
 
+`feedback`
+
+:     Boolean value (`yes`/`no` or `true`/`false`) controlling whether
+detailed feedback is shown (e.g. show the test case in case of test
+failure); the default is true.
+
 `valid`
 
-:   Specify constraints on the time and maximum number for submission attempts; the default is no time constraint and an unlimited number of submssions.  Some examples:
+:   Specify time constraints for submissions; the default is no time
+    constraint.  Some examples:
     
     ```
     valid: "after 08:00 15/02/2019"
     valid: "after 08:00 15/02/2019 and before 12:00 15/02/2019"
-    valid: "before 16/02/2019"
-    valid: "before 16/02/2019 and attempts 20"
+    valid: "(after 16/02/2019 and before 18/02/2019) or after 20/02/2019"
     ```
  
-    Date and times are relative to the server timezone.
+    Date and times are relative to the server local time zone.
 
-`allow-invalid`
+`attempts`
 
-:    Boolean value; specifies whether to allow submissions after the
-valid period/maximum attempts. Default value is `true`: invalid
-submissions are allowed but marked as `Invalid` in the database.  If
-set to `false`, submissions are disabled after the time and/or
-attempts constraints have expired.
+:     Specify maximum number of attemps allowed; default is an
+unlimited number of attempts.
 
+`lock`
+
+:    Boolean value; specifies whether to lock submissions when not in
+the valid period and/or after the maximum number of attempts. Default
+value is `true`: invalid submissions are locked.  If set to
+`false`, invalid submissions are still allowed (but still marked as
+invalid in the database).
 
 <!-- You
     may also use named events defined in a `events.cfg` configuration
@@ -607,12 +612,6 @@ attempts constraints have expired.
     ```
 -->
 
-
-`feedback`
-
-:     A boolean value (`yes`/`true` or `no`/`false`) controlling whether
-detailed feedback is shown (e.g. show the test case in case of test failure);
-the default is feedback enabled.
 
 `code`
 
@@ -685,9 +684,9 @@ arguments are empty.
 
 ### `doctest`
 
-Test Python code using
-the [`doctest` library](https://docs.python.org/3/library/doctest.html)
-for unit-testing simple functions, methods or classes. Extra options:
+Test Python code using the [`doctest`
+library](https://docs.python.org/3/library/doctest.html) for
+unit-testing simple functions, methods or classes. Extra options:
 
 `language`
 
@@ -710,13 +709,13 @@ file as the exercise with `.tst` as extension.
 
 :     Optional command-line arguments to pass the linter.
 
+
 ### `quickcheck`
 
-
-Test Haskell or C code
-using a [custom version](https://github.com/pbv/codex-quickcheck) of
-the [QuickCheck library](http://hackage.haskell.org/package/QuickCheck).
-Extra metata options:
+Test Haskell or C code using a [custom
+version](https://github.com/pbv/codex-quickcheck) of the [QuickCheck
+library](http://hackage.haskell.org/package/QuickCheck).  Extra metata
+options:
 
 `language`
 
@@ -743,6 +742,10 @@ defaults to the page filename with the extension replaced by `.hs`.
 
 :     Integer seed value for pseudo-random data generation;
 use if you want to ensure reproducibility of tests.
+
+### `hspec` 
+
+Test Haskell code using the Hspec library. TODO: write documentation for this tester.
 
 
 ### `quiz`
@@ -789,26 +792,26 @@ change the penalty for wrong opttion to $-1/3$:
 
 `feedback`
 
-:    Boolean value specifiying whether feedback on the replies should be
-given; should be set to `false` in in exam setting so that no feedback
-on correct/incorrect answers is given.
+:    Boolean value specifiying whether feedback on the replies should
+be given; should be set to `false` in in exam setting so that no
+feedback on correct/incorrect answers is given.
 
 `printout`
 
 :    Boolean value specifiying whether to include a detailed
-transcript of questions and answer when producing a printout
-report (e.g. for exams); if set to `false` then the
-report will only include a summary (number of answered, correct
-and incorrect replies and a percentage score).
+transcript of questions and answer when producing a printout report
+(e.g. for exams); if set to `false` then the report will only include
+a summary (number of answered, correct and incorrect replies and a
+percentage score).
 
 # Extra 
 
 ## Shuffling exercises  {#shuffling}
 
 
-You can shuffle exercises in a Markdown index page by using a 
-`DIV` block marked with class "`shuffle`". 
-For example, to shuffle 3 exercises:
+You can shuffle exercises in a Markdown index page by using a `DIV`
+block marked with class "`shuffle`".  For example, to shuffle 3
+exercises:
 
 ~~~{.boxed}
 <div class="shuffle">
