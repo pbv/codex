@@ -82,7 +82,7 @@ pageTester = lookupFromMeta "tester" . pageMeta
 
 -- | hide detailed feedback for submissions?
 pageShowFeedback :: Page -> Bool
-pageShowFeedback = fromMaybe False . lookupFromMeta "feedback" . pageMeta 
+pageShowFeedback = fromMaybe True . lookupFromMeta "feedback" . pageMeta 
 
 -- | lock submissions when invalid ?
 pageLockInvalid :: Page -> Bool
