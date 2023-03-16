@@ -16,6 +16,7 @@ import           Control.Applicative
 import           Control.Concurrent.MVar
 import           Control.Lens
 import           Control.Monad.State
+import           System.Directory (doesFileExist,removeFile)
 
 import           Data.Char (isAlphaNum)
 import           Data.ByteString.UTF8                        (ByteString)
@@ -169,9 +170,11 @@ codexInit handlers tester =
     prefix <- liftIO $ Conf.require conf "url_prefix"
     h <- nestSnaplet "" heist $ heistInit "templates"
     r <- nestSnaplet "router" router (initRouter prefix)
-    let sessName = sessionName prefix 
+    let sessName = sessionName prefix
+    -- remove old site any it exists
+    liftIO removeOldSiteKey 
     s <- nestSnaplet sessName sess $
-         initCookieSessionManager "site_key.txt" sessName Nothing Nothing
+         initCookieSessionManager siteKeyPath sessName Nothing Nothing
     d <- nestSnaplet "db" db S.sqliteInit
     a <- nestSnaplet "auth" auth $ initSqliteAuth sess d
     addAuthSplices h auth
@@ -203,6 +206,13 @@ codexInit handlers tester =
                , _logger  = logger
                , _eventcfg = evcfg
                }
+
+removeOldSiteKey :: IO ()
+removeOldSiteKey = 
+  whenM (doesFileExist siteKeyPath) $ removeFile siteKeyPath
+
+siteKeyPath :: String
+siteKeyPath = "site_key.txt"
 
 -- | cookie name for each session is a function of the request path prefix
 sessionName :: Text -> ByteString
@@ -236,30 +246,4 @@ staticSplices = do
   "ifAdmin" ## do mbAu <- lift (withTop auth currentUser)
                   I.ifElseISplice (maybe False isAdmin mbAu)
 
-
-{-
--- | check that a resource can be accessed
---
-accessControl :: AppUrl -> Codex ()
-accessControl Login
-  = return ()
-accessControl Logout
-  = return ()
-accessControl Register
-  = return ()
-accessControl (Page _)
-  = do require (with auth currentUser) <|> unauthorized
-       return ()
-accessControl (Report sid) = do
-  usr <- require (with auth currentUser) <|> unauthorized
-  sub <- require (getSubmission sid) <|> notFound
-  unless (isAdmin usr || submitUser sub == authUserLogin usr)
-    unauthorized
-accessControl (Files _)
-  = requireAdmin
-accessControl SubmissionList 
-  = requireAdmin
-accessControl (SubmissionAdmin _)
-  = requireAdmin
--}  
 

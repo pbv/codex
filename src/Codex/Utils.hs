@@ -339,3 +339,10 @@ encodeText = T.decodeUtf8 . LB.toStrict . Aeson.encode
 queryURL :: ByteString -> Map ByteString [ByteString] -> ByteString
 queryURL url params
   = LB.toStrict $ toLazyByteString $ byteString url <> "#" <> buildUrlEncoded params
+
+
+-- | monadic version of when
+whenM :: Monad m => m Bool -> m () -> m ()
+whenM cond action = do
+  c <- cond
+  when c action
