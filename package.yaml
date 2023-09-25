@@ -1,5 +1,5 @@
 name:                codex
-version:             0.9.9
+version:             1.0.0
 github:              "pbv/codex"
 license:             MIT
 author:              "Pedro Baltazar Vasconcelos"
@@ -9,14 +9,7 @@ copyright:           "2021 Pedro Baltazar Vasconcelos"
 extra-source-files:
 - README.md
 
-# Metadata used when publishing your package
-# synopsis:            Short description of your package
-# category:            Web
-
-# To avoid duplicated efforts in documentation and dealing with the
-# complications of embedding Haddock markup inside cabal files, it is
-# common to point users to the README.md file.
-description:         Please see the README on GitHub at <https://github.com/githubuser/db-example#readme>
+description:         Please see the README on GitHub at <https://github.com/pbv/codex/README.md>
 
 dependencies:
 - Glob

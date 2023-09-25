@@ -32,15 +32,14 @@ import qualified Text.Pandoc.Class as P
 import qualified Text.Pandoc.Options as P
 
 
-import           Data.Text (Text)
 import qualified Data.Text as T
 import           Data.Char
 import           Data.Monoid
 import           Data.Maybe (fromMaybe)
 import           Data.Hashable
 
-import           Data.HashMap.Strict (HashMap)
-import qualified Data.HashMap.Strict as HashMap
+import qualified Data.Map  as Map
+import           Data.Map (Map)
 import qualified Data.Aeson as Aeson
 import           Data.Aeson (ToJSON, FromJSON)
 import           Data.List (groupBy)
@@ -54,7 +53,7 @@ data Quiz
          }
 
 data Question
-  = Question { identifier :: String
+  = Question { identifier :: Text
              , description :: [P.Block]
              , choices :: Choices
              }
@@ -72,18 +71,18 @@ type Alts =  [(Bool, [P.Block])]
 
 -- | answers to a quiz
 -- mapping from question identifier to (possibly many) answers
-newtype Answers = Answers (HashMap String [Key])
+newtype Answers = Answers (Map Text [Key])
   deriving (Show, Semigroup, Monoid, ToJSON, FromJSON)
 
 
 answerKeys :: Choices -> [Key]
 answerKeys (FillIn key _)
-  = [T.unpack key]
+  = [key]
 answerKeys (Alternatives _ attrs alts)
   = [key | (key, (True,_)) <- zip (listLabels attrs) alts]
 
 
-type Key = String
+type Key = Text
 
 -- | a quiz together with answers
 data QuizAnswers
@@ -99,7 +98,7 @@ instance FromJSON QuizAnswers  -- derived implementation
 -- | lookup selections for a specific question
 lookupAnswer :: Question -> Answers -> [Key]
 lookupAnswer Question{..} (Answers hm)
-  = fromMaybe [] $ HashMap.lookup identifier hm
+  = fromMaybe [] $ Map.lookup identifier hm
 
 -- | convert an already shuffled quiz into a Pandoc document
 quizToDocument :: Quiz -> P.Pandoc
@@ -155,7 +154,7 @@ shuffleQuiz uid page
 -- | split up a list of blocks into questions
 makeQuiz :: Page -> Rand Quiz
 makeQuiz (P.Pandoc _ blocks)
-  = Quiz blocks' <$> sequence (map Rand.choose groups)
+  = Quiz blocks' <$> mapM Rand.choose groups
   where
     blocks' = takeWhile (not.isQuestion) blocks
     blocks''= dropWhile (not.isQuestion) blocks
@@ -194,19 +193,19 @@ isQuestion :: P.Block -> Bool
 isQuestion b = "question" `elem` headerClasses b
 
 -- | get class atributes for a header block
-headerClasses :: P.Block -> [String]
+headerClasses :: P.Block -> [Text]
 headerClasses (P.Header _ (_, classes, _) _) = classes
 headerClasses _                            = []
 
-headerAttrs :: P.Block -> [(String,String)]
+headerAttrs :: P.Block -> [(Text,Text)]
 headerAttrs (P.Header _ (_, _, kvs) _) = kvs
 headerAttrs _                        = []
 
-headerIdent :: P.Block -> Maybe String
+headerIdent :: P.Block -> Maybe Text
 headerIdent (P.Header _ (id, _,_) _) = Just id
 headerIdent _                        = Nothing
 
-removeKey :: String -> P.Block -> P.Block
+removeKey :: Text -> P.Block -> P.Block
 removeKey k (P.Header n (id, classes, kvs) inlines)
   = P.Header n (id, classes, filter (\(k',_) ->  k' /= k) kvs) inlines
 removeKey _ b = b
@@ -218,7 +217,7 @@ makeQuestion header rest
              , description = (header':prefix) ++ posfix
              , choices =
                  if  "fillin" `elem` headerClasses header
-                 then FillIn (T.concat $ map T.pack answers) normalize
+                 then FillIn (T.concat answers) normalize
                  else Alternatives multiples attrs alts
              }
   where
@@ -265,20 +264,20 @@ shuffleAlternatives (Quiz preamble questions)
 -- Pandoc stuff
 -----------------------------------------------------------
 -- | enumerate Pandoc list labels
-listLabels :: P.ListAttributes -> [String]
+listLabels :: P.ListAttributes -> [Text]
 listLabels (start, style, _) = drop (start-1) $ listNumbers style
 
-listNumbers :: P.ListNumberStyle -> [String]
-listNumbers P.LowerAlpha = map (:"") ['a'..'z']
-listNumbers P.UpperAlpha = map (:"") ['A'..'Z']
+listNumbers :: P.ListNumberStyle -> [Text]
+listNumbers P.LowerAlpha = map T.singleton ['a'..'z']
+listNumbers P.UpperAlpha = map T.singleton ['A'..'Z']
 listNumbers P.LowerRoman = lowerRomans
 listNumbers P.UpperRoman = upperRomans
-listNumbers _          = map show [1::Int .. 100]
+listNumbers _          = map (T.pack . show) [1::Int .. 100]
 
 
-lowerRomans, upperRomans :: [String]
-lowerRomans = map makeRoman [1..100]
-upperRomans = map (map toUpper) lowerRomans
+lowerRomans, upperRomans :: [Text]
+lowerRomans = map (T.pack . makeRoman) [1..100]
+upperRomans = map T.toUpper lowerRomans
 
 
 makeRoman :: Int -> String

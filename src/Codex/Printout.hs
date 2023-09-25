@@ -15,7 +15,7 @@ import           System.Directory
 
 import qualified Data.Text as T
 import qualified Data.Text.IO as T
-import           Control.Monad (forM)
+import Data.Maybe ( fromMaybe )
 import           Control.Monad.State
 
 import qualified Data.Configurator as Configurator
@@ -27,7 +27,12 @@ import           Codex.Policy (formatLocalTime)
 import           Codex.Types
 import           Codex.Application
 import           Codex.Handlers
-import           Codex.Submission
+import Codex.Submission
+    ( Patterns,
+      Ordering,
+      Submission(..),
+      Validity(..),
+      withFilterSubmissions )
 import           Codex.Page
 import           Codex.Tester.Result
 
@@ -46,13 +51,14 @@ generatePrintouts patts order = do
   conf <- getSnapletUserConfig
   dir <- liftIO $ Configurator.require conf "printouts.directory"
   liftIO $ createDirectoryIfMissing True dir
-  templ <- liftIO $
-           readFile =<< Configurator.require conf "printouts.template"
-  let opts = def { writerTemplate =  Just templ
-                 , writerExtensions = pandocExtensions
-                 , writerSetextHeaders = False
-                 , writerListings = True
-                 }
+  templ <- liftIO $ runIO $ compileDefaultTemplate "markdown"
+  let opts = def { writerTemplate = case templ of 
+                                      Left _ -> Nothing
+                                      Right tpl -> Just tpl
+                  , writerExtensions = pandocExtensions
+                  , writerSetextHeaders = False
+                  , writerListings = True
+                  }
   getSummary patts order >>= writePrintouts dir opts
   redirectURL (Page ["index.md"])
 
@@ -81,11 +87,11 @@ latest s1 s2
 addSubmission :: Summary -> Submission -> Summary
 addSubmission summary sub@Submission{..}
   = HM.insertWith (HM.unionWith best) submitUser (HM.singleton submitPath sub) summary
-  
+
 
 -- | get a summary of relevant submissions in the DB
 getSummary :: Patterns -> Codex.Submission.Ordering -> Codex Summary
-getSummary patts order 
+getSummary patts order
   = withFilterSubmissions patts order HM.empty (\x y -> return (addSubmission x y))
 
 
@@ -102,24 +108,24 @@ writePrintouts dir opts  summary = do
                            return filepath
           Left err -> error (show err)
 
-    
-    
+
+
 userPrintout :: UserLogin -> [Submission] -> Codex Pandoc
 userPrintout uid  submissions = do
   Handlers{handlePrintout} <- gets _handlers
   root <- getDocumentRoot
   tz <- liftIO getCurrentTimeZone
   now <- liftIO getZonedTime
-  let login = T.unpack (fromLogin uid)
-  fullname <- maybe login T.unpack <$> queryFullname uid
+  let login = fromLogin uid
+  fullname <- fromMaybe login <$> queryFullname uid
   blocks <- forM submissions $
             \sub -> do
               page <- readMarkdownFile (root </> submitPath sub)
               content <- handlePrintout uid page sub
               return (submissionPrintout tz page sub content)
   return (-- setTitle (text title) $
-          setAuthors [text $ fullname ++ " (" ++ login ++ ")"] $
-          setDate (text $ show now) $
+          setAuthors [text $ fullname <> " (" <> login <> ")"] $
+          setDate (text $ T.pack $ show now) $
           doc $ mconcat blocks)
 
 
@@ -131,16 +137,16 @@ submissionPrintout tz page Submission{..}  content
             , horizontalRule
             ]
   where
-    title = maybe (text submitPath) fromList (pageTitle page)
+    title = maybe (text $ T.pack submitPath) fromList (pageTitle page)
     headline
-      = header 2 (strong (text $ show $ resultStatus submitResult) <>
+      = header 2 (strong (text $ T.pack $ show $ resultStatus submitResult) <>
                   space <>
-                  emph (text $ "(" ++ checkText submitCheck ++ ")")) <>
-        para (text ("Submission " ++ show submitId ++ "; " ++
-                    T.unpack (formatLocalTime tz submitTime))
+                  emph (text $ "(" <> checkText submitCheck <> ")")) <>
+        para (text ("Submission " <> T.pack (show submitId) <> "; " <>
+                    formatLocalTime tz submitTime)
              )
-  
-checkText :: Validity -> String
+
+checkText :: Validity -> Text
 checkText Valid         = "Valid"
-checkText (Invalid msg) = "Invalid: " ++ T.unpack msg
+checkText (Invalid msg) = "Invalid: " <>  msg
 

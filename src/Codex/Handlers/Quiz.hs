@@ -1,7 +1,5 @@
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE RecordWildCards #-}
-{-# LANGUAGE GeneralizedNewtypeDeriving #-}
-{-# LANGUAGE DeriveGeneric #-}
 {-# LANGUAGE TypeApplications #-}
 
 --
@@ -20,7 +18,7 @@ import           Codex.Policy
 import           Codex.Utils
 import           Codex.Handlers
 import           Codex.Quiz
-import           Codex.Tester.Result 
+import           Codex.Tester.Result
 
 import           Snap.Core hiding (path)
 import           Snap.Snaplet.Heist
@@ -36,13 +34,11 @@ import qualified Text.Pandoc.Builder as P
 import           Data.Ratio
 import           Data.Maybe (fromMaybe)
 import qualified Data.Text           as T
-import           Data.Text(Text)
-import qualified Data.ByteString.UTF8 as B
 
-import qualified Data.HashMap.Strict as HashMap
 import qualified Data.Map            as Map
+import           Data.Aeson (FromJSON)
 import qualified Data.Aeson          as Aeson
-import           Data.Aeson.Types    as Aeson
+import qualified Data.Aeson.Types    as Aeson
 import           Data.Map.Syntax
 import           Data.List (intersperse, sort)
 import           Data.Time.LocalTime
@@ -51,6 +47,7 @@ import           Control.Monad (guard, join)
 import           Control.Monad.IO.Class (liftIO)
 
 import           Text.Printf
+import qualified Data.Text.Encoding as T
 
 decodeAnswers :: Text -> Maybe Answers
 decodeAnswers txt = answers <$> decodeText txt
@@ -59,17 +56,18 @@ decodeAnswers txt = answers <$> decodeText txt
 --
 getFormAnswers :: MonadSnap m => Quiz -> m Answers
 getFormAnswers Quiz{..}
-  = (answersFromParams . filterParams) <$> getParams
+  =  answersFromParams idents  <$> getParams
   where
-    filterParams = Map.filterWithKey (\k _ -> k `elem` idents)
-    idents = map (B.fromString . identifier) questions
+    idents = map identifier questions
 
 -- | get quiz answers from HTTP form parameters 
 --
-answersFromParams :: Params -> Answers
-answersFromParams params =
-  Answers $ HashMap.fromList [ (B.toString k, map B.toString vs)
-                             | (k,vs) <- Map.assocs params ]
+answersFromParams :: [Text] -> Params -> Answers
+answersFromParams ids params =
+  Answers $ Map.fromList [ (k', map T.decodeUtf8Lenient vs)
+                             | (k,vs) <- Map.assocs params,
+                               let k' = T.decodeUtf8Lenient k,
+                               k' `elem` ids ]
 
 
 
@@ -86,14 +84,14 @@ quizSplices Quiz{..} answers = do
 
 questionSplices :: Monad m => Answers -> Question -> Splices (I.Splice m)
 questionSplices answers question@Question{..} = do
-  "question-name" ##  I.textSplice (T.pack identifier)
+  "question-name" ##  I.textSplice identifier
   "question-description" ## return (blocksToHtml description)
   let answer = lookupAnswer question answers
   choicesSplices choices answer
 
 choicesSplices :: Monad m => Choices -> [Key] -> Splices (I.Splice m)
 choicesSplices (FillIn keyText normalize) answers = do
-  let answerText = T.concat $ map T.pack answers
+  let answerText = T.concat answers
   "question-answer" ## I.textSplice answerText
   "question-answer-key" ##  I.textSplice keyText
   "if-correct" ## I.ifElseISplice (normalize answerText ==
@@ -103,8 +101,8 @@ choicesSplices (FillIn keyText normalize) answers = do
 choicesSplices (Alternatives selection attrs alts) selected = do
   let lalts = zip (listLabels attrs) alts
   let keys = sort [ label| (label, (True, _)) <- lalts ]
-  let keyText = T.concat $ intersperse "," $ map T.pack keys
-  let answerText = T.concat $ intersperse "," $ map T.pack selected
+  let keyText = T.concat $ intersperse "," keys
+  let answerText = T.concat $ intersperse "," selected
   "question-answer" ## I.textSplice answerText
   "question-answer-key" ## I.textSplice keyText
   "list-type" ## I.textSplice (listType attrs)
@@ -113,7 +111,7 @@ choicesSplices (Alternatives selection attrs alts) selected = do
                           Multiple -> return []
                           Single -> I.textSplice "onlyOne(this)"
   let laltSplices (label,(truth,item)) = do
-        "alternative-label" ## I.textSplice (T.pack label)
+        "alternative-label" ## I.textSplice label
         "alternative" ## return (blocksToHtml item)
         "if-checked" ## I.ifElseISplice (label `elem` selected)
         "if-correct" ## I.ifElseISplice truth
@@ -153,7 +151,7 @@ quizView uid rqpath page = do
 
 
 getSubmitAnswers :: Submission -> Maybe Answers
-getSubmitAnswers = decodeAnswers . codeText . submitCode 
+getSubmitAnswers = decodeAnswers . codeText . submitCode
 
 quizSubmit :: UserLogin -> FilePath -> Page -> Codex ()
 quizSubmit uid rqpath page = do
@@ -165,7 +163,7 @@ quizSubmit uid rqpath page = do
   redirectURL (Report sid)
 
 isQuiz :: Page -> Bool
-isQuiz page = pageTester page == Just "quiz" 
+isQuiz page = pageTester page == Just "quiz"
 
 -- | report a quiz submission
 quizReport :: FilePath -> Page -> Submission -> Codex ()
@@ -183,20 +181,20 @@ quizReport rqpath page sub = do
     quizSplices quiz answers
 
 
-summarySplice Result{..} = 
+summarySplice Result{..} =
   "quiz-report-summary" ##
-    maybe (return []) I.textSplice (reportSummary <$> decodeText resultReport)
+    maybe (return []) (I.textSplice . reportSummary) (decodeText resultReport)
 
 
 verbosePrintout :: Page -> Bool
-verbosePrintout = fromMaybe True . lookupFromMeta "printout" . pageMeta 
+verbosePrintout = fromMaybe True . lookupFromMeta "printout" . pageMeta
 
 -------------------------------------------------------------------
 -- Summary
 -------------------------------------------------------------------
 
 type Fraction  = Ratio Int
-                  
+
 -- report the summary in human-readable text
 reportSummary :: Map.Map String Aeson.Value -> Text
 reportSummary summary
@@ -214,27 +212,26 @@ reportSummary summary
   where
     fetch :: FromJSON v => String -> Maybe v
     fetch name = Map.lookup name summary >>=
-                 Aeson.parseMaybe Aeson.parseJSON 
+                 Aeson.parseMaybe Aeson.parseJSON
 
     num_questions = fetch @Int "number_of_questions"
     num_options   = fetch @Int "number_of_options"
     num_correct   = fetch @Int "correct_selections"
     num_incorrect = fetch @Int "incorrect_selections"
-    
+
     correct_weight
       = join (fetch @(Maybe Fraction) "correct_weight_ratio")
     incorrect_weight
       = join (fetch @(Maybe Fraction) "incorrect_weight_ratio")
     score_percent = (100*) <$> fetch @Double "score_percent"
 
-   
+
 showFraction :: (Integral a, Show a) => Ratio a -> String
 showFraction r
   = show (numerator r) ++
-    if (denominator r /= 1) then
+    if denominator r /= 1 then
       "/" ++ show (denominator r)
     else ""
-
 
 
 ----------------------------------------------------------------------
@@ -247,7 +244,7 @@ quizPrintout _ page Submission{..}  = do
   where
     content = if verbosePrintout page then ppQuiz quiz answers
               else mempty
-    report = maybe "" T.unpack $
+    report = fromMaybe "" $
               reportSummary <$> (decodeText $ resultReport submitResult)
     quiz = shuffleQuiz submitUser page
     answers = fromMaybe mempty $ decodeAnswers $ codeText $ submitCode
@@ -259,13 +256,13 @@ ppQuiz (Quiz _ questions) answers
 ppQuestion :: Question -> Answers -> P.Blocks
 ppQuestion question@Question{..} answers
   = P.fromList description <>
-    ppChoices choices (lookupAnswer question answers) 
+    ppChoices choices (lookupAnswer question answers)
 
-  
+
 ppChoices :: Choices -> [Key] -> P.Blocks
 ppChoices (FillIn keyText _) answers
   = P.plain (mconcat $ map P.text answers) <>
-    P.plain (P.emph "Answer:" <> P.text (T.unpack keyText))
+    P.plain (P.emph "Answer:" <> P.text keyText)
 
 ppChoices (Alternatives _ attrs alts) selected
   = P.orderedListWith attrs (map (ppAlternative selected) lalts)
@@ -281,11 +278,11 @@ ppAlternative selected (label, (truth, blocks))
            | reply && not truth = P.plain $ P.strong $ P.text "WRONG"
            | not reply && truth = P.plain $ P.strong $ P.text "MISS"
            | otherwise = mempty
-           
-    
+
+
 -- | record with quiz handlers
 quizHandlers :: Handlers Codex
 quizHandlers
   = Handlers quizView quizSubmit (const quizReport) quizPrintout
 
- 
+

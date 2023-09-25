@@ -1,5 +1,4 @@
 {-# LANGUAGE OverloadedStrings #-}
-{-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 --
 -- Markdown view handler
@@ -68,7 +67,7 @@ runShuffleing uid page
 shuffleLists :: Block -> Rand Block
 shuffleLists (Div (id, classes, attrs) blocks)
   | "shuffle" `elem` classes = do
-      let limit = readMaybe =<< lookup "choose" attrs 
+      let limit = (readMaybe . T.unpack) =<< lookup "choose" attrs 
       blocks' <- mapM (shuffleList limit) blocks
       return (Div (id, classes, attrs) blocks')
 shuffleLists block
@@ -96,7 +95,7 @@ fillExerciseLinks uid rqdir page = do
 exerciseLinks :: UserLogin -> FilePath -> FilePath -> Inline -> Codex Inline
 exerciseLinks uid root rqdir (Link attr@(_, classes,_) _ target@(url,_))
   | "ex" `elem` classes = do
-      let path = normalise (rqdir </> url)
+      let path = normalise (rqdir </> T.unpack url)
       title <- liftIO $ readPageTitle (root </> path)
       count <- countSubmissions uid path
       return (formatLink attr title target count)
@@ -110,7 +109,7 @@ formatLink attr title target count
      LineBreak,
       Span ("", ["info"], [])
       [Str "(",
-        Str (show count), Space, Str "submissões",
+        Str (T.pack $ show count), Space, Str "submissões",
         Str ")"]
     ]
 
@@ -122,9 +121,9 @@ fillUserLinks uid = walk (userLinks uid)
 userLinks ::  UserLogin -> Inline -> Inline
 userLinks uid (Link attr@(_, classes,_) inlines _target@(url,short))
   | "user" `elem` classes = 
-      let url' = replaceUserField (T.unpack $ fromLogin uid) url
+      let url' = T.pack $ replaceUserField (T.unpack $ fromLogin uid) (T.unpack url)
           target' = (url', short)
-      in (Link attr inlines target')
+      in Link attr inlines target'
 userLinks _ elm = elm
 
   
@@ -142,7 +141,7 @@ readPageTitle path = do
     Left (_ :: IOException) -> brokenLink 
     Right page -> fromMaybe brokenLink (pageTitle page)
   where
-    brokenLink = [Pandoc.Code nullAttr path]
+    brokenLink = [Pandoc.Code nullAttr (T.pack path)]
 
 
 markdownHandlers :: Handlers Codex

@@ -23,7 +23,6 @@ import           Data.Text (Text)
 import qualified Data.Text as T
 import qualified Data.Text.IO as T
 import           Data.Maybe (fromMaybe)
-import           Data.List(zip3)
 import           Text.Printf
 
 import           Control.Exception (catch)
@@ -40,7 +39,7 @@ data Build =
         , makeExec :: FilePath -> Code -> IO exec
         , runExec  :: exec
                    -> Maybe FilePath   -- working dir
-                   -> [String]         -- cmdline args 
+                   -> [Text]           -- cmdline args 
                    -> Text             -- stdin
                    -> IO (ExitCode, Text, Text)  -- status, stdout, stderr
         }
@@ -59,7 +58,7 @@ clangBuild = do
         T.writeFile c_file code
         chmod (executable . readable . writeable) tmpdir
         chmod readable c_file
-        runCompiler (Just limits) cc (cc_args ++ [c_file, "-o", exe_file])
+        runCompiler (Just limits) cc (map T.pack cc_args ++ [T.pack c_file, "-o", T.pack exe_file])
         return exe_file
   let run exe_file dir args stdin = do
         safeExec limits exe_file dir args stdin
@@ -79,7 +78,7 @@ pythonBuild = do
         chmod readable pyfile
         return pyfile
   let run pyfile dir args stdin = do
-        safeExec limits python dir (pyfile:args) stdin
+        safeExec limits python dir (T.pack pyfile:args) stdin
   return (Build (=="python") make run)
 
 -- | builder for Java programs
@@ -99,11 +98,11 @@ javaBuild = do
         T.writeFile java_file code
         chmod (executable . readable . writeable) tmpdir
         chmod readable java_file
-        runCompiler (Just limits) javac (javac_args ++ [java_file])
+        runCompiler (Just limits) javac (map T.pack javac_args ++ [T.pack java_file])
         return classfile
   let run classfile cwd args stdin = do
         let classpath = takeDirectory classfile
-        let args' = java_args ++ ["-cp", classpath, classname] ++ args
+        let args' = map T.pack java_args ++ ["-cp", T.pack classpath, T.pack classname] ++ args
         safeExec limits java cwd args' stdin
   return (Build (=="java") make run)
 
@@ -122,7 +121,7 @@ haskellBuild = do
         T.writeFile hs_file code
         chmod (readable . writeable . executable) tmpdir
         chmod readable hs_file        
-        runCompiler (Just limits) ghc (ghc_args ++ [hs_file, "-o", exe_file])
+        runCompiler (Just limits) ghc (map T.pack ghc_args ++ [T.pack hs_file, "-o", T.pack exe_file])
         return exe_file
   let run exe_file args stdin = do
         safeExec limits exe_file args stdin
@@ -167,7 +166,7 @@ stdioTester Build{..} = tester "stdio" $ do
 
 
 runTests ::
-  ([String] -> Text -> IO (ExitCode, Text, Text)) ->
+  ([Text] -> Text -> IO (ExitCode, Text, Text)) ->
   [(Maybe FilePath, FilePath, FilePath)] ->
   -- ^ optional file with cmdline args, input, output
   IO Result
@@ -181,7 +180,7 @@ runTests action tests
       in_txt <- T.readFile in_file
       out_txt <- T.readFile out_file
       arg_str <- maybe (return "") readFile opt_arg_file
-      args <- parseArgs arg_str
+      args <- map T.pack <$> parseArgs arg_str
       result <- classify in_txt out_txt <$> action args in_txt
       if resultStatus result == Accepted then
         loop (n+1) tests

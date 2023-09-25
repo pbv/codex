@@ -41,6 +41,7 @@ import           Codex.Page
 import           Codex.Tester.Limits
 import           System.FilePath
 import           Data.Maybe (fromMaybe)
+import           Data.Text (Text)
 
 -- | a monad for testing scripts
 -- allows access to a test environment, IO and failure (i.e. passing)
@@ -88,20 +89,20 @@ testMetadata = pageMeta <$> testPage
 
 
 -- | get a medata value given the key
-metadata :: FromMetaValue a => String -> Tester (Maybe a)
+metadata :: FromMetaValue a => Text -> Tester (Maybe a)
 metadata key = do
   meta <- testMetadata
   return (lookupFromMeta key meta)
 
 -- | get an relative path from metadata 
-metadataPath :: String -> Tester (Maybe FilePath)
+metadataPath :: Text -> Tester (Maybe FilePath)
 metadataPath key = do
   dir <- takeDirectory <$> testFilePath  -- directory for exercise page
   fmap (dir </>) <$> metadata key     -- lookup and make a relative path
 
 
 -- | get a optional value given the default
-metadataWithDefault :: FromMetaValue a => String -> a -> Tester a
+metadataWithDefault :: FromMetaValue a => Text -> a -> Tester a
 metadataWithDefault key def = fromMaybe def <$> metadata key
 
 -- | fetch a configured value; return Nothing if key not present

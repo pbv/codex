@@ -117,10 +117,10 @@ writeable mode =
 
 
 -- | run a compiler (possibly under a safe sandbox)
-runCompiler :: Maybe Limits -> FilePath -> [String] -> IO ()
+runCompiler :: Maybe Limits -> FilePath -> [Text] -> IO ()
 runCompiler optLimits cmd args = do
   (exitCode, out, err) <- case optLimits of
-    Nothing -> readTextProcessWithExitCode cmd args ""
+    Nothing -> readTextProcessWithExitCode cmd (map T.unpack args) ""
     Just limits -> safeExec limits cmd Nothing args ""   
   case exitCode of
     ExitFailure _ -> 
@@ -137,12 +137,12 @@ readTextProcessWithExitCode cmd args stdin = do
 safeExec :: Limits
          -> FilePath           -- ^ command
          -> Maybe FilePath     -- ^ optional working directory
-         -> [String]           -- ^ comand line arguments
+         -> [Text]             -- ^ comand line arguments
          -> Text               -- ^ stdin
          -> IO (ExitCode, Text, Text)
          -- ^ code, stdout, stderr
 safeExec limits exec dir args stdin = do
-  (code, out, err) <- safeExecBS limits exec dir args (T.encodeUtf8 stdin)
+  (code, out, err) <- safeExecBS limits exec dir (map T.unpack args) (T.encodeUtf8 stdin)
   return (code,
            T.decodeUtf8With T.lenientDecode out,
            T.decodeUtf8With T.lenientDecode err)
@@ -155,7 +155,7 @@ safeExecBS :: Limits
            -> Maybe FilePath     -- ^ working directory
            -> [String]           -- ^ arguments
            -> ByteString         -- ^ stdin
-           -> IO (ExitCode, ByteString,ByteString)
+           -> IO (ExitCode, ByteString, ByteString)
            -- ^ code, stdout, stderr
 safeExecBS Limits{..} exec dir args inbs = do
   (inp, outstream, errstream, pid) <-
@@ -226,14 +226,14 @@ unsafeExec exec args inp = do
 -- first list are keys that take arguments;
 -- second list are keys that control on/off switches
 --
-getMetaArgs :: [String] -> [String] -> Meta -> [String]
+getMetaArgs :: [Text] -> [Text] -> Meta -> [Text]
 getMetaArgs argKeys switchKeys meta
   = catMaybes ([ do str <- lookupFromMeta key meta
-                    Just ("--" ++ key ++ "=" ++ str)
+                    Just ("--" <> key <> "=" <> str)
                | key <- argKeys ]
                 ++
                [ do bool <- lookupFromMeta key meta
-                    if bool then Just ("--" ++ key) else Nothing
+                    if bool then Just ("--" <> key) else Nothing
                 | key <- switchKeys ]
               )
 

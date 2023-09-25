@@ -104,9 +104,9 @@ submissionListSplices tz list = do
 codePrintout :: Page -> Submission -> Codex P.Blocks
 codePrintout page Submission{..} = do
   guard (isExercise page)
-  let lang = T.unpack $ fromLanguage $ codeLang submitCode
-  let code = T.unpack $ codeText submitCode
-  let report = T.unpack $ resultReport submitResult
+  let lang = fromLanguage $ codeLang submitCode
+  let code = codeText submitCode
+  let report = resultReport submitResult
   return (P.codeBlockWith ("", [lang, "numberLines"], []) code <>
           P.codeBlock report)
 

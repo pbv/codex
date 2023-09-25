@@ -8,9 +8,9 @@ module Codex.Tester.PythonDoctest (
 
 import           Codex.Tester
 import           Data.Text(Text)
+import qualified Data.Text as T
 import           Data.Maybe(fromMaybe)
 import           Control.Exception (catch)
-
 
 pythonDocTester :: Tester Result
 pythonDocTester = tester "doctest" $ do
@@ -33,9 +33,9 @@ pythonDocTester = tester "doctest" $ do
     chmod readable pyfile
     when linterFlag $
       case linterOpt of
-        Just (cmd:args) -> runCompiler Nothing cmd (args ++ [pyfile])
+        Just (cmd:args) -> runCompiler Nothing cmd (map T.pack args ++ [T.pack pyfile])
         _ -> fail "missing python linter command in config file"
-    let args = [runtests, scripts, tstpath, pyfile]
+    let args = map T.pack [runtests, scripts, tstpath, pyfile]
     classify <$> safeExec limits python Nothing args "") `catch` return
 
 

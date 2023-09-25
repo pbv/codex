@@ -17,6 +17,7 @@ import           Text.Blaze.Renderer.XmlHtml
 import           Data.Maybe
 import qualified Data.Text as T
 import qualified Data.Text.IO as T
+import qualified Data.Text.Read as T
 import qualified Data.Map as Map
 import           Data.List (intersperse)
 
@@ -105,12 +106,12 @@ instance FromMetaValue Bool where
 
 instance FromMetaValue Int where
   fromMeta (MetaString s) =
-    case reads s of
-      ((n,""):_) -> Just n
+    case T.decimal s of
+      (Right (n,"")) -> Just n
       _ -> Nothing
   fromMeta (MetaInlines [Str txt]) =
-    case reads txt of
-      ((n,""):_) -> Just n
+    case T.decimal txt of
+      (Right (n, "")) -> Just n
       _ -> Nothing
   fromMeta _ = Nothing
 
@@ -128,18 +129,18 @@ instance FromMetaValue Language where
 
 
 -- | lookup from metadata value
-lookupFromMeta :: FromMetaValue a => String -> Meta -> Maybe a
+lookupFromMeta :: FromMetaValue a => Text -> Meta -> Maybe a
 lookupFromMeta tag meta = lookupMeta tag meta >>= fromMeta
 
 
 -- collect text in inline and block elements
 inlineText :: Inline -> Text
-inlineText (Str s)   = T.pack s
+inlineText (Str s)   = s
 inlineText Space     = " "
 inlineText LineBreak  = "\n"
-inlineText (Math _ s) = T.pack s
-inlineText (Text.Pandoc.Code _ s) = T.pack s
-inlineText (RawInline _ s) = T.pack s
+inlineText (Math _ s) = s
+inlineText (Text.Pandoc.Code _ s) = s
+inlineText (RawInline _ s) = s
 inlineText (Quoted qt l) =  quote <> T.concat (map inlineText l) <> quote
   where quote = case qt of
             SingleQuote -> "\'"
@@ -156,8 +157,8 @@ blockText :: Block -> Text
 blockText (Plain l)       = query inlineText l
 blockText (Para p)        = query inlineText p
 blockText (Header _ _ l)  = query inlineText l
-blockText (CodeBlock _ s) = T.pack s
-blockText (RawBlock  _ s) = T.pack s
+blockText (CodeBlock _ s) = s
+blockText (RawBlock  _ s) = s
 blockText _               = T.empty
 
 inlineString :: Inline -> String
@@ -167,7 +168,7 @@ inlineString = T.unpack . inlineText
 -- | collect text from a meta value
 metaText :: MetaValue -> Text
 metaText (MetaString s) =
-  T.pack s
+  s
 metaText (MetaBool b) =
   T.pack (show b)
 metaText (MetaInlines l) =
@@ -178,7 +179,7 @@ metaText (MetaList l) =
   T.concat (intersperse "," $ map metaText l)
 metaText (MetaMap m) =
   T.concat $
-  intersperse ","  [T.concat [T.pack k, ":", metaText v] | (k,v)<- Map.assocs m]
+  intersperse ","  [T.concat [k, ":", metaText v] | (k,v)<- Map.assocs m]
 
 
 -- | render a page as a list of HTML nodes
@@ -224,7 +225,8 @@ pandocReaderOptions
 docError :: PandocError -> Pandoc
 docError err
   = Pandoc mempty
-    [Div ("", ["errors"], []) [Para [Str "ERROR:", Space, Str (show err)]]]
+    [Div ("", ["errors"], [])
+     [Para [Str "ERROR:", Space, Str (T.pack $ show err)]]]
     
 docWarnings :: [LogMessage] -> Pandoc
 docWarnings []
@@ -232,7 +234,7 @@ docWarnings []
 docWarnings msgs
   = Pandoc mempty
     [Div ("", ["warnings"], [])
-      [Para [Str "WARNING:", Space, Str (show msg)] | msg <- msgs]]
+      [Para [Str "WARNING:", Space, Str (T.pack $ show msg)] | msg <- msgs]]
 
 
 

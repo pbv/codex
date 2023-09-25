@@ -9,6 +9,7 @@ module Codex.Tester.QuickCheck (
 
 
 import           Data.Text (Text)
+import qualified Data.Text as T
 import qualified Data.Text.IO as T
 import           Data.Maybe (fromMaybe)
 import           Codex.Tester 
@@ -36,7 +37,8 @@ haskellQCTester = tester "quickcheck" $ do
   liftIO (haskellRunner limits ghc qcArgs files src props `catch` return)
 
 
-haskellRunner :: Limits -> FilePath -> [String] -> [FilePath] -> Text -> Text -> IO Result
+haskellRunner :: Limits -> FilePath -> [Text] -> [FilePath] -> Text -> Text
+              -> IO Result
 haskellRunner limits ghc qcArgs files code props =
    withTempDir "codex" $ \dir -> do
      -- copy extra files
@@ -45,7 +47,7 @@ haskellRunner limits ghc qcArgs files code props =
      let main_file = dir </> "Main.hs"
      let exe_file = dir </> "Main"
      cmd:args <- parseArgs ghc
-     let args' = args ++ ["-i"++dir, main_file, "-o", exe_file]
+     let args' = map T.pack args ++ [T.pack ("-i"++dir), T.pack main_file, "-o", T.pack exe_file]
      T.writeFile hs_file (header <> code)
      T.writeFile main_file props
      chmod executable dir
@@ -90,7 +92,7 @@ clangQCTester = tester "quickcheck" $ do
 clangRunner :: Limits
             -> String
             -> String
-            -> [String]
+            -> [Text]
             -> Text
             -> Text -> IO Result
 clangRunner limits gcc_cmd ghc_cmd qcArgs c_code props =
@@ -103,8 +105,8 @@ clangRunner limits gcc_cmd ghc_cmd qcArgs c_code props =
       T.writeFile hs_file props
       gcc:cc_args <- parseArgs gcc_cmd
       ghc:hc_args <- parseArgs ghc_cmd
-      let cc_args'= cc_args ++ ["-c", c_file, "-o", obj_file]
-      let hc_args'= hc_args ++ ["-i"++dir, obj_file, hs_file, "-o", exe_file]
+      let cc_args'= map T.pack cc_args ++ ["-c", T.pack c_file, "-o", T.pack obj_file]
+      let hc_args'= map T.pack hc_args ++ [T.pack ("-i"++dir), T.pack obj_file, T.pack hs_file, "-o", T.pack exe_file]
       chmod executable dir
       chmod writeable dir
       chmod readable c_file
@@ -132,6 +134,6 @@ classify (ExitFailure _, stdout, stderr)
   where msg = stdout <> stderr
 
 
-getQuickCheckArgs :: Meta -> [String]
+getQuickCheckArgs :: Meta -> [Text]
 getQuickCheckArgs 
   =  getMetaArgs ["maxSucess", "maxSize", "maxDiscardRatio", "randSeed"] []

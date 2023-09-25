@@ -10,6 +10,7 @@ module Codex.Tester.Hspec (
 
 
 import           Data.Text (Text)
+import qualified Data.Text as T
 import qualified Data.Text.IO as T
 import           Data.Maybe (fromMaybe)
 import           Data.Map.Strict (fromList)
@@ -38,7 +39,7 @@ hspecTester = tester "hspec" $ do
   limits <- configLimits "language.haskell.limits"
   liftIO (haskellRunner limits ghc args files src spec `catch` return)
 
-getHspecArgs :: Meta -> [String]
+getHspecArgs :: Meta -> [Text]
 getHspecArgs 
   = getMetaArgs ["qc-max-success", "qc-max-size",
                   "qc-max-discard", "seed", "format", "depth"]
@@ -50,7 +51,7 @@ defaultMeta = Meta $ fromList [ -- ("format", MetaString "failed-examples")
                               ]
 
 haskellRunner ::
-  Limits -> FilePath -> [String] -> [FilePath] -> Text -> Text -> IO Result
+  Limits -> FilePath -> [Text] -> [FilePath] -> Text -> Text -> IO Result
 haskellRunner limits ghc qcArgs files code props =
    withTempDir "codex" $ \dir -> do
      -- copy extra files
@@ -58,14 +59,14 @@ haskellRunner limits ghc qcArgs files code props =
      let hs_file   = dir </> "Submission.hs"
      let main_file = dir </> "Main.hs"
      let exe_file = dir </> "Main"
-     cmd:args <- parseArgs ghc
-     let args' = args ++ ["-i"++dir, main_file, "-o", exe_file]
+     cmd:args <- map T.pack <$> parseArgs ghc
+     let args' = args ++ [T.pack ("-i"++dir), T.pack main_file, "-o", T.pack exe_file]
      T.writeFile hs_file (header <> code)
      T.writeFile main_file props
      chmod executable dir
      chmod writeable dir
      chmod readable hs_file
-     runCompiler (Just limits) cmd args'
+     runCompiler (Just limits) (T.unpack cmd) args'
      classify <$> safeExec limits exe_file Nothing qcArgs ""
 
 header :: Text

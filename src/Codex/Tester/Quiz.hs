@@ -4,7 +4,6 @@
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE ScopedTypeVariables #-}
-{-# LANGUAGE TypeApplications #-}
 
 module Codex.Tester.Quiz (
   quizTester
@@ -12,7 +11,7 @@ module Codex.Tester.Quiz (
 
 
 import           Codex.Tester
-import           Codex.Page 
+import           Codex.Page
 import           Codex.Utils (decodeText, encodeText)
 import           Codex.Quiz hiding (questions)
 import qualified Data.Text as T
@@ -69,7 +68,7 @@ quizTester = tester "quiz" $ do
   weights <- Weights <$> metadata "correct-weight" <*>
                          metadata "incorrect-weight"
   let quiz = shuffleQuiz uid page
-  let selected = fromMaybe mempty (answers <$> decodeText text)
+  let selected = maybe mempty answers (decodeText text)
   let scores = scoreQuiz weights quiz selected
   let summary = makeSummary weights scores
   return $ accepted $ encodeText summary
@@ -96,7 +95,7 @@ makeSummary Weights{..} Scores{..}
     score = if numQuestions > 0
             then sum scoresList / fromIntegral numQuestions
             else 0
-        
+
 
 
 instance (Integral a, Read a) => FromMetaValue (Ratio a) where
@@ -124,20 +123,20 @@ readFrac r =
    ]
   )
 
-    
+
 -- | score all questions in a quiz
 --
-scoreQuiz :: Weights -> Quiz -> Answers -> Scores 
+scoreQuiz :: Weights -> Quiz -> Answers -> Scores
 scoreQuiz weights (Quiz _ questions) answers
   = mconcat [scoreQuestion weights q answers | q<-questions]
 
 -- | score a single question
 --
-scoreQuestion :: Weights -> Question -> Answers -> Scores 
-scoreQuestion weights question answers 
+scoreQuestion :: Weights -> Question -> Answers -> Scores
+scoreQuestion weights question answers
   = scoreChoices weights (choices question) (lookupAnswer question answers)
 
-scoreChoices :: Weights -> Choices -> [Key] -> Scores 
+scoreChoices :: Weights -> Choices -> [Key] -> Scores
 scoreChoices Weights{..} (Alternatives _ attrs alts) selected
   | num_correct>0 && num_wrong>0
   = Scores num_keys correct wrong [grade]
@@ -156,18 +155,18 @@ scoreChoices Weights{..} (Alternatives _ attrs alts) selected
           Just w -> w * fromIntegral correct
         -- negative grade for incorrectly answered alternatives    
         negative = case incorrectWeight of
-          Nothing -> -wrong%num_wrong
+          Nothing -> - (wrong%num_wrong)
           Just w -> w * fromIntegral wrong
         -- combined grade for this question
         grade = (-1) `max` (positive + negative) `min` 1
-          
+
 
 scoreChoices _ (FillIn keyText normalize) answers
   = Scores 1 correct wrong [grade]
-  where grade = fromIntegral correct 
+  where grade = fromIntegral correct
         correct = if normalize answerText == normalize keyText
                   then 1 else 0
         wrong = 1 - correct
-        answerText = T.concat $ map T.pack answers 
-        
-        
+        answerText = T.concat answers
+
+

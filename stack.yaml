@@ -4,15 +4,14 @@ packages:
 allow-newer: true
 
 extra-deps:
-- heist-1.1
-- ldap-client-0.4.1
-- map-syntax-0.3
-- snap-1.1.3.1
-- snap-loader-static-1.0.0.1
-- snap-web-routes-0.5.1.0
-- snaplet-sqlite-simple-1.0.0.2
-- xmlhtml-0.2.5.2
-- pwstore-fast-2.4.4
-- shellwords-0.1.2.2
+  - ldap-client-0.4.2
+  - snap-server-1.1.2.1
+  - snap-1.1.3.1
+  - snap-loader-static-1.0.0.1
+  - snap-web-routes-0.5.1.0
+  - snaplet-sqlite-simple-1.0.0.2 
 
-resolver: lts-14.27
+resolver: lts-21.9
+
+ghc-options:
+    "$everything": -split-sections
