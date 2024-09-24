@@ -43,7 +43,7 @@ import           Data.HashMap.Strict (HashMap)
 import qualified Data.HashMap.Strict as HM
 import           Data.List (sortBy)
 import           Data.Function(on)
-
+import           Data.Functor.Identity
 
 -- | generate Markdown printouts for best submissions
 generatePrintouts :: Patterns -> Codex.Submission.Ordering -> Codex ()
@@ -51,10 +51,15 @@ generatePrintouts patts order = do
   conf <- getSnapletUserConfig
   dir <- liftIO $ Configurator.require conf "printouts.directory"
   liftIO $ createDirectoryIfMissing True dir
-  templ <- liftIO $ runIO $ compileDefaultTemplate "markdown"
-  let opts = def { writerTemplate = case templ of 
-                                      Left _ -> Nothing
-                                      Right tpl -> Just tpl
+  tplPath <- liftIO $ Configurator.require conf "printouts.template"
+  tplOut <- liftIO $ runIO $ getTemplate tplPath
+  let tplText = case tplOut of
+                 Right txt -> txt
+                 Left err -> error (show err)
+  let tpl = case runIdentity (compileTemplate tplPath tplText) of
+              Right tpl -> tpl
+              Left err -> error (show err)
+  let opts = def { writerTemplate = Just tpl
                   , writerExtensions = pandocExtensions
                   , writerSetextHeaders = False
                   , writerListings = True
@@ -123,8 +128,7 @@ userPrintout uid  submissions = do
               page <- readMarkdownFile (root </> submitPath sub)
               content <- handlePrintout uid page sub
               return (submissionPrintout tz page sub content)
-  return (-- setTitle (text title) $
-          setAuthors [text $ fullname <> " (" <> login <> ")"] $
+  return (setAuthors [text $ fullname <> " (" <> login <> ")"] $
           setDate (text $ T.pack $ show now) $
           doc $ mconcat blocks)
 
