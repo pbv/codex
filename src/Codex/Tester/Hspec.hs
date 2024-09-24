@@ -79,6 +79,6 @@ classify (ExitFailure _, stdout, stderr)
   | match "Time Limit" stderr      = timeLimitExceeded stderr
   | match "Memory Limit" stderr    = memoryLimitExceeded stderr
   | match "Exception" stdout       = runtimeError stdout
-  | match "Failures:" stdout       = wrongAnswer stdout
+  | match "Failures:" stdout       = wrongAnswer (stdout<>stderr)
   | otherwise                      = miscError (stdout<>stderr)
 

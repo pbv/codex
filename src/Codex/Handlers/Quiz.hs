@@ -46,7 +46,7 @@ import           Data.Time.LocalTime
 import           Control.Monad (guard, join)
 import           Control.Monad.IO.Class (liftIO)
 
-import           Text.Printf
+import           Text.Printf 
 import qualified Data.Text.Encoding as T
 
 decodeAnswers :: Text -> Maybe Answers
@@ -244,14 +244,13 @@ quizPrintout _ page Submission{..}  = do
   where
     content = if verbosePrintout page then ppQuiz quiz answers
               else mempty
-    report = fromMaybe "" $
-              reportSummary <$> (decodeText $ resultReport submitResult)
+    report = maybe "" reportSummary (decodeText $ resultReport submitResult)
     quiz = shuffleQuiz submitUser page
     answers = fromMaybe mempty $ decodeAnswers $ codeText $ submitCode
 
 ppQuiz :: Quiz -> Answers -> P.Blocks
 ppQuiz (Quiz _ questions) answers
-  = mconcat (map (flip ppQuestion answers) questions)
+  = mconcat (map (`ppQuestion` answers) questions)
 
 ppQuestion :: Question -> Answers -> P.Blocks
 ppQuestion question@Question{..} answers
@@ -265,8 +264,15 @@ ppChoices (FillIn keyText _) answers
     P.plain (P.emph "Answer:" <> P.text keyText)
 
 ppChoices (Alternatives _ attrs alts) selected
-  = P.orderedListWith attrs (map (ppAlternative selected) lalts)
-  where lalts = zip (listLabels attrs) alts
+  | correct = P.orderedListWith attrs (map (ppAlternative selected) lalts)
+        --- disabled question
+  | otherwise =
+      P.plain (P.emph "Disabled question") <>
+      P.orderedListWith attrs (map (ppAlternative []) lalts)
+  where
+    correct = or (map fst alts)      -- is there any correct answer?
+    lalts = zip (listLabels attrs) alts
+
 
 ppAlternative :: [Key] -> (Key, (Bool, [P.Block])) -> P.Blocks
 ppAlternative selected (label, (truth, blocks))
@@ -284,5 +290,6 @@ ppAlternative selected (label, (truth, blocks))
 quizHandlers :: Handlers Codex
 quizHandlers
   = Handlers quizView quizSubmit (const quizReport) quizPrintout
+
 
 
