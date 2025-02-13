@@ -6,76 +6,227 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes" />
   <meta name="author" content="Pedro Vasconcelos pbv@dcc.fc.up.pt, University of Porto, Portugal." />
   <title>A Guide to Writting Codex Exercises</title>
-  <style type="text/css">
-      code{white-space: pre-wrap;}
-      span.smallcaps{font-variant: small-caps;}
-      span.underline{text-decoration: underline;}
-      div.column{display: inline-block; vertical-align: top; width: 50%;}
+  <style>
+    html {
+      color: #1a1a1a;
+      background-color: #fdfdfd;
+    }
+    body {
+      margin: 0 auto;
+      max-width: 36em;
+      padding-left: 50px;
+      padding-right: 50px;
+      padding-top: 50px;
+      padding-bottom: 50px;
+      hyphens: auto;
+      overflow-wrap: break-word;
+      text-rendering: optimizeLegibility;
+      font-kerning: normal;
+    }
+    @media (max-width: 600px) {
+      body {
+        font-size: 0.9em;
+        padding: 12px;
+      }
+      h1 {
+        font-size: 1.8em;
+      }
+    }
+    @media print {
+      html {
+        background-color: white;
+      }
+      body {
+        background-color: transparent;
+        color: black;
+        font-size: 12pt;
+      }
+      p, h2, h3 {
+        orphans: 3;
+        widows: 3;
+      }
+      h2, h3, h4 {
+        page-break-after: avoid;
+      }
+    }
+    p {
+      margin: 1em 0;
+    }
+    a {
+      color: #1a1a1a;
+    }
+    a:visited {
+      color: #1a1a1a;
+    }
+    img {
+      max-width: 100%;
+    }
+    h1, h2, h3, h4, h5, h6 {
+      margin-top: 1.4em;
+    }
+    h5, h6 {
+      font-size: 1em;
+      font-style: italic;
+    }
+    h6 {
+      font-weight: normal;
+    }
+    ol, ul {
+      padding-left: 1.7em;
+      margin-top: 1em;
+    }
+    li > ol, li > ul {
+      margin-top: 0;
+    }
+    blockquote {
+      margin: 1em 0 1em 1.7em;
+      padding-left: 1em;
+      border-left: 2px solid #e6e6e6;
+      color: #606060;
+    }
+    code {
+      font-family: Menlo, Monaco, Consolas, 'Lucida Console', monospace;
+      font-size: 85%;
+      margin: 0;
+      hyphens: manual;
+    }
+    pre {
+      margin: 1em 0;
+      overflow: auto;
+    }
+    pre code {
+      padding: 0;
+      overflow: visible;
+      overflow-wrap: normal;
+    }
+    .sourceCode {
+     background-color: transparent;
+     overflow: visible;
+    }
+    hr {
+      background-color: #1a1a1a;
+      border: none;
+      height: 1px;
+      margin: 1em 0;
+    }
+    table {
+      margin: 1em 0;
+      border-collapse: collapse;
+      width: 100%;
+      overflow-x: auto;
+      display: block;
+      font-variant-numeric: lining-nums tabular-nums;
+    }
+    table caption {
+      margin-bottom: 0.75em;
+    }
+    tbody {
+      margin-top: 0.5em;
+      border-top: 1px solid #1a1a1a;
+      border-bottom: 1px solid #1a1a1a;
+    }
+    th {
+      border-top: 1px solid #1a1a1a;
+      padding: 0.25em 0.5em 0.25em 0.5em;
+    }
+    td {
+      padding: 0.125em 0.5em 0.25em 0.5em;
+    }
+    header {
+      margin-bottom: 4em;
+      text-align: center;
+    }
+    #TOC li {
+      list-style: none;
+    }
+    #TOC ul {
+      padding-left: 1.3em;
+    }
+    #TOC > ul {
+      padding-left: 0;
+    }
+    #TOC a:not(:hover) {
+      text-decoration: none;
+    }
+    code{white-space: pre-wrap;}
+    span.smallcaps{font-variant: small-caps;}
+    div.columns{display: flex; gap: min(4vw, 1.5em);}
+    div.column{flex: auto; overflow-x: auto;}
+    div.hanging-indent{margin-left: 1.5em; text-indent: -1.5em;}
+    /* The extra [class] is a hack that increases specificity enough to
+       override a similar rule in reveal.js */
+    ul.task-list[class]{list-style: none;}
+    ul.task-list li input[type="checkbox"] {
+      font-size: inherit;
+      width: 0.8em;
+      margin: 0 0.8em 0.2em -1.6em;
+      vertical-align: middle;
+    }
+    /* CSS for syntax highlighting */
+    pre > code.sourceCode { white-space: pre; position: relative; }
+    pre > code.sourceCode > span { line-height: 1.25; }
+    pre > code.sourceCode > span:empty { height: 1.2em; }
+    .sourceCode { overflow: visible; }
+    code.sourceCode > span { color: inherit; text-decoration: inherit; }
+    div.sourceCode { margin: 1em 0; }
+    pre.sourceCode { margin: 0; }
+    @media screen {
+    div.sourceCode { overflow: auto; }
+    }
+    @media print {
+    pre > code.sourceCode { white-space: pre-wrap; }
+    pre > code.sourceCode > span { text-indent: -5em; padding-left: 5em; }
+    }
+    pre.numberSource code
+      { counter-reset: source-line 0; }
+    pre.numberSource code > span
+      { position: relative; left: -4em; counter-increment: source-line; }
+    pre.numberSource code > span > a:first-child::before
+      { content: counter(source-line);
+        position: relative; left: -1em; text-align: right; vertical-align: baseline;
+        border: none; display: inline-block;
+        -webkit-touch-callout: none; -webkit-user-select: none;
+        -khtml-user-select: none; -moz-user-select: none;
+        -ms-user-select: none; user-select: none;
+        padding: 0 4px; width: 4em;
+        color: #aaaaaa;
+      }
+    pre.numberSource { margin-left: 3em; border-left: 1px solid #aaaaaa;  padding-left: 4px; }
+    div.sourceCode
+      {   }
+    @media screen {
+    pre > code.sourceCode > span > a:first-child::before { text-decoration: underline; }
+    }
+    code span.al { color: #ff0000; font-weight: bold; } /* Alert */
+    code span.an { color: #60a0b0; font-weight: bold; font-style: italic; } /* Annotation */
+    code span.at { color: #7d9029; } /* Attribute */
+    code span.bn { color: #40a070; } /* BaseN */
+    code span.bu { color: #008000; } /* BuiltIn */
+    code span.cf { color: #007020; font-weight: bold; } /* ControlFlow */
+    code span.ch { color: #4070a0; } /* Char */
+    code span.cn { color: #880000; } /* Constant */
+    code span.co { color: #60a0b0; font-style: italic; } /* Comment */
+    code span.cv { color: #60a0b0; font-weight: bold; font-style: italic; } /* CommentVar */
+    code span.do { color: #ba2121; font-style: italic; } /* Documentation */
+    code span.dt { color: #902000; } /* DataType */
+    code span.dv { color: #40a070; } /* DecVal */
+    code span.er { color: #ff0000; font-weight: bold; } /* Error */
+    code span.ex { } /* Extension */
+    code span.fl { color: #40a070; } /* Float */
+    code span.fu { color: #06287e; } /* Function */
+    code span.im { color: #008000; font-weight: bold; } /* Import */
+    code span.in { color: #60a0b0; font-weight: bold; font-style: italic; } /* Information */
+    code span.kw { color: #007020; font-weight: bold; } /* Keyword */
+    code span.op { color: #666666; } /* Operator */
+    code span.ot { color: #007020; } /* Other */
+    code span.pp { color: #bc7a00; } /* Preprocessor */
+    code span.sc { color: #4070a0; } /* SpecialChar */
+    code span.ss { color: #bb6688; } /* SpecialString */
+    code span.st { color: #4070a0; } /* String */
+    code span.va { color: #19177c; } /* Variable */
+    code span.vs { color: #4070a0; } /* VerbatimString */
+    code span.wa { color: #60a0b0; font-weight: bold; font-style: italic; } /* Warning */
   </style>
-  <style type="text/css">
-a.sourceLine { display: inline-block; line-height: 1.25; }
-a.sourceLine { pointer-events: none; color: inherit; text-decoration: inherit; }
-a.sourceLine:empty { height: 1.2em; }
-.sourceCode { overflow: visible; }
-code.sourceCode { white-space: pre; position: relative; }
-div.sourceCode { margin: 1em 0; }
-pre.sourceCode { margin: 0; }
-@media screen {
-div.sourceCode { overflow: auto; }
-}
-@media print {
-code.sourceCode { white-space: pre-wrap; }
-a.sourceLine { text-indent: -1em; padding-left: 1em; }
-}
-pre.numberSource a.sourceLine
-  { position: relative; left: -4em; }
-pre.numberSource a.sourceLine::before
-  { content: attr(title);
-    position: relative; left: -1em; text-align: right; vertical-align: baseline;
-    border: none; pointer-events: all; display: inline-block;
-    -webkit-touch-callout: none; -webkit-user-select: none;
-    -khtml-user-select: none; -moz-user-select: none;
-    -ms-user-select: none; user-select: none;
-    padding: 0 4px; width: 4em;
-    color: #aaaaaa;
-  }
-pre.numberSource { margin-left: 3em; border-left: 1px solid #aaaaaa;  padding-left: 4px; }
-div.sourceCode
-  {  }
-@media screen {
-a.sourceLine::before { text-decoration: underline; }
-}
-code span.al { color: #ff0000; font-weight: bold; } /* Alert */
-code span.an { color: #60a0b0; font-weight: bold; font-style: italic; } /* Annotation */
-code span.at { color: #7d9029; } /* Attribute */
-code span.bn { color: #40a070; } /* BaseN */
-code span.bu { } /* BuiltIn */
-code span.cf { color: #007020; font-weight: bold; } /* ControlFlow */
-code span.ch { color: #4070a0; } /* Char */
-code span.cn { color: #880000; } /* Constant */
-code span.co { color: #60a0b0; font-style: italic; } /* Comment */
-code span.cv { color: #60a0b0; font-weight: bold; font-style: italic; } /* CommentVar */
-code span.do { color: #ba2121; font-style: italic; } /* Documentation */
-code span.dt { color: #902000; } /* DataType */
-code span.dv { color: #40a070; } /* DecVal */
-code span.er { color: #ff0000; font-weight: bold; } /* Error */
-code span.ex { } /* Extension */
-code span.fl { color: #40a070; } /* Float */
-code span.fu { color: #06287e; } /* Function */
-code span.im { } /* Import */
-code span.in { color: #60a0b0; font-weight: bold; font-style: italic; } /* Information */
-code span.kw { color: #007020; font-weight: bold; } /* Keyword */
-code span.op { color: #666666; } /* Operator */
-code span.ot { color: #007020; } /* Other */
-code span.pp { color: #bc7a00; } /* Preprocessor */
-code span.sc { color: #4070a0; } /* SpecialChar */
-code span.ss { color: #bb6688; } /* SpecialString */
-code span.st { color: #4070a0; } /* String */
-code span.va { color: #19177c; } /* Variable */
-code span.vs { color: #4070a0; } /* VerbatimString */
-code span.wa { color: #60a0b0; font-weight: bold; font-style: italic; } /* Warning */
-  </style>
-  <script src="https://cdn.mathjax.org/mathjax/latest/MathJax.js?config=TeX-MML-AM_CHTML" type="text/javascript"></script>
   <style>
   .boxed {
       margin: 2em;
@@ -85,45 +236,97 @@ code span.wa { color: #60a0b0; font-weight: bold; font-style: italic; } /* Warni
       solid;border-width:1px;
   }  
   </style>
+  <script src="https://polyfill.io/v3/polyfill.min.js?features=es6"></script>
+  <script
+  src="https://cdn.mathjax.org/mathjax/latest/MathJax.js?config=TeX-MML-AM_CHTML"
+  type="text/javascript"></script>
 </head>
 <body>
 <header id="title-block-header">
 <h1 class="title">A Guide to Writting Codex Exercises</h1>
-<p class="author">Pedro Vasconcelos <a href="mailto:pbv@dcc.fc.up.pt" class="email">pbv@dcc.fc.up.pt</a>, University of Porto, Portugal.</p>
-<p class="date">February 2021 (version 0.9.9)</p>
+<p class="author">Pedro Vasconcelos <a href="mailto:pbv@dcc.fc.up.pt"
+class="email">pbv@dcc.fc.up.pt</a>, University of Porto, Portugal.</p>
+<p class="date">February 2025 (version 1.0.0)</p>
 </header>
-<h1 id="introduction"><span class="header-section-number">1</span> Introduction</h1>
-<h2 id="overview"><span class="header-section-number">1.1</span> Overview</h2>
-<p><em>Codex</em> is a web system for setting up programming exercises with automatic assessment. The main features are:</p>
+<h1 data-number="1" id="introduction"><span
+class="header-section-number">1</span> Introduction</h1>
+<h2 data-number="1.1" id="overview"><span
+class="header-section-number">1.1</span> Overview</h2>
+<p><em>Codex</em> is a web system for setting up programming exercises
+with automatic assessment. The main features are:</p>
 <dl>
 <dt><em>Simple exercise authoring</em></dt>
-<dd><p>Exercise descriptions are written in a human-readable Markdown format that can easily be copied, mailed, kept in a version repository, compared for changes, etc.;</p>
+<dd>
+<p>Exercises are written in a human-readable Markdown format that can
+easily be copied, mailed, kept in a version repository, compared for
+changes, etc.;</p>
 </dd>
 <dt><em>Allows assessing program units</em></dt>
-<dd><p>Exercises can assess separate functions, classes or methods rather than just complete programs;</p>
+<dd>
+<p>Exercises can assess separate functions, classes or methods rather
+than just complete programs;</p>
 </dd>
 <dt><em>Provides automatic feedback</em></dt>
-<dd><p>Rather than report just an <em>accept/reject</em> result, Codex can use automatic testing techniques such as <a href="http://www.cse.chalmers.se/~rjmh/QuickCheck/manual.html">properties</a> or <a href="https://docs.python.org/3.7/library/doctest.html">documentation-tests</a> to report failure example to students.</p>
+<dd>
+<p>Rather than report just an <em>accept/reject</em> result, Codex can
+use automatic testing techniques such as <a
+href="http://www.cse.chalmers.se/~rjmh/QuickCheck/manual.html">properties</a>
+or <a
+href="https://docs.python.org/3.7/library/doctest.html">documentation-tests</a>
+to report failure example to students.</p>
 </dd>
 <dt><em>Allows multiple types of exercises</em></dt>
-<dd><p>Codex supports testing code in several programming language and also mutiple-choice and fill-in questionaries.</p>
+<dd>
+<p>Codex supports testing code in several programming language and also
+mutiple-choice and fill-in questionaries.</p>
 </dd>
 </dl>
-<p>Codex is intended for learning environments rather than programming contests (for the later, check out <a href="https://mooshak.dcc.fc.up.pt/">Mooshak</a>). The system is currently being used at the Faculty of Science of the University of Porto for introductory courses on Python and C programming.</p>
-<h2 id="pages-and-exercises"><span class="header-section-number">1.2</span> Pages and exercises</h2>
-<p>A Codex exercise repository is organized as set of interlinked hypertext pages. Pages are written in <a href="https://en.wikipedia.org/wiki/Markdown">Markdown</a>, a lightweight text markup syntax originally proposed by John Gruber. Codex uses the <a href="http://hackage.haskell.org/package/pandoc">Pandoc library</a> for parsing Markdown which suports many extensions. In particular, it support LaTeX syntax for mathematical formulas (rendered using <a href="http://www.mathjax.org">MathJaX</a>). For more details on the Pandoc-flavoured Markdown, check the <a href="http://pandoc.org/MANUAL.html#pandocs-markdown">Pandoc user manual</a>.</p>
-<p>Pages can be plain static documents or marked as <em>exercises</em>; the later allow student to submit solutions and get automatic assessment. Submissions are kept in a persistent database so that students and instructors can review their previous attempts. The administrator can also view and manage all submissions (e.g. re-evaluate or generate printouts).</p>
+<p>Codex is intended for learning environments rather than programming
+contests (for the later, check out <a
+href="https://mooshak.dcc.fc.up.pt/">Mooshak</a>). The system is
+currently being used at the Faculty of Science of the University of
+Porto for introductory courses on Python, Haskell and C programming.</p>
+<h2 data-number="1.2" id="pages-and-exercises"><span
+class="header-section-number">1.2</span> Pages and exercises</h2>
+<p>A Codex exercise repository is organized as set of interlinked
+hypertext pages. Pages are written in <a
+href="https://en.wikipedia.org/wiki/Markdown">Markdown</a>, a
+lightweight text markup syntax originally proposed by John Gruber. Codex
+uses the <a href="http://hackage.haskell.org/package/pandoc">Pandoc
+library</a> for parsing Markdown which suports many extensions. In
+particular, it support LaTeX syntax for mathematical formulas (rendered
+using <a href="http://www.mathjax.org">MathJaX</a>). For more details on
+the Pandoc-flavoured Markdown, check the <a
+href="http://pandoc.org/MANUAL.html#pandocs-markdown">Pandoc user
+manual</a>.</p>
+<p>Pages can be plain static documents or marked as <em>exercises</em>;
+the later allow student to submit solutions and get automatic
+assessment. Submissions are kept in a persistent database so that
+students and instructors can review their previous attempts. The
+administrator can also view and manage all submissions (e.g. re-evaluate
+or generate printouts).</p>
 <p>Comments in pages can be written in HTML-style:</p>
 <pre><code>&lt;!-- This is a comment; it can span multiple lines --&gt;</code></pre>
-<p>HTML syntax is also allowed for <code>SPAN</code> inlines and <code>DIV</code> blocks (used for specifying structure, e.g. for <a href="#shuffling">shuffling exercises</a>). Other raw HTML markup will be escaped (and rendered as plain text).</p>
-<p>Codex expects YAML blocks to specify <em>metadata fields</em> for pages e.g., the exercise type, programming languages allowed, period for valid submissions, etc. Metadata blocks are delimited between “<code>---</code>” and “<code>...</code>”:</p>
+<p>HTML syntax is also allowed for <code>SPAN</code> inlines and
+<code>DIV</code> blocks (used for specifying structure, e.g. for <a
+href="#shuffling">shuffling exercises</a>). Other raw HTML markup will
+be escaped (and rendered as plain text).</p>
+<p>Codex expects YAML blocks to specify <em>metadata fields</em> for
+pages e.g., the exercise type, programming languages allowed, period for
+valid submissions, etc. Metadata blocks are delimited between
+“<code>---</code>” and “<code>...</code>”:</p>
 <pre><code>---
 tester: doctest
 language: python
 valid: &quot;after 25/05/2019 and before 15/06/2019&quot;
 ...</code></pre>
-<p>Metadata blocks can occur anywhere in a document; several blocks are equivalent to a single one with the (left-biased) union of all fields. (<em>Sugestion</em>: include metadata at the beginning or the the end of the document.)</p>
-<p>Exercises are marked by the <code>tester</code> field; the particular tester specifies the type of exercise and how assement is done (see the <a href="#testers">section on Testers</a>).</p>
+<p>Metadata blocks can occur anywhere in a document; several blocks are
+equivalent to a single one with the (left-biased) union of all fields.
+(<em>Sugestion</em>: include metadata at the beginning or the the of the
+document.)</p>
+<p>Exercises are marked by the <code>tester</code> field; the particular
+tester specifies the type of exercise and how assement is done (see the
+<a href="#testers">section on Testers</a>).</p>
 <!--
 Exercises are identified by the page's *request path* i.e. the
 relative path after `/page`; e.g. an exercise at the URL
@@ -137,8 +340,15 @@ Previous submissions are kept in a persistent SQLite
 database; only an administrator can remove or 
 re-evaluate submissions.
 -->
-<h2 id="document-structure"><span class="header-section-number">1.3</span> Document structure</h2>
-<p>All page files, images, etc. should be maintained inside the <code>public</code> directory and the starting page after login is the <code>index.md</code> page; this should link exercises or other sub-directories. For example, for 3 exercises <code>worksheet1.md</code>, <code>worksheet2.md</code> and <code>worksheet3.md</code>, a minimal <code>index.md</code> page could be:</p>
+<h2 data-number="1.3" id="document-structure"><span
+class="header-section-number">1.3</span> Document structure</h2>
+<p>All page files, images, etc. should be maintained inside the
+<code>public</code> directory and the starting page after login is the
+<code>index.md</code> page; this should link exercises or other
+sub-directories. For example, for 3 exercises
+<code>worksheet1.md</code>, <code>worksheet2.md</code> and
+<code>worksheet3.md</code>, a minimal <code>index.md</code> page could
+be:</p>
 <pre class="boxed"><code># Welcome!
 
 This is minimal index page. Here is a list of available exercises:
@@ -146,17 +356,34 @@ This is minimal index page. Here is a list of available exercises:
 * [](worksheet1.md){.ex}
 * [](worksheet2.md){.ex}
 * [](worksheet3.md){.ex}</code></pre>
-<p>The links are marked with a class attribute <code>".ex"</code>; this fills-in the exercise title automatically (read from the markdown document) and a summary of previous submissions by the current user (read from the submission database).</p>
-<p>The administrator should compose index pages to define order of exercises, or group exercises using sections and sub-pages. It is also possible to add plain Markdown pages for documentation, or links to external resources.</p>
+<p>The links are marked with a class attribute <code>".ex"</code>; this
+fills-in the exercise title automatically (read from the markdown
+document) and the summary of previous submissions by the current user
+(read from the submission database).</p>
+<p>The administrator should compose index pages to define order of
+exercises, or group exercises using sections and sub-pages. It is also
+possible to add plain Markdown pages for documentation, or links to
+external resources.</p>
 <p>Note that:</p>
 <ol type="1">
-<li>Exercise pages can be accessed by their URL even if they are not explicitly linked to the index; this can be used test exercises before making them visible to students;</li>
-<li>If you intend to group exercises using sub-directories make sure <em>you include an <code>index.md</code> for each sub-directory</em>.</li>
+<li>Exercise pages can be accessed by their URL even if they are not
+explicitly linked to the index; this can be used test exercises before
+making them visible to students;</li>
+<li>If you intend to group exercises using sub-directories make sure
+<em>you include an <code>index.md</code> for each
+sub-directory</em>.</li>
 </ol>
-<h1 id="writting-exercises"><span class="header-section-number">2</span> Writting exercises</h1>
-<h2 id="an-example-programming-exercise"><span class="header-section-number">2.1</span> An example programming exercise</h2>
-<p>Consider the following simple Python programming exercise: <em>write a function <code>root</code> to compute rounded-down integral square roots</em>.</p>
-<p>First we set up an <em>exercise page</em> <code>sqroot.md</code>; this contains the exercise description shown to the student (and some metadata fields):</p>
+<h1 data-number="2" id="writting-exercises"><span
+class="header-section-number">2</span> Writting exercises</h1>
+<h2 data-number="2.1" id="an-example-programming-exercise"><span
+class="header-section-number">2.1</span> An example programming
+exercise</h2>
+<p>Consider the following simple Python programming exercise: <em>write
+a function <code>root</code> to compute rounded-down integral square
+roots</em>.</p>
+<p>First we set up an <em>exercise page</em> <code>sqroot.md</code>;
+this contains the exercise description shown to the student (and some
+metadata fields):</p>
 <pre class="boxed"><code>---
 tester: doctest
 language: python
@@ -170,7 +397,8 @@ value.
 
 If the argument `x` is negative the function should
 throw a `ValueError` exception.</code></pre>
-<p>We also need a <em>doctest script</em> <code>sqroot.tst</code> specifying the tets cases to try and expected results:</p>
+<p>We also need a <em>doctest script</em> <code>sqroot.tst</code>
+specifying the tets cases to try and expected results:</p>
 <pre class="boxed"><code>&gt;&gt;&gt; root(0)
 0
 &gt;&gt;&gt; root(1)
@@ -189,7 +417,11 @@ throw a `ValueError` exception.</code></pre>
 Traceback (most recent call last):
   ...
 ValueError: math domain error</code></pre>
-<p>These two files are all that we need. For each student submission the tests in the <em>doctest</em> script will be tried in order; testing terminates immediately if any of tests fails (with a wrong answer or a runtime exception) and the failed test case is used to produce a report, e.g.:</p>
+<p>These two files are all that we need. For each student submission the
+tests in the <em>doctest</em> script will be tried in order; testing
+terminates immediately if any of tests fails (with a wrong answer or a
+runtime exception) and the failed test case is used to produce a report,
+e.g.:</p>
 <pre class="boxed"><code>Failed example:
     root(2)
 Expected:
@@ -198,14 +430,27 @@ Got:
     1.4142135623730951</code></pre>
 <p>Some remarks on writting <em>doctest</em> cases:</p>
 <ol type="1">
-<li>The first test case that fails is reported, thus so the <em>doctest</em> script should the include the simplest cases first;</li>
-<li>Be aware that the <code>doctest</code> library employs a textual matching of outputs (e.g. <code>0</code> and <code>0.0</code> are considered distinct); make sure you normalize floating-point results (e.g. using <code>round</code>)</li>
-<li>To discourage students from “overfitting” solutions to pass just the failing tests, it is best to generate a large number (50-100) of cases (write a Python script);</li>
-<li>Alternatively, you can hide test cases by setting the metadata field “<code>feedback: no</code>”;</li>
-<li>It is also possible test error handling by requiring that proper exceptions are thrown — see the <a href="https://docs.python.org/3/library/doctest.html#what-about-exceptions"><code>doctest</code> documentation</a>;</li>
+<li>The first test case that fails is reported, thus so the
+<em>doctest</em> script should the include the simplest cases
+first;</li>
+<li>Be aware that the <code>doctest</code> library employs a textual
+matching of outputs (e.g. <code>0</code> and <code>0.0</code> are
+considered distinct); make sure you normalize floating-point results
+(e.g. using <code>round</code>)</li>
+<li>To discourage students from “overfitting” solutions to pass just the
+failing tests, it is best to generate a large number (50-100) of cases
+(write a Python script);</li>
+<li>Alternatively, you can hide test cases by setting the metadata field
+“<code>feedback: no</code>”;</li>
+<li>It is also possible test error handling by requiring that proper
+exceptions are thrown — see the <a
+href="https://docs.python.org/3/library/doctest.html#what-about-exceptions"><code>doctest</code>
+documentation</a>;</li>
 </ol>
-<h3 id="an-example-quiz"><span class="header-section-number">2.1.1</span> An example quiz</h3>
-<p>Setting up a multiple-choice or fill-in quiz requires only a Markdown page:</p>
+<h3 data-number="2.1.1" id="an-example-quiz"><span
+class="header-section-number">2.1.1</span> An example quiz</h3>
+<p>Setting up a multiple-choice or fill-in quiz requires only a Markdown
+page:</p>
 <pre class="boxed"><code>---
 tester: quiz
 shuffle-questions: no
@@ -225,8 +470,8 @@ Consider a relation $R \subseteq \mathbb{Z}\times\mathbb{Z}$
 definied by $x R y \iff \exists k \in\mathbb{Z} : y = k\times x$.
 What properties does this relation have?
 
-(a) reflexive, transitive e anti-symetric
-(b) reflexive, transitive e symetric
+(a) reflexive, transitive and anti-symetric
+(b) reflexive, transitive and symetric
 (c) reflexive, not transitive and symetric
 
 &lt;!-- The next question allows multiple selections --&gt;
@@ -248,10 +493,21 @@ Select **all** true statements from the choices bellow.
 According the &quot;The Hitchhiker&#39;s Guide to the Galaxy&quot;, what is the
 answer to the fundamental question about life, the universe and
 everything?</code></pre>
-<p>Each question has a unique identifier; when these are not explicitly defined in the headers (as above) Pandoc generates identifiers automatically based on the header text (e.g. <code>#question-1</code>, <code>#question-2</code>, <code>#question-3</code>). If the header has no text, then the automatic identifiers will be <code>#section</code>, <code>#section-1</code>, <code>#section-1</code>, etc. You can explicitly set header identifiers as follows:</p>
+<p>Each question has a unique identifier; when these are not explicitly
+defined in the headers (as above) Pandoc generates identifiers
+automatically based on the header text (e.g. <code>#question-1</code>,
+<code>#question-2</code>, <code>#question-3</code>). If the header has
+no text, then the automatic identifiers will be <code>#section</code>,
+<code>#section-1</code>, <code>#section-1</code>, etc. You can
+explicitly set header identifiers as follows:</p>
 <pre><code>## {#q1 .question answer=a}</code></pre>
-<p>If the metadata options <code>shuffle-questions</code> and <code>shuffle-answers</code> are enabled Codex will shuffle questions and/or answers. By default, neither questions nor answers are shuffled. Shuffling is deterministic for each student (i.e. it depends only on the user login).</p>
-<p>It is also possible to group variants of each question so that only one is randomly choosen for each student, e.g.:</p>
+<p>If the metadata options <code>shuffle-questions</code> and
+<code>shuffle-answers</code> are enabled Codex will shuffle questions
+and/or answers. By default, neither questions nor answers are shuffled.
+The shuffle order choosen for each student is deterministic (i.e. it
+depends only on the user login).</p>
+<p>It is also possible to group variants of each question so that only
+one is randomly choosen for each student, e.g.:</p>
 <pre class="boxed"><code># {#questionA1 .question group=&quot;A&quot; ...}
 
 &lt;!-- first variant for A --&gt;
@@ -275,52 +531,78 @@ everything?</code></pre>
 # {#questionC .question ...}
 
 &lt;!-- this question has no group, so it always included --&gt;</code></pre>
-<p>From the above quiz, three questions will be chosen: one from <code>#questionA1</code>, <code>#questionA2</code> and <code>#questionA3</code>; one of <code>#questionB1</code> and <code>#questionB2</code>; and finally <code>#questionC</code>. As with shuffling, the choice is pseudo-random but deterministic and depends only on the user login. Grouping can also be combined with shuffling, changing the order of questions and/or answers.</p>
-<h3 id="testing-haskell-code-using-quickcheck"><span class="header-section-number">2.1.2</span> Testing Haskell code using Quickcheck</h3>
-<p>A QuickCheck specification is a Haskell main module that acts as a “test harness” for the student’s code. It can define properties and possibly data generators; the Codex QuickCheck library includes default generators for basic types (tuples, lists, etc.) and combinators for building custom ones.</p>
+<p>From the above quiz, three questions will be chosen: one from
+<code>#questionA1</code>, <code>#questionA2</code> and
+<code>#questionA3</code>; one of <code>#questionB1</code> and
+<code>#questionB2</code>; and finally <code>#questionC</code>. As with
+shuffling, the choice is pseudo-random but deterministic and depends
+only on the user login. Grouping can also be combined with shuffling,
+changing the order of questions and/or answers.</p>
+<h3 data-number="2.1.2" id="testing-haskell-code-using-quickcheck"><span
+class="header-section-number">2.1.2</span> Testing Haskell code using
+Quickcheck</h3>
+<p>A QuickCheck specification is a Haskell main module that acts as a
+“test harness” for the student’s code. It can define properties and
+possibly data generators; the Codex QuickCheck library includes default
+generators for basic types (tuples, lists, etc.) and combinators for
+building custom ones.</p>
 <p>Consider an example exercise:</p>
 <blockquote>
-<p>Write a Haskell function <code>strong :: String -&gt; Bool</code> that checks if a string is a <em>strong password</em> using the following criteria:</p>
+<p>Write a Haskell function <code>strong :: String -&gt; Bool</code>
+that checks if a string is a <em>strong password</em> using the
+following criteria:</p>
 <ol type="1">
 <li>it must have at least 6 characteres in length;</li>
-<li>it must have an uppercase letter, a lowercase letter and a digit.</li>
+<li>it must have an uppercase letter, a lowercase letter and a
+digit.</li>
 </ol>
 </blockquote>
 <p>The QuickCheck specification for this exercise is as follows:</p>
-<div class="sourceCode" id="cb10"><pre class="sourceCode boxed haskell"><code class="sourceCode haskell"><a class="sourceLine" id="cb10-1" title="1"><span class="kw">module</span> <span class="dt">Main</span> <span class="kw">where</span></a>
-<a class="sourceLine" id="cb10-2" title="2"></a>
-<a class="sourceLine" id="cb10-3" title="3"><span class="kw">import</span> <span class="dt">Codex.QuickCheck</span></a>
-<a class="sourceLine" id="cb10-4" title="4"><span class="kw">import</span> <span class="dt">Data.Char</span></a>
-<a class="sourceLine" id="cb10-5" title="5"><span class="kw">import</span> <span class="dt">Submission</span> (strong) <span class="co">-- student&#39;s solution</span></a>
-<a class="sourceLine" id="cb10-6" title="6"></a>
-<a class="sourceLine" id="cb10-7" title="7"><span class="co">-- | reference solution </span></a>
-<a class="sourceLine" id="cb10-8" title="8"><span class="ot">strong_spec ::</span> <span class="dt">String</span> <span class="ot">-&gt;</span> <span class="dt">Bool</span></a>
-<a class="sourceLine" id="cb10-9" title="9">strong_spec xs</a>
-<a class="sourceLine" id="cb10-10" title="10">   <span class="ot">=</span> <span class="fu">length</span> xs <span class="op">&gt;=</span> <span class="dv">6</span> <span class="op">&amp;&amp;</span> <span class="fu">any</span> <span class="fu">isUpper</span> xs <span class="op">&amp;&amp;</span> <span class="fu">any</span> <span class="fu">isLower</span> xs <span class="op">&amp;&amp;</span> <span class="fu">any</span> <span class="fu">isDigit</span> xs</a>
-<a class="sourceLine" id="cb10-11" title="11"></a>
-<a class="sourceLine" id="cb10-12" title="12"><span class="co">-- | a generator for suitable strings</span></a>
-<a class="sourceLine" id="cb10-13" title="13">asciiString <span class="ot">=</span> listOf (choose (<span class="ch">&#39;0&#39;</span>, <span class="ch">&#39;z&#39;</span>))</a>
-<a class="sourceLine" id="cb10-14" title="14"></a>
-<a class="sourceLine" id="cb10-15" title="15"><span class="co">-- | correctness property: for all above strings,</span></a>
-<a class="sourceLine" id="cb10-16" title="16"><span class="co">-- the submission yields the same result as the reference solution</span></a>
-<a class="sourceLine" id="cb10-17" title="17">prop_correct</a>
-<a class="sourceLine" id="cb10-18" title="18">  <span class="ot">=</span> testing <span class="st">&quot;strong&quot;</span> <span class="op">$</span> </a>
-<a class="sourceLine" id="cb10-19" title="19">    forAllShrink <span class="st">&quot;str&quot;</span> asciiString shrink <span class="op">$</span></a>
-<a class="sourceLine" id="cb10-20" title="20">    \xs <span class="ot">-&gt;</span> strong xs <span class="op">?==</span> strong_spec xs </a>
-<a class="sourceLine" id="cb10-21" title="21">                    </a>
-<a class="sourceLine" id="cb10-22" title="22">main <span class="ot">=</span> quickCheckMain prop_correct</a></code></pre></div>
+<div class="sourceCode" id="cb10"><pre
+class="sourceCode boxed haskell"><code class="sourceCode haskell"><span id="cb10-1"><a href="#cb10-1" aria-hidden="true" tabindex="-1"></a><span class="kw">module</span> <span class="dt">Main</span> <span class="kw">where</span></span>
+<span id="cb10-2"><a href="#cb10-2" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb10-3"><a href="#cb10-3" aria-hidden="true" tabindex="-1"></a><span class="kw">import</span> <span class="dt">Codex.QuickCheck</span></span>
+<span id="cb10-4"><a href="#cb10-4" aria-hidden="true" tabindex="-1"></a><span class="kw">import</span> <span class="dt">Data.Char</span></span>
+<span id="cb10-5"><a href="#cb10-5" aria-hidden="true" tabindex="-1"></a><span class="kw">import</span> <span class="dt">Submission</span> (strong) <span class="co">-- student&#39;s solution</span></span>
+<span id="cb10-6"><a href="#cb10-6" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb10-7"><a href="#cb10-7" aria-hidden="true" tabindex="-1"></a><span class="co">-- | reference solution </span></span>
+<span id="cb10-8"><a href="#cb10-8" aria-hidden="true" tabindex="-1"></a><span class="ot">strong_spec ::</span> <span class="dt">String</span> <span class="ot">-&gt;</span> <span class="dt">Bool</span></span>
+<span id="cb10-9"><a href="#cb10-9" aria-hidden="true" tabindex="-1"></a>strong_spec xs</span>
+<span id="cb10-10"><a href="#cb10-10" aria-hidden="true" tabindex="-1"></a>   <span class="ot">=</span> <span class="fu">length</span> xs <span class="op">&gt;=</span> <span class="dv">6</span> <span class="op">&amp;&amp;</span> <span class="fu">any</span> <span class="fu">isUpper</span> xs <span class="op">&amp;&amp;</span> <span class="fu">any</span> <span class="fu">isLower</span> xs <span class="op">&amp;&amp;</span> <span class="fu">any</span> <span class="fu">isDigit</span> xs</span>
+<span id="cb10-11"><a href="#cb10-11" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb10-12"><a href="#cb10-12" aria-hidden="true" tabindex="-1"></a><span class="co">-- | a generator for suitable strings</span></span>
+<span id="cb10-13"><a href="#cb10-13" aria-hidden="true" tabindex="-1"></a>asciiString <span class="ot">=</span> listOf (choose (<span class="ch">&#39;0&#39;</span>, <span class="ch">&#39;z&#39;</span>))</span>
+<span id="cb10-14"><a href="#cb10-14" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb10-15"><a href="#cb10-15" aria-hidden="true" tabindex="-1"></a><span class="co">-- | correctness property: for all above strings,</span></span>
+<span id="cb10-16"><a href="#cb10-16" aria-hidden="true" tabindex="-1"></a><span class="co">-- the submission yields the same result as the reference solution</span></span>
+<span id="cb10-17"><a href="#cb10-17" aria-hidden="true" tabindex="-1"></a>prop_correct</span>
+<span id="cb10-18"><a href="#cb10-18" aria-hidden="true" tabindex="-1"></a>  <span class="ot">=</span> testing <span class="st">&quot;strong&quot;</span> <span class="op">$</span> </span>
+<span id="cb10-19"><a href="#cb10-19" aria-hidden="true" tabindex="-1"></a>    forAllShrink <span class="st">&quot;str&quot;</span> asciiString shrink <span class="op">$</span></span>
+<span id="cb10-20"><a href="#cb10-20" aria-hidden="true" tabindex="-1"></a>    \xs <span class="ot">-&gt;</span> strong xs <span class="op">?==</span> strong_spec xs </span>
+<span id="cb10-21"><a href="#cb10-21" aria-hidden="true" tabindex="-1"></a>                    </span>
+<span id="cb10-22"><a href="#cb10-22" aria-hidden="true" tabindex="-1"></a>main <span class="ot">=</span> quickCheckMain prop_correct</span></code></pre></div>
 <p>Some remarks:</p>
 <ol type="1">
-<li>The student’s code is always imported from a separate module; names should be explicitly imported or qualified to prevent name colisions;</li>
-<li><code>asciiString</code> is a custom generator for strings with charateres from <code>0</code> to <code>z</code>: this generate letters, digits and some other simbols as well;</li>
-<li>The operator <code>?==</code> asserts that the left-hand side equals the (expected) right-hand side</li>
-<li>The <code>quickCheckMain</code> main function handles setting up of the testing parameters and checks the property.</li>
+<li>The student’s code is always imported from a separate module; names
+should be explicitly imported or qualified to prevent name
+colisions;</li>
+<li><code>asciiString</code> is a custom generator for strings with
+charateres from <code>0</code> to <code>z</code>: this generate letters,
+digits and some other simbols as well;</li>
+<li>The operator <code>?==</code> asserts that the left-hand side equals
+the (expected) right-hand side</li>
+<li>The <code>quickCheckMain</code> main function handles setting up of
+the testing parameters and checks the property.</li>
 </ol>
-<p>The use of shrinking simplifies failing test cases automatically; for example, consider the following submission exhibiting a common logical error:</p>
-<div class="sourceCode" id="cb11"><pre class="sourceCode boxed haskell"><code class="sourceCode haskell"><a class="sourceLine" id="cb11-1" title="1"><span class="ot">forte ::</span> <span class="dt">String</span> <span class="ot">-&gt;</span> <span class="dt">Bool</span></a>
-<a class="sourceLine" id="cb11-2" title="2">   <span class="ot">=</span> <span class="fu">length</span> xs <span class="op">&gt;=</span> <span class="dv">6</span> <span class="op">&amp;&amp;</span> <span class="fu">any</span> (\x <span class="ot">-&gt;</span> <span class="fu">isUpper</span> x <span class="op">||</span> <span class="fu">isLower</span> x <span class="op">||</span> <span class="fu">isDigit</span> x) xs</a>
-<a class="sourceLine" id="cb11-3" title="3">   <span class="co">-- WRONG!</span></a></code></pre></div>
-<p>Because of shrinking, the specification above QuickCheck <em>always</em> finds a simple counter-example:</p>
+<p>The use of shrinking simplifies failing test cases automatically; for
+example, consider the following submission exhibiting a common logical
+error:</p>
+<div class="sourceCode" id="cb11"><pre
+class="sourceCode boxed haskell"><code class="sourceCode haskell"><span id="cb11-1"><a href="#cb11-1" aria-hidden="true" tabindex="-1"></a><span class="ot">forte ::</span> <span class="dt">String</span> <span class="ot">-&gt;</span> <span class="dt">Bool</span></span>
+<span id="cb11-2"><a href="#cb11-2" aria-hidden="true" tabindex="-1"></a>   <span class="ot">=</span> <span class="fu">length</span> xs <span class="op">&gt;=</span> <span class="dv">6</span> <span class="op">&amp;&amp;</span> <span class="fu">any</span> (\x <span class="ot">-&gt;</span> <span class="fu">isUpper</span> x <span class="op">||</span> <span class="fu">isLower</span> x <span class="op">||</span> <span class="fu">isDigit</span> x) xs</span>
+<span id="cb11-3"><a href="#cb11-3" aria-hidden="true" tabindex="-1"></a>   <span class="co">-- WRONG!</span></span></code></pre></div>
+<p>Because of shrinking, the specification above QuickCheck
+<em>always</em> finds a simple counter-example:</p>
 <pre class="boxed"><code>*** Failed! (after 12 tests and 6 shrinks): 
 Expected:
     False
@@ -328,82 +610,119 @@ Got:
     True
 Testing forte with:
 str = &quot;aaaaaa&quot;</code></pre>
-<h3 id="testing-c-code-using-quickcheck"><span class="header-section-number">2.1.3</span> Testing C code Using QuickCheck</h3>
-<p>It is also possible to use QuickCheck to test C code using the Haskell FFI. The test specification written in Haskell and uses the Haskell-to-C FFI to call the student’s code.</p>
+<h3 data-number="2.1.3" id="testing-c-code-using-quickcheck"><span
+class="header-section-number">2.1.3</span> Testing C code Using
+QuickCheck</h3>
+<p>It is also possible to use QuickCheck to test C code using the
+Haskell FFI. The test specification written in Haskell and uses the
+Haskell-to-C FFI to call the student’s code.</p>
 <p>Consider the C version of the strong password example:</p>
 <blockquote>
-<p>Write a C function <code>int strong(char *str)</code> that checks if a NUL-terminated string is a <em>strong password</em> using the following criteria:</p>
+<p>Write a C function <code>int strong(char *str)</code> that checks if
+a NUL-terminated string is a <em>strong password</em> using the
+following criteria:</p>
 <ol type="1">
 <li>it must have at least 6 characteres in length;</li>
-<li>it must have an uppercase letter, a lowercase letter and a digit.</li>
+<li>it must have an uppercase letter, a lowercase letter and a
+digit.</li>
 </ol>
-<p>The result should be 1 the string satifies the above criteria and 0 otherwise.</p>
+<p>The result should be 1 the string satifies the above criteria and 0
+otherwise.</p>
 </blockquote>
 <p>The previous specification is adapted to test C as follows:</p>
-<div class="sourceCode" id="cb13"><pre class="sourceCode boxed haskell"><code class="sourceCode haskell"><a class="sourceLine" id="cb13-1" title="1"><span class="kw">module</span> <span class="dt">Main</span> <span class="kw">where</span></a>
-<a class="sourceLine" id="cb13-2" title="2"></a>
-<a class="sourceLine" id="cb13-3" title="3"><span class="kw">import</span> <span class="dt">Codex.QuickCheck</span></a>
-<a class="sourceLine" id="cb13-4" title="4"><span class="kw">import</span> <span class="dt">Control.Monad</span></a>
-<a class="sourceLine" id="cb13-5" title="5"><span class="kw">import</span> <span class="dt">Control.Exception</span></a>
-<a class="sourceLine" id="cb13-6" title="6"><span class="kw">import</span> <span class="dt">System.IO.Unsafe</span></a>
-<a class="sourceLine" id="cb13-7" title="7"><span class="kw">import</span> <span class="dt">Data.Char</span></a>
-<a class="sourceLine" id="cb13-8" title="8"></a>
-<a class="sourceLine" id="cb13-9" title="9">foreign <span class="kw">import</span> ccall &quot;forte&quot; c_forte :: <span class="dt">CString</span> -&gt; <span class="dt">IO</span> <span class="dt">CInt</span></a>
-<a class="sourceLine" id="cb13-10" title="10">   <span class="co">-- use FFI to import students&#39; submission</span></a>
-<a class="sourceLine" id="cb13-11" title="11"></a>
-<a class="sourceLine" id="cb13-12" title="12"><span class="co">-- | functional wrapper over C code</span></a>
-<a class="sourceLine" id="cb13-13" title="13"><span class="ot">c_forte_wrapper ::</span> <span class="dt">String</span> <span class="ot">-&gt;</span> <span class="dt">CInt</span></a>
-<a class="sourceLine" id="cb13-14" title="14">c_forte_wrapper str <span class="ot">=</span> unsafePerformIO <span class="op">$</span> </a>
-<a class="sourceLine" id="cb13-15" title="15">  withCString str <span class="op">$</span> \ptr <span class="ot">-&gt;</span> <span class="kw">do</span></a>
-<a class="sourceLine" id="cb13-16" title="16">     r <span class="ot">&lt;-</span> c_forte ptr</a>
-<a class="sourceLine" id="cb13-17" title="17">     str&#39; <span class="ot">&lt;-</span> peekCAString ptr</a>
-<a class="sourceLine" id="cb13-18" title="18">     unless (str <span class="op">==</span> str&#39;) <span class="op">$</span></a>
-<a class="sourceLine" id="cb13-19" title="19">          throwIO <span class="op">$</span> <span class="fu">userError</span> <span class="st">&quot;modified argument string&quot;</span></a>
-<a class="sourceLine" id="cb13-20" title="20">     <span class="fu">return</span> r</a>
-<a class="sourceLine" id="cb13-21" title="21"></a>
-<a class="sourceLine" id="cb13-22" title="22"><span class="co">-- | functional specification</span></a>
-<a class="sourceLine" id="cb13-23" title="23"><span class="ot">forte_spec ::</span> <span class="dt">String</span> <span class="ot">-&gt;</span> <span class="dt">Bool</span></a>
-<a class="sourceLine" id="cb13-24" title="24">forte_spec xs</a>
-<a class="sourceLine" id="cb13-25" title="25">   <span class="ot">=</span> <span class="fu">length</span> xs <span class="op">&gt;=</span> <span class="dv">6</span> <span class="op">&amp;&amp;</span> <span class="fu">any</span> <span class="fu">isUpper</span> xs <span class="op">&amp;&amp;</span> <span class="fu">any</span> <span class="fu">isLower</span> xs <span class="op">&amp;&amp;</span> <span class="fu">any</span> <span class="fu">isDigit</span> xs</a>
-<a class="sourceLine" id="cb13-26" title="26"></a>
-<a class="sourceLine" id="cb13-27" title="27">prop_correct</a>
-<a class="sourceLine" id="cb13-28" title="28">  <span class="ot">=</span> testing <span class="st">&quot;forte(str)&quot;</span> <span class="op">$</span> </a>
-<a class="sourceLine" id="cb13-29" title="29">    forAllShrink <span class="st">&quot;str&quot;</span> asciiString shrink <span class="op">$</span></a>
-<a class="sourceLine" id="cb13-30" title="30">    \xs <span class="ot">-&gt;</span> c_forte_wrapper xs <span class="op">?==</span> <span class="fu">fromIntegral</span> (<span class="fu">fromEnum</span> (forte_spec xs))</a>
-<a class="sourceLine" id="cb13-31" title="31"></a>
-<a class="sourceLine" id="cb13-32" title="32">asciiString <span class="ot">=</span> listOf (choose (<span class="ch">&#39;0&#39;</span>, <span class="ch">&#39;z&#39;</span>))</a>
-<a class="sourceLine" id="cb13-33" title="33">                      </a>
-<a class="sourceLine" id="cb13-34" title="34">main <span class="ot">=</span> quickCheckMain prop_correct</a></code></pre></div>
-<p>Note that, along with function correctness, the wrapper code above also checks that student code does not overwrite the string buffer.</p>
-<h1 id="reference-guide"><span class="header-section-number">3</span> Reference guide</h1>
-<h2 id="results"><span class="header-section-number">3.1</span> Results</h2>
-<p>Codex assesses submissions using a <em>tester</em>; for programming exercises this typically requires running a test suite (either provided by the instrutor or randomly-generated). The result is a <em>classification label</em>, a <em>validity check</em> and a <em>detail report</em>.</p>
-<p>Classification labels are similar to the ones used for <a href="https://icpc.baylor.edu/worldfinals/rules">ICPC programming contests</a>:</p>
+<div class="sourceCode" id="cb13"><pre
+class="sourceCode boxed haskell"><code class="sourceCode haskell"><span id="cb13-1"><a href="#cb13-1" aria-hidden="true" tabindex="-1"></a><span class="kw">module</span> <span class="dt">Main</span> <span class="kw">where</span></span>
+<span id="cb13-2"><a href="#cb13-2" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb13-3"><a href="#cb13-3" aria-hidden="true" tabindex="-1"></a><span class="kw">import</span> <span class="dt">Codex.QuickCheck</span></span>
+<span id="cb13-4"><a href="#cb13-4" aria-hidden="true" tabindex="-1"></a><span class="kw">import</span> <span class="dt">Control.Monad</span></span>
+<span id="cb13-5"><a href="#cb13-5" aria-hidden="true" tabindex="-1"></a><span class="kw">import</span> <span class="dt">Control.Exception</span></span>
+<span id="cb13-6"><a href="#cb13-6" aria-hidden="true" tabindex="-1"></a><span class="kw">import</span> <span class="dt">System.IO.Unsafe</span></span>
+<span id="cb13-7"><a href="#cb13-7" aria-hidden="true" tabindex="-1"></a><span class="kw">import</span> <span class="dt">Data.Char</span></span>
+<span id="cb13-8"><a href="#cb13-8" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb13-9"><a href="#cb13-9" aria-hidden="true" tabindex="-1"></a>foreign <span class="kw">import</span> ccall &quot;forte&quot; c_forte :: <span class="dt">CString</span> -&gt; <span class="dt">IO</span> <span class="dt">CInt</span></span>
+<span id="cb13-10"><a href="#cb13-10" aria-hidden="true" tabindex="-1"></a>   <span class="co">-- use FFI to import students&#39; submission</span></span>
+<span id="cb13-11"><a href="#cb13-11" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb13-12"><a href="#cb13-12" aria-hidden="true" tabindex="-1"></a><span class="co">-- | functional wrapper over C code</span></span>
+<span id="cb13-13"><a href="#cb13-13" aria-hidden="true" tabindex="-1"></a><span class="ot">c_forte_wrapper ::</span> <span class="dt">String</span> <span class="ot">-&gt;</span> <span class="dt">CInt</span></span>
+<span id="cb13-14"><a href="#cb13-14" aria-hidden="true" tabindex="-1"></a>c_forte_wrapper str <span class="ot">=</span> unsafePerformIO <span class="op">$</span> </span>
+<span id="cb13-15"><a href="#cb13-15" aria-hidden="true" tabindex="-1"></a>  withCString str <span class="op">$</span> \ptr <span class="ot">-&gt;</span> <span class="kw">do</span></span>
+<span id="cb13-16"><a href="#cb13-16" aria-hidden="true" tabindex="-1"></a>     r <span class="ot">&lt;-</span> c_forte ptr</span>
+<span id="cb13-17"><a href="#cb13-17" aria-hidden="true" tabindex="-1"></a>     str&#39; <span class="ot">&lt;-</span> peekCAString ptr</span>
+<span id="cb13-18"><a href="#cb13-18" aria-hidden="true" tabindex="-1"></a>     unless (str <span class="op">==</span> str&#39;) <span class="op">$</span></span>
+<span id="cb13-19"><a href="#cb13-19" aria-hidden="true" tabindex="-1"></a>          throwIO <span class="op">$</span> <span class="fu">userError</span> <span class="st">&quot;modified argument string&quot;</span></span>
+<span id="cb13-20"><a href="#cb13-20" aria-hidden="true" tabindex="-1"></a>     <span class="fu">return</span> r</span>
+<span id="cb13-21"><a href="#cb13-21" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb13-22"><a href="#cb13-22" aria-hidden="true" tabindex="-1"></a><span class="co">-- | functional specification</span></span>
+<span id="cb13-23"><a href="#cb13-23" aria-hidden="true" tabindex="-1"></a><span class="ot">forte_spec ::</span> <span class="dt">String</span> <span class="ot">-&gt;</span> <span class="dt">Bool</span></span>
+<span id="cb13-24"><a href="#cb13-24" aria-hidden="true" tabindex="-1"></a>forte_spec xs</span>
+<span id="cb13-25"><a href="#cb13-25" aria-hidden="true" tabindex="-1"></a>   <span class="ot">=</span> <span class="fu">length</span> xs <span class="op">&gt;=</span> <span class="dv">6</span> <span class="op">&amp;&amp;</span> <span class="fu">any</span> <span class="fu">isUpper</span> xs <span class="op">&amp;&amp;</span> <span class="fu">any</span> <span class="fu">isLower</span> xs <span class="op">&amp;&amp;</span> <span class="fu">any</span> <span class="fu">isDigit</span> xs</span>
+<span id="cb13-26"><a href="#cb13-26" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb13-27"><a href="#cb13-27" aria-hidden="true" tabindex="-1"></a>prop_correct</span>
+<span id="cb13-28"><a href="#cb13-28" aria-hidden="true" tabindex="-1"></a>  <span class="ot">=</span> testing <span class="st">&quot;forte(str)&quot;</span> <span class="op">$</span> </span>
+<span id="cb13-29"><a href="#cb13-29" aria-hidden="true" tabindex="-1"></a>    forAllShrink <span class="st">&quot;str&quot;</span> asciiString shrink <span class="op">$</span></span>
+<span id="cb13-30"><a href="#cb13-30" aria-hidden="true" tabindex="-1"></a>    \xs <span class="ot">-&gt;</span> c_forte_wrapper xs <span class="op">?==</span> <span class="fu">fromIntegral</span> (<span class="fu">fromEnum</span> (forte_spec xs))</span>
+<span id="cb13-31"><a href="#cb13-31" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb13-32"><a href="#cb13-32" aria-hidden="true" tabindex="-1"></a>asciiString <span class="ot">=</span> listOf (choose (<span class="ch">&#39;0&#39;</span>, <span class="ch">&#39;z&#39;</span>))</span>
+<span id="cb13-33"><a href="#cb13-33" aria-hidden="true" tabindex="-1"></a>                      </span>
+<span id="cb13-34"><a href="#cb13-34" aria-hidden="true" tabindex="-1"></a>main <span class="ot">=</span> quickCheckMain prop_correct</span></code></pre></div>
+<p>Note that, along with function correctness, the wrapper code above
+also checks that student code does not overwrite the string buffer.</p>
+<h1 data-number="3" id="reference-guide"><span
+class="header-section-number">3</span> Reference guide</h1>
+<h2 data-number="3.1" id="results"><span
+class="header-section-number">3.1</span> Results</h2>
+<p>Codex assesses submissions using a <em>tester</em>; for programming
+exercises this typically requires running a test suite (either provided
+by the instrutor or randomly-generated). The result is a
+<em>classification label</em>, a <em>validity check</em> and a
+<em>detail report</em>.</p>
+<p>Classification labels are similar to the ones used for <a
+href="https://icpc.baylor.edu/worldfinals/rules">ICPC programming
+contests</a>:</p>
 <dl>
 <dt><em>Accepted</em></dt>
-<dd><p>The submission passed all tests.</p>
+<dd>
+<p>The submission passed all tests.</p>
 </dd>
 <dt><em>WrongAnswer</em></dt>
-<dd><p>The submission was rejected because it failed at least one test.</p>
+<dd>
+<p>The submission was rejected because it failed at least one test.</p>
 </dd>
 <dt><em>CompileError</em></dt>
-<dd><p>The submission was rejected because it caused a static error (e.g. compiler error)</p>
+<dd>
+<p>The submission was rejected because it caused a static error (e.g.
+compiler error)</p>
 </dd>
 <dt><em>RuntimeError</em></dt>
-<dd><p>The submission was rejected because it caused a runtime error (e.g. runtime exception, segmentation fault)</p>
+<dd>
+<p>The submission was rejected because it caused a runtime error
+(e.g. runtime exception, segmentation fault)</p>
 </dd>
 <dt><em>RuntimeLimitExceeded</em>, <em>MemoryLimitExceeded</em></dt>
-<dd><p>The submission was reject because it tried to use too much computing resources; this usually signals an erroneous program (e.g. non-terminating).</p>
+<dd>
+<p>The submission was reject because it tried to use too much computing
+resources; this usually signals an erroneous program
+(e.g. non-terminating).</p>
 </dd>
 <dt><em>MiscError</em></dt>
-<dd><p>Some other error (e.g. incorrect metadata, test files, etc.)</p>
+<dd>
+<p>Some other error (e.g. incorrect metadata, test files, etc.)</p>
 </dd>
 <dt><em>Evaluating</em></dt>
-<dd><p>Temporary label assigned during evaluation.</p>
+<dd>
+<p>Temporary label assigned during evaluation.</p>
 </dd>
 </dl>
-<p>Independentely of the classification above, the submission is marked <em>Valid</em> if it respects the constraints on time and maximum attempts (specified as metadata) and <em>Invalid</em> otherwise (with a suitable message).</p>
-<p>Note that Codex always evaluates submissions (and reports feedback if is enabled); this means that a late submission that passes all tests will be classified <em>Accepted (Invalid: Late submission)</em>.[^1] This behaviour is intencional: it allows students to retry past exercises and leaves the instructor freedom on how to consider such submissions.</p>
+<p>Independentely of the classification above, the submission is marked
+<em>Valid</em> if it respects the constraints on time and maximum
+attempts (specified as metadata) and <em>Invalid</em> otherwise (with a
+suitable message).</p>
+<p>Note that Codex always evaluates submissions (and reports feedback if
+is enabled); this means that a late submission that passes all tests
+will be classified <em>Accepted (Invalid: Late submission)</em>.[^1]
+This behaviour is intencional: it allows students to retry past
+exercises and leaves the instructor freedom on how to consider such
+submissions.</p>
 <!--
 When submissions are rejected because of a wrong answer, the text
 report includes a human-readable description of a failed test case; this
@@ -418,30 +737,48 @@ exercise; however:
 * late submissions are assessed as usual but
   additionally labelled *Overdue*[^1].
 -->
-<h2 id="general-metadata"><span class="header-section-number">3.2</span> General metadata</h2>
+<h2 data-number="3.2" id="general-metadata"><span
+class="header-section-number">3.2</span> General metadata</h2>
 <p>The following metadata fields apply to all exercises types.</p>
 <dl>
 <dt><code>title</code></dt>
-<dd><p>Specifies the exercise title (used for hypertext links); if this is missing, then the first header in the exercise description is used.</p>
+<dd>
+<p>Specifies the exercise title (used for hypertext links); if this is
+missing, then the first header in the exercise description is used.</p>
 </dd>
 <dt><code>tester</code></dt>
-<dd><p>Specify the type of exercise (described in the following subsection).</p>
+<dd>
+<p>Specify the type of exercise (described in the following
+subsection).</p>
 </dd>
 <dt><code>feedback</code></dt>
-<dd><p>Boolean value (<code>yes</code>/<code>no</code> or <code>true</code>/<code>false</code>) controlling whether detailed feedback is shown (e.g. show the test case in case of test failure); the default is true.</p>
+<dd>
+<p>Boolean value (<code>yes</code>/<code>no</code> or
+<code>true</code>/<code>false</code>) controlling whether detailed
+feedback is shown (e.g. show the test case in case of test failure); the
+default is true.</p>
 </dd>
 <dt><code>valid</code></dt>
-<dd><p>Specify time constraints for submissions; the default is no time constraint. Some examples:</p>
+<dd>
+<p>Specify time constraints for submissions; the default is no time
+constraint. Some examples:</p>
 <pre><code>valid: &quot;after 08:00 15/02/2019&quot;
 valid: &quot;after 08:00 15/02/2019 and before 12:00 15/02/2019&quot;
 valid: &quot;(after 16/02/2019 and before 18/02/2019) or after 20/02/2019&quot;</code></pre>
 <p>Date and times are relative to the server local time zone.</p>
 </dd>
 <dt><code>attempts</code></dt>
-<dd><p>Specify maximum number of attemps allowed; default is an unlimited number of attempts.</p>
+<dd>
+<p>Specify maximum number of attemps allowed; default is an unlimited
+number of attempts.</p>
 </dd>
 <dt><code>lock</code></dt>
-<dd><p>Boolean value; specifies whether to lock submissions when not in the valid period and/or after the maximum number of attempts. Default value is <code>true</code>: invalid submissions are locked. If set to <code>false</code>, invalid submissions are still allowed (but still marked as invalid in the database).</p>
+<dd>
+<p>Boolean value; specifies whether to lock submissions when not in the
+valid period and/or after the maximum number of attempts. Default value
+is <code>true</code>: invalid submissions are locked. If set to
+<code>false</code>, invalid submissions are still allowed (but still
+marked as invalid in the database).</p>
 </dd>
 </dl>
 <!-- You
@@ -460,7 +797,9 @@ valid: &quot;(after 16/02/2019 and before 18/02/2019) or after 20/02/2019&quot;<
 -->
 <dl>
 <dt><code>code</code></dt>
-<dd><p>Specify an initial code skeleton for programming exercises; use an indented block for multiple lines, e.g.:</p>
+<dd>
+<p>Specify an initial code skeleton for programming exercises; use an
+indented block for multiple lines, e.g.:</p>
 <pre><code>code: |
   ~~~
   def distance(x1, y1, x2, y2):
@@ -468,116 +807,193 @@ valid: &quot;(after 16/02/2019 and before 18/02/2019) or after 20/02/2019&quot;<
       # complete this definition
       #
   ~~~</code></pre>
-<p>Note the vertical bar (<code>|</code>) and indentation in the above example.</p>
+<p>Note the vertical bar (<code>|</code>) and indentation in the above
+example.</p>
 </dd>
 </dl>
-<h2 id="testers"><span class="header-section-number">3.3</span> Testers</h2>
-<h3 id="stdio"><span class="header-section-number">3.3.1</span> <code>stdio</code></h3>
-<p>Tests complete programs that read input from <code>stdin</code> and produce output on <code>stdout</code>; specific fields:</p>
+<h2 data-number="3.3" id="testers"><span
+class="header-section-number">3.3</span> Testers</h2>
+<h3 data-number="3.3.1" id="stdio"><span
+class="header-section-number">3.3.1</span> <code>stdio</code></h3>
+<p>Tests complete programs that read input from <code>stdin</code> and
+produce output on <code>stdout</code>; specific fields:</p>
 <dl>
 <dt><code>languages</code></dt>
-<dd><p>List all allowed languages for this exercise; e.g.:</p>
+<dd>
+<p>List all allowed languages for the exercise; e.g.:</p>
 <pre><code>languages: [c, java, python, haskell]</code></pre>
-<p>If only a single language is allowed, the singular option <code>language</code> may be used instead:</p>
+<p>If only a single language is allowed, the singular option
+<code>language</code> may be used instead:</p>
 <pre><code>language: c</code></pre>
 </dd>
 <dt><code>inputs</code></dt>
-<dd><p>List of input files in order; glob patterns are allowed; e.g.</p>
+<dd>
+<p>List of input files in order; glob patterns are allowed; e.g.</p>
 <pre><code>inputs: [ &quot;exercise1/tests/example-in.txt&quot;, &quot;exercise1/tests/input*.txt&quot; ]</code></pre>
 </dd>
 <dt><code>outputs</code></dt>
-<dd><p>List of expected output files in order; glob patterns are allowed; e.g.</p>
+<dd>
+<p>List of expected output files in order; glob patterns are allowed;
+e.g.</p>
 <pre><code>outputs: [ &quot;exercise1/tests/example-out.txt&quot;, &quot;exercise1/tests/output*.txt&quot; ]</code></pre>
-<p>The number of output files much be the same as the number of inputs.</p>
+<p>The number of output files much be the same as the number of
+inputs.</p>
 </dd>
 <dt><code>files</code></dt>
-<dd><p>List of extra files that will be copied to the temporary working directory while running the tests.</p>
+<dd>
+<p>List of extra files that will be copied to the temporary working
+directory while running the tests.</p>
 </dd>
 <dt><code>arguments</code></dt>
-<dd><p>List of files with command-line arguments for each of the test cases defined by input/output pairs; by default, the command-line arguments are empty.</p>
+<dd>
+<p>List of files with command-line arguments for each of the test cases
+defined by input/output pairs; by default, the command-line arguments
+are empty.</p>
 </dd>
 </dl>
-<h3 id="doctest"><span class="header-section-number">3.3.2</span> <code>doctest</code></h3>
-<p>Test Python code using the <a href="https://docs.python.org/3/library/doctest.html"><code>doctest</code> library</a> for unit-testing simple functions, methods or classes. Extra options:</p>
+<h3 data-number="3.3.2" id="doctest"><span
+class="header-section-number">3.3.2</span> <code>doctest</code></h3>
+<p>Test Python code using the <a
+href="https://docs.python.org/3/library/doctest.html"><code>doctest</code>
+library</a> for unit-testing simple functions, methods or classes. Extra
+options:</p>
 <dl>
 <dt><code>language</code></dt>
-<dd><p>Should be <code>python</code> (must be included).</p>
+<dd>
+<p>Should be <code>python</code> (must be included).</p>
 </dd>
 <dt><code>tests</code></dt>
-<dd><p>Optional filename for doctests; by default this is the same file as the exercise with <code>.tst</code> as extension.</p>
+<dd>
+<p>Optional filename for doctests; by default this is the same file as
+the exercise with <code>.tst</code> as extension.</p>
 </dd>
 <dt><code>linter</code></dt>
-<dd><p>Boolean value specifying whether to run an external compile-time linter such as an <a href="http://mypy-lang.org/">optional static type checker</a>); the linter command is specified in the global configuration file; by default, the linter is not run.</p>
+<dd>
+<p>Boolean value specifying whether to run an external compile-time
+linter such as an <a href="http://mypy-lang.org/">optional static type
+checker</a>); the linter command is specified in the global
+configuration file; by default, the linter is not run.</p>
 </dd>
 <dt><code>linter-args</code></dt>
-<dd><p>Optional command-line arguments to pass the linter.</p>
+<dd>
+<p>Optional command-line arguments to pass the linter.</p>
 </dd>
 </dl>
-<h3 id="quickcheck"><span class="header-section-number">3.3.3</span> <code>quickcheck</code></h3>
-<p>Test Haskell or C code using a <a href="https://github.com/pbv/codex-quickcheck">custom version</a> of the <a href="http://hackage.haskell.org/package/QuickCheck">QuickCheck library</a>. Extra metata options:</p>
+<h3 data-number="3.3.3" id="quickcheck"><span
+class="header-section-number">3.3.3</span> <code>quickcheck</code></h3>
+<p>Test Haskell or C code using a <a
+href="https://github.com/pbv/codex-quickcheck">custom version</a> of the
+<a href="http://hackage.haskell.org/package/QuickCheck">QuickCheck
+library</a>. Extra metata options:</p>
 <dl>
 <dt><code>language</code></dt>
-<dd><p>Languages accepted: <code>haskell</code> or <code>c</code>.</p>
+<dd>
+<p>Languages accepted: <code>haskell</code> or <code>c</code>.</p>
 </dd>
 <dt><code>properties</code></dt>
-<dd><p>Haskell file with QuickCheck specification (generators and properties); defaults to the page filename with the extension replaced by <code>.hs</code>.</p>
+<dd>
+<p>Haskell file with QuickCheck specification (generators and
+properties); defaults to the page filename with the extension replaced
+by <code>.hs</code>.</p>
 </dd>
 <dt><code>maxSuccess</code></dt>
-<dd><p>Number of tests to run.</p>
+<dd>
+<p>Number of tests to run.</p>
 </dd>
 <dt><code>maxSize</code></dt>
-<dd><p>Maximum size for generated test data.</p>
+<dd>
+<p>Maximum size for generated test data.</p>
 </dd>
 <dt><code>maxDiscardRatio</code></dt>
-<dd><p>For conditional generators: the maximum number of discarded tests per successful test before giving up.</p>
+<dd>
+<p>For conditional generators: the maximum number of discarded tests per
+successful test before giving up.</p>
 </dd>
 <dt><code>randSeed</code></dt>
-<dd><p>Integer seed value for pseudo-random data generation; use if you want to ensure reproducibility of tests.</p>
+<dd>
+<p>Integer seed value for pseudo-random data generation; use if you want
+to ensure reproducibility of tests.</p>
 </dd>
 </dl>
-<h3 id="hspec"><span class="header-section-number">3.3.4</span> <code>hspec</code></h3>
-<p>Test Haskell code using the Hspec library. TODO: write documentation for this tester.</p>
-<h3 id="quiz"><span class="header-section-number">3.3.5</span> <code>quiz</code></h3>
-<p>Multiple-choice and fill-in questionaries with optional shuffling of questions and answers. Extra options:</p>
+<h3 data-number="3.3.4" id="hspec"><span
+class="header-section-number">3.3.4</span> <code>hspec</code></h3>
+<p>Test Haskell code using the Hspec library. TODO: write documentation
+for this tester.</p>
+<h3 data-number="3.3.5" id="quiz"><span
+class="header-section-number">3.3.5</span> <code>quiz</code></h3>
+<p>Multiple-choice and fill-in questionaries with optional shuffling of
+questions and answers. Extra options:</p>
 <dl>
 <dt><code>shuffle-questions</code></dt>
-<dd><p>Boolean value; specifies whether the order of questions should be shuffled; defaults to <code>false</code>. By default shuffling uses a deterministic algorithm based on the user login.</p>
+<dd>
+<p>Boolean value; specifies whether the order of questions should be
+shuffled; defaults to <code>false</code>. By default shuffling uses a
+deterministic algorithm based on the user login.</p>
 </dd>
 <dt><code>shuffle-answers</code></dt>
-<dd><p>Boolean value; specifies whether the order of answers within each question should be shuffled; default to <code>false</code>. By default shuffling uses a deterministic algorithm based on the user login.</p>
+<dd>
+<p>Boolean value; specifies whether the order of answers within each
+question should be shuffled; default to <code>false</code>. By default
+shuffling uses a deterministic algorithm based on the user login.</p>
 </dd>
 <dt><code>shuffle-seed</code></dt>
-<dd><p>Integer value; fix the PRNG seed used for shuffling (the default seed is a hash value of the user login).</p>
+<dd>
+<p>Integer value; fix the PRNG seed used for shuffling (the default seed
+is a hash value of the user login).</p>
 </dd>
 <dt><code>correct-weight</code></dt>
-<dd><p>Fractional number from 0 to 1; this is the scoring weight for a correct item in a multiple-choice question. By default the correct item(s) score 1.</p>
+<dd>
+<p>Fractional number from 0 to 1; this is the scoring weight for a
+correct item in a multiple-choice question. By default the correct
+item(s) score 1.</p>
 </dd>
 <dt><code>incorrect-weight</code></dt>
-<dd><p>Fractional number from 0 to -1; this is the scoring weight for an incorrect to a multiple-choice question. By default the score for each incorrect item is such that the sum of incorrect items equals minus the sum of corrects ones, e.g. for a three option question with a single correct option, an incorrect option scores <span class="math inline">\(-1/2\)</span>. To change change the penalty for wrong opttion to <span class="math inline">\(-1/3\)</span>:</p>
+<dd>
+<p>Fractional number from 0 to -1; this is the scoring weight for an
+incorrect to a multiple-choice question. By default the score for each
+incorrect item is such that the sum of incorrect items equals minus the
+sum of corrects ones, e.g. for a three option question with a single
+correct option, an incorrect option scores <span
+class="math inline">\(-1/2\)</span>. To change change the penalty for
+wrong opttion to <span class="math inline">\(-1/3\)</span>:</p>
 <pre><code>incorrect-weight: -1/3</code></pre>
 </dd>
 <dt><code>feedback</code></dt>
-<dd><p>Boolean value specifiying whether feedback on the replies should be given; should be set to <code>false</code> in in exam setting so that no feedback on correct/incorrect answers is given.</p>
+<dd>
+<p>Boolean value specifiying whether feedback on the replies should be
+given; should be set to <code>false</code> in in exam setting so that no
+feedback on correct/incorrect answers is given.</p>
 </dd>
 <dt><code>printout</code></dt>
-<dd><p>Boolean value specifiying whether to include a detailed transcript of questions and answer when producing a printout report (e.g. for exams); if set to <code>false</code> then the report will only include a summary (number of answered, correct and incorrect replies and a percentage score).</p>
+<dd>
+<p>Boolean value specifiying whether to include a detailed transcript of
+questions and answer when producing a printout report (e.g. for exams);
+if set to <code>false</code> then the report will only include a summary
+(number of answered, correct and incorrect replies and a percentage
+score).</p>
 </dd>
 </dl>
-<h1 id="extra"><span class="header-section-number">4</span> Extra</h1>
-<h2 id="shuffling"><span class="header-section-number">4.1</span> Shuffling exercises</h2>
-<p>You can shuffle exercises in a Markdown index page by using a <code>DIV</code> block marked with class “<code>shuffle</code>”. For example, to shuffle 3 exercises:</p>
+<h1 data-number="4" id="extra"><span
+class="header-section-number">4</span> Extra</h1>
+<h2 data-number="4.1" id="shuffling"><span
+class="header-section-number">4.1</span> Shuffling exercises</h2>
+<p>You can shuffle exercises in a Markdown index page by using a
+<code>DIV</code> block marked with class “<code>shuffle</code>”. For
+example, to shuffle 3 exercises:</p>
 <pre class="boxed"><code>&lt;div class=&quot;shuffle&quot;&gt;
 * [](exercise1.md){.ex}
 * [](exercise2.md){.ex}
 * [](exercise3.md){.ex}
 &lt;/div&gt;</code></pre>
-<p>It is also possible to specify the number of exercises to choose. For example, randomly choose 2 out of 3 exercises:</p>
+<p>It is also possible to specify the number of exercises to choose. For
+example, randomly choose 2 out of 3 exercises:</p>
 <pre class="boxed"><code>&lt;div class=&quot;shuffle&quot; choose=2&gt;
 * [](exercise1.md){.ex}
 * [](exercise2.md){.ex}
 * [](exercise3.md){.ex}
 &lt;/div&gt;</code></pre>
-<p>Shuffleing blocks can be combined to produce questionaries with multiple alternatives picked pseudo-randomly for each user, e.g.:</p>
+<p>Shuffleing blocks can be combined to produce questionaries with
+multiple alternatives picked pseudo-randomly for each user, e.g.:</p>
 <pre class="boxed"><code># Question 1
 
 &lt;div class=&quot;shuffle&quot; choose=1&gt;
@@ -593,12 +1009,14 @@ valid: &quot;(after 16/02/2019 and before 18/02/2019) or after 20/02/2019&quot;<
 * [](question2b.md){.ex}
 * [](question2c.md){.ex}
 &lt;/div&gt;</code></pre>
-<p>Shuffling is pseudo-random and deterministic: each user will always get the same choices from a given page. Alternatively, it is possible to fix a pseudo-random integer seed in the document metadata, e.g.:</p>
+<p>Shuffling is pseudo-random and deterministic: each user will always
+get the same choices from a given page. Alternatively, it is possible to
+fix a pseudo-random integer seed in the document metadata, e.g.:</p>
 <pre><code>...
 shuffle-seed: 123
 ---</code></pre>
 <p>This way every user will see the same choices.</p>
 <hr />
-<p>Pedro Vasconcelos, 2019.</p>
+<p>Pedro Vasconcelos, 2025.</p>
 </body>
 </html>

@@ -1,7 +1,7 @@
 ---
 title: A Guide to Writting Codex Exercises
 author: Pedro Vasconcelos <pbv@dcc.fc.up.pt>, University of Porto, Portugal. 
-date: February 2021 (version 0.9.9)
+date: February 2025 (version 1.0.0)
 ...
 
 
@@ -14,9 +14,9 @@ automatic assessment. The main features are:
 
 *Simple exercise authoring*
 
-:    Exercise descriptions are written in a human-readable Markdown
-format that can easily be copied, mailed, kept in a version repository,
-compared for changes, etc.;
+:    Exercises are written in a human-readable Markdown format that
+can easily be copied, mailed, kept in a version repository, compared
+for changes, etc.;
 
 *Allows assessing program units*
 
@@ -41,7 +41,7 @@ Codex is intended for learning environments rather than programming
 contests (for the later, check out
 [Mooshak](https://mooshak.dcc.fc.up.pt/)).  The system is currently
 being used at the Faculty of Science of the University of Porto for
-introductory courses on Python and C programming.
+introductory courses on Python, Haskell and C programming.
 
 ## Pages and exercises
 
@@ -57,12 +57,12 @@ support LaTeX syntax for mathematical formulas (rendered using
 For more details on the Pandoc-flavoured Markdown, check the [Pandoc user
 manual](http://pandoc.org/MANUAL.html#pandocs-markdown).
 
-Pages can be plain static documents or marked as *exercises*;
-the later allow student to submit solutions and get automatic assessment.
+Pages can be plain static documents or marked as *exercises*; the
+later allow student to submit solutions and get automatic assessment.
 Submissions are kept in a persistent database so that students and
-instructors can review their previous attempts.
-The administrator can also view and manage 
-all submissions (e.g. re-evaluate or generate printouts).
+instructors can review their previous attempts.  The administrator can
+also view and manage all submissions (e.g. re-evaluate or generate
+printouts).
 
 Comments in pages can be written in HTML-style:
 
@@ -87,11 +87,10 @@ Metadata blocks are delimited between "`---`" and
     valid: "after 25/05/2019 and before 15/06/2019"
     ...
 
-Metadata blocks can occur anywhere in a document; several 
-blocks are equivalent to a single one with the (left-biased)
-union of all fields.
-(*Sugestion*: include
-metadata at the beginning or the the end of the document.)
+Metadata blocks can occur anywhere in a document; several blocks are
+equivalent to a single one with the (left-biased) union of all fields.
+(*Sugestion*: include metadata at the beginning or the the of the
+document.)
  
 Exercises  are marked by the  `tester` field; the
 particular tester specifies the type of exercise and how assement
@@ -113,12 +112,11 @@ re-evaluate submissions.
 
 ## Document structure
 
-All page files, images, etc. should be
-maintained inside the `public` directory and 
-the starting page after login is the `index.md` page;
-this should link exercises or other sub-directories.
-For example, for 3 exercises `worksheet1.md`, `worksheet2.md` and
-`worksheet3.md`, a minimal `index.md` page could be:
+All page files, images, etc. should be maintained inside the `public`
+directory and the starting page after login is the `index.md` page;
+this should link exercises or other sub-directories.  For example, for
+3 exercises `worksheet1.md`, `worksheet2.md` and `worksheet3.md`, a
+minimal `index.md` page could be:
 
 ~~~{.boxed}
 # Welcome!
@@ -131,7 +129,7 @@ This is minimal index page. Here is a list of available exercises:
 ~~~
 
 The links are marked with a class attribute `".ex"`; this fills-in the
-exercise title automatically (read from the markdown document) and a
+exercise title automatically (read from the markdown document) and the
 summary of previous submissions by the current user (read from the
 submission database).
 
@@ -198,12 +196,11 @@ Traceback (most recent call last):
 ValueError: math domain error
 ~~~
 
-These two files are all that we need.
-For each student submission the tests in the *doctest* script
-will be tried in order;
-testing terminates immediately if any of tests fails (with a wrong
-answer or a runtime exception) and the failed test case is used to
-produce a report, e.g.:
+These two files are all that we need.  For each student submission the
+tests in the *doctest* script will be tried in order; testing
+terminates immediately if any of tests fails (with a wrong answer or a
+runtime exception) and the failed test case is used to produce a
+report, e.g.:
 
 ~~~{.boxed}
 Failed example:
@@ -216,20 +213,19 @@ Got:
 
 Some remarks on writting *doctest* cases:
 
-1. The first test case that fails is reported, thus
-   so the *doctest* script should the include
-   the simplest cases first;
-2. Be aware that the `doctest` library
-   employs a textual matching of outputs
-   (e.g. `0` and `0.0` are considered distinct); make sure you normalize
-   floating-point results (e.g. using `round`)
-4. To discourage students from "overfitting" solutions
-   to pass just the failing tests, it is best to generate
-   a large number (50-100) of cases (write a Python script);
-5. Alternatively, you can hide test cases by setting
-   the metadata field "`feedback: no`";
-6. It is also possible test error handling by requiring
-   that proper exceptions are thrown &mdash; see the [`doctest` documentation](https://docs.python.org/3/library/doctest.html#what-about-exceptions);
+1. The first test case that fails is reported, thus so the *doctest*
+   script should the include the simplest cases first;
+2. Be aware that the `doctest` library employs a textual matching of
+   outputs (e.g. `0` and `0.0` are considered distinct); make sure you
+   normalize floating-point results (e.g. using `round`)
+4. To discourage students from "overfitting" solutions to pass just
+   the failing tests, it is best to generate a large number (50-100)
+   of cases (write a Python script);
+5. Alternatively, you can hide test cases by setting the metadata
+   field "`feedback: no`";
+6. It is also possible test error handling by requiring that proper
+   exceptions are thrown &mdash; see the [`doctest`
+   documentation](https://docs.python.org/3/library/doctest.html#what-about-exceptions);
 
 ### An example quiz
 
@@ -256,8 +252,8 @@ Consider a relation $R \subseteq \mathbb{Z}\times\mathbb{Z}$
 definied by $x R y \iff \exists k \in\mathbb{Z} : y = k\times x$.
 What properties does this relation have?
 
-(a) reflexive, transitive e anti-symetric
-(b) reflexive, transitive e symetric
+(a) reflexive, transitive and anti-symetric
+(b) reflexive, transitive and symetric
 (c) reflexive, not transitive and symetric
 
 <!-- The next question allows multiple selections -->
@@ -296,12 +292,11 @@ You can explicitly set header identifiers as follows:
 
 If the metadata options `shuffle-questions` and `shuffle-answers` are
 enabled Codex will shuffle questions and/or answers. By default,
-neither questions nor answers are shuffled.  Shuffling is
-deterministic for each student (i.e. it depends only on the user
-login).
+neither questions nor answers are shuffled.  The shuffle order choosen for each
+student is deterministic (i.e. it depends only on the user login).
 
-It is also possible to group variants of each question
-so that only one is randomly choosen for each student, e.g.:
+It is also possible to group variants of each question so that only
+one is randomly choosen for each student, e.g.:
 
 ~~~{.boxed}
 # {#questionA1 .question group="A" ...}
@@ -641,7 +636,7 @@ on `stdout`; specific fields:
 
 `languages`
 
-:   List all allowed languages for this exercise; e.g.:
+:   List all allowed languages for the exercise; e.g.:
     
     ```
     languages: [c, java, python, haskell]
@@ -869,7 +864,7 @@ This way every user will see the same choices.
 
 ----
 
-Pedro Vasconcelos, 2019.
+Pedro Vasconcelos, 2025.
 
 
 
