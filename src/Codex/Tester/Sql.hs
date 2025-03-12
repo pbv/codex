@@ -7,16 +7,16 @@ module Codex.Tester.Sql (
   ) where
 
 import           Codex.Tester
-import           Control.Applicative ((<|>))
+import           Control.Applicative (empty,(<|>))
 import           Data.Maybe (fromMaybe)
 import qualified Data.Text as T
 import           Data.List (sort)
 import           Control.Exception (throwIO, catch)
 
 sqliteTester :: Tester Result
-sqliteTester = queryTester <|> updateTester
+sqliteTester = empty -- queryTester <|> updateTester
 
-
+{-
 --
 -- | Tester for queries
 --
@@ -139,3 +139,4 @@ runUpdates limits (sqlite:args) (sqldiff:args') answer update inputs =
                   runDiff (T.pack observef) (T.pack expectf)
       if T.null stdout then loop (n+1) rest
         else throwIO $ wrongAnswer stdout
+-}

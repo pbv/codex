@@ -33,7 +33,6 @@ import           System.FilePath
 import           System.Exit
 import           Data.Monoid
 
-import           Data.Text (Text)
 
 -- | Try testers in order, return the first one that suceedds.
 -- This is just `asum` from Control.Applicative.Alternative

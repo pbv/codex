@@ -4,7 +4,7 @@
 {-# LANGUAGE RecordWildCards #-}
 {-
 -- | Tester monad for writing testers for submissions
--- | allows access to an environment, running IO and failure (i.e. passing)
+-- | allows access to an environment, running IO and alternative (i.e. passing)
 --
 -}
 module Codex.Tester.Monad (
@@ -41,7 +41,7 @@ import           Codex.Page
 import           Codex.Tester.Limits
 import           System.FilePath
 import           Data.Maybe (fromMaybe)
-import           Data.Text (Text)
+import           Data.Text (Text, unpack)
 
 -- | a monad for testing scripts
 -- allows access to a test environment, IO and failure (i.e. passing)
@@ -90,15 +90,14 @@ testMetadata = pageMeta <$> testPage
 
 -- | get a medata value given the key
 metadata :: FromMetaValue a => Text -> Tester (Maybe a)
-metadata key = do
-  meta <- testMetadata
-  return (lookupFromMeta key meta)
+metadata key = 
+  lookupFromMeta key <$> testMetadata
 
 -- | get an relative path from metadata 
 metadataPath :: Text -> Tester (Maybe FilePath)
 metadataPath key = do
   dir <- takeDirectory <$> testFilePath  -- directory for exercise page
-  fmap (dir </>) <$> metadata key     -- lookup and make a relative path
+  fmap (dir </>) <$> metadata key       -- lookup and make a relative path
 
 
 -- | get a optional value given the default

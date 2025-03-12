@@ -24,8 +24,7 @@ import qualified Data.Text as T
 import qualified Data.Text.IO as T
 import           Data.Maybe (fromMaybe)
 import           Text.Printf
-
-import           Control.Exception (catch)
+import           Control.Exception(handle)
 import           System.Directory(copyFile)
 
 --
@@ -39,7 +38,7 @@ data Build =
         , makeExec :: FilePath -> Code -> IO exec
         , runExec  :: exec
                    -> Maybe FilePath   -- working dir
-                   -> [Text]           -- cmdline args 
+                   -> [String]         -- cmdline args 
                    -> Text             -- stdin
                    -> IO (ExitCode, Text, Text)  -- status, stdout, stderr
         }
@@ -52,13 +51,13 @@ clangBuild = do
   cc_cmd <- configured "language.c.compiler"
   limits <- configLimits "language.c.limits"
   cc:cc_args <- parseArgs cc_cmd
-  let make tmpdir (Code _ code) = do 
+  let make tmpdir (Code _ code) = do
         let c_file = tmpdir </> "submit.c"
         let exe_file = tmpdir </> "submit"
         T.writeFile c_file code
         chmod (executable . readable . writeable) tmpdir
         chmod readable c_file
-        runCompiler (Just limits) cc (map T.pack cc_args ++ [T.pack c_file, "-o", T.pack exe_file])
+        runProcess (Just limits) cc (cc_args ++ [c_file, "-o", exe_file])
         return exe_file
   let run exe_file dir args stdin = do
         safeExec limits exe_file dir args stdin
@@ -78,7 +77,7 @@ pythonBuild = do
         chmod readable pyfile
         return pyfile
   let run pyfile dir args stdin = do
-        safeExec limits python dir (T.pack pyfile:args) stdin
+        safeExec limits python dir (pyfile:args) stdin
   return (Build (=="python") make run)
 
 -- | builder for Java programs
@@ -89,7 +88,7 @@ javaBuild = do
   java_cmd <- configured "language.java.runtime"
   limits <- configLimits "language.java.limits"
   -- name for public java class with the main method
-  classname <- fromMaybe "Main" <$> metadata "java-main" 
+  classname <- fromMaybe "Main" <$> metadata "java-main"
   javac:javac_args <- parseArgs javac_cmd
   java:java_args <- parseArgs java_cmd
   let make tmpdir (Code _ code) = do
@@ -98,11 +97,11 @@ javaBuild = do
         T.writeFile java_file code
         chmod (executable . readable . writeable) tmpdir
         chmod readable java_file
-        runCompiler (Just limits) javac (map T.pack javac_args ++ [T.pack java_file])
+        runProcess (Just limits) javac (javac_args ++ [java_file])
         return classfile
   let run classfile cwd args stdin = do
         let classpath = takeDirectory classfile
-        let args' = map T.pack java_args ++ ["-cp", T.pack classpath, T.pack classname] ++ args
+        let args' = java_args ++ ["-cp", classpath, classname] ++ args
         safeExec limits java cwd args' stdin
   return (Build (=="java") make run)
 
@@ -113,20 +112,20 @@ haskellBuild = do
   ghc_cmd <- configured "language.haskell.compiler"
   limits <- configLimits "language.haskell.limits"
   -- name for the Haskell main module
-  modname <- fromMaybe "Main" <$> metadata "haskell-main" 
+  modname <- fromMaybe "Main" <$> metadata "haskell-main"
   ghc:ghc_args <- parseArgs ghc_cmd
   let make tmpdir (Code _ code) = do
         let hs_file = tmpdir </> modname <.> "hs"
         let exe_file = tmpdir </> modname
         T.writeFile hs_file code
         chmod (readable . writeable . executable) tmpdir
-        chmod readable hs_file        
-        runCompiler (Just limits) ghc (map T.pack ghc_args ++ [T.pack hs_file, "-o", T.pack exe_file])
+        chmod readable hs_file
+        runProcess (Just limits) ghc (ghc_args ++ [hs_file, "-o", exe_file])
         return exe_file
   let run exe_file args stdin = do
         safeExec limits exe_file args stdin
   return (Build (=="haskell") make run)
-        
+
 
 
 -- | parametrized I/O tester 
@@ -153,7 +152,7 @@ stdioTester Build{..} = tester "stdio" $ do
   files <- globPatterns dir =<< metadataWithDefault "files" []
   --
   liftIO $
-    (withTempDir "codex" $ \tmpdir -> do
+    withTempDir "codex" $ \tmpdir -> handle compileErrorHandler $ do
         -- make temp directory readable, writable and executable for user 
         chmod (readable . writeable . executable) tmpdir
         -- copy extra files
@@ -161,12 +160,12 @@ stdioTester Build{..} = tester "stdio" $ do
         -- make executable
         exe_file <- makeExec tmpdir code
         -- run all tests
-        runTests (runExec exe_file (Just tmpdir)) $ zip3 argfiles' inputs outputs)
-    `catch` return
+        runTests (runExec exe_file (Just tmpdir)) $ zip3 argfiles' inputs outputs
+
 
 
 runTests ::
-  ([Text] -> Text -> IO (ExitCode, Text, Text)) ->
+  ([String] -> Text -> IO (ExitCode, Text, Text)) ->
   [(Maybe FilePath, FilePath, FilePath)] ->
   -- ^ optional file with cmdline args, input, output
   IO Result
@@ -180,31 +179,31 @@ runTests action tests
       in_txt <- T.readFile in_file
       out_txt <- T.readFile out_file
       arg_str <- maybe (return "") readFile opt_arg_file
-      args <- map T.pack <$> parseArgs arg_str
+      args <- parseArgs arg_str
       result <- classify in_txt out_txt <$> action args in_txt
       if resultStatus result == Accepted then
         loop (n+1) tests
         else
         return (numberResult n total arg_str result)
-          
+
 numberResult :: Int -> Int -> String -> Result -> Result
 numberResult num total args Result{..}
   = Result resultStatus (test <> resultReport)
   where test
           = T.pack (printf "*** Test %d / %d ***\n\n" num total) <>
           "Command-line arguments:\n" <> T.pack args <> "\n"
-          
+
 
 
 classify ::  Text -> Text -> (ExitCode, Text, Text) -> Result
-classify input expected (ExitSuccess, out, _) 
+classify input expected (ExitSuccess, out, _)
   | T.strip out == T.strip expected
   = accepted "OK"
   | otherwise
   = wrongAnswer $ textDiff expected input out
 classify input _ (ExitFailure c, _, err)
   | match "Time Limit" err   = timeLimitExceeded $ textInput input
-  | match "Memory Limit" err = memoryLimitExceeded $ textInput input 
+  | match "Memory Limit" err = memoryLimitExceeded $ textInput input
   | match "Output Limit" err = runtimeError $ T.unlines [textInput input, err]
   | otherwise = runtimeError $ T.unlines
                 [ textInput input, ""

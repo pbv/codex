@@ -3,7 +3,9 @@
 {-# LANGUAGE ScopedTypeVariables #-}
 
 module Codex.Tester.Utils
-  ( match
+  ( RunProcessErr(..)
+  , compileErrorHandler
+  , match
   , withTemp, withTempDir
   , assert
   , fileExists
@@ -11,7 +13,7 @@ module Codex.Tester.Utils
   , cleanupFiles
   , chmod
   , readable, executable, writeable
-  , runCompiler
+  , runProcess
   , safeExec
   , unsafeExec
   , getMetaArgs
@@ -62,6 +64,12 @@ import           Codex.Tester.Result
 import           Codex.Tester.Limits
 
 import qualified ShellWords
+
+
+data RunProcessErr = RunProcessErr !Text !Text -- stdout, stderr
+  deriving (Read, Show)
+
+instance Exception RunProcessErr  -- default instance
 
 
 -- | match a piece of text
@@ -116,17 +124,22 @@ writeable mode =
   mode .|. ownerWriteMode .|. groupWriteMode .|. otherWriteMode
 
 
--- | run a compiler (possibly under a safe sandbox)
-runCompiler :: Maybe Limits -> FilePath -> [Text] -> IO ()
-runCompiler optLimits cmd args = do
-  (exitCode, out, err) <- case optLimits of
-    Nothing -> readTextProcessWithExitCode cmd (map T.unpack args) ""
-    Just limits -> safeExec limits cmd Nothing args ""   
+-- | run an external process (e.g.compiler) possibly under a sandbox
+runProcess :: Maybe Limits -> FilePath -> [String] -> IO ()
+runProcess optLimits cmd args = do
+  (exitCode, stdout, stderr) <- case optLimits of
+    Nothing -> readTextProcessWithExitCode cmd args ""
+    Just limits -> safeExec limits cmd Nothing args ""
   case exitCode of
     ExitFailure _ -> 
-      throwIO (compileError (out <> err))
+      throwIO (RunProcessErr stdout stderr)
     ExitSuccess ->
       return ()
+
+compileErrorHandler :: RunProcessErr -> IO Result
+compileErrorHandler (RunProcessErr stdout stderr)
+  = return $ compileError (stdout<>stderr)
+
 
 readTextProcessWithExitCode cmd args stdin = do
   (exitCode, out, err) <- readProcessWithExitCode cmd args stdin
@@ -137,12 +150,12 @@ readTextProcessWithExitCode cmd args stdin = do
 safeExec :: Limits
          -> FilePath           -- ^ command
          -> Maybe FilePath     -- ^ optional working directory
-         -> [Text]             -- ^ comand line arguments
+         -> [String]           -- ^ comand line arguments
          -> Text               -- ^ stdin
          -> IO (ExitCode, Text, Text)
-         -- ^ code, stdout, stderr
+         --               ^ stdout, stderr
 safeExec limits exec dir args stdin = do
-  (code, out, err) <- safeExecBS limits exec dir (map T.unpack args) (T.encodeUtf8 stdin)
+  (code, out, err) <- safeExecBS limits exec dir args (T.encodeUtf8 stdin)
   return (code,
            T.decodeUtf8With T.lenientDecode out,
            T.decodeUtf8With T.lenientDecode err)

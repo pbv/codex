@@ -1,28 +1,26 @@
 #!/usr/bin/python3
 # 
-# Run doctests on a python file
-# Pedro Vasconcelos, 2013
+# Run doctests on a Python file
+# Pedro Vasconcelos, 2013-2025
 #
 import os
 import sys
 import doctest
 
-
-if len(sys.argv) != 4:
-    sys.stderr.write("usage: "+sys.argv[0]+" <scripts-dir> <doctest-file> <python-file>\n")
+if len(sys.argv) < 2:
+    sys.stderr.write("usage: "+sys.argv[0]+" <python-file> <doctest-file> ?<doctest-file>? ...\n")
     sys.exit (-1)
 
-
-scripts = sys.argv[1]
-docfile = sys.argv[2]
-inpfile = sys.argv[3]
+# scripts = sys.argv[1]
+inpfile = sys.argv[1]
+docfiles = sys.argv[2:]
 
 (pydir, pyfile) = os.path.split(inpfile)
 (pymod, pyext) = os.path.splitext(pyfile)
 
 # setup module search path
 # add submissions directory to module search path
-sys.path.insert(0, scripts)
+# sys.path.insert(0, scripts)
 sys.path.insert(0, pydir)
 
 # lower recursion depth for shorter stack traces on unbounded recursions
@@ -33,17 +31,28 @@ sys.dont_write_bytecode = True
 
 tstmod = __import__(pymod, globals(), locals(), [], 0)
 
-flags = doctest.IGNORE_EXCEPTION_DETAIL|doctest.ELLIPSIS|doctest.REPORT_ONLY_FIRST_FAILURE
+flags = (doctest.IGNORE_EXCEPTION_DETAIL|
+         doctest.ELLIPSIS|
+         doctest.NORMALIZE_WHITESPACE|
+         doctest.REPORT_ONLY_FIRST_FAILURE)
 
-(failed,tested) = doctest.testfile(docfile, 
-                                   module_relative=False, 
-                                   extraglobs=vars(tstmod), 
-                                   report=False,
-                                   optionflags=flags)
-print()
-print("%d tests, %d failed." % (tested, failed))
+total_failed = 0
+total_tests = 0
+for docfile in docfiles:
+    name = os.path.basename(docfile)
+    (fails,tests) = doctest.testfile(docfile,
+                                     name=name,
+                                     module_relative=False, 
+                                     extraglobs=vars(tstmod), 
+                                     report=False,
+                                     verbose=False,
+                                     optionflags=flags)
+    total_failed += fails
+    total_tests += tests
 
-if failed > 0:
+print(f'{total_tests} tests, {total_failed} failed.')
+    
+if total_failed > 0:
     sys.exit(1)
 else:
     sys.exit(0)

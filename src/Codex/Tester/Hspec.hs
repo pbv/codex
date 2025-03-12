@@ -16,8 +16,7 @@ import           Data.Maybe (fromMaybe)
 import           Data.Map.Strict (fromList)
 import           Codex.Tester
 import           Text.Pandoc.Definition (Meta(..), MetaValue(..))
-
-import           Control.Exception (catch)
+import           Control.Exception(handle)
 import           System.Directory(copyFile)
 
 
@@ -28,16 +27,15 @@ hspecTester = tester "hspec" $ do
   guard (lang == "haskell")
   path <- testFilePath
   let dir = takeDirectory path
-  specPath <- fromMaybe (replaceExtension path ".hs")
-              <$> metadataPath "spec"
+  specPath <- fromMaybe (replaceExtension path ".hs") <$> metadataPath "spec"
   assert (fileExists specPath)
       ("spec file not found: " <> show specPath)
   spec <- liftIO $ T.readFile specPath
   files <- globPatterns dir =<< metadataWithDefault "files" []
-  args <- getHspecArgs <$> testMetadata
+  args <- (map T.unpack . getHspecArgs) <$> testMetadata
   ghc <- configured "language.haskell.compiler"
   limits <- configLimits "language.haskell.limits"
-  liftIO (haskellRunner limits ghc args files src spec `catch` return)
+  liftIO (haskellRunner limits ghc args files src spec)
 
 getHspecArgs :: Meta -> [Text]
 getHspecArgs 
@@ -50,23 +48,23 @@ defaultMeta = Meta $ fromList [ -- ("format", MetaString "failed-examples")
                                ("ignore-dot-hspec", MetaBool True)
                               ]
 
-haskellRunner ::
-  Limits -> FilePath -> [Text] -> [FilePath] -> Text -> Text -> IO Result
+haskellRunner :: Limits -> FilePath -> [String] -> [FilePath] -> Text -> Text
+              -> IO Result
 haskellRunner limits ghc qcArgs files code props =
-   withTempDir "codex" $ \dir -> do
+   withTempDir "codex" $ \dir -> handle compileErrorHandler $ do
      -- copy extra files
      mapM_ (\f -> copyFile f (dir </> takeFileName f)) files
      let hs_file   = dir </> "Submission.hs"
      let main_file = dir </> "Main.hs"
      let exe_file = dir </> "Main"
-     cmd:args <- map T.pack <$> parseArgs ghc
-     let args' = args ++ [T.pack ("-i"++dir), T.pack main_file, "-o", T.pack exe_file]
+     cmd:args <- parseArgs ghc
+     let args' = args ++ [("-i"++dir), main_file, "-o", exe_file]
      T.writeFile hs_file (header <> code)
      T.writeFile main_file props
      chmod executable dir
      chmod writeable dir
      chmod readable hs_file
-     runCompiler (Just limits) (T.unpack cmd) args'
+     runProcess (Just limits) cmd args'
      classify <$> safeExec limits exe_file Nothing qcArgs ""
 
 header :: Text
