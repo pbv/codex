@@ -9,7 +9,8 @@ module Codex.Tester.PythonDoctest (
 import           Codex.Tester
 import           Data.Text(Text)
 import qualified Data.Text as T
-import           Data.Maybe(fromMaybe)
+import           Data.Maybe(maybeToList)
+import           System.Directory (doesFileExist)
 
 pythonDocTester :: Tester Result
 pythonDocTester = tester "doctest" $ do
@@ -19,13 +20,23 @@ pythonDocTester = tester "doctest" $ do
   runtests  <- configured "language.python.runtests"
   limits    <- configLimits "language.python.limits"
   dir <- takeDirectory <$> testFilePath
-  pub_tests <- map (dir</>) . fromMaybe [] <$> metadata "public"
-  priv_tests <- map (dir</>) . fromMaybe [] <$> metadata "private"  
-  withTemp "submit.py" src $ \pyfile -> do
-    chmod readable pyfile
-    r <- public <$> runDoctests limits python [runtests, pyfile] pub_tests
-    r'<- private <$> runDoctests limits python [runtests, pyfile] priv_tests
-    return (r <> r')
+  -- "old-style" single doctest file
+  old_tests <- fmap (dir</>) <$> metadata "tests"
+  new_tests <- maybe [] (map (dir</>)) <$> metadata "public"
+  let pub_tests = maybeToList old_tests ++ new_tests  
+  priv_tests <- maybe [] (map (dir</>)) <$> metadata "private"
+  --
+  missing <- liftIO $ filterM (fmap not . doesFileExist) (pub_tests ++ priv_tests) 
+  if null missing then
+    withTemp "submit.py" src $ \pyfile -> do
+       chmod readable pyfile
+       r <- runDoctests limits python [runtests, pyfile] pub_tests
+       r'<- markPrivate <$> runDoctests limits python [runtests, pyfile] priv_tests
+       return (r <> r')
+    else
+       return (miscError ("missing doctest files: " <> T.pack (show missing)))
+                          
+
 
 
 runDoctests :: Limits -> FilePath -> [String] -> [FilePath] -> IO Result
@@ -33,7 +44,7 @@ runDoctests _      _      _    []     = return mempty
 runDoctests limits python args tests = do
   let cmdline = args ++ tests
   classify <$> safeExec limits python Nothing cmdline ""
-      
+
 
 
 classify :: (ExitCode, Text, Text) -> Result
@@ -47,22 +58,7 @@ classify (ExitFailure _, stdout, stderr)
   | otherwise                          = miscError (filterPaths stdout <> stderr)
 
 
--- filter doctest filepaths from report
+-- filter doctest filepaths from report;
+-- we need this to avoid leaking server info to students
 filterPaths :: Text -> Text
 filterPaths = T.unlines . filter (not . T.isPrefixOf "File \"") . T.lines
-
--- label reports as private or public
-private :: Result -> Result
-private r
-  = r { resultReport = "Private tests: " `label` lastLine (resultReport r) }
-
-public :: Result -> Result
-public r
-  = r { resultReport = "Public tests: " `label` resultReport r }
-
-label :: Text -> Text -> Text
-label msg info | T.null info = ""
-               | otherwise   = msg <> info
-             
-lastLine :: Text -> Text
-lastLine txt = if T.null txt then "" else last (T.lines txt)

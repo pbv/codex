@@ -20,7 +20,6 @@ docfiles = sys.argv[2:]
 
 # setup module search path
 # add submissions directory to module search path
-# sys.path.insert(0, scripts)
 sys.path.insert(0, pydir)
 
 # lower recursion depth for shorter stack traces on unbounded recursions

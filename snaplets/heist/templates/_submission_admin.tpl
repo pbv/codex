@@ -16,7 +16,7 @@
 <else/>
 <h3>Resultado: <em><result-status/></em></h3>
 <if-valid><else/><p><icon-warning/> Submissão inválida: <em><invalid-msg/></em></p></if-valid>
-<pre><result-report/></pre>
+<pre><result-private-report/></pre>
 <h3>Código</h3>
 <pre><submit-code/></pre> 
 <hr/>

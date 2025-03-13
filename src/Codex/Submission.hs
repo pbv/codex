@@ -220,7 +220,8 @@ submissionSplices tz Submission{..} = do
 resultSplices :: Result -> ISplices
 resultSplices Result{..} = do
   "result-status" ## I.textSplice (statusText resultStatus)
-  "result-report" ## I.textSplice resultReport
+  "result-report" ## I.textSplice (hidePrivate resultReport)
+  "result-private-report" ## I.textSplice (showPrivate resultReport)
   "if-accepted" ## I.ifElseISplice (resultStatus == Accepted)
   "if-evaluating" ## I.ifElseISplice (resultStatus == Evaluating)
 

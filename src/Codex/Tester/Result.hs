@@ -5,11 +5,11 @@ module Codex.Tester.Result
   (Result(..), Status(..),
    evaluating, received, accepted, presentationError,
    compileError, wrongAnswer, runtimeError,
-   timeLimitExceeded, memoryLimitExceeded, miscError
+   timeLimitExceeded, memoryLimitExceeded, miscError,
+   markPrivate, hidePrivate, showPrivate
   ) where
 
 import           Data.Typeable
--- import           Control.Exception
 import           Data.Text(Text)
 import qualified Data.Text as T
 
@@ -48,9 +48,7 @@ instance FromField Status where
       parse _  = returnError ConversionFailed f "invalid Status field"
   
 
--- instance Exception Result -- default instance
-
--- combine two results, yielding the "worse" status and joint reports
+-- combine two results, yielding the "worse" status and joining the reports
 instance Semigroup Result where
   Result s1 r1 <> Result s2 r2
     = Result (s1 `min` s2)  (r1 <> r2)
@@ -84,5 +82,37 @@ maxLen = 2000
 trim :: Int -> Text -> Text
 trim maxlen txt
   | T.length txt <= maxlen = txt
-  | otherwise = T.append (T.take maxlen txt) "\n**Output too long (truncated)***\n"
+  | otherwise = T.append (T.take maxlen txt) "\n**Output too long (truncated)**\n"
 
+
+-- label reports as private 
+markPrivate :: Result -> Result
+markPrivate r
+  = r { resultReport = T.unlines [beginPrivate, resultReport r, endPrivate] }
+
+-- mask private reports 
+hidePrivate :: Text -> Text
+hidePrivate = T.unlines . go . T.lines 
+  where
+    go [] = []
+    go (line:lines)
+      | line == beginPrivate =
+        let lines' = drop 1 (dropWhile (/=endPrivate) lines)
+        in msg : go lines'
+      | otherwise = line : go lines
+      where msg = "*** Private test report(s) hidden. ***"
+
+showPrivate :: Text -> Text
+showPrivate = T.unlines . go . T.lines
+  where
+    go [] = []
+    go (line:lines)
+      | line == beginPrivate = msg : go lines
+      | line == endPrivate   = go lines
+      | otherwise            = line : go lines
+      where msg = "*** Private test report(s) ***"
+
+
+beginPrivate, endPrivate :: Text
+beginPrivate = "<<<_BEGIN_PRIVATE_>>>"
+endPrivate = "<<<_END_PRIVATE_>>>"

@@ -7,8 +7,6 @@ module Codex.Tester.Hspec (
   hspecTester
   ) where
 
-
-
 import           Data.Text (Text)
 import qualified Data.Text as T
 import qualified Data.Text.IO as T
@@ -40,7 +38,7 @@ hspecTester = tester "hspec" $ do
 getHspecArgs :: Meta -> [Text]
 getHspecArgs 
   = getMetaArgs ["qc-max-success", "qc-max-size",
-                  "qc-max-discard", "seed", "format", "depth"]
+                 "qc-max-discard", "seed", "format", "depth"]
                 ["ignore-dot-hspec", "fail-fast", "dry-run"] .
     (<>defaultMeta)
 
@@ -58,7 +56,7 @@ haskellRunner limits ghc qcArgs files code props =
      let main_file = dir </> "Main.hs"
      let exe_file = dir </> "Main"
      cmd:args <- parseArgs ghc
-     let args' = args ++ [("-i"++dir), main_file, "-o", exe_file]
+     let args' = args ++ ["-i"++dir, main_file, "-o", exe_file]
      T.writeFile hs_file (header <> code)
      T.writeFile main_file props
      chmod executable dir

@@ -106,7 +106,7 @@ codePrintout page Submission{..} = do
   guard (isExercise page)
   let lang = fromLanguage $ codeLang submitCode
   let code = codeText submitCode
-  let report = resultReport submitResult
+  let report = showPrivate (resultReport submitResult)
   return (P.codeBlockWith ("", [lang, "numberLines"], []) code <>
           P.codeBlock report)
 
