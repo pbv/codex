@@ -1,6 +1,5 @@
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE RecordWildCards #-}
-{-# LANGUAGE TypeApplications #-}
 
 --
 -- | Multiple-choice and fill-in quizzes
@@ -11,7 +10,8 @@ module Codex.Handlers.Quiz
 
 import           Codex.Types
 import           Codex.Page
-import           Codex.Application
+import           Codex.Application (Codex)
+import qualified Codex.Application as App
 import           Codex.Submission
 import           Codex.Evaluate
 import           Codex.Policy
@@ -31,14 +31,10 @@ import qualified Heist.Interpreted as I
 import qualified Text.Pandoc.Definition as P
 import qualified Text.Pandoc.Builder as P
 
-import           Data.Ratio
 import           Data.Maybe (fromMaybe)
 import qualified Data.Text           as T
 
 import qualified Data.Map            as Map
-import           Data.Aeson (FromJSON)
-import qualified Data.Aeson          as Aeson
-import qualified Data.Aeson.Types    as Aeson
 import           Data.Map.Syntax
 import           Data.List (intersperse, sort)
 import           Data.Time.LocalTime
@@ -46,7 +42,7 @@ import           Data.Time.LocalTime
 import           Control.Monad (guard, join)
 import           Control.Monad.IO.Class (liftIO)
 
-import           Text.Printf 
+
 import qualified Data.Text.Encoding as T
 
 decodeAnswers :: Text -> Maybe Answers
@@ -56,9 +52,7 @@ decodeAnswers txt = answers <$> decodeText txt
 --
 getFormAnswers :: MonadSnap m => Quiz -> m Answers
 getFormAnswers Quiz{..}
-  =  answersFromParams idents  <$> getParams
-  where
-    idents = map identifier questions
+  =  answersFromParams (map identifier questions)  <$> getParams
 
 -- | get quiz answers from HTTP form parameters 
 --
@@ -127,7 +121,7 @@ listType (_, style, _)
       P.UpperAlpha -> "A"
       P.LowerRoman -> "i"
       P.UpperRoman -> "I"
-      _          -> "1"
+      _            -> "1"
 
 listStart :: P.ListAttributes  -> Text
 listStart (n, _, _) = T.pack (show n)
@@ -160,7 +154,7 @@ quizSubmit uid rqpath page = do
   answers <- getFormAnswers quiz
   let txt = encodeText (QuizAnswers (quizToText quiz) answers)
   sid <- evaluateNew uid rqpath (Code "json" txt)
-  redirectURL (Report sid)
+  redirectURL (App.Report sid)
 
 isQuiz :: Page -> Bool
 isQuiz page = pageTester page == Just "quiz"
@@ -180,10 +174,10 @@ quizReport rqpath page sub = do
     summarySplice (submitResult sub)
     quizSplices quiz answers
 
-
+summarySplice :: Result -> ISplices 
 summarySplice Result{..} =
-  "quiz-report-summary" ##
-    maybe (return []) (I.textSplice . reportSummary) (decodeText resultReport)
+  "quiz-report-summary" ## return (blocksToHtml $ P.toList $ getBlocks resultReport) 
+    -- maybe (return []) (I.textSplice . reportSummary) (decodeText resultReport)
 
 
 verbosePrintout :: Page -> Bool
@@ -193,45 +187,6 @@ verbosePrintout = fromMaybe True . lookupFromMeta "printout" . pageMeta
 -- Summary
 -------------------------------------------------------------------
 
-type Fraction  = Ratio Int
-
--- report the summary in human-readable text
-reportSummary :: Map.Map String Aeson.Value -> Text
-reportSummary summary
-  = T.unlines $ map T.pack
-    [ maybe "" (printf "Number of questions: %d") num_questions
-    , maybe "" (printf "Total number of options: %d") num_options
-    , maybe "" (printf "Number of correct choices: %d") num_correct
-    , maybe "" (printf "Number of incorrect choices: %d") num_incorrect
-    , "Weight for correct choices: " <>
-      maybe "default" showFraction correct_weight
-    , "Weight for incorrect choices: " <>
-      maybe "default" showFraction incorrect_weight
-    , maybe "" (printf "Score: %.2f%%") score_percent
-    ]
-  where
-    fetch :: FromJSON v => String -> Maybe v
-    fetch name = Map.lookup name summary >>=
-                 Aeson.parseMaybe Aeson.parseJSON
-
-    num_questions = fetch @Int "number_of_questions"
-    num_options   = fetch @Int "number_of_options"
-    num_correct   = fetch @Int "correct_selections"
-    num_incorrect = fetch @Int "incorrect_selections"
-
-    correct_weight
-      = join (fetch @(Maybe Fraction) "correct_weight_ratio")
-    incorrect_weight
-      = join (fetch @(Maybe Fraction) "incorrect_weight_ratio")
-    score_percent = (100*) <$> fetch @Double "score_percent"
-
-
-showFraction :: (Integral a, Show a) => Ratio a -> String
-showFraction r
-  = show (numerator r) ++
-    if denominator r /= 1 then
-      "/" ++ show (denominator r)
-    else ""
 
 
 ----------------------------------------------------------------------
@@ -240,13 +195,13 @@ showFraction r
 quizPrintout :: UserLogin -> Page -> Submission -> Codex P.Blocks
 quizPrintout _ page Submission{..}  = do
   guard (isQuiz page)
-  return (content <> P.codeBlock report)
+  return (content <> getBlocks report)
   where
     content = if verbosePrintout page then ppQuiz quiz answers
               else mempty
-    report = maybe "" reportSummary (decodeText $ resultReport submitResult)
+    report = resultReport submitResult
     quiz = shuffleQuiz submitUser page
-    answers = fromMaybe mempty $ decodeAnswers $ codeText $ submitCode
+    answers = fromMaybe mempty $ decodeAnswers $ codeText submitCode
 
 ppQuiz :: Quiz -> Answers -> P.Blocks
 ppQuiz (Quiz _ questions) answers
@@ -270,7 +225,7 @@ ppChoices (Alternatives _ attrs alts) selected
       P.plain (P.emph "Disabled question") <>
       P.orderedListWith attrs (map (ppAlternative []) lalts)
   where
-    correct = or (map fst alts)      -- is there any correct answer?
+    correct = any fst alts      -- is there any correct answer?
     lalts = zip (listLabels attrs) alts
 
 

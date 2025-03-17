@@ -16,6 +16,8 @@ import           Codex.Tester
 import           System.Directory(copyFile)
 import           Control.Exception(handle)
 
+import qualified Text.Pandoc.Builder as P
+
 -- | running and evaluating Haskell submissions
 haskellQCTester :: Tester Result
 haskellQCTester = tester "quickcheck" $ do
@@ -105,16 +107,16 @@ clangRunner limits gcc_cmd ghc_cmd qcArgs c_code props =
 
 
 classify :: (ExitCode, Text, Text) -> Result
-classify (ExitSuccess, stdout, _)  = accepted stdout
+classify (ExitSuccess, stdout, _)  = accepted (P.codeBlock stdout)
 classify (ExitFailure _, stdout, stderr)
-  | match "Time Limit" stderr   = timeLimitExceeded msg
-  | match "Memory Limit" stderr = memoryLimitExceeded msg
+  | match "Time Limit" stderr   = timeLimitExceeded (P.codeBlock msg)
+  | match "Memory Limit" stderr = memoryLimitExceeded (P.codeBlock msg)
   | match "Command terminated by signal" stderr
-                                = runtimeError msg
-  | match "Failed!" stdout       = wrongAnswer stdout 
+                                = runtimeError (P.codeBlock msg)
+  | match "Failed!" stdout       = wrongAnswer (P.codeBlock stdout) 
   | match "Command exited with non-zero status" stderr
-                                = runtimeError msg
-  | otherwise                  = miscError msg
+                                = runtimeError (P.codeBlock msg)
+  | otherwise                  = miscError (P.codeBlock msg)
   where msg = stdout <> stderr
 
 

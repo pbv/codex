@@ -45,7 +45,6 @@ import           Control.Applicative
 import           Control.Exception (SomeException(..))
 
 import qualified Data.Configurator as Configurator
--- import qualified Data.Configurator.Types as Configurator
 
 import           Codex.Types
 import           Codex.Page
@@ -54,7 +53,7 @@ import           Codex.Application
 
 import           Data.Time.Clock
 import           Data.Time.LocalTime
-import           Data.Time.Format hiding (parseTime)
+import Data.Time.Format ( defaultTimeLocale, formatTime ) 
 
 import           System.FilePath
 import qualified System.FastLogger as FastLogger
@@ -260,8 +259,8 @@ caseSplice v = tagCaseSplice (T.pack $ show v)
 --------------------------------------------------------------
 
 checkboxInput :: [(Text,Text)] -> [X.Node] -> X.Node
-checkboxInput attrs contents = X.Element "input" attrs' contents
-  where attrs' = ("type","checkbox") : attrs
+checkboxInput attrs = X.Element "input" (("type","checkbox") : attrs) 
+
 
 
 jsTimer :: String -> NominalDiffTime -> [X.Node]

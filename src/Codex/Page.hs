@@ -54,7 +54,7 @@ pageTitleBlocks p
       inlines -> [Header 1 nullAttr inlines]
   where
     firstHeader :: [Block] -> [Block]
-    firstHeader blocks = take 1 [block | block@(Header _ _ _) <- blocks]
+    firstHeader blocks = take 1 [block | block@(Header {}) <- blocks]
 
 
 
@@ -65,7 +65,7 @@ pageLanguages = languages . pageMeta
 
 languages :: Meta -> [Language]
 languages meta =
-  fromMaybe [] 
+  fromMaybe []
   (lookupFromMeta "languages" meta
    <|>
    do lang <- lookupFromMeta "language" meta
@@ -83,11 +83,11 @@ pageTester = lookupFromMeta "tester" . pageMeta
 
 -- | hide detailed feedback for submissions?
 pageShowFeedback :: Page -> Bool
-pageShowFeedback = fromMaybe True . lookupFromMeta "feedback" . pageMeta 
+pageShowFeedback = fromMaybe True . lookupFromMeta "feedback" . pageMeta
 
 -- | lock submissions when invalid ?
 pageLockInvalid :: Page -> Bool
-pageLockInvalid = fromMaybe True . lookupFromMeta "lock" . pageMeta 
+pageLockInvalid = fromMaybe True . lookupFromMeta "lock" . pageMeta
 
 
 -- | read from a metadata value
@@ -184,21 +184,20 @@ metaText (MetaMap m) =
 
 -- | render a page as a list of HTML nodes
 pageToHtml :: Page -> [Node]
-pageToHtml doc = case result of
+pageToHtml doc = case runPure (writeHtml5 opts doc) of
   Left err -> error (show err)
   Right nodes -> renderHtmlNodes nodes
   where
-    result = runPure (writeHtml5 opts doc)
     opts = def { writerExtensions = pandocExtensions
                , writerHTMLMathMethod = MathJax "/mathjax"
                -- , writerHighlightStyle = Nothing
-               --, writerHighlightStyle = Just monochrome
+               -- , writerHighlightStyle = Just monochrome
                }
 
 blocksToHtml :: [Block] -> [Node]
 blocksToHtml blocks = pageToHtml (Pandoc nullMeta blocks)
 
-  
+
 -- | read a file and parse markdown to a Pandoc document
 readMarkdownFile :: MonadIO m => FilePath -> m Pandoc
 readMarkdownFile filepath = liftIO $ do
@@ -212,7 +211,7 @@ parseDocument txt = runPure $ do
   doc <- readMarkdown pandocReaderOptions txt
   msgs <- getLog
   return (doc, msgs)
-  
+
 
 pandocReaderOptions :: ReaderOptions
 pandocReaderOptions
@@ -227,7 +226,7 @@ docError err
   = Pandoc mempty
     [Div ("", ["errors"], [])
      [Para [Str "ERROR:", Space, Str (T.pack $ show err)]]]
-    
+
 docWarnings :: [LogMessage] -> Pandoc
 docWarnings []
   = mempty

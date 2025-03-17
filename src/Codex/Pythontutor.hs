@@ -49,7 +49,7 @@ getTutorURL = lookupFromMeta "pythontutor" . pageMeta
 makeTutorLink :: Submission -> Text -> Maybe Text
 makeTutorLink Submission{..} url  = do
   guard (resultStatus submitResult == WrongAnswer)
-  let code = codeText submitCode <> "\n" <> testMain (resultReport submitResult)
+  let code = codeText submitCode <> "\n" <> testMain (error "fix me")  -- resultReport submitResult)
   let params = Map.singleton "code" [B.fromString $ T.unpack code]
   return (T.pack $ B.toString $ queryURL (B.fromString $ T.unpack url) params)
 

@@ -12,21 +12,23 @@ module Codex.Tester.Quiz (
 
 import           Codex.Tester
 import           Codex.Page
-import           Codex.Utils (decodeText, encodeText)
+import           Codex.Utils (decodeText)
 import           Codex.Quiz hiding (questions)
+import           Data.Text (Text)
 import qualified Data.Text as T
 
 import           Data.Maybe
 import           Data.Ratio
 import           Data.List (intersect, (\\))
-import qualified Data.Map as Map
-import           Data.Map(Map)
 
 import           Data.Char (isSpace)
-
-import           Data.Aeson (toJSON, Value)
+import           Text.Printf (printf)
+import qualified Text.Pandoc.Builder as P
 
 type Fraction = Ratio Int
+
+fromFraction :: Fraction -> Float
+fromFraction f = fromIntegral (numerator f) / fromIntegral (denominator f)
 
 -- | grading parameters
 data Weights
@@ -71,9 +73,9 @@ quizTester = tester "quiz" $ do
   let selected = maybe mempty answers (decodeText text)
   let scores = scoreQuiz weights quiz selected
   let summary = makeSummary weights scores
-  return $ accepted $ encodeText summary
+  return $ accepted summary
 
-
+{-
 makeSummary :: Weights -> Scores -> Map String Value
 makeSummary Weights{..} Scores{..}
   = Map.fromList $
@@ -95,7 +97,34 @@ makeSummary Weights{..} Scores{..}
     score = if numQuestions > 0
             then sum scoresList / fromIntegral numQuestions
             else 0
+-}
 
+makeSummary :: Weights -> Scores -> P.Blocks
+makeSummary Weights{..} Scores{..}
+  = P.bulletList 
+    [ P.plain $ P.text "Number of questions:" <> P.text (T.pack $ show numQuestions)
+    , P.plain $ P.text "Total number of options:" <> P.text (T.pack $ show numOptions)
+    , P.plain $ P.text "Number of correct choices:"<> P.text (T.pack $ show numCorrect) 
+    , P.plain $ P.text "Number of incorrect choices:"<> P.text (T.pack $ show numIncorrect)
+    , P.plain (P.text "Weight for correct choices:"<> maybe "default" showFraction' correctWeight)
+    , P.plain (P.text "Weight for incorrect choices:"<>  maybe "default" showFraction' incorrectWeight)
+    , P.plain $ P.text $ T.pack $ printf "Score: %.2f%%"  $ fromFraction (100*score)
+    ]
+  where
+    numQuestions = length scoresList
+    score = if numQuestions > 0
+            then sum scoresList / fromIntegral numQuestions
+            else 0
+
+showFraction' :: (Integral a, Show a) => Ratio a -> P.Inlines
+showFraction' = P.str . showFraction
+
+showFraction :: (Integral a, Show a) => Ratio a -> Text
+showFraction r
+  = T.pack (show (numerator r)) <> 
+    if denominator r /= 1 then
+      "/" <> T.pack (show (denominator r))
+    else ""
 
 
 instance (Integral a, Read a) => FromMetaValue (Ratio a) where

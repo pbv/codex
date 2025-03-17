@@ -35,6 +35,8 @@ import           Codex.Submission
 import           Codex.Tester
 import           Codex.Policy
 
+import qualified Text.Pandoc.Builder as P
+
 
 -- | insert a new submission into the database
 -- also schedule evaluation in separate thread
@@ -102,14 +104,14 @@ testWrapper :: Tester Result
             -> Page
             -> Submission
             -> IO Result
-testWrapper tester conf filepath page submiss
-  = (fromMaybe invalid <$> runTester tester conf filepath page submiss)
+testWrapper tester conf filepath page submission
+  = (fromMaybe invalid <$> runTester tester conf filepath page submission)
     `catch`
-    (\(e::SomeException) -> return (miscError $ T.pack $ show e))
+    (\(e::SomeException) -> return (miscError $ P.codeBlock $ T.pack $ show e))
   where
     invalid :: Result
-    invalid = miscError "no acceptable tester configured"
+    invalid = miscError (P.plain $ P.text "No acceptable tester configured")
 
 
 runSqlite :: S.Sqlite -> ReaderT S.Sqlite m a -> m a
-runSqlite conn  = flip runReaderT conn
+runSqlite = flip runReaderT 

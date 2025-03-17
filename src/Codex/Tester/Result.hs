@@ -1,28 +1,36 @@
 {-# LANGUAGE OverloadedStrings #-}
-{-# LANGUAGE DeriveDataTypeable #-}
+{-# LANGUAGE DerivingVia #-}
+{-# LANGUAGE TypeApplications #-}
 
 module Codex.Tester.Result
-  (Result(..), Status(..),
+  (Result(..), Status(..), Report(..),
    evaluating, received, accepted, presentationError,
    compileError, wrongAnswer, runtimeError,
    timeLimitExceeded, memoryLimitExceeded, miscError,
-   markPrivate, hidePrivate, showPrivate
+   markPrivate, hidePrivate
   ) where
 
-import           Data.Typeable
 import           Data.Text(Text)
-import qualified Data.Text as T
 
 import           Database.SQLite.Simple.FromField
 import           Database.SQLite.Simple.ToField
 
+import           Text.Pandoc.Definition
+import           Text.Pandoc.Builder
+import           Text.Pandoc.Readers.Markdown
+import           Text.Pandoc.Writers.Markdown
+import           Text.Pandoc.Options (def, pandocExtensions,
+                                      WriterOptions (writerExtensions),
+                                      ReaderOptions (readerExtensions))
+import Text.Pandoc.Class ( runPure )
+import           Text.Pandoc.Walk
+
 -- submission results
 data Result
-  = Result { resultStatus :: Status   -- ^ see below
-           , resultReport :: Text     -- ^ detailed report
+  = Result { resultStatus :: Status   -- ^ possible status; see below
+           , resultReport :: Report   -- ^ detailed report
            }
-  deriving (Eq, Read, Show, Typeable)
-
+  deriving (Read, Show)
 
 -- | classification status, in decreasing severity 
 data Status = Evaluating
@@ -35,46 +43,67 @@ data Status = Evaluating
             | WrongAnswer
             | Received
             | Accepted
-            deriving (Eq, Ord, Read, Show, Typeable)
+            deriving (Eq, Ord, Read, Show) 
 
 -- | convertions to/from SQL
 instance ToField Status where
-  toField = toField . show 
+  toField = toField . show
 
 instance FromField Status where
-  fromField f = fromField f >>= parse . reads
+  fromField f = fromField @String f >>= parse . reads
     where
       parse ((s,""):_) = return s
       parse _  = returnError ConversionFailed f "invalid Status field"
-  
+
+-- newtype for submission reports;
+-- wrapper over Pandoc's sequence of blocks
+newtype Report = Report { getBlocks :: Blocks }
+  deriving stock (Show, Read)
+  deriving (Semigroup, Monoid) via Blocks
+
+instance ToField Report where
+  toField (Report blocks)
+    = let doc = Pandoc nullMeta (toList blocks)
+      in
+        case runPure (writeMarkdown def{writerExtensions=pandocExtensions} doc) of
+          Right txt -> toField txt
+          Left err -> error (show err)
+
+instance FromField Report where
+  fromField f = fromField @Text f >>= parse
+    where
+      parse txt = case runPure (readMarkdown def{readerExtensions=pandocExtensions} txt) of
+                    Right (Pandoc _ blocks) -> return (Report $ fromList blocks)
+                    Left _err -> returnError ConversionFailed f "invalid Report field"
+
 
 -- combine two results, yielding the "worse" status and joining the reports
 instance Semigroup Result where
   Result s1 r1 <> Result s2 r2
     = Result (s1 `min` s2)  (r1 <> r2)
-        
-instance Monoid Result where
-  mempty = Result Accepted ""
 
+instance Monoid Result where
+  mempty = Result Accepted mempty
 
 -- | result construtors
 evaluating :: Result
-evaluating = Result Evaluating ""
+evaluating = Result Evaluating mempty
 
 received, accepted,
   wrongAnswer, presentationError, compileError, runtimeError,
-  timeLimitExceeded, memoryLimitExceeded, miscError :: Text -> Result
+  timeLimitExceeded, memoryLimitExceeded, miscError :: Blocks -> Result
 
-received = Result Received . trim maxLen
-accepted = Result Accepted  . trim maxLen
-wrongAnswer = Result WrongAnswer . trim maxLen
-compileError = Result CompileError . trim maxLen
-runtimeError = Result RuntimeError . trim maxLen
-timeLimitExceeded = Result TimeLimitExceeded . trim maxLen
-memoryLimitExceeded = Result MemoryLimitExceeded . trim maxLen
-miscError = Result MiscError  . trim maxLen
-presentationError = Result PresentationError . trim maxLen
+received = Result Received . Report
+accepted = Result Accepted . Report
+wrongAnswer = Result WrongAnswer . Report
+compileError = Result CompileError . Report
+runtimeError = Result RuntimeError . Report
+timeLimitExceeded = Result TimeLimitExceeded . Report 
+memoryLimitExceeded = Result MemoryLimitExceeded . Report
+miscError = Result MiscError . Report
+presentationError = Result PresentationError . Report  
 
+{-
 maxLen :: Int
 maxLen = 2000
 
@@ -83,36 +112,18 @@ trim :: Int -> Text -> Text
 trim maxlen txt
   | T.length txt <= maxlen = txt
   | otherwise = T.append (T.take maxlen txt) "\n**Output too long (truncated)**\n"
+-}
 
 
--- label reports as private 
-markPrivate :: Result -> Result
-markPrivate r
-  = r { resultReport = T.unlines [beginPrivate, resultReport r, endPrivate] }
+markPrivate :: Blocks -> Blocks
+markPrivate blocks = divWith ("",["private"], []) (top<>blocks)
+  where top = header 2 "Private tests"  
 
--- mask private reports 
-hidePrivate :: Text -> Text
-hidePrivate = T.unlines . go . T.lines 
+hidePrivate :: Blocks -> Blocks
+hidePrivate = walk hide 
   where
-    go [] = []
-    go (line:lines)
-      | line == beginPrivate =
-        let lines' = drop 1 (dropWhile (/=endPrivate) lines)
-        in msg : go lines'
-      | otherwise = line : go lines
-      where msg = "*** Private test report(s) hidden. ***"
+    hide :: Block -> Block
+    hide (Div (_,classes,_) _)
+      | "private"`elem`classes = Header 2 nullAttr [Str "Private tests hidden"]
+    hide block = block
 
-showPrivate :: Text -> Text
-showPrivate = T.unlines . go . T.lines
-  where
-    go [] = []
-    go (line:lines)
-      | line == beginPrivate = msg : go lines
-      | line == endPrivate   = go lines
-      | otherwise            = line : go lines
-      where msg = "*** Private test report(s) ***"
-
-
-beginPrivate, endPrivate :: Text
-beginPrivate = "<<<_BEGIN_PRIVATE_>>>"
-endPrivate = "<<<_END_PRIVATE_>>>"

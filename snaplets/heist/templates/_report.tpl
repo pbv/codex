@@ -23,7 +23,7 @@
     <h3>Resultado: <em><result-status/></em></h3>
     <if-valid><else/><p><icon-warning/> Submissão inválida: <em><invalid-msg/></em></p></if-valid>
     <if-show-feedback>
-      <pre><result-report/></pre>
+      <result-report/>
       <if-pythontutor>
 	<p><a href="${pythontutor-url}" class="button"
 	      target="_blank">Executar usando o <em>PythonTutor</em></a><p>

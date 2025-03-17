@@ -1,5 +1,4 @@
 {-# LANGUAGE OverloadedStrings   #-}
-{-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE NamedFieldPuns #-}
 
 ------------------------------------------------------------------------------
@@ -53,7 +52,8 @@ import           Data.Configurator.Types (Config)
 
 ------------------------------------------------------------------------------
 import           Codex.AdminHandlers
-import           Codex.Application
+import           Codex.Application (Codex, App(..), AppUrl)
+import qualified Codex.Application as App
 import           Codex.AuthHandlers
 import           Codex.Config
 import qualified Codex.Db           as  Db
@@ -107,7 +107,7 @@ handlePost uid rqpath = do
 -- | handle GET requests for submission reports
 handleGetReport :: SubmitId -> Codex ()
 handleGetReport sid = method GET $ do
-  usr <- require (with auth currentUser) <|> unauthorized
+  usr <- require (with App.auth currentUser) <|> unauthorized
   sub <- require (getSubmission sid) <|> notFound
   let uid = authUserLogin usr
   unless (isAdmin usr || submitUser sub == uid)
@@ -134,15 +134,15 @@ routes =
 routeAppUrl :: AppUrl -> Codex ()
 routeAppUrl appUrl =
   case appUrl of
-    Admin -> render "_admin"
-    Login  -> handleLogin 
-    Logout -> handleLogout
-    Register -> handleRegister 
-    Page path -> handlePage (joinPath path)
-    Report sid -> handleGetReport sid 
-    Files path -> handleBrowse (joinPath path)
-    SubmissionAdmin sid -> handleSubmissionAdmin sid
-    SubmissionList-> handleSubmissionList
+    App.Admin -> render "_admin"
+    App.Login  -> handleLogin 
+    App.Logout -> handleLogout
+    App.Register -> handleRegister 
+    App.Page path -> handlePage (joinPath path)
+    App.Report sid -> handleGetReport sid 
+    App.Files path -> handleBrowse (joinPath path)
+    App.SubmissionAdmin sid -> handleSubmissionAdmin sid
+    App.SubmissionList-> handleSubmissionList
 
 
 -- | current logged in full user name
@@ -168,16 +168,16 @@ codexInit handlers tester =
   makeSnaplet "codex" "Web server for programming exercises." Nothing $ do
     conf <- getSnapletUserConfig
     prefix <- liftIO $ Conf.require conf "url_prefix"
-    h <- nestSnaplet "" heist $ heistInit "templates"
-    r <- nestSnaplet "router" router (initRouter prefix)
+    h <- nestSnaplet "" App.heist $ heistInit "templates"
+    r <- nestSnaplet "router" App.router (initRouter prefix)
     let sessName = sessionName prefix
     -- remove old site any it exists
     liftIO removeOldSiteKey 
-    s <- nestSnaplet sessName sess $
+    s <- nestSnaplet sessName App.sess $
          initCookieSessionManager siteKeyPath sessName Nothing Nothing
-    d <- nestSnaplet "db" db S.sqliteInit
-    a <- nestSnaplet "auth" auth $ initSqliteAuth sess d
-    addAuthSplices h auth
+    d <- nestSnaplet "db" App.db S.sqliteInit
+    a <- nestSnaplet "auth" App.auth $ initSqliteAuth App.sess d
+    addAuthSplices h App.auth
     js <- liftIO $ configSplices conf
     addConfig h (mempty & scInterpretedSplices .~ (staticSplices <> js))
     -- auto-reload config file for events
@@ -230,20 +230,20 @@ configSplices conf = do
 
 staticSplices :: ISplices
 staticSplices = do
-  "admin" ## urlSplice Admin
-  "login" ## urlSplice Login
-  "logout" ## urlSplice Logout
-  "register" ## urlSplice Register
-  "home" ## urlSplice (Page ["index.md"])
-  "files" ## urlSplice (Files [])
-  "submissionList" ## urlSplice SubmissionList
+  "admin" ## urlSplice App.Admin
+  "login" ## urlSplice App.Login
+  "logout" ## urlSplice App.Logout
+  "register" ## urlSplice App.Register
+  "home" ## urlSplice (App.Page ["index.md"])
+  "files" ## urlSplice (App.Files [])
+  "submissionList" ## urlSplice App.SubmissionList
   "version" ## versionSplice
   "timeNow" ## nowSplice
   "if-evaluating" ## return []
-  "ifLoggedIn" ## ifLoggedIn auth
-  "ifLoggedOut" ## ifLoggedOut auth
-  "loggedInName" ## loggedInName auth
-  "ifAdmin" ## do mbAu <- lift (withTop auth currentUser)
+  "ifLoggedIn" ## ifLoggedIn App.auth
+  "ifLoggedOut" ## ifLoggedOut App.auth
+  "loggedInName" ## loggedInName App.auth
+  "ifAdmin" ## do mbAu <- lift (withTop App.auth currentUser)
                   I.ifElseISplice (maybe False isAdmin mbAu)
 
 

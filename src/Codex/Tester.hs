@@ -21,6 +21,7 @@ module Codex.Tester (
 import           Codex.Types
 import           Codex.Page (lookupFromMeta)
 import           Text.Pandoc (Meta)
+import qualified Text.Pandoc.Builder as P
 import           Codex.Tester.Monad
 import           Codex.Tester.Limits
 import           Codex.Tester.Result
@@ -50,4 +51,4 @@ tester name cont = do
   
 -- | trivial tester (accepts all submissions)
 nullTester :: Tester Result
-nullTester = tester "accept" $ return $ accepted "Submission recorded"
+nullTester = tester "accept" $ return $ accepted (P.plain $ P.text "Submission recorded")

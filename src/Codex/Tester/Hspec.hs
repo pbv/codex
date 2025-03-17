@@ -14,6 +14,7 @@ import           Data.Maybe (fromMaybe)
 import           Data.Map.Strict (fromList)
 import           Codex.Tester
 import           Text.Pandoc.Definition (Meta(..), MetaValue(..))
+import qualified Text.Pandoc.Builder as P
 import           Control.Exception(handle)
 import           System.Directory(copyFile)
 
@@ -70,11 +71,11 @@ header = "module Submission where\n\n"
 
 
 classify :: (ExitCode, Text, Text) -> Result
-classify (ExitSuccess, stdout, _) = accepted stdout
+classify (ExitSuccess, stdout, _) = accepted (P.codeBlock stdout)
 classify (ExitFailure _, stdout, stderr)
-  | match "Time Limit" stderr      = timeLimitExceeded stderr
-  | match "Memory Limit" stderr    = memoryLimitExceeded stderr
-  | match "Exception" stdout       = runtimeError stdout
-  | match "Failures:" stdout       = wrongAnswer (stdout<>stderr)
-  | otherwise                      = miscError (stdout<>stderr)
+  | match "Time Limit" stderr      = timeLimitExceeded (P.codeBlock stderr)
+  | match "Memory Limit" stderr    = memoryLimitExceeded (P.codeBlock stderr)
+  | match "Exception" stdout       = runtimeError (P.codeBlock stdout)
+  | match "Failures:" stdout       = wrongAnswer (P.codeBlock (stdout<>stderr))
+  | otherwise                      = miscError (P.codeBlock (stdout<>stderr))
 

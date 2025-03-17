@@ -27,6 +27,8 @@ import           Text.Printf
 import           Control.Exception(handle)
 import           System.Directory(copyFile)
 
+import qualified Text.Pandoc.Builder as P
+
 --
 -- | build and run scripts for testing standalone programs;
 -- the type for executables is existentially quantified (hidden);
@@ -160,7 +162,7 @@ stdioTester Build{..} = tester "stdio" $ do
         -- make executable
         exe_file <- makeExec tmpdir code
         -- run all tests
-        runTests (runExec exe_file (Just tmpdir)) $ zip3 argfiles' inputs outputs
+        runTests (runExec exe_file (Just tmpdir)) $  zip3 argfiles' inputs outputs
 
 
 
@@ -174,7 +176,7 @@ runTests action tests
   where
     total = length tests
     loop _ []
-      = return $ accepted $ "Passed " <> T.pack (show total) <> " tests"
+      = return $ accepted $ P.codeBlock $ "Passed " <> T.pack (show total) <> " tests"
     loop n ((opt_arg_file, in_file, out_file) : tests) = do
       in_txt <- T.readFile in_file
       out_txt <- T.readFile out_file
@@ -188,24 +190,24 @@ runTests action tests
 
 numberResult :: Int -> Int -> String -> Result -> Result
 numberResult num total args Result{..}
-  = Result resultStatus (test <> resultReport)
-  where test
-          = T.pack (printf "*** Test %d / %d ***\n\n" num total) <>
-          "Command-line arguments:\n" <> T.pack args <> "\n"
-
+  = Result resultStatus (top <> resultReport)
+  where top = Report $
+              P.header 2 (P.str $ T.pack $ printf "Test %d / %d" num total) <>
+              P.plain (P.str ("Command-line arguments: " <> T.pack args)) 
+               
 
 
 classify ::  Text -> Text -> (ExitCode, Text, Text) -> Result
 classify input expected (ExitSuccess, out, _)
   | T.strip out == T.strip expected
-  = accepted "OK"
+  = accepted (P.plain $ P.str "OK")
   | otherwise
-  = wrongAnswer $ textDiff expected input out
+  = wrongAnswer $ P.codeBlock (textDiff expected input out)
 classify input _ (ExitFailure c, _, err)
-  | match "Time Limit" err   = timeLimitExceeded $ textInput input
-  | match "Memory Limit" err = memoryLimitExceeded $ textInput input
-  | match "Output Limit" err = runtimeError $ T.unlines [textInput input, err]
-  | otherwise = runtimeError $ T.unlines
+  | match "Time Limit" err   = timeLimitExceeded $ P.codeBlock (textInput input)
+  | match "Memory Limit" err = memoryLimitExceeded $ P.codeBlock (textInput input)
+  | match "Output Limit" err = runtimeError $ P.codeBlock $ T.unlines [textInput input, err]
+  | otherwise = runtimeError $ P.codeBlock $ T.unlines
                 [ textInput input, ""
                 , "Program exited with non-zero status: " <> T.pack (show c)
                 , err

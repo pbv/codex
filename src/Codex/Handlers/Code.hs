@@ -9,7 +9,8 @@ module Codex.Handlers.Code
   ) where
 
 import          Codex.Types
-import          Codex.Application
+import           Codex.Application(Codex)
+import qualified Codex.Application as App
 import          Codex.Utils
 import          Codex.Handlers
 import          Codex.Page
@@ -63,7 +64,7 @@ codeSubmit uid rqpath page = do
   lang <- Language <$> require (getTextParam "language")
   guard (lang `elem` pageLanguages page) 
   sid <- evaluateNew uid rqpath (Code lang text)
-  redirectURL (Report sid)
+  redirectURL (App.Report sid)
 
 -- | report a code submission
 codeReport :: FilePath -> Page -> Submission -> Codex ()
@@ -106,12 +107,10 @@ codePrintout page Submission{..} = do
   guard (isExercise page)
   let lang = fromLanguage $ codeLang submitCode
   let code = codeText submitCode
-  let report = showPrivate (resultReport submitResult)
-  return (P.codeBlockWith ("", [lang, "numberLines"], []) code <>
-          P.codeBlock report)
-
-
-
+  let report = getBlocks (resultReport submitResult)
+  return (P.codeBlockWith ("", [lang, "numberLines"], []) code 
+          <> report)
+  
 
 codeHandlers :: Handlers Codex
 codeHandlers

@@ -59,6 +59,7 @@ import           Data.Bits
 import           Data.Maybe(catMaybes)
 
 import           Text.Pandoc(Meta)
+import qualified Text.Pandoc.Builder as P
 import           Codex.Page(lookupFromMeta)
 import           Codex.Tester.Result
 import           Codex.Tester.Limits
@@ -138,7 +139,7 @@ runProcess optLimits cmd args = do
 
 compileErrorHandler :: RunProcessErr -> IO Result
 compileErrorHandler (RunProcessErr stdout stderr)
-  = return $ compileError (stdout<>stderr)
+  = return $ compileError (P.codeBlock (stdout<>stderr))
 
 
 readTextProcessWithExitCode cmd args stdin = do
@@ -172,7 +173,7 @@ safeExecBS :: Limits
            -- ^ code, stdout, stderr
 safeExecBS Limits{..} exec dir args inbs = do
   (inp, outstream, errstream, pid) <-
-    (Streams.runInteractiveProcess "safeexec" (args' ++ args) dir Nothing)
+    Streams.runInteractiveProcess "safeexec" (args' ++ args) dir Nothing
   (do forkIO (produceStream inp inbs)
       (outbs, errbs) <- concurrently
                         (consumeStream outputLimit outstream)

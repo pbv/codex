@@ -12,6 +12,10 @@ import qualified Data.Text as T
 import           Data.Maybe(maybeToList)
 import           System.Directory (doesFileExist)
 
+import qualified Text.Pandoc.Builder as P
+
+type Visibility = P.Blocks -> P.Blocks
+
 pythonDocTester :: Tester Result
 pythonDocTester = tester "doctest" $ do
   Code lang src <- testCode
@@ -30,32 +34,38 @@ pythonDocTester = tester "doctest" $ do
   if null missing then
     withTemp "submit.py" src $ \pyfile -> do
        chmod readable pyfile
-       r <- runDoctests limits python [runtests, pyfile] pub_tests
-       r'<- markPrivate <$> runDoctests limits python [runtests, pyfile] priv_tests
+       r <- runDoctests id limits python [runtests, pyfile] pub_tests
+       r'<- runDoctests markPrivate limits python [runtests, pyfile] priv_tests
        return (r <> r')
     else
-       return (miscError ("missing doctest files: " <> T.pack (show missing)))
-                          
+       return (miscError (P.plain (P.str ("Cannot find doctest files: " <> T.pack (show missing)))))
 
 
-
-runDoctests :: Limits -> FilePath -> [String] -> [FilePath] -> IO Result
-runDoctests _      _      _    []     = return mempty
-runDoctests limits python args tests = do
+runDoctests :: Visibility -> Limits -> FilePath -> [String] -> [FilePath] -> IO Result
+runDoctests _ _      _      _    []     = return mempty
+runDoctests vis limits python args tests = do
   let cmdline = args ++ tests
-  classify <$> safeExec limits python Nothing cmdline ""
+  classify vis <$> safeExec limits python Nothing cmdline ""
 
 
 
-classify :: (ExitCode, Text, Text) -> Result
-classify (ExitSuccess, stdout, _)      = accepted (filterPaths stdout)
-classify (ExitFailure _, stdout, stderr)
-  | match "Time Limit" stderr          = timeLimitExceeded stderr
-  | match "Memory Limit" stderr        = memoryLimitExceeded stderr
-  | match "SyntaxError" stderr         = compileError stderr
-  | match "Exception raised" stdout    = runtimeError (filterPaths stdout)
-  | match "Failed" stdout              = wrongAnswer (filterPaths stdout)
-  | otherwise                          = miscError (filterPaths stdout <> stderr)
+classify :: Visibility -> (ExitCode, Text, Text) -> Result
+classify _ (ExitSuccess, stdout, _)      = accepted (P.plain (P.str stdout))
+
+classify visibility (ExitFailure _, stdout, stderr)
+  | match "Time Limit" stderr          = timeLimitExceeded (P.codeBlock stderr)
+  | match "Memory Limit" stderr        = memoryLimitExceeded (P.codeBlock stderr)
+  | match "SyntaxError" stderr         = compileError (P.codeBlock stderr)
+  | match "Exception raised" stdout    = runtimeError (formatReport visibility stdout')
+  | match "Failed" stdout              = wrongAnswer (formatReport visibility stdout')
+  | otherwise                          = miscError (P.codeBlock (stdout' <> stderr))
+  where stdout' = filterPaths stdout
+        
+formatReport :: Visibility -> Text -> P.Blocks
+formatReport visibility txt 
+  = case T.lines txt of 
+      [] -> mempty
+      ls -> visibility (P.codeBlock (T.unlines $ init ls)) <> P.plain (P.str $ last ls) 
 
 
 -- filter doctest filepaths from report;

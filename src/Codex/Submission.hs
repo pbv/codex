@@ -43,20 +43,22 @@ import           Snap.Snaplet.Router
 import qualified Database.SQLite.Simple as S
 import           Database.SQLite.Simple (NamedParam(..))
 import           Heist.Splices     as I
+
 import qualified Heist.Interpreted as I
 
 import           Control.Monad (mfilter)
 
 import           System.FilePath (splitDirectories)
 
-import           Codex.Application
+import Codex.Application
 
 import           Codex.Utils
 import           Codex.Types
 import           Codex.Tester.Result
 import           Codex.Submission.Types
+import           Codex.Page(blocksToHtml)
 
-
+import qualified Text.Pandoc.Builder as P
 
 
 -- | insert a new submission into the DB
@@ -205,10 +207,10 @@ withSubmissions a f = do
 submissionSplices :: TimeZone -> Submission -> ISplices
 submissionSplices tz Submission{..} = do
   "submit-id" ##  I.textSplice (T.pack $ show submitId)
-  "report-url" ## urlSplice (Report submitId)
-  "submission-admin-url" ## urlSplice (SubmissionAdmin submitId)
-  "page-url" ## urlSplice (Page $ splitDirectories submitPath)
-  "file-url" ## urlSplice (Files $ splitDirectories submitPath)
+  "report-url" ## urlSplice (Codex.Application.Report submitId)
+  "submission-admin-url" ## urlSplice (Codex.Application.SubmissionAdmin submitId)
+  "page-url" ## urlSplice (Codex.Application.Page $ splitDirectories submitPath)
+  "file-url" ## urlSplice (Codex.Application.Files $ splitDirectories submitPath)
   "submit-path" ## I.textSplice (T.pack submitPath)
   "submit-user-id" ## I.textSplice (fromLogin submitUser)
   "submit-time" ## localTimeSplice tz submitTime
@@ -220,10 +222,12 @@ submissionSplices tz Submission{..} = do
 resultSplices :: Result -> ISplices
 resultSplices Result{..} = do
   "result-status" ## I.textSplice (statusText resultStatus)
-  "result-report" ## I.textSplice (hidePrivate resultReport)
-  "result-private-report" ## I.textSplice (showPrivate resultReport)
+  "result-report" ## return (blocksToHtml $ P.toList $ hidePrivate $ getBlocks resultReport)
+  "result-private-report" ## return (blocksToHtml $ P.toList $ getBlocks resultReport)
   "if-accepted" ## I.ifElseISplice (resultStatus == Accepted)
   "if-evaluating" ## I.ifElseISplice (resultStatus == Evaluating)
+
+    
 
 validitySplices :: Validity -> ISplices
 validitySplices check = do
