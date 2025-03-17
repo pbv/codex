@@ -66,6 +66,9 @@ import           Codex.Tester
 import           Codex.Tasks
 import           Data.Version                                (showVersion)
 import           Paths_codex                                 (version)
+
+-- | PI Improvements +++++++
+import          Codex.Translate (translateMarkdown)
            
 
 -- | handle file requests
@@ -76,19 +79,64 @@ handlePage rqpath = do
     method POST (handlePost uid rqpath <|> badRequest)
 
 -- | handle GET requests
+--handleGet uid rqpath = do
+--  root <- getDocumentRoot
+--  let filepath = root </> rqpath
+--  guardFileExists filepath
+--  let mime = fileType mimeTypes filepath
+--  if mime == "text/markdown" then do
+--    page <- readMarkdownFile filepath
+--    Handlers{handleView} <- gets _handlers
+--    withSplices (urlSplices rqpath) $ handleView uid rqpath page
+--    else
+--    -- serve the file if it is not markdown 
+--    serveFileAs mime filepath
+
+-- | PI Improvements +++++++++++++++++++++++++++++++++++++++++
+handleGet :: UserLogin -> FilePath -> Codex ()
 handleGet uid rqpath = do
   root <- getDocumentRoot
-  let filepath = root </> rqpath
-  guardFileExists filepath
+  langParam <- getParam "lang"  -- Get the language from the URL (?lang=pt)
+  
+  case langParam of
+    Nothing -> do  -- If there is no ?lang=XX in the URL, display the original
+      let originalFile = root </> rqpath
+      guardFileExists originalFile
+      serveMarkdown uid originalFile rqpath
+
+    Just langBs -> do  -- If there is ?lang=XX, translate
+      let lang = B.toString langBs
+      let translatedFile = root </> addLanguage rqpath lang 
+
+      fileExists <- liftIO $ doesFileExist translatedFile
+
+      if fileExists 
+        then serveMarkdown uid translatedFile rqpath  -- If the translated file already exists
+        else do
+          let originalFile = root </> rqpath
+          guardFileExists originalFile
+          content <- liftIO $ readFile originalFile  -- Read the original Markdown file
+          translatedContent <- liftIO $ translateMarkdown content (mapLangCode lang)
+
+          case translatedContent of
+            Just text -> do
+              liftIO $ writeFile translatedFile text  -- Save translated file for reuse
+              serveMarkdown uid translatedFile rqpath
+            Nothing -> serveMarkdown uid originalFile rqpath  -- If translation fails, display the original
+
+
+serveMarkdown :: UserLogin -> FilePath -> FilePath -> Codex ()
+serveMarkdown uid filepath rqpath = do
   let mime = fileType mimeTypes filepath
   if mime == "text/markdown" then do
     page <- readMarkdownFile filepath
     Handlers{handleView} <- gets _handlers
     withSplices (urlSplices rqpath) $ handleView uid rqpath page
-    else
+  else
     -- serve the file if it is not markdown 
     serveFileAs mime filepath
 
+-- ++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 
 -- | handle POST requests
 handlePost :: UserLogin -> FilePath -> Codex ()

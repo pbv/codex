@@ -55,6 +55,7 @@ dependencies:
 - xmlhtml
 - http-types
 - regex-compat
+- http-conduit
 
 executables:
   codex-server:
