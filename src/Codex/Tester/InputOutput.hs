@@ -18,16 +18,20 @@ module Codex.Tester.InputOutput (
 import           Codex.Tester
 import           Codex.Types (Language)
 
-import           Data.Char (isSpace, isControl)
 import           Data.Text (Text)
 import qualified Data.Text as T
 import qualified Data.Text.IO as T
+import           Data.Diff.Myers (diffTexts, Edit(..))
+import           Data.Foldable (toList)
 import           Data.Maybe (fromMaybe)
-import           Text.Printf
+import           Data.Char (isSpace)
+import           Text.Printf(printf)
 import           Control.Exception(handle)
 import           System.Directory(copyFile)
 
+
 import qualified Text.Pandoc.Builder as P
+import           Text.Pandoc.Walk (walk)
 
 --
 -- | build and run scripts for testing standalone programs;
@@ -130,29 +134,40 @@ haskellBuild = do
 
 
 
--- | parametrized I/O tester 
+-- | parameterized I/O tester 
 --
 stdioTester ::  Build -> Tester Result
 stdioTester Build{..} = tester "stdio" $ do
   code@(Code lang _) <- testCode
   guard (checkLanguage lang)
-  ---
   dir <- takeDirectory <$> testFilePath
   -- input and output files
-  inputs <-  globPatterns dir =<< metadataWithDefault "inputs" []
-  outputs <- globPatterns dir =<< metadataWithDefault "outputs" []
+  inputs <-  globPatterns dir =<< metadataWithDefault "public-inputs" []
+  outputs <- globPatterns dir =<< metadataWithDefault "public-outputs" [] 
   let num_inputs = length inputs
-  let num_outs   = length outputs
+  let num_outs = length outputs
   assert (pure $ num_inputs == num_outs)
-    "different number of inputs and outputs"
-  assert (pure $ num_inputs /= 0)
+    "different number of public inputs and outputs"
+  arguments <- metadataWithDefault "public-arguments" (replicate num_inputs "")  
+  let num_args = length arguments
+  assert (pure $ num_args == num_inputs)
+    "different number of public arguments and inputs"
+
+  priv_inputs <- globPatterns dir =<< metadataWithDefault "private-inputs" []
+  priv_outputs <- globPatterns dir =<< metadataWithDefault "private-outputs" []
+  let num_priv_inputs = length priv_inputs
+  let num_priv_outputs = length priv_outputs
+  assert (pure $ num_priv_inputs == num_priv_outputs) 
+     "different number of private inputs and outputs"
+  priv_arguments <- metadataWithDefault "private-arguments" (replicate num_priv_inputs "")
+  let num_priv_args = length priv_arguments
+  assert (pure $ num_priv_args == num_priv_inputs)
+     "different number of private arguments and inputs"
+  assert (pure $ num_inputs + num_priv_inputs > 0)
     "no test cases defined"
-  --  files with command line arguments
-  argfiles <- globPatterns dir =<< metadataWithDefault "arguments" []
-  let argfiles' = map Just argfiles ++ repeat Nothing
   --- extra files to copy to temp directory
   files <- globPatterns dir =<< metadataWithDefault "files" []
-  --
+  -- run the test and agregate results
   liftIO $
     withTempDir "codex" $ \tmpdir -> handle compileErrorHandler $ do
         -- make temp directory readable, writable and executable for user 
@@ -162,75 +177,107 @@ stdioTester Build{..} = tester "stdio" $ do
         -- make executable
         exe_file <- makeExec tmpdir code
         -- run all tests
-        runTests (runExec exe_file (Just tmpdir)) $  zip3 argfiles' inputs outputs
+        r1 <- runTests Public (runExec exe_file (Just tmpdir)) $ 
+                  zip3 arguments inputs outputs
+        r2 <- runTests Private (runExec exe_file (Just tmpdir)) $ 
+                  zip3 priv_arguments priv_inputs priv_outputs
+        return (r1 <> r2)
 
 
-
-runTests ::
-  ([String] -> Text -> IO (ExitCode, Text, Text)) ->
-  [(Maybe FilePath, FilePath, FilePath)] ->
-  -- ^ optional file with cmdline args, input, output
-  IO Result
-runTests action tests
+-- run tests until the 1st failure
+runTests :: Visibility
+         -> ([String] -> Text -> IO (ExitCode, Text, Text))   -- action 
+         -> [(String, FilePath, FilePath)]  -- ^ args, input path, output path
+         -> IO Result  
+runTests _ _ [] = mempty
+runTests vis action tests
   = loop 1 tests
   where
     total = length tests
     loop _ []
-      = return $ accepted $ P.codeBlock $ "Passed " <> T.pack (show total) <> " tests"
-    loop n ((opt_arg_file, in_file, out_file) : tests) = do
+      = return $ accepted $ P.plain $ P.text $ "Passed " <> T.pack (show total) <> " tests."
+    loop n ((arg_str, in_file, out_file) : tests) = do
       in_txt <- T.readFile in_file
       out_txt <- T.readFile out_file
-      arg_str <- maybe (return "") readFile opt_arg_file
       args <- parseArgs arg_str
-      result <- classify in_txt out_txt <$> action args in_txt
+      result <- classify vis arg_str in_txt out_txt <$> action args in_txt
       if resultStatus result == Accepted then
         loop (n+1) tests
         else
-        return (numberResult n total arg_str result)
+        return (numberResult vis n total result)
 
-numberResult :: Int -> Int -> String -> Result -> Result
-numberResult num total args Result{..}
-  = Result resultStatus (top <> resultReport)
-  where top = Report $
-              P.header 2 (P.str $ T.pack $ printf "Test %d / %d" num total) <>
-              P.plain (P.str ("Command-line arguments: " <> T.pack args)) 
+numberResult :: Visibility -> Int -> Int -> Result -> Result
+numberResult vis num total result
+  = result { resultReport = Report top <> resultReport result }
+  where top = P.header 3 (P.text $ T.pack $ show vis ++ printf " test %d / %d" num total) 
                
 
 
-classify ::  Text -> Text -> (ExitCode, Text, Text) -> Result
-classify input expected (ExitSuccess, out, _)
-  | T.strip out == T.strip expected
-  = accepted (P.plain $ P.str "OK")
-  | otherwise
-  = wrongAnswer $ P.codeBlock (textDiff expected input out)
-classify input _ (ExitFailure c, _, err)
-  | match "Time Limit" err   = timeLimitExceeded $ P.codeBlock (textInput input)
-  | match "Memory Limit" err = memoryLimitExceeded $ P.codeBlock (textInput input)
-  | match "Output Limit" err = runtimeError $ P.codeBlock $ T.unlines [textInput input, err]
-  | otherwise = runtimeError $ P.codeBlock $ T.unlines
-                [ textInput input, ""
-                , "Program exited with non-zero status: " <> T.pack (show c)
-                , err
-                ]
+classify ::  Visibility -> String -> Text -> Text -> (ExitCode, Text, Text) -> Result
+classify vis args input expected (ExitSuccess, out, _)
+  | out == expected 
+      = accepted (P.plain $ P.str "OK")
+  | removeSpaces out == removeSpaces expected 
+      = presentationError $ tagWith vis $ textDiff args expected input out
+  | otherwise 
+      = wrongAnswer $ tagWith vis $ textDiff args expected input out
+classify vis args input _ (ExitFailure c, _, err)
+  | match "Time Limit" err   
+      = timeLimitExceeded $ tagWith vis $ textInput args input
+  | match "Memory Limit" err 
+      = memoryLimitExceeded $ tagWith vis $ textInput args input
+  | match "Output Limit" err 
+      = runtimeError $ tagWith vis (textInput args input <> P.codeBlock err)
+  | otherwise 
+      = runtimeError $ tagWith vis 
+                (textInput args input <> 
+                P.plain (P.str ("Program exited with non-zero status: " <> T.pack (show c))) <>
+                P.codeBlock err)
+                
+removeSpaces :: Text -> Text
+removeSpaces = T.filter (not.isSpace)
 
+textInput :: String -> Text -> P.Blocks
+textInput args input  
+  = P.simpleTable [] 
+    [[P.plain $ P.strong $ P.str "Command-line arguments", P.codeBlock (T.pack args)]
+    ,[P.plain $ P.strong $ P.str "Input", P.codeBlock input]]
 
-textInput :: Text -> Text
-textInput input =  "Input:\n" <> sanitize input
-
-textDiff :: Text -> Text -> Text -> Text
-textDiff expected input out =
-    T.unlines
-    [ "Input:", sanitize input
-    , "Expected output:", sanitize expected
-    , "Obtained output:", sanitize out
+textDiff :: String -> Text -> Text -> Text -> P.Blocks
+textDiff args expected input out =
+    P.simpleTable []
+    [ [P.plain $ P.strong $ P.str "Command-line arguments", P.codeBlock (T.pack args)]
+    , [P.plain $ P.strong $ P.str "Input", P.codeBlock input]
+    , [P.plain $ P.strong $ P.str "Expected Output", P.codeBlock expected]
+    , [P.plain $ P.strong $ P.str "Obtained", P.codeBlock out]
+    , [P.plain $ P.strong $ P.str "Differences", 
+       P.divWith ("", ["text-diffs"],[]) $ P.plain $ showDiffs out expected]
     ]
 
--- | sanitize output text from student's submission;
--- replace spaces with a visible space;
--- replace control chars with the invalid UTF symbol
-sanitize :: Text -> Text
-sanitize = T.map (\c -> case c of
-                     ' ' -> '\x2423'
-                     _ -> if isControl c && not (isSpace c)
-                          then '\xfffd' else c)
+
+-- show text differences as strikeouts/underlines
+showDiffs :: Text -> Text -> P.Inlines
+showDiffs txt1 txt2 
+  = walk harden $ go 0 (toList $ diffTexts txt1 txt2)
+  where 
+      harden :: P.Inline -> P.Inline   -- make all softbreaks into hardbreaks
+      harden P.SoftBreak = P.LineBreak
+      harden i = i
+
+      text :: Text -> P.Inlines
+      text s = if T.null s then mempty else P.text s
+      
+      go :: Int -> [Edit] -> P.Inlines
+      go i [] = text (T.drop i txt1)  
+      go i (EditDelete from to : rest)
+        = let before  = trim i (from-1) txt1 
+              deleted = trim from to txt1
+          in text before <> P.strikeout (text deleted) <> go (to+1) rest 
+      go i (EditInsert pos from to : rest) 
+         = let before = trim i (pos-1) txt1 
+               inserted  = trim from to txt2  
+           in text before <> P.underline (text inserted) <> go pos rest     
+
+      trim :: Int -> Int -> Text -> Text
+      trim i j txt = T.take (j-i+1) (T.drop i txt)
 

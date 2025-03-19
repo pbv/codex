@@ -14,7 +14,6 @@ import           System.Directory (doesFileExist)
 
 import qualified Text.Pandoc.Builder as P
 
-type Visibility = P.Blocks -> P.Blocks
 
 pythonDocTester :: Tester Result
 pythonDocTester = tester "doctest" $ do
@@ -34,8 +33,8 @@ pythonDocTester = tester "doctest" $ do
   if null missing then
     withTemp "submit.py" src $ \pyfile -> do
        chmod readable pyfile
-       r <- runDoctests id limits python [runtests, pyfile] pub_tests
-       r'<- runDoctests markPrivate limits python [runtests, pyfile] priv_tests
+       r <- runDoctests Public limits python [runtests, pyfile] pub_tests
+       r'<- runDoctests Private limits python [runtests, pyfile] priv_tests
        return (r <> r')
     else
        return (miscError (P.plain (P.str ("Cannot find doctest files: " <> T.pack (show missing)))))
@@ -52,21 +51,20 @@ runDoctests vis limits python args tests = do
 classify :: Visibility -> (ExitCode, Text, Text) -> Result
 classify _ (ExitSuccess, stdout, _)      = accepted (P.plain (P.str stdout))
 
-classify visibility (ExitFailure _, stdout, stderr)
+classify vis (ExitFailure _, stdout, stderr)
   | match "Time Limit" stderr          = timeLimitExceeded (P.codeBlock stderr)
   | match "Memory Limit" stderr        = memoryLimitExceeded (P.codeBlock stderr)
   | match "SyntaxError" stderr         = compileError (P.codeBlock stderr)
-  | match "Exception raised" stdout    = runtimeError (formatReport visibility stdout')
-  | match "Failed" stdout              = wrongAnswer (formatReport visibility stdout')
-  | otherwise                          = miscError (P.codeBlock (stdout' <> stderr))
+  | match "Exception raised" stdout    = runtimeError (formatReport vis stdout')
+  | match "Failed" stdout              = wrongAnswer (formatReport vis stdout')
+  | otherwise                          = miscError (tagWith vis $ P.codeBlock (stdout' <> stderr))
   where stdout' = filterPaths stdout
         
 formatReport :: Visibility -> Text -> P.Blocks
-formatReport visibility txt 
+formatReport vis txt 
   = case T.lines txt of 
       [] -> mempty
-      ls -> visibility (P.codeBlock (T.unlines $ init ls)) <> P.plain (P.str $ last ls) 
-
+      _ -> tagWith vis (P.codeBlock txt)
 
 -- filter doctest filepaths from report;
 -- we need this to avoid leaking server info to students

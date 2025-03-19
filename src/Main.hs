@@ -53,7 +53,8 @@ testers = foldr1 (<|>)
             -- quickcheck testers
           , haskellQCTester
           , hspecTester
-          , clangQCTester
+          , hspecClangTester
+          -- , clangQCTester
             -- I/O testers
           , stdioTester =<< clangBuild
           , stdioTester =<< javaBuild

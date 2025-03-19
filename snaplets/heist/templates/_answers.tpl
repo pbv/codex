@@ -25,7 +25,7 @@
     <h3>Resultado: <em><result-status/></em></h3>
     <if-valid><else/><icon-warning/>Inválida: <em><invalid-msg/></em></if-valid>
     <if-show-feedback>
-      <pre><quiz-report-summary/></pre>
+      <quiz-report-summary/>
       <questions>
 	<fieldset>
 	  <question-description/>

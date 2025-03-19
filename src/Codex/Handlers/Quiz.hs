@@ -39,7 +39,7 @@ import           Data.Map.Syntax
 import           Data.List (intersperse, sort)
 import           Data.Time.LocalTime
 
-import           Control.Monad (guard, join)
+import           Control.Monad (guard)
 import           Control.Monad.IO.Class (liftIO)
 
 

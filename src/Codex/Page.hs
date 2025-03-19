@@ -10,7 +10,7 @@ module Codex.Page where
 import           Text.Pandoc hiding (Code)
 import qualified Text.Pandoc ( Inline(Code) )
 import           Text.Pandoc.Walk
--- import           Text.Pandoc.Highlighting (monochrome)
+
 import           Text.XmlHtml
 import           Text.Blaze.Renderer.XmlHtml
 
@@ -18,15 +18,12 @@ import           Data.Maybe
 import qualified Data.Text as T
 import qualified Data.Text.IO as T
 import qualified Data.Text.Read as T
-import qualified Data.Map as Map
-import           Data.List (intersperse)
 
 import           Control.Applicative
 import           Control.Monad.IO.Class
 
 
 import           Codex.Types
---import           Codex.Policy
 
 
 emptyPage :: Page
@@ -133,6 +130,28 @@ lookupFromMeta :: FromMetaValue a => Text -> Meta -> Maybe a
 lookupFromMeta tag meta = lookupMeta tag meta >>= fromMeta
 
 
+inlineText :: Inline -> Text 
+inlineText = query f 
+   where f :: Inline -> Text
+         f (Str s) = s 
+         f Space = " "
+         f LineBreak = "\n"
+         f (Text.Pandoc.Code _ s) = s
+         f (RawInline _ s) = s
+         f _ = T.empty
+
+inlineString :: Inline -> String
+inlineString = T.unpack . inlineText
+
+blockText :: Block -> Text
+blockText (Plain l)       = query inlineText l
+blockText (Para p)        = query inlineText p
+blockText (Header _ _ l)  = query inlineText l
+blockText (CodeBlock _ s) = s
+blockText (RawBlock  _ s) = s
+blockText _               = T.empty
+
+{-
 -- collect text in inline and block elements
 inlineText :: Inline -> Text
 inlineText (Str s)   = s
@@ -153,18 +172,9 @@ inlineText (SmallCaps l)  = T.concat (map inlineText l)
 inlineText (Span _ l)  = T.concat (map inlineText l)
 inlineText _         = T.empty
 
-blockText :: Block -> Text
-blockText (Plain l)       = query inlineText l
-blockText (Para p)        = query inlineText p
-blockText (Header _ _ l)  = query inlineText l
-blockText (CodeBlock _ s) = s
-blockText (RawBlock  _ s) = s
-blockText _               = T.empty
 
-inlineString :: Inline -> String
-inlineString = T.unpack . inlineText
-
-
+-}
+{-
 -- | collect text from a meta value
 metaText :: MetaValue -> Text
 metaText (MetaString s) =
@@ -180,6 +190,18 @@ metaText (MetaList l) =
 metaText (MetaMap m) =
   T.concat $
   intersperse ","  [T.concat [k, ":", metaText v] | (k,v)<- Map.assocs m]
+-}
+
+metaText :: MetaValue -> Text
+metaText = query f
+  where f :: MetaValue -> Text
+        f (MetaString s)  = s
+        f (MetaInlines l) = T.concat (map inlineText l)
+        f (MetaBlocks l)  = T.concat (map blockText l)
+        f _               = T.empty
+
+
+
 
 
 -- | render a page as a list of HTML nodes

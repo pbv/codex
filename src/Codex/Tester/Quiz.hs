@@ -27,9 +27,6 @@ import qualified Text.Pandoc.Builder as P
 
 type Fraction = Ratio Int
 
-fromFraction :: Fraction -> Float
-fromFraction f = fromIntegral (numerator f) / fromIntegral (denominator f)
-
 -- | grading parameters
 data Weights
   = Weights { correctWeight :: Maybe Fraction
@@ -75,49 +72,32 @@ quizTester = tester "quiz" $ do
   let summary = makeSummary weights scores
   return $ accepted summary
 
-{-
-makeSummary :: Weights -> Scores -> Map String Value
-makeSummary Weights{..} Scores{..}
-  = Map.fromList $
-    [ ("number_of_questions", toJSON numQuestions)
-    , ("number_of_options", toJSON numOptions)
-    , ("correct_selections", toJSON numCorrect)
-    , ("incorrect_selections", toJSON numIncorrect)
-    , ("correct_weight_ratio", toJSON correctWeight)
-    , ("correct_weight_percent", toJSON (percent <$> correctWeight))
-    , ("incorrect_weight_ratio", toJSON incorrectWeight)
-    , ("incorrect_weight_percent", toJSON (percent <$> incorrectWeight))
-    , ("score_ratio", toJSON score)
-    , ("score_percent", toJSON (percent score))
-    ]
-  where
-    percent :: Fraction -> Double
-    percent = realToFrac
-    numQuestions = length scoresList
-    score = if numQuestions > 0
-            then sum scoresList / fromIntegral numQuestions
-            else 0
--}
 
 makeSummary :: Weights -> Scores -> P.Blocks
 makeSummary Weights{..} Scores{..}
-  = P.bulletList 
-    [ P.plain $ P.text "Number of questions:" <> P.text (T.pack $ show numQuestions)
-    , P.plain $ P.text "Total number of options:" <> P.text (T.pack $ show numOptions)
-    , P.plain $ P.text "Number of correct choices:"<> P.text (T.pack $ show numCorrect) 
-    , P.plain $ P.text "Number of incorrect choices:"<> P.text (T.pack $ show numIncorrect)
-    , P.plain (P.text "Weight for correct choices:"<> maybe "default" showFraction' correctWeight)
-    , P.plain (P.text "Weight for incorrect choices:"<>  maybe "default" showFraction' incorrectWeight)
-    , P.plain $ P.text $ T.pack $ printf "Score: %.2f%%"  $ fromFraction (100*score)
+  = P.bulletList $ map P.plain  
+    [ P.text "Number of questions: " <> P.str (tshow numQuestions)
+    , P.text "Total number of options: " <> P.str (tshow numOptions)
+    , P.text "Number of correct choices: " <> P.str (tshow numCorrect) 
+    , P.text "Number of incorrect choices: " <> P.str (tshow numIncorrect)
+    , P.text "Weight for correct choices: " <> P.str (showFraction' correctWeight)
+    , P.text "Weight for incorrect choices: " <> P.str (showFraction' incorrectWeight)
+    , P.text "Score: " <> P.str (T.pack $ printf "%.2f%%" (100*score)) 
     ]
   where
+    tshow :: Show a => a -> Text
+    tshow = T.pack . show
+    showFraction' :: (Integral a, Show a) => Maybe (Ratio a) -> Text
+    showFraction' = maybe "default" showFraction
     numQuestions = length scoresList
     score = if numQuestions > 0
-            then sum scoresList / fromIntegral numQuestions
+            then fromFraction (sum scoresList / fromIntegral numQuestions)
             else 0
 
-showFraction' :: (Integral a, Show a) => Ratio a -> P.Inlines
-showFraction' = P.str . showFraction
+
+fromFraction :: Fraction -> Float
+fromFraction f = fromIntegral (numerator f) / fromIntegral (denominator f)
+
 
 showFraction :: (Integral a, Show a) => Ratio a -> Text
 showFraction r

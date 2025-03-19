@@ -3,11 +3,11 @@
 {-# LANGUAGE TypeApplications #-}
 
 module Codex.Tester.Result
-  (Result(..), Status(..), Report(..),
+  (Result(..), Status(..), Report(..), Visibility(..),
    evaluating, received, accepted, presentationError,
    compileError, wrongAnswer, runtimeError,
    timeLimitExceeded, memoryLimitExceeded, miscError,
-   markPrivate, hidePrivate
+   tagWith, hidePrivate
   ) where
 
 import           Data.Text(Text)
@@ -103,6 +103,26 @@ memoryLimitExceeded = Result MemoryLimitExceeded . Report
 miscError = Result MiscError . Report
 presentationError = Result PresentationError . Report  
 
+
+data Visibility = Public | Private
+     deriving (Eq, Read, Show)
+
+tagWith :: Visibility -> Blocks -> Blocks
+tagWith Public blocks  = blocks
+  -- where top = header 3 (text "Public report")
+tagWith Private blocks = divWith ("",["private"], []) blocks
+  -- where top = header 3 (text "Private report") 
+     
+
+
+hidePrivate :: Blocks -> Blocks
+hidePrivate = walk hide 
+  where
+    hide :: Block -> Block
+    hide (Div (_,classes,_) _)
+      | "private"`elem`classes = Plain [Emph [Str "Private information hidden."]]
+    hide block = block
+
 {-
 maxLen :: Int
 maxLen = 2000
@@ -113,17 +133,3 @@ trim maxlen txt
   | T.length txt <= maxlen = txt
   | otherwise = T.append (T.take maxlen txt) "\n**Output too long (truncated)**\n"
 -}
-
-
-markPrivate :: Blocks -> Blocks
-markPrivate blocks = divWith ("",["private"], []) (top<>blocks)
-  where top = header 2 "Private tests"  
-
-hidePrivate :: Blocks -> Blocks
-hidePrivate = walk hide 
-  where
-    hide :: Block -> Block
-    hide (Div (_,classes,_) _)
-      | "private"`elem`classes = Header 2 nullAttr [Str "Private tests hidden"]
-    hide block = block
-

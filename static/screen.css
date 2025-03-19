@@ -317,9 +317,11 @@ table.submissions td.check {
     padding: 0.5ex;
 }
 
+/*
 .wrong {
-    /* text-decoration: line-through; */
+     text-decoration: line-through; 
 }
+*/
 
 .missing {
     border-bottom: 2px dotted;
@@ -389,3 +391,12 @@ h1.question, h2.question, h3.question {
     font-size: 100%;
 }
 
+div.text-diffs {
+    background-color: #ffffcc;
+    padding: 1em;
+    left: 1em;
+    right: 1em;
+    width: auto;
+    overflow-x: auto;
+    font-family: monospace; 
+}
