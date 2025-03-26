@@ -25,7 +25,6 @@ import           Data.Diff.Myers (diffTexts, Edit(..))
 import           Data.Foldable (toList)
 import           Data.Maybe (fromMaybe)
 import           Data.Char (isSpace)
-import           Text.Printf(printf)
 import           Control.Exception(handle)
 import           System.Directory(copyFile)
 
@@ -142,8 +141,8 @@ stdioTester Build{..} = tester "stdio" $ do
   guard (checkLanguage lang)
   dir <- takeDirectory <$> testFilePath
   -- input and output files
-  inputs <-  globPatterns dir =<< metadataWithDefault "public-inputs" []
-  outputs <- globPatterns dir =<< metadataWithDefault "public-outputs" [] 
+  inputs <-  globPatterns dir =<< metadataWithDefault "inputs" []             
+  outputs <- globPatterns dir =<< metadataWithDefault "outputs" [] 
   let num_inputs = length inputs
   let num_outs = length outputs
   assert (pure $ num_inputs == num_outs)
@@ -177,59 +176,59 @@ stdioTester Build{..} = tester "stdio" $ do
         -- make executable
         exe_file <- makeExec tmpdir code
         -- run all tests
-        r1 <- runTests Public (runExec exe_file (Just tmpdir)) $ 
+        r1 <- runTests (runExec exe_file (Just tmpdir)) $ 
                   zip3 arguments inputs outputs
-        r2 <- runTests Private (runExec exe_file (Just tmpdir)) $ 
+        r2 <- runTests (runExec exe_file (Just tmpdir)) $ 
                   zip3 priv_arguments priv_inputs priv_outputs
-        return (r1 <> r2)
+        return (tagWith Public r1 <> tagWith Private r2)
 
 
 -- run tests until the 1st failure
-runTests :: Visibility
-         -> ([String] -> Text -> IO (ExitCode, Text, Text))   -- action 
+runTests :: ([String] -> Text -> IO (ExitCode, Text, Text))   -- action 
          -> [(String, FilePath, FilePath)]  -- ^ args, input path, output path
          -> IO Result  
-runTests _ _ [] = mempty
-runTests vis action tests
+runTests _ [] = mempty
+runTests action tests
   = loop 1 tests
   where
     total = length tests
     loop _ []
-      = return $ accepted $ P.plain $ P.text $ "Passed " <> T.pack (show total) <> " tests."
+      = return $ accepted $ P.plain $ P.text $ T.pack (show total) <>  " tests passed."
     loop n ((arg_str, in_file, out_file) : tests) = do
-      in_txt <- T.readFile in_file
-      out_txt <- T.readFile out_file
-      args <- parseArgs arg_str
-      result <- classify vis arg_str in_txt out_txt <$> action args in_txt
+      result <- runTest action arg_str in_file out_file
       if resultStatus result == Accepted then
         loop (n+1) tests
         else
-        return (numberResult vis n total result)
-
-numberResult :: Visibility -> Int -> Int -> Result -> Result
-numberResult vis num total result
-  = result { resultReport = Report top <> resultReport result }
-  where top = P.header 3 (P.text $ T.pack $ show vis ++ printf " test %d / %d" num total) 
+        return result
                
 
+-- run a single test case
+runTest :: ([String] -> Text -> IO (ExitCode, Text, Text)) 
+        -> String -> FilePath -> FilePath -> IO Result
+runTest action arg_str in_file out_file = do
+      in_txt <- T.readFile in_file
+      out_txt <- T.readFile out_file
+      args <- parseArgs arg_str
+      classify arg_str in_txt out_txt <$> action args in_txt
+    
 
-classify ::  Visibility -> String -> Text -> Text -> (ExitCode, Text, Text) -> Result
-classify vis args input expected (ExitSuccess, out, _)
+classify ::  String -> Text -> Text -> (ExitCode, Text, Text) -> Result
+classify args input expected (ExitSuccess, out, _)
   | out == expected 
       = accepted (P.plain $ P.str "OK")
   | removeSpaces out == removeSpaces expected 
-      = presentationError $ tagWith vis $ textDiff args expected input out
+      = presentationError $ textDiff args expected input out
   | otherwise 
-      = wrongAnswer $ tagWith vis $ textDiff args expected input out
-classify vis args input _ (ExitFailure c, _, err)
+      = wrongAnswer $ textDiff args expected input out
+classify args input _ (ExitFailure c, _, err)
   | match "Time Limit" err   
-      = timeLimitExceeded $ tagWith vis $ textInput args input
+      = timeLimitExceeded $ textInput args input
   | match "Memory Limit" err 
-      = memoryLimitExceeded $ tagWith vis $ textInput args input
+      = memoryLimitExceeded $ textInput args input
   | match "Output Limit" err 
-      = runtimeError $ tagWith vis (textInput args input <> P.codeBlock err)
+      = runtimeError (textInput args input <> P.codeBlock err)
   | otherwise 
-      = runtimeError $ tagWith vis 
+      = runtimeError $ 
                 (textInput args input <> 
                 P.plain (P.str ("Program exited with non-zero status: " <> T.pack (show c))) <>
                 P.codeBlock err)
@@ -239,21 +238,26 @@ removeSpaces = T.filter (not.isSpace)
 
 textInput :: String -> Text -> P.Blocks
 textInput args input  
-  = P.simpleTable [] 
-    [[P.plain $ P.strong $ P.str "Command-line arguments", P.codeBlock (T.pack args)]
-    ,[P.plain $ P.strong $ P.str "Input", P.codeBlock input]]
+  = P.simpleTable []   
+    [ cmdlineArgs args
+    , [P.plain $ P.strong $ P.str "Input", P.codeBlock input]
+    ]
 
 textDiff :: String -> Text -> Text -> Text -> P.Blocks
 textDiff args expected input out =
     P.simpleTable []
-    [ [P.plain $ P.strong $ P.str "Command-line arguments", P.codeBlock (T.pack args)]
+    [ cmdlineArgs args
     , [P.plain $ P.strong $ P.str "Input", P.codeBlock input]
     , [P.plain $ P.strong $ P.str "Expected Output", P.codeBlock expected]
-    , [P.plain $ P.strong $ P.str "Obtained", P.codeBlock out]
+    , [P.plain $ P.strong $ P.str "Obtained Output", P.codeBlock out]
     , [P.plain $ P.strong $ P.str "Differences", 
        P.divWith ("", ["text-diffs"],[]) $ P.plain $ showDiffs out expected]
     ]
 
+cmdlineArgs :: String -> [P.Blocks]
+cmdlineArgs args
+  = if null args then [] else
+    [P.plain $ P.strong $ P.str "Command-line arguments", P.codeBlock (T.pack args)]
 
 -- show text differences as strikeouts/underlines
 showDiffs :: Text -> Text -> P.Inlines

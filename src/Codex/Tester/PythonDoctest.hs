@@ -33,38 +33,33 @@ pythonDocTester = tester "doctest" $ do
   if null missing then
     withTemp "submit.py" src $ \pyfile -> do
        chmod readable pyfile
-       r <- runDoctests Public limits python [runtests, pyfile] pub_tests
-       r'<- runDoctests Private limits python [runtests, pyfile] priv_tests
-       return (r <> r')
+       r <- runDoctests limits python [runtests, pyfile] pub_tests
+       r'<- runDoctests limits python [runtests, pyfile] priv_tests
+       return (tagWith Public r <> tagWith Private r')
     else
-       return (miscError (P.plain (P.str ("Cannot find doctest files: " <> T.pack (show missing)))))
+       return (miscError (P.plain (P.text ("Cannot find doctest files: " <> T.pack (show missing)))))
 
 
-runDoctests :: Visibility -> Limits -> FilePath -> [String] -> [FilePath] -> IO Result
-runDoctests _ _      _      _    []     = return mempty
-runDoctests vis limits python args tests = do
+runDoctests :: Limits -> FilePath -> [String] -> [FilePath] -> IO Result
+runDoctests _      _      _    []     = return mempty
+runDoctests limits python args tests = do
   let cmdline = args ++ tests
-  classify vis <$> safeExec limits python Nothing cmdline ""
+  classify <$> safeExec limits python Nothing cmdline ""
 
 
 
-classify :: Visibility -> (ExitCode, Text, Text) -> Result
-classify _ (ExitSuccess, stdout, _)      = accepted (P.plain (P.str stdout))
+classify :: (ExitCode, Text, Text) -> Result
+classify (ExitSuccess, stdout, _)      = accepted (P.plain (P.str stdout))
 
-classify vis (ExitFailure _, stdout, stderr)
+classify (ExitFailure _, stdout, stderr)
   | match "Time Limit" stderr          = timeLimitExceeded (P.codeBlock stderr)
   | match "Memory Limit" stderr        = memoryLimitExceeded (P.codeBlock stderr)
   | match "SyntaxError" stderr         = compileError (P.codeBlock stderr)
-  | match "Exception raised" stdout    = runtimeError (formatReport vis stdout')
-  | match "Failed" stdout              = wrongAnswer (formatReport vis stdout')
-  | otherwise                          = miscError (tagWith vis $ P.codeBlock (stdout' <> stderr))
+  | match "Exception raised" stdout    = runtimeError (P.codeBlock stdout')
+  | match "Failed" stdout              = wrongAnswer (P.codeBlock stdout')
+  | otherwise                          = miscError (P.codeBlock (stdout' <> stderr))
   where stdout' = filterPaths stdout
         
-formatReport :: Visibility -> Text -> P.Blocks
-formatReport vis txt 
-  = case T.lines txt of 
-      [] -> mempty
-      _ -> tagWith vis (P.codeBlock txt)
 
 -- filter doctest filepaths from report;
 -- we need this to avoid leaking server info to students

@@ -220,12 +220,12 @@ submissionSplices tz Submission{..} = do
   validitySplices submitCheck
 
 resultSplices :: Result -> ISplices
-resultSplices Result{..} = do
-  "result-status" ## I.textSplice (statusText resultStatus)
-  "result-report" ## return (blocksToHtml $ P.toList $ hidePrivate $ getBlocks resultReport)
-  "result-private-report" ## return (blocksToHtml $ P.toList $ getBlocks resultReport)
-  "if-accepted" ## I.ifElseISplice (resultStatus == Accepted)
-  "if-evaluating" ## I.ifElseISplice (resultStatus == Evaluating)
+resultSplices r = do
+  "result-status" ## I.textSplice (statusText (resultStatus r))
+  "result-report" ## return (blocksToHtml $ P.toList $ getBlocks $ resultReport $ hidePrivate r)
+  "result-private-report" ## return (blocksToHtml $ P.toList $ getBlocks $ resultReport r)
+  "if-accepted" ## I.ifElseISplice (resultStatus r == Accepted)
+  "if-evaluating" ## I.ifElseISplice (resultStatus r == Evaluating)
 
     
 

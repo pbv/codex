@@ -135,8 +135,10 @@ inlineText = query f
    where f :: Inline -> Text
          f (Str s) = s 
          f Space = " "
+         f SoftBreak = " "
          f LineBreak = "\n"
          f (Text.Pandoc.Code _ s) = s
+         f (Math _ s) = s
          f (RawInline _ s) = s
          f _ = T.empty
 

@@ -11,6 +11,7 @@ module Codex.Tester.Result
   ) where
 
 import           Data.Text(Text)
+import qualified Data.Text as T
 
 import           Database.SQLite.Simple.FromField
 import           Database.SQLite.Simple.ToField
@@ -107,20 +108,26 @@ presentationError = Result PresentationError . Report
 data Visibility = Public | Private
      deriving (Eq, Read, Show)
 
-tagWith :: Visibility -> Blocks -> Blocks
-tagWith Public blocks  = blocks
-  -- where top = header 3 (text "Public report")
-tagWith Private blocks = divWith ("",["private"], []) blocks
-  -- where top = header 3 (text "Private report") 
-     
 
+onReport :: (Blocks -> Blocks) -> Result -> Result
+onReport f r = r { resultReport = Report $ f $ getBlocks $ resultReport r }
 
-hidePrivate :: Blocks -> Blocks
-hidePrivate = walk hide 
+tagWith :: Visibility -> Result -> Result
+tagWith Public  r 
+    = onReport (header 3 "Public tests" <>) r
+tagWith Private r 
+    = onReport (\bs -> header 3 "Private tests" <> 
+                      divWith ("",["private"], []) bs) r
+
+hidePrivate :: Result -> Result
+hidePrivate r = onReport (walk hide) r
   where
     hide :: Block -> Block
     hide (Div (_,classes,_) _)
-      | "private"`elem`classes = Plain [Emph [Str "Private information hidden."]]
+      | "private"`elem`classes 
+           = Plain [Strong [Str $ T.pack $ show $ resultStatus r],
+                    Space,
+                    Emph [Str "(details hidden.)"]]
     hide block = block
 
 {-
