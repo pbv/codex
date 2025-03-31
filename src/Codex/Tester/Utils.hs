@@ -54,12 +54,16 @@ import qualified Data.Text.Encoding             as T
 import qualified Data.Text.Encoding.Error       as T
 
 import           Data.Int (Int64)
-import           Data.List (sort)
+import           Data.List (sort, intersperse)
 import           Data.Bits
 import           Data.Maybe(catMaybes)
+import           Data.Char (isSpace)
+
 
 import           Text.Pandoc(Meta)
 import qualified Text.Pandoc.Builder as P
+import           Text.Pandoc.Walk (walk)
+
 import           Codex.Page(lookupFromMeta)
 import           Codex.Tester.Result
 import           Codex.Tester.Limits
@@ -273,3 +277,7 @@ globPattern patt = do
 
 globPatterns :: MonadIO m => FilePath -> [String] -> m [FilePath]
 globPatterns dir patts = concat <$> mapM (globPattern . (dir</>)) patts
+
+
+       
+    

@@ -73,7 +73,7 @@ newtype Language
 -- | program code tagged with language identifier
 data Code = Code { codeLang :: !Language
                  , codeText :: !Text
-                 } deriving (Eq, Typeable) --, Read, Show)
+                 } deriving (Eq, Typeable)
   
 instance Show Language where
   showsPrec prec (Language l) = showsPrec prec l

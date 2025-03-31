@@ -50,6 +50,7 @@ handler =  markdownHandlers <> quizHandlers <> codeHandlers
 
 testers = foldr1 (<|>)
           [ pythonDocTester
+          , pythonMuDocTester
             -- quickcheck testers
           , haskellQCTester
           , hspecTester

@@ -5,7 +5,7 @@ module Codex.Tester (
   nullTester,
   -- * module re-exports
   Meta, Code(..),
-  lookupFromMeta,
+  lookupFromMeta, showDiffs,
   module Codex.Tester.Monad,
   module Codex.Tester.Result,
   module Codex.Tester.Utils,
@@ -19,7 +19,7 @@ module Codex.Tester (
   ) where
 
 import           Codex.Types
-import           Codex.Page (lookupFromMeta)
+import           Codex.Page (lookupFromMeta, showDiffs)
 import           Text.Pandoc (Meta)
 import qualified Text.Pandoc.Builder as P
 import           Codex.Tester.Monad

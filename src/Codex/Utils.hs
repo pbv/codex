@@ -38,8 +38,6 @@ import qualified Heist.Interpreted as I
 
 import qualified Text.XmlHtml as X
 
-
---import           Control.Monad (join)
 import           Control.Monad.State
 import           Control.Applicative 
 import           Control.Exception (SomeException(..))
@@ -48,7 +46,6 @@ import qualified Data.Configurator as Configurator
 
 import           Codex.Types
 import           Codex.Page
---import           Codex.Policy
 import           Codex.Application
 
 import           Data.Time.Clock
@@ -58,6 +55,8 @@ import Data.Time.Format ( defaultTimeLocale, formatTime )
 import           System.FilePath
 import qualified System.FastLogger as FastLogger
 import           System.Directory (doesFileExist, doesDirectoryExist)
+
+
 
 -- interpreted splices for handlers
 type ISplices = Splices (I.Splice Codex)
@@ -345,3 +344,6 @@ whenM :: Monad m => m Bool -> m () -> m ()
 whenM cond action = do
   c <- cond
   when c action
+
+
+    

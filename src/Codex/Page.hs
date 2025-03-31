@@ -10,20 +10,29 @@ module Codex.Page where
 import           Text.Pandoc hiding (Code)
 import qualified Text.Pandoc ( Inline(Code) )
 import           Text.Pandoc.Walk
+import qualified Text.Pandoc.Builder as P
+
 
 import           Text.XmlHtml
 import           Text.Blaze.Renderer.XmlHtml
 
 import           Data.Maybe
+import           Data.List (delete)
+import           Data.Foldable(toList)
 import qualified Data.Text as T
 import qualified Data.Text.IO as T
 import qualified Data.Text.Read as T
 
 import           Control.Applicative
 import           Control.Monad.IO.Class
-
+import           Control.Exception  (IOException)
+import           Control.Exception.Lifted  (try)
 
 import           Codex.Types
+import           System.FilePath
+
+import           Data.Diff.Myers (diffTexts, Edit(..))
+
 
 
 emptyPage :: Page
@@ -124,11 +133,9 @@ instance FromMetaValue Language where
   fromMeta v = fmap (Language . T.toLower) (fromMeta v)
 
 
-
 -- | lookup from metadata value
 lookupFromMeta :: FromMetaValue a => Text -> Meta -> Maybe a
 lookupFromMeta tag meta = lookupMeta tag meta >>= fromMeta
-
 
 inlineText :: Inline -> Text 
 inlineText = query f 
@@ -153,46 +160,6 @@ blockText (CodeBlock _ s) = s
 blockText (RawBlock  _ s) = s
 blockText _               = T.empty
 
-{-
--- collect text in inline and block elements
-inlineText :: Inline -> Text
-inlineText (Str s)   = s
-inlineText Space     = " "
-inlineText LineBreak  = "\n"
-inlineText (Math _ s) = s
-inlineText (Text.Pandoc.Code _ s) = s
-inlineText (RawInline _ s) = s
-inlineText (Quoted qt l) =  quote <> T.concat (map inlineText l) <> quote
-  where quote = case qt of
-            SingleQuote -> "\'"
-            DoubleQuote -> "\""
-inlineText (Emph l)  = T.concat (map inlineText l)
-inlineText (Strong l)  = T.concat (map inlineText l)
-inlineText (Superscript l)  = T.concat (map inlineText l)
-inlineText (Subscript l)  = T.concat (map inlineText l)
-inlineText (SmallCaps l)  = T.concat (map inlineText l)
-inlineText (Span _ l)  = T.concat (map inlineText l)
-inlineText _         = T.empty
-
-
--}
-{-
--- | collect text from a meta value
-metaText :: MetaValue -> Text
-metaText (MetaString s) =
-  s
-metaText (MetaBool b) =
-  T.pack (show b)
-metaText (MetaInlines l) =
-  T.concat (map inlineText l)
-metaText (MetaBlocks l) =
-  T.concat (map blockText l)
-metaText (MetaList l) =
-  T.concat (intersperse "," $ map metaText l)
-metaText (MetaMap m) =
-  T.concat $
-  intersperse ","  [T.concat [k, ":", metaText v] | (k,v)<- Map.assocs m]
--}
 
 metaText :: MetaValue -> Text
 metaText = query f
@@ -204,8 +171,6 @@ metaText = query f
 
 
 
-
-
 -- | render a page as a list of HTML nodes
 pageToHtml :: Page -> [Node]
 pageToHtml doc = case runPure (writeHtml5 opts doc) of
@@ -214,8 +179,6 @@ pageToHtml doc = case runPure (writeHtml5 opts doc) of
   where
     opts = def { writerExtensions = pandocExtensions
                , writerHTMLMathMethod = MathJax "/mathjax"
-               -- , writerHighlightStyle = Nothing
-               -- , writerHighlightStyle = Just monochrome
                }
 
 blocksToHtml :: [Block] -> [Node]
@@ -224,17 +187,58 @@ blocksToHtml blocks = pageToHtml (Pandoc nullMeta blocks)
 
 -- | read a file and parse markdown to a Pandoc document
 readMarkdownFile :: MonadIO m => FilePath -> m Pandoc
-readMarkdownFile filepath = liftIO $ do
-  txt <- T.readFile filepath
-  return $ case parseDocument txt of
-             Left err -> docError err
-             Right (doc,msgs) -> docWarnings msgs  <> doc
+readMarkdownFile filepath = do
+  txt <- liftIO $ T.readFile filepath 
+  case parseMarkdown txt of
+    Left err  -> return (docError err)
+    Right doc -> liftIO $ processIncludes filepath doc
 
-parseDocument :: Text -> Either PandocError (Pandoc, [LogMessage])
-parseDocument txt = runPure $ do
-  doc <- readMarkdown pandocReaderOptions txt
+parseMarkdown :: Text -> Either PandocError Pandoc
+parseMarkdown txt = runPure $ do
+  doc <- readMarkdown pandocReaderOptions txt 
   msgs <- getLog
-  return (doc, msgs)
+  return $ docWarnings msgs <> doc  
+
+-- | process all include directives in code blocks 
+processIncludes :: FilePath -> Pandoc -> IO Pandoc
+processIncludes filepath  
+    = walkM include 
+    where 
+      dir = takeDirectory filepath
+      include :: Block -> IO Block
+      include (CodeBlock (id, classes, attrs) _) 
+        | "include" `elem` classes
+        , Just src <- lookup "src" attrs = do
+            txt <- T.readFile (dir </> T.unpack src)
+            let classes' = delete "include" classes
+            let attrs' = delete ("src",src) attrs
+            return (CodeBlock (id, classes', attrs') txt)
+      include (CodeBlock (id, classes, attrs) _) 
+        | "diffs" `elem` classes
+        , Just from <- lookup "from" attrs
+        , Just to <- lookup "to" attrs = do
+            txt1 <- T.readFile (dir </> T.unpack from)
+            txt2 <- T.readFile (dir </> T.unpack to)
+            let diffs = showDiffs txt1 txt2
+            return (Div (id, ["text-diffs"], []) [Plain (toList diffs)])
+      -- catch-all
+      include block = return block
+  
+
+
+-- | read just the title of a markdown document
+readMarkdownTitle :: MonadIO m => FilePath -> m [Inline]
+readMarkdownTitle filepath = liftIO $ do
+  result <- try (T.readFile filepath)
+  return $ case result of
+    Left (_ :: IOException) -> brokenLink filepath
+    Right txt -> 
+      case parseMarkdown txt of
+              Left _  -> brokenLink filepath
+              Right doc -> fromMaybe (brokenLink filepath) (pageTitle doc) 
+
+brokenLink :: FilePath -> [Inline]
+brokenLink path = [Text.Pandoc.Code nullAttr (T.pack path)]
 
 
 pandocReaderOptions :: ReaderOptions
@@ -259,6 +263,39 @@ docWarnings msgs
     [Div ("", ["warnings"], [])
       [Para [Str "WARNING:", Space, Str (T.pack $ show msg)] | msg <- msgs]]
 
+-- show text differences as an inline Pandoc object
+showDiffs :: Text -> Text -> P.Inlines
+showDiffs txt1 txt2 
+  =  go 0 (toList $ diffTexts txt1 txt2)
+  where 
+      go :: Int -> [Edit] -> P.Inlines
+      go i [] = pretext (T.drop i txt1)  
+      go i (EditDelete from to : rest)
+        = let before  = trim i (from-1) txt1 
+              deleted = trim from to txt1
+          in pretext before <>
+             P.strikeout (pretext deleted) <>
+             go (to+1) rest 
+      go i (EditInsert pos from to : rest) 
+         = let before = trim i (pos-1) txt1 
+               inserted  = trim from to txt2  
+           in pretext before <>
+              P.strong (pretext inserted) <>
+              go pos rest     
 
+      trim :: Int -> Int -> Text -> Text
+      trim i j txt = T.take (j-i+1) (T.drop i txt)
 
+      -- Text preserving spaces and line breaks
+      pretext :: Text -> P.Inlines
+      pretext txt = walk harden $ P.text $ T.map nbsp txt
 
+      -- change spaces to non-breakable spaces
+      nbsp :: Char -> Char
+      nbsp ' ' = '\160'
+      nbsp x   = x
+
+      -- change softbreaks to hardbreaks
+      harden :: P.Inline -> P.Inline
+      harden P.SoftBreak = P.LineBreak
+      harden i = i

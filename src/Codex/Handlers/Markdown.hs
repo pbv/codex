@@ -18,7 +18,7 @@ import           Codex.Utils
 import           Codex.Submission
 
 import qualified Data.Text as T
-import           Data.Maybe(fromMaybe)
+import           Data.Maybe(fromMaybe, isNothing)
 import           Text.Read(readMaybe)
 import           Data.Hashable (hash)
 
@@ -30,7 +30,7 @@ import           Control.Monad.IO.Class (liftIO)
 import           Text.Pandoc hiding (Code,
                                       getCurrentTime,
                                       getCurrentTimeZone)
-import qualified Text.Pandoc as Pandoc 
+import qualified Text.Pandoc as Pandoc
 import           Text.Pandoc.Walk as Pandoc
 import           System.FilePath
 
@@ -43,11 +43,11 @@ import           Snap.Snaplet.Heist
 pageView :: UserLogin -> FilePath -> Page -> Codex ()
 pageView uid rqpath page = do
   -- check that this is a plain markdown page, not an exercise
-  guard (pageTester page == Nothing)  
+  guard (isNothing (pageTester page))
   let rqdir = takeDirectory rqpath
-  (fillExerciseLinks uid rqdir $
-    fillUserLinks uid $
-    runShuffleing uid page) >>= renderMarkdown
+  fillExerciseLinks uid rqdir 
+     (fillUserLinks uid $
+      runShuffleing uid page) >>= renderMarkdown
 
 renderMarkdown :: Page -> Codex ()
 renderMarkdown page = renderWithSplices "_page" (pageSplices page)
@@ -67,7 +67,7 @@ runShuffleing uid page
 shuffleLists :: Block -> Rand Block
 shuffleLists (Div (id, classes, attrs) blocks)
   | "shuffle" `elem` classes = do
-      let limit = (readMaybe . T.unpack) =<< lookup "choose" attrs 
+      let limit = (readMaybe . T.unpack) =<< lookup "choose" attrs
       blocks' <- mapM (shuffleList limit) blocks
       return (Div (id, classes, attrs) blocks')
 shuffleLists block
@@ -82,7 +82,7 @@ shuffleList _ block =
   return block
 
 shuffle' :: Maybe Int -> [a] -> Rand [a]
-shuffle' limit xs = maybe id take limit <$> Rand.shuffle xs 
+shuffle' limit xs = maybe id take limit <$> Rand.shuffle xs
 
 
 -- | fill titles and submission counts on exercise links
@@ -116,32 +116,33 @@ formatLink attr title target count
 
 fillUserLinks :: UserLogin -> Page -> Page
 fillUserLinks uid = walk (userLinks uid)
-  
+
 -- jpp hack: replace %u in exercise URLs with the user login
 userLinks ::  UserLogin -> Inline -> Inline
 userLinks uid (Link attr@(_, classes,_) inlines _target@(url,short))
-  | "user" `elem` classes = 
+  | "user" `elem` classes =
       let url' = T.pack $ replaceUserField (T.unpack $ fromLogin uid) (T.unpack url)
           target' = (url', short)
       in Link attr inlines target'
 userLinks _ elm = elm
 
-  
+
 replaceUserField :: String -> String -> String
 replaceUserField uid ('%':'u':rest) = uid ++ rest
 replaceUserField uid (first:rest) = first : replaceUserField uid rest
 replaceUserField _   [] = []
 
 
-
+-- | read just the title of a markdown file
 readPageTitle :: FilePath -> IO [Inline]
 readPageTitle path = do
   result <- try (readMarkdownFile path)
   return $ case result of
-    Left (_ :: IOException) -> brokenLink 
+    Left (_ :: IOException) -> brokenLink
     Right page -> fromMaybe brokenLink (pageTitle page)
   where
     brokenLink = [Pandoc.Code nullAttr (T.pack path)]
+
 
 
 markdownHandlers :: Handlers Codex

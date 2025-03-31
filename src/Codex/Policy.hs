@@ -7,23 +7,12 @@
   Policies for classifying submissions as valid or invalid
 -}
 
-module Codex.Policy {- (
-    TimeExpr,
-    TimeEnv,
-    Constr(..),
-    Policy,
-    parseTimeExpr,
-    parsePolicy,
-    makeTimeEnv,
-    evalPolicy,
-    formatLocalTime,
-    formatNominalDiffTime
-    ) -} where 
+module Codex.Policy  where
 
 import           Data.Char
-import           Data.Text (Text)
 import qualified Data.Text as T
-import           Data.Time hiding (parseTime)
+import           Data.Time 
+import           Data.Maybe (isJust)
 
 import qualified Data.HashMap.Strict as HM
 import qualified Data.Configurator as Configurator
@@ -37,7 +26,7 @@ import           Control.Monad.State
 import           Control.Monad.Except
 
 import           Codex.Types
-import           Codex.Page 
+import           Codex.Page
 import           Codex.Application
 import           Codex.Submission
 import           Codex.Utils
@@ -53,7 +42,7 @@ import           Data.Map.Syntax
 data Policy t
   = Policy
     { maxAttempts :: Maybe Int
-    , timeConstraint :: Constr' t 
+    , timeConstraint :: Constr' t
     } deriving (Show, Functor)
 
 
@@ -68,7 +57,7 @@ data Constr t
   | Disj (Constr t) (Constr t) -- ^ disjunction
   | Always
   | Never
-  deriving (Show, Functor) 
+  deriving (Show, Functor)
 
 -- | time expressions
 data Time
@@ -103,11 +92,11 @@ getPolicy page =
   Policy { maxAttempts = lookupFromMeta "attempts" meta
          , timeConstraint = constr'
          }
-  where 
+  where
     meta = pageMeta page
     constr' = case lookupFromMeta "valid" meta of
                 Nothing -> Right Always
-                Just txt -> parseConstraint txt 
+                Just txt -> parseConstraint txt
 
 
 --------------------------------------------------------------------------          
@@ -124,16 +113,16 @@ data TimeEnv
 
 -- | evaluate a time expression; wrapper
 evalTime :: MonadError Text m => TimeEnv -> Time -> m UTCTime
-evalTime TimeEnv{..} t = worker [] t 
+evalTime TimeEnv{..} t = worker [] t
   where
     worker deps (Event name)
       | name `elem` deps =
           throwError ("cyclic dependency: " <> T.pack (show name))
-      | otherwise = 
+      | otherwise =
           case timeEvents name of
             Just t -> worker (name:deps) t
             Nothing -> throwError ("undefined event: " <> T.pack (show name))
-    worker _ (Local lt)  
+    worker _ (Local lt)
       = return (localTimeToUTC timeZone lt)
     worker deps (AddDiff e d)
       = addUTCTime (evalDiff d) <$> worker deps e
@@ -147,7 +136,7 @@ evalDiff (Diff value un) = fromIntegral value * toSeconds un
     toSeconds Hour   = 3600
     toSeconds Day    = 24*3600
     toSeconds Week   = 7*24*3600
-  
+
 
 -- | simplify a time constraint
 normalizeConstr' :: MonadError Text m
@@ -200,10 +189,10 @@ checkMaxAttempts :: ( MonadError Text m, S.HasSqlite m )
                  -> m ()
 checkMaxAttempts Submission{..} limit = do
   count <- countEarlier submitUser submitPath submitTime
-  unless (count < limit) $ 
+  unless (count < limit) $
     throwError ("Maximum " <> T.pack (show limit) <> " attempts exceeded")
 
-    
+
 checkConstr' :: MonadError Text m
              => TimeEnv -> UTCTime -> Constr' Time -> m ()
 checkConstr'  env time constr'
@@ -300,7 +289,7 @@ parseTimeP = base >>= cont
       <++
       return t
 
-  
+
 
 -- | parse local time strings
 localTime ::  ReadP LocalTime
@@ -323,11 +312,11 @@ eventName = token $ do
 --
 parseTimeDiff :: ReadP Diff
 parseTimeDiff = do
-  s <- sign 
+  s <- sign
   n <- integer
   u <- unit
   return (Diff (s n) u)
-         
+
 sign :: ReadP (Int -> Int)
 sign = do {token (char '+'); return id}
        <++
@@ -353,7 +342,7 @@ token :: ReadP a -> ReadP a
 token p = do v<-p; skipSpaces; return v
 
 integer :: ReadP Int
-integer = token (readS_to_P reads) 
+integer = token (readS_to_P reads)
 
 symbol :: String -> ReadP String
 symbol s = token (string s)
@@ -380,8 +369,8 @@ prettyConstr (Before t) = "before " <> t
 prettyConstr (Conj c1 c2)
   = prettyConstr c1 <> " and " <> prettyConstr c2
 prettyConstr (Disj c1 c2)
-  = prettyConstr c1 <> " or " <> prettyConstr c2  
-  
+  = prettyConstr c1 <> " or " <> prettyConstr c2
+
 
 
 -- format an UTC time as local time
@@ -417,7 +406,7 @@ policySplices page submitUser submitPath = do
   now <- liftIO getCurrentTime
   count <- countEarlier submitUser submitPath now
   let dummy = emptySubmission submitUser submitPath now
-  check <- checkPolicy env policy dummy  
+  check <- checkPolicy env policy dummy
   let constrText
         = case normalizeConstr' env timeConstraint of
             Left msg -> msg
@@ -426,7 +415,7 @@ policySplices page submitUser submitPath = do
   return $ do
     "timing" ## I.textSplice constrText
     "if-available" ## I.ifElseISplice (check == Valid || not lock)
-    "if-max-attempts" ## I.ifElseISplice (maxAttempts /= Nothing)
+    "if-max-attempts" ## I.ifElseISplice (isJust maxAttempts)
     "submissions-attempts" ## I.textSplice (T.pack $ show count)
     "max-attempts" ## case maxAttempts of
       Nothing -> return []

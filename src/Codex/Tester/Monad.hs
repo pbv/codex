@@ -33,7 +33,7 @@ import           Control.Applicative
 import           Control.Monad.Trans
 import           Control.Monad.Trans.Maybe 
 import           Control.Monad.Trans.Reader
-import           Control.Monad.Fail 
+
 import           Codex.Types (Page, Code, UserLogin)
 import           Codex.Submission.Types
 import           Text.Pandoc (Meta)
@@ -41,7 +41,7 @@ import           Codex.Page
 import           Codex.Tester.Limits
 import           System.FilePath
 import           Data.Maybe (fromMaybe)
-import           Data.Text (Text, unpack)
+import           Data.Text (Text)
 
 -- | a monad for testing scripts
 -- allows access to a test environment, IO and failure (i.e. passing)

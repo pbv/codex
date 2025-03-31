@@ -80,7 +80,7 @@ ol.submissions {
 }
 
 ol.submissions li {
-    float: left;
+    display: inline-block;
     width: 8em;
     overflow: hidden;
     text-overflow: ellipsis;
@@ -101,13 +101,6 @@ ol.submissions:after {
     margin-right: 1em;
     width: auto;
     height: auto;
-    /*
-    top: 0px;
-    bottom: 0px;
-    left: 0px;
-    right: 0px;
-    overflow-y: scroll;
-*/
 }
 
 
@@ -209,15 +202,6 @@ pre {
 
 
 #editor {
-    /*
-    position: fixed;
-    left: 10px;
-    right: 10px;
-    top: 220px;
-    bottom: 10px;
-    width: auto;
-    height: auto;
-   */
     left: 0px;
     right: 0px;
     width: 100%;
@@ -328,11 +312,6 @@ table.submissions td.check {
     padding: 2px; 
 }
 
-/* --- Code highlighting --- 
-.sourceCode .kw { font-weight: bold; color: blue;  }
-.sourceCode .co { color: darkgreen; }
-.sourceCode .st { color: darkgreen; }
-*/
 
 /* -- Tabbing --- */
 
@@ -358,7 +337,6 @@ button.tablinks {
     float: left;
     cursor: pointer;
     padding: 10px 10px;
-    /* transition: 0.3s; */
     border: none;
 }
 
@@ -392,11 +370,36 @@ h1.question, h2.question, h3.question {
 }
 
 div.text-diffs {
+    font-family: monospace;
     background-color: #ffffcc;
     padding: 1em;
     left: 1em;
     right: 1em;
     width: auto;
     overflow-x: auto;
-    font-family: monospace; 
+}
+
+div.text-diffs strong {
+    background-color: lightgray;
+}
+
+div.text-diffs del {
+    text-decoration-color: red;
+    text-decoration-thickness: 2px;
+    background-color: lightgray;
+}
+
+
+div.twocolumn {
+    overflow: hidden;
+}
+
+div.twocolumn div.left {
+    width: 45%;
+    float: left;
+}
+
+div.twocolumn div.right {
+    width: 50%;
+    float: right;    
 }
