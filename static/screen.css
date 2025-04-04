@@ -379,8 +379,9 @@ div.text-diffs {
     overflow-x: auto;
 }
 
-div.text-diffs strong {
-    background-color: lightgray;
+div.text-diffs span.inserted {
+    background-color: lightgray; 
+    font-weight: bold;
 }
 
 div.text-diffs del {

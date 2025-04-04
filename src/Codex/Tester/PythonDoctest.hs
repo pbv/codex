@@ -154,7 +154,7 @@ classifyMutant :: Int -> Text -> Text -> (ExitCode, Text, Text) -> Result
 classifyMutant k target mut (ExitSuccess, stdout, _)      
    = wrongAnswer (P.header 3 (P.text "Mutated version " <>
                               P.str (T.pack $ show k) <>
-                              P.text " passed all tests "
+                              P.text " not rejected "
                              <> crossMark)
                    <> textDiffs target mut
                       `besides`
@@ -168,7 +168,7 @@ classifyMutant k target mut (ExitFailure _, stdout, stderr)
   | otherwise
   = accepted (P.header 3 (P.text "Mutated version " <>
                           P.str (T.pack $ show k) <>
-                          P.text " failed some tests " <>
+                          P.text " rejected " <>
                           checkMark)
                 <> textDiffs target mut
                     `besides`
@@ -186,7 +186,7 @@ suiteRejected msg
 
 textDiffs :: Text -> Text -> P.Blocks
 textDiffs from to
-  = P.divWith ("",["text-diffs"],[]) (P.plain $ showDiffs from to)
+  = P.divWith ("",["text-diffs"],[]) (P.plain $ formatDiffs from to)
 
 besides :: P.Blocks -> P.Blocks -> P.Blocks
 besides left right

@@ -237,7 +237,7 @@ textDiff expected input out =
     , [P.plain $ P.strong $ P.str "Expected Output", P.codeBlock expected]
     , [P.plain $ P.strong $ P.str "Obtained Output", P.codeBlock out]
     , [P.plain $ P.strong $ P.str "Differences", 
-       P.divWith ("", ["text-diffs"],[]) $ P.plain $ showDiffs out expected]
+       P.divWith ("", ["text-diffs"],[]) $ P.plain $ formatDiffs out expected]
     ]
 
 

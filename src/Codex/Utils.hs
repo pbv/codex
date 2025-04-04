@@ -58,6 +58,7 @@ import           System.Directory (doesFileExist, doesDirectoryExist)
 
 
 
+
 -- interpreted splices for handlers
 type ISplices = Splices (I.Splice Codex)
 
@@ -260,14 +261,14 @@ caseSplice v = tagCaseSplice (T.pack $ show v)
 checkboxInput :: [(Text,Text)] -> [X.Node] -> X.Node
 checkboxInput attrs = X.Element "input" (("type","checkbox") : attrs) 
 
-
-
+{-
 jsTimer :: String -> NominalDiffTime -> [X.Node]
 jsTimer id secs
   = [X.Element "span" [("id",T.pack id),
                        ("class", "js-timer")] [],
      javascript $ T.pack $
      "start_countdown(" ++ show id ++ "," ++ show (floor secs :: Int) ++ ");"]
+-}
 
 javascript :: Text -> X.Node
 javascript txt
@@ -345,5 +346,3 @@ whenM cond action = do
   c <- cond
   when c action
 
-
-    

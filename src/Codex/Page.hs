@@ -17,7 +17,7 @@ import           Text.XmlHtml
 import           Text.Blaze.Renderer.XmlHtml
 
 import           Data.Maybe
-import           Data.List (delete)
+import           Data.List (delete,intersperse)
 import           Data.Foldable(toList)
 import qualified Data.Text as T
 import qualified Data.Text.IO as T
@@ -31,7 +31,7 @@ import           Control.Exception.Lifted  (try)
 import           Codex.Types
 import           System.FilePath
 
-import           Data.Diff.Myers (diffTexts, Edit(..))
+import           Myers.Diff
 
 
 
@@ -219,7 +219,7 @@ processIncludes filepath
         , Just to <- lookup "to" attrs = do
             txt1 <- T.readFile (dir </> T.unpack from)
             txt2 <- T.readFile (dir </> T.unpack to)
-            let diffs = showDiffs txt1 txt2
+            let diffs = formatDiffs txt1 txt2
             return (Div (id, ["text-diffs"], []) [Plain (toList diffs)])
       -- catch-all
       include block = return block
@@ -263,39 +263,68 @@ docWarnings msgs
     [Div ("", ["warnings"], [])
       [Para [Str "WARNING:", Space, Str (T.pack $ show msg)] | msg <- msgs]]
 
--- show text differences as an inline Pandoc object
-showDiffs :: Text -> Text -> P.Inlines
-showDiffs txt1 txt2 
-  =  go 0 (toList $ diffTexts txt1 txt2)
-  where 
-      go :: Int -> [Edit] -> P.Inlines
-      go i [] = pretext (T.drop i txt1)  
-      go i (EditDelete from to : rest)
-        = let before  = trim i (from-1) txt1 
-              deleted = trim from to txt1
-          in pretext before <>
-             P.strikeout (pretext deleted) <>
-             go (to+1) rest 
-      go i (EditInsert pos from to : rest) 
-         = let before = trim i (pos-1) txt1 
-               inserted  = trim from to txt2  
-           in pretext before <>
-              P.strong (pretext inserted) <>
-              go pos rest     
 
-      trim :: Int -> Int -> Text -> Text
-      trim i j txt = T.take (j-i+1) (T.drop i txt)
+-- Format text differences as an inline Pandoc fragment
+-- tries both character and line differences and choose the shorter one
+formatDiffs :: Text -> Text -> P.Inlines
+formatDiffs txt1 txt2
+  = if changes textDiffs <= changes lineDiffs
+    then
+      hardenBreaks $ mconcat $ map transform $ reorderDiffs textDiffs
+    else
+      mconcat $ intersperse P.linebreak $ map transform
+      $ reorderDiffs lineDiffs
+  where
+    textDiffs = joinDiffs $ toList $ getTextDiff txt1 txt2
+    lineDiffs = toList $ getDiff (T.lines txt1) (T.lines txt2)
 
-      -- Text preserving spaces and line breaks
-      pretext :: Text -> P.Inlines
-      pretext txt = walk harden $ P.text $ T.map nbsp txt
+    changes :: [Diff a] -> Int
+    changes diffs = sum (map count diffs)
+    count (First _)  = 1
+    count (Second _) = 1
+    count (Both _ _) = 0
+    
+    transform :: Diff Text -> P.Inlines
+    transform (First deleted)   = P.strikeout (pretext deleted)
+    transform (Second inserted) = P.spanWith ("",["inserted"],[]) (pretext inserted)
+    transform (Both common _)   = pretext common
 
-      -- change spaces to non-breakable spaces
-      nbsp :: Char -> Char
-      nbsp ' ' = '\160'
-      nbsp x   = x
 
-      -- change softbreaks to hardbreaks
-      harden :: P.Inline -> P.Inline
-      harden P.SoftBreak = P.LineBreak
-      harden i = i
+-- change the order of diffs so that deletions come before insertions
+reorderDiffs :: [Diff a] -> [Diff a]
+reorderDiffs (Second a : First b : rest)
+   = First b : reorderDiffs (Second a : rest)
+reorderDiffs (a : rest)
+  = a : reorderDiffs rest
+reorderDiffs []
+  = []  
+
+joinDiffs :: Semigroup a => [Diff a] -> [Diff a]
+joinDiffs (First a : First b : rest)
+  = joinDiffs (First (a<>b) : rest)
+joinDiffs (Second a : Second b : rest)
+  = joinDiffs (Second (a<>b) : rest)
+joinDiffs (a : rest)
+  = a : joinDiffs rest
+joinDiffs []
+  = []
+
+
+-- preformated text preserving spaces 
+pretext :: Text -> P.Inlines
+pretext = P.text . T.map nbsp 
+  where
+    -- change spaces to non-breakable spaces
+    nbsp :: Char -> Char
+    nbsp ' ' = '\160'
+    nbsp x   = x
+
+
+-- change softbreaks to hardbreaks
+hardenBreaks :: P.Inlines -> P.Inlines
+hardenBreaks = walk harden
+  where
+    harden :: P.Inline -> P.Inline
+    harden P.SoftBreak = P.LineBreak
+    harden i = i
+    

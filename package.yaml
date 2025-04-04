@@ -55,7 +55,7 @@ dependencies:
 - xmlhtml
 - http-types
 - regex-compat
-- myers-diff
+- fast-myers-diff
 
 executables:
   codex-server:
