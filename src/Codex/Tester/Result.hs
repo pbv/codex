@@ -31,7 +31,7 @@ data Result
   = Result { resultStatus :: Status   -- ^ possible status; see below
            , resultReport :: Report   -- ^ detailed report
            }
-  deriving (Read, Show)
+  deriving (Eq, Read, Show)
 
 -- | classification status, in decreasing severity 
 data Status = Evaluating
@@ -59,7 +59,7 @@ instance FromField Status where
 -- newtype for submission reports;
 -- wrapper over Pandoc's sequence of blocks
 newtype Report = Report { getBlocks :: Blocks }
-  deriving stock (Show, Read)
+  deriving stock (Eq, Show, Read)
   deriving (Semigroup, Monoid) via Blocks
 
 instance ToField Report where
@@ -113,6 +113,7 @@ onReport :: (Blocks -> Blocks) -> Result -> Result
 onReport f r = r { resultReport = Report $ f $ getBlocks $ resultReport r }
 
 tagWith :: Visibility -> Result -> Result
+tagWith _ r | r == mempty = r
 tagWith Public  r 
     = onReport (header 3 "Public tests" <>) r
 tagWith Private r 
@@ -130,13 +131,3 @@ hidePrivate r = onReport (walk hide) r
                     Emph [Str "(details hidden.)"]]
     hide block = block
 
-{-
-maxLen :: Int
-maxLen = 2000
-
--- | trim a text to a maximum length
-trim :: Int -> Text -> Text
-trim maxlen txt
-  | T.length txt <= maxlen = txt
-  | otherwise = T.append (T.take maxlen txt) "\n**Output too long (truncated)**\n"
--}

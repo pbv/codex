@@ -4,7 +4,7 @@
 -- Test Haskell code using Hspec
 --------------------------------------------------------------------------
 module Codex.Tester.Hspec (
-  hspecTester, hspecClangTester
+  hspecHaskellTester, hspecClangTester
   ) where
 
 import           Data.Text (Text)
@@ -20,8 +20,8 @@ import           System.Directory(copyFile)
 
 
 -- | running and evaluating Haskell submissions
-hspecTester :: Tester Result
-hspecTester = tester "hspec" $ do
+hspecHaskellTester :: Tester Result
+hspecHaskellTester = tester "hspec" $ do
   Code lang src <- testCode
   guard (lang == "haskell")
   path <- testFilePath
@@ -36,6 +36,8 @@ hspecTester = tester "hspec" $ do
   limits <- configLimits "language.haskell.limits"
   liftIO (haskellRunner limits ghc args files src spec)
 
+
+-- | running and evaluaing C submissions
 hspecClangTester :: Tester Result
 hspecClangTester = tester "hspec" $ do
   Code lang src <- testCode
@@ -133,14 +135,3 @@ classify (ExitFailure _, stdout, stderr)
   | otherwise                    = miscError (P.codeBlock msg)
   where msg = stdout <> stderr
 
-
-{-
-classify :: (ExitCode, Text, Text) -> Result
-classify (ExitSuccess, stdout, _) = accepted (P.codeBlock stdout)
-classify (ExitFailure _, stdout, stderr)
-  | match "Time Limit" stderr      = timeLimitExceeded (P.codeBlock stderr)
-  | match "Memory Limit" stderr    = memoryLimitExceeded (P.codeBlock stderr)
-  | match "Exception" stdout       = runtimeError (P.codeBlock stdout)
-  | match "Failures:" stdout       = wrongAnswer (P.codeBlock (stdout<>stderr))
-  | otherwise                      = miscError (P.codeBlock (stdout<>stderr))
--}

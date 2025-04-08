@@ -38,7 +38,7 @@ import           Codex.Tester.QuickCheck
 import           Codex.Tester.Hspec
 import           Codex.Tester.InputOutput
 import           Codex.Tester.Quiz
-import           Codex.Tester.Sql
+import           Codex.Tester.Sqlite
 import           Snap.Loader.Static
 
 
@@ -53,9 +53,8 @@ testers = foldr1 (<|>)
           , pythonMuDocTester
             -- quickcheck testers
           , haskellQCTester
-          , hspecTester
+          , hspecHaskellTester
           , hspecClangTester
-          -- , clangQCTester
             -- I/O testers
           , stdioTester =<< clangBuild
           , stdioTester =<< javaBuild
