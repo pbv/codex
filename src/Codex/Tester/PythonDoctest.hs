@@ -27,11 +27,12 @@ pythonDocTester = tester "doctest" $ do
   dir <- takeDirectory <$> testFilePath
   -- "old-style" single doctest file
   old_tests <- fmap (dir</>) <$> metadata "tests"
-  new_tests <- maybe [] (map (dir</>)) <$> metadata "public"
+  new_tests <- maybe [] (map (dir</>)) <$> metadata "public-tests"
   let pub_tests = maybeToList old_tests ++ new_tests  
-  priv_tests <- maybe [] (map (dir</>)) <$> metadata "private"
+  priv_tests <- maybe [] (map (dir</>)) <$> metadata "private-tests"
   --
-  missing <- liftIO $ filterM (fmap not . doesFileExist) (pub_tests ++ priv_tests) 
+  missing <- liftIO $
+             filterM (fmap not . doesFileExist) (pub_tests ++ priv_tests)
   if null missing then
     withTemp "submit.py" src $ \pyfile -> do
        chmod readable pyfile
@@ -39,10 +40,12 @@ pythonDocTester = tester "doctest" $ do
        r'<- runDoctests limits python [runtests, pyfile] priv_tests
        return (tagWith Public r <> tagWith Private r')
     else
-       return (miscError (P.plain (P.text ("Cannot find doctest files: " <> T.pack (show missing)))))
+       return
+         (miscError (P.plain (P.text ("Cannot find doctest files: " <>
+                                       T.pack (show missing)))))
 
 
-runDoctests :: Limits -> FilePath -> [String] -> [FilePath] -> IO Result
+runDoctests :: Limits -> FilePath -> [String] -> [String] -> IO Result
 runDoctests _      _      _    []     = return mempty
 runDoctests limits python args tests = do
   let cmdline = args ++ tests
@@ -107,9 +110,10 @@ runMutants :: Text
            -> IO [Result]
 runMutants target limits python runtests limit_tests tstfile mutants = 
   forM (zip [1..] mutants) $ \(k,mut) -> do
-        let cmdline = [runtests, "--verbose", "--all-fails"] ++
-                      maybe [] (\n -> ["--limit-tests", show n]) limit_tests ++
-                      [mut, tstfile]
+        let cmdline =
+              [runtests, "--verbose", "--all-fails"] ++
+              maybe [] (\n -> ["--limit-tests", show n]) limit_tests ++
+              [mut, tstfile]
         src <- T.readFile mut
         classifyMutant k target src <$>
           safeExec limits python Nothing cmdline ""
@@ -118,11 +122,11 @@ runMutants target limits python runtests limit_tests tstfile mutants =
 -- | Classify a target test run
 classifyTarget :: Text -> (ExitCode, Text, Text) -> Result
 classifyTarget target (ExitSuccess, stdout, _)
-  = accepted (P.header 3 (P.text "Target passed all tests" <> P.space <> checkMark)
+  = accepted (P.header 3 (P.text "Target passed all tests " <> checkMark)
               <>
               P.codeBlock target
               `besides`
-              P.codeBlock stdout )
+              P.codeBlock stdout)
     
 classifyTarget target (ExitFailure _, stdout, stderr)
   | match "Maximum number of tests exceeded" stderr ||
@@ -143,7 +147,7 @@ classifyTarget target (ExitFailure _, stdout, stderr)
   where
     stdout' = filterPaths stdout
     rejected txt
-      = P.header 3 (P.str "Target failed some tests" <> P.space <> crossMark)
+      = P.header 3 (P.str "Target failed some tests " <> crossMark)
         <> P.codeBlock target `besides`
            P.codeBlock txt
 
@@ -154,8 +158,8 @@ classifyMutant :: Int -> Text -> Text -> (ExitCode, Text, Text) -> Result
 classifyMutant k target mut (ExitSuccess, stdout, _)      
    = wrongAnswer (P.header 3 (P.text "Mutated version " <>
                               P.str (T.pack $ show k) <>
-                              P.text " not rejected "
-                             <> crossMark)
+                              P.text " not rejected " <>
+                              crossMark)
                    <> textDiffs target mut
                       `besides`
                       P.codeBlock stdout'

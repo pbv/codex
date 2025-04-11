@@ -22,15 +22,12 @@ import           Data.Maybe(fromMaybe, isNothing)
 import           Text.Read(readMaybe)
 import           Data.Hashable (hash)
 
-import           Control.Exception  (IOException)
-import           Control.Exception.Lifted  (try)
 import           Control.Monad (guard)
-import           Control.Monad.IO.Class (liftIO)
 
 import           Text.Pandoc hiding (Code,
                                       getCurrentTime,
                                       getCurrentTimeZone)
-import qualified Text.Pandoc as Pandoc
+
 import           Text.Pandoc.Walk as Pandoc
 import           System.FilePath
 
@@ -96,21 +93,22 @@ exerciseLinks :: UserLogin -> FilePath -> FilePath -> Inline -> Codex Inline
 exerciseLinks uid root rqdir (Link attr@(_, classes,_) _ target@(url,_))
   | "ex" `elem` classes = do
       let path = normalise (rqdir </> T.unpack url)
-      title <- liftIO $ readPageTitle (root </> path)
-      count <- countSubmissions uid path
-      return (formatLink attr title target count)
+      title <- readMarkdownTitle (root </> path)
+      submitted <- countSubmissions uid path
+      accepted <- countAccepted uid path
+      return (formatExerciseLink attr title target submitted accepted)
 exerciseLinks _uid _root _rqdir elm
   = return elm
 
--- | format a single exercise link
-formatLink attr title target count
-  = Span nullAttr
+-- | format an exercise link with a tooltip
+formatExerciseLink attr title target submitted accepted
+  = Span ("", ["tooltip"], [])
     [Link attr title target,
-     LineBreak,
-      Span ("", ["info"], [])
-      [Str "(",
-        Str (T.pack $ show count), Space, Str "submissões",
-        Str ")"]
+      if accepted>0
+      then Span ("", ["Accepted"], []) [ Space, Str "\x2705" ]
+      else Space
+    , Span ("", ["info"], [])
+       [ Str (T.pack $ show submitted), Space, Str "submissions" ]
     ]
 
 
@@ -131,17 +129,6 @@ replaceUserField :: String -> String -> String
 replaceUserField uid ('%':'u':rest) = uid ++ rest
 replaceUserField uid (first:rest) = first : replaceUserField uid rest
 replaceUserField _   [] = []
-
-
--- | read just the title of a markdown file
-readPageTitle :: FilePath -> IO [Inline]
-readPageTitle path = do
-  result <- try (readMarkdownFile path)
-  return $ case result of
-    Left (_ :: IOException) -> brokenLink
-    Right page -> fromMaybe brokenLink (pageTitle page)
-  where
-    brokenLink = [Pandoc.Code nullAttr (T.pack path)]
 
 
 

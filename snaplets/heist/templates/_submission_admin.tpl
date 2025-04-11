@@ -7,22 +7,22 @@
 <apply template="_base">
   <apply template="_browse"/>
   <page-title/>
-<h2>Submissão <submit-id/></h2>
-<p>Enviada por <code><submit-user-id/></code> (<submit-user-name/>) em <submit-time/>.</p>
+<h2>Submission <submit-id/></h2>
+<p>Submited by <code><submit-user-id/></code> (<submit-user-name/>) in
+<submit-time/>.</p>
 <if-evaluating>
   <p><img src="/static/images/spinner.svg"></p>
-  <p class="info">Se a página não atualizar automaticamente,
-      use o botão "reload" do "browser".</p>
+  <p class="info">Reload this page if it doesn't update automatically.</p>
 <else/>
-<h3>Resultado: <em><result-status/></em></h3>
-<if-valid><else/><p><icon-warning/> Submissão inválida: <em><invalid-msg/></em></p></if-valid>
+<h3>Result: <em><result-status/></em></h3>
+<if-valid><else/><p><icon-warning/>Invalid submission: <em><invalid-msg/></em></p></if-valid>
 <result-private-report/>
-<h3>Código</h3>
+<h3>Code</h3>
 <pre><submit-code/></pre> 
 <hr/>
 <script type="text/javascript">
   function confirmDelete() {
-  var r = confirm("Remover submissão (esta operação não é reversível)?");
+  var r = confirm("Delete this submission (this operation is NOT reversable)?");
   if (r) {
   var form = document.getElementById("deleteform");
   form.submit();
@@ -30,16 +30,16 @@
   }
 </script>
 
-  <a class="button" type="button" onclick="window.open('${report-url}')">Visualizar</a> &nbsp;
+  <a class="button" type="button" onclick="window.open('${report-url}')">View</a> &nbsp;
   <form id="deleteform" method="POST" 
 	action="${submission-admin-url}" style="display:inline;">
     <input type="hidden" name="_method" value="DELETE"/>
     <input type="button" onClick="confirmDelete()" 
-	   title="Apagar a submissão" value="Apagar"/>
+	   title="Delete submission" value="Delete"/>
   </form> &nbsp;
   <form method="POST" action="${submission-admin-url}" style="display:inline;">
   <input type="hidden" name="_method" value="PATCH"/>
-  <input type="submit" title="Re-avaliar a submissão" value="Re-avaliar"/>
+  <input type="submit" title="Re-evaluate the submission" value="Re-evaluate"/>
   </form>
 
 </if-evaluating>

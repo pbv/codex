@@ -137,20 +137,24 @@ stdioTester Build{..} = tester "stdio" $ do
   guard (checkLanguage lang)
   dir <- takeDirectory <$> testFilePath
   -- input and output files
-  inputs <-  globPatterns dir =<< metadataWithDefault "inputs" []             
-  outputs <- globPatterns dir =<< metadataWithDefault "outputs" [] 
-  let num_inputs = length inputs
-  let num_outs = length outputs
-  assert (pure $ num_inputs == num_outs)
+  pub_ins <-  globPatterns dir =<<
+              metadataWithDefault "public-inputs" []
+  pub_outs <- globPatterns dir =<<
+              metadataWithDefault "public-outputs" [] 
+  let num_ins = length pub_ins
+  let num_outs = length pub_outs
+  assert (pure $ num_ins == num_outs)
     "different number of public inputs and outputs"
 
-  priv_inputs <- globPatterns dir =<< metadataWithDefault "private-inputs" []
-  priv_outputs <- globPatterns dir =<< metadataWithDefault "private-outputs" []
-  let num_priv_inputs = length priv_inputs
-  let num_priv_outputs = length priv_outputs
-  assert (pure $ num_priv_inputs == num_priv_outputs) 
+  priv_ins <- globPatterns dir =<<
+                 metadataWithDefault "private-inputs" []
+  priv_outs <- globPatterns dir =<<
+                  metadataWithDefault "private-outputs" []
+  let num_priv_ins = length priv_ins
+  let num_priv_outs = length priv_outs
+  assert (pure $ num_priv_ins == num_priv_outs) 
      "different number of private inputs and outputs"
-  assert (pure $ num_inputs + num_priv_inputs > 0)
+  assert (pure $ num_ins + num_priv_ins > 0)
     "no test cases defined"
   --- extra files to copy to temp directory
   files <- globPatterns dir =<< metadataWithDefault "files" []
@@ -164,8 +168,10 @@ stdioTester Build{..} = tester "stdio" $ do
         -- make executable
         exe_file <- makeExec tmpdir code
         -- run public and private tests
-        r1 <- runTests (runExec exe_file (Just tmpdir)) $ zip inputs outputs
-        r2 <- runTests (runExec exe_file (Just tmpdir)) $ zip priv_inputs priv_outputs
+        r1 <- runTests (runExec exe_file (Just tmpdir)) $
+                          zip pub_ins pub_outs
+        r2 <- runTests (runExec exe_file (Just tmpdir)) $
+                          zip priv_ins priv_outs
         return (tagWith Public r1 <> tagWith Private r2)
 
 

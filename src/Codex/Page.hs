@@ -209,18 +209,30 @@ processIncludes filepath
       include (CodeBlock (id, classes, attrs) _) 
         | "include" `elem` classes
         , Just src <- lookup "src" attrs = do
-            txt <- T.readFile (dir </> T.unpack src)
-            let classes' = delete "include" classes
-            let attrs' = delete ("src",src) attrs
-            return (CodeBlock (id, classes', attrs') txt)
+            result <- try (T.readFile (dir </> T.unpack src))
+            return $ case result of
+              Right txt -> 
+                let
+                  classes' = delete "include" classes
+                  attrs' = delete ("src",src) attrs
+                in
+                  CodeBlock (id, classes', attrs') txt
+              Left (_err :: IOException) -> do
+                errorBlock [Plain [Str ("failed to read file " <> src)]]
       include (CodeBlock (id, classes, attrs) _) 
         | "diffs" `elem` classes
         , Just from <- lookup "from" attrs
         , Just to <- lookup "to" attrs = do
-            txt1 <- T.readFile (dir </> T.unpack from)
-            txt2 <- T.readFile (dir </> T.unpack to)
-            let diffs = formatDiffs txt1 txt2
-            return (Div (id, ["text-diffs"], []) [Plain (toList diffs)])
+            r1 <- try (T.readFile (dir </> T.unpack from))
+            r2 <- try (T.readFile (dir </> T.unpack to))
+            return $ case (r1, r2) of
+              (Right txt1, Right txt2) ->
+                let diffs = formatDiffs txt1 txt2
+                in (Div (id, ["text-diffs"], []) [Plain (toList diffs)])
+              (Left (_err :: IOException), _) ->
+                errorBlock [Plain [Str ("failed to read file " <> from)]]
+              (_, Left (_err :: IOException)) ->
+                errorBlock [Plain [Str ("failed to read file " <> to)]]
       -- catch-all
       include block = return block
   
@@ -263,6 +275,9 @@ docWarnings msgs
     [Div ("", ["warnings"], [])
       [Para [Str "WARNING:", Space, Str (T.pack $ show msg)] | msg <- msgs]]
 
+
+errorBlock :: [Block] -> Block
+errorBlock = Div ("", ["errors"],[]) 
 
 -- Format text differences as an inline Pandoc fragment
 -- tries both character and line differences and choose the shorter one

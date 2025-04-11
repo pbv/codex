@@ -48,7 +48,6 @@ import           Codex.Types
 import           Codex.Page
 import           Codex.Application
 
-import           Data.Time.Clock
 import           Data.Time.LocalTime
 import Data.Time.Format ( defaultTimeLocale, formatTime ) 
 
@@ -190,12 +189,10 @@ finishError code msg = do
 
 
 
--- | format an UTC time as a local time string
-localTimeSplice :: Monad m => TimeZone -> UTCTime -> I.Splice m
-localTimeSplice tz t =
-  I.textSplice $ T.pack $
-  formatTime defaultTimeLocale "%c" $ utcToLocalTime tz t
-
+-- | format a local time 
+localTimeSplice :: Monad m => LocalTime -> I.Splice m
+localTimeSplice =
+  I.textSplice . T.pack . formatTime defaultTimeLocale "%H:%M %a %b %e %Y" 
 
 -----------------------------------------------------------------------------
 

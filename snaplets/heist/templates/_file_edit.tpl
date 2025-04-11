@@ -1,7 +1,5 @@
-
 <apply template="_base">
   <ace-editor-js/>
-
   <apply template="_browse">
     <ifAdmin>
       <li><a class="icon"
@@ -59,6 +57,5 @@
       }
       }
     </script>
-
 </apply>
 

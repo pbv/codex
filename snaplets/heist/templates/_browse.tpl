@@ -5,12 +5,12 @@
   <ifLoggedIn>
     <ul class="menubar">
        <li><a href="${home}" 
-              title="Voltar ao ínício">Início</a></li>
-       <apply-content/>
+              title="Go to the home page"><apply template="_icon_home"/></a></li>
        <ifAdmin>
 	 <li><a class="admin" href="${admin}"
-		title="Operações de adminstração">Admin</a></li>
+		title="Admin operations"><apply template="_icon_admin"/></a></li>
        </ifAdmin>
+       <apply-content/>
     </ul>
     <span id="uppercorner">
       <timeNow/>&nbsp;<loggedInName/>&nbsp;(<code><loggedInUser/></code>)

@@ -1,32 +1,25 @@
-<bind tag="icon-warning">&#9888;</bind>
-<bind tag="valid-icon"><if-valid><else/><icon-warning/></if-valid></bind>
+<bind tag="valid-icon"><if-valid><else/>&#9888;</if-valid></bind>
 <!-- -->
 <apply template="_base">
   <mathjax-js/>
   <ace-editor-js/>
-
   <apply template="_browse">
     <if-parent>
-      <li><a href="${page-parent-url}" class="icon"
-	   title="Voltar à página anterior">&curvearrowleft;</a></li>
+      <li><a href="${page-parent-url}" 
+	     title="Go back to parent"><apply template="_icon_back"/></a>
+      </li>
     </if-parent>
-    <li><button class="tablinks" onclick="openTab(event, 'description-tab')" id="description">Descrição</button></li>
+    <li><button class="tablinks" onclick="openTab(event, 'description-tab')" id="description">Description</button></li>
     <li><button class="tablinks" onclick="openTab(event, 'editor-tab')">Editor</button></li>
-    <li><button class="tablinks" onclick="openTab(event, 'submissions-tab')">Submissões</button><li>
+    <li><button class="tablinks" onclick="openTab(event, 'submissions-tab')">Submissions</button><li>
   </apply>
-
   <div id="description-tab" class="tabcontents">
     <page-description/>
-    <p>Submissões: <em><timing/></em></p>
-    <if-max-attempts>
-      <p>Tentativas disponíveis: <em><submissions-remain/></em></p>
-    </if-max-attempts>
+    <apply template="_timing"/>
   </div>
-
   <div id="submissions-tab" class="tabcontents">
     <page-title/>
-    <h3>Submissões</h3>
-    <p><submissions-count/> submissões efetuadas.</p>
+    <p><submissions-count/> submissions.</p>
     <ol class="submissions">
       <submissions-list>
 	<li> <a href="${report-url}"><valid-icon/><submit-id/>&nbsp;<span class="${result-status}"><result-status/></span></a>
@@ -34,7 +27,6 @@
       </submissions-list>
     </ol>
   </div>
-
   <div id="editor-tab" class="tabcontents">
     <page-title/>
     <if-available>
@@ -45,7 +37,7 @@
 	  <input-language-selector
 	    id="langselect"  name="language"
 	    form="codeform"  /> &emsp;
-	  <input type="submit" value="Re-submeter"/>
+	  <input type="submit" value="Submit"/>
 	  &emsp;&emsp;&emsp;&emsp;&emsp;
 	  <apply template="_fontsize"/>
 	</p>
@@ -53,7 +45,7 @@
 	<div id="editor"><default-text/></div>
       </form>  
       <else/>
-      <p>Submissões indisponíveis.</p>
+      <p>Submissions closed.</p>
     </if-available>
   </div>
 

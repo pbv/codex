@@ -1,15 +1,16 @@
 <apply template="_base">
-<h1>Erro interno do servidor</h1>
+<h1>Internal server error</h1>
 <ul>
-<li>Aconteceu um erro interno do servidor; isto não deveria ter acontecido!</li>
+<li>An internal server error has happened; this should not have
+occurred.</li>
 <ifLoggedIn>
 <li><pre><errorMsg/></pre></li>
 </ifLoggedIn>
 <li><ifLoggedIn>
-   Voltar à <a href="${home}">página inicial</a>
+   Go back to the <a href="${home}">home page.</a>
     </ifLoggedIn>
     <ifLoggedOut>
-    Voltar à <a href="${login}">página de autenticação.</a>
+    Go back to the <a href="${login}">authentication page.</a>
     </ifLoggedOut>
 </li>
 </ul>

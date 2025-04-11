@@ -213,7 +213,7 @@ submissionSplices tz Submission{..} = do
   "file-url" ## urlSplice (Codex.Application.Files $ splitDirectories submitPath)
   "submit-path" ## I.textSplice (T.pack submitPath)
   "submit-user-id" ## I.textSplice (fromLogin submitUser)
-  "submit-time" ## localTimeSplice tz submitTime
+  "submit-time" ## localTimeSplice (utcToLocalTime tz submitTime)
   "submit-lang" ## I.textSplice (fromLanguage $ codeLang submitCode)
   "submit-code" ##  I.textSplice (codeText submitCode)
   resultSplices submitResult

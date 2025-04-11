@@ -1,12 +1,12 @@
 <apply template="_base">
 
+<h1>Welcome!</h1>
 
-<h1>Bem-vindo!</h1>
+<p><em>Codex</em> is a <em>web</em> system for programming exercises
+ with automatic assessment.
+</p>
 
-<p><em>Codex</em> é um sistema <em>web</em> para ensino que permite
-resolução de exercícios de programação com correção automática.</p>
-
-<p>Por favor autentique-se para iniciar a sessão.</p>
+<p>Please authenticate yourself to start a session.</p>
 
 <form method="POST" action="${login}">
   <table>
@@ -18,7 +18,7 @@ resolução de exercícios de programação com correção automática.</p>
     </tr>
     <tr>
       <td></td>
-      <td><input type="submit" value="Iniciar sessão" /></td>
+      <td><input type="submit" value="Begin session" /></td>
     </tr>
   </table>
 </form>

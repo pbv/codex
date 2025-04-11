@@ -35,6 +35,11 @@ img {
    border: none;
 }
 
+span.icon {
+    font-size: 150%;
+    font-weight: bold;
+    line-height: 0px;
+}
 
 
 ul.menubar {
@@ -123,19 +128,44 @@ ol.submissions:after {
 
 #uppercorner {
     position: fixed;
-    top: 20px;
-    right: 20px;
-    left: auto;
-    width: 30em;
+    top: 0em;
+    right: 0em;
+    padding-right: 1em;
+    padding-top: 1em;
+    width: auto;
+    height: 1.5em;
     text-align: right;
+    background-color: cyan;
+}
+
+/* Tool tips */
+
+.tooltip .info {
+    visibility: hidden;
+    width: 120px;
+    background-color: black;
+    color: #fff;
+    text-align: center;
+    padding: 5px 0;
+    border-radius: 6px;
+    font-size: 90%;
+    position: absolute;
+    z-index: 1;
+    top: -5px;
+    left: 105%;
+}
+
+.tooltip:hover .info {
+  visibility: visible;
+   
+}
+
+.tooltip {
+ position: relative;
+ display: inline-block;
 }
 
 
-.info {
-   color: #0f0f0f;
-   font-size: 90%;
-   font-style: italic;
-}
 
 .error {
    color: red;
@@ -166,10 +196,6 @@ ol.submissions:after {
     padding-left: 1em;
     padding-right: 1em;
     color: red;
-}
-
-.js-timer {
-  font-style: italic;
 }
 
 

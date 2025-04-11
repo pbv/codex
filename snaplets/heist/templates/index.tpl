@@ -6,16 +6,16 @@
        </ifLoggedIn>
        <ifLoggedOut>
        <meta http-equiv="refresh" content="1;url=${login}"/>
-       <title>Redirecionamento</title>
+       <title>Redirecting</title>
        </ifLoggedOut>
     </head>
     <body>
-        <p>Se não for redirecionado automaticamente, siga a ligação para a
+        <p>If you are not automatically redirected, please follow the link to the
       <ifLoggedIn>
-	<a href="${home}">página inicial.</a>
+	<a href="${home}">home page.</a>
       </ifLoggedIn>
       <ifLoggedOut>
-	<a href="${login}">autenticação.</a>
+	<a href="${login}">authentication page.</a>
       </ifLoggedOut>
       </p>
     </body>

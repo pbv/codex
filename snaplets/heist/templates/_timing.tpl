@@ -1,5 +1,4 @@
-
-<p>Submissões: <em><timing/></em></p>
+<p>Submissions <timing/>.</p>
 <if-max-attempts>
-  <p>Tentativas restantes: <submissions-remain/>.</p>
+  <p>Available attempts: <submissions-remain/>.</p>
 </if-max-attempts>

@@ -1,16 +1,16 @@
 
 <apply template="_base">
-  <h1>Página não existente!</h1>
+  <h1>Page not found</h1>
 
   <ul>
-    <li>Página não existente.</li>
+    <li>The page you requested could not be found.</li>
     <li><ifLoggedIn>
-	Voltar à <a href="${home}">página inicial</a>
+	Go back to the <a href="${home}">home page.</a>
       </ifLoggedIn>
       <ifLoggedOut>
-	Voltar à <a href="${login}">página de autenticação.</a>
+	Go back to the <a href="${login}">authentication page.</a>
       </ifLoggedOut>
-</li>
+    </li>
 </ul>
 </apply>
 

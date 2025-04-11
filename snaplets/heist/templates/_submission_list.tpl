@@ -26,30 +26,30 @@ function printsubmissions() {
   form.submit();
 }
 </script>
-<h1>Submissões</h1>
+<h1>Submissions</h1>
 <form id="listform" action="${submissionList}" method="POST">
   <table class="submissions">
     <tr>
       <td colspan="6">
 	<span class="info">
-	  <submissions-count/> submissões (página <page/> de <page-count/>)
+	  <submissions-count/> submissions (page <page/> of <page-count/>)
 	</span> &nbsp;
 	<select name="order" onChange="this.form.submit()">
 	  <if-ascending>
-	    <option value="Ascending" selected>ascendente</option>
-	    <option value="Descending">descendente</option>
+	    <option value="Ascending" selected>ascending</option>
+	    <option value="Descending">descending</option>
 	    <else/>
-	    <option value="Ascending">ascendente</option>
-	    <option value="Descending" selected>descendente</option>
+	    <option value="Ascending">ascending</option>
+	    <option value="Descending" selected>descending</option>
 	  </if-ascending>
 	</select> &nbsp;
 	<a class="button" href="${submissions-prev-url}">&lt;</a> &nbsp;
 	<a class="button" href="${submissions-next-url}">&gt;</a> &nbsp;
-	<input type="submit" value="Filtrar"/>
+	<input type="submit" value="Filter"/>
       </td>
       <td colspan="1">
-	<input type="button" onClick="reevaluate()" value="Re-avaliar"/>
-	<input type="button" onClick="cancel()" value="Cancelar"/>	
+	<input type="button" onClick="reevaluate()" value="Re-evaluate"/>
+	<input type="button" onClick="cancel()" value="Cancel"/>	
       </td>
     </tr>
     <tr>
@@ -87,13 +87,13 @@ function printsubmissions() {
     </if-submissions>
   </table>
 <hr/>
- <input type="button" onClick="listsubmissions()" title="Exportar como texto" value="Exportar"/> separador:
+ <input type="button" onClick="listsubmissions()" title="Export as text" value="Export"/> separator:
  <select name="sep">
-    <option value=",">vírgula (,)</option>
-    <option value=";">ponto-e-vírgula (;)</option>
-    <option value="&#9">tabulação</option>
+    <option value=",">comma (,)</option>
+    <option value=";">semicolon (;)</option>
+    <option value="&#9">tab</option>
   </select>
-&emsp;<input type="button" onClick="printsubmissions()" title="Gerar impressões" value="Gerar impressões"/>
+&emsp;<input type="button" onClick="printsubmissions()" title="Generate printouts" value="Generate printouts"/>
 <hr/>
 <input id="page" type="hidden" name="page" value="${page}"/>
 <input id="_method" type="hidden" name="_method" value="GET"/>

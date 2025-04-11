@@ -3,11 +3,8 @@
   <apply template="_browse">
     <if-parent>
       <li><a href="${page-parent-url}" class="icon"
-	     title="Voltar à página anterior">&curvearrowleft;</a></li>    
+	     title="Back to the parent page"><apply template="_icon_back"/></a></li>    
     </if-parent>
-    <!-- <ifAdmin>
-      <li><a title="Editar a página" href="${file-url}">Editar</a></li>
-    </ifAdmin> -->
   </apply>
     
   <div class="description">
@@ -16,9 +13,9 @@
   <apply template="_timing"/>
   <if-available>
     <form id="quiz" method="POST" action="${page-url}">
-      <p><input type="submit" value="Submeter"
-	       onclick="quiz_modified=false;"/> &emsp;
-	<input type="button" value="Limpar"
+      <p><input type="submit" value="Submit"
+		onclick="quiz_modified=false;"/> &emsp;
+	<input type="button" value="Clear"
 	       onclick="resetAll()"/></p>
       <questions>
 	<fieldset>
@@ -30,9 +27,9 @@
 	  </question-fillin>
 	</fieldset>
       </questions>
-      <p><input type="submit" value="Submeter"
+      <p><input type="submit" value="Submit"
 	       onclick="quiz_modified=false;"/> &emsp;
-	<input type="button" value="Limpar"
+	<input type="button" value="Clear"
 	       onclick="resetAll()"/></p>
     </form>
   </if-available>

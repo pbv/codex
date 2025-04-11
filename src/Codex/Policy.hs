@@ -362,8 +362,8 @@ chainl1' p op = p >>= rest
 -------------------------------------------------------------
 -- pretty printing
 -------------------------------------------------------------
-prettyConstr Always = "always"
-prettyConstr Never = "never"
+prettyConstr Always = "open"
+prettyConstr Never = "closed"
 prettyConstr (After t) = "after " <> t
 prettyConstr (Before t) = "before " <> t
 prettyConstr (Conj c1 c2)

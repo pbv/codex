@@ -112,7 +112,7 @@ listingSplices tz path list =
           fileUrlSplices (path </> name)
           "file-name" ## I.textSplice (T.pack name)
           "file-type" ## I.textSplice (T.decodeUtf8 mime)
-          "file-modified" ## localTimeSplice tz time
+          "file-modified" ## localTimeSplice (utcToLocalTime tz time)
           "if-text" ## ifElseISplice (B.isPrefixOf "text" mime)
           "if-dir" ## ifElseISplice (mime == "DIR")
 
@@ -281,8 +281,11 @@ exportSubmissions patts ord = do
 
 -- | Create a CSV text file with submission listsing
 -- TODO: the temporary file is *not* removed
-exportSubmissions' ::
-  Patterns -> Codex.Submission.Ordering -> FilePath -> String -> Codex FilePath
+exportSubmissions' :: Patterns
+                   -> Codex.Submission.Ordering
+                   -> FilePath
+                   -> String
+                   -> Codex FilePath
 exportSubmissions' patts ord filetpl sep  = do
   tmpDir <- liftIO getTemporaryDirectory
   (tmpPath, handle) <-

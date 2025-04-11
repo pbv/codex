@@ -4,16 +4,9 @@
     <page-description/>
   </div>
 </apply>
-
 <apply template="_browse">
   <if-parent>
-     <li><a href="${page-parent-url}" class="icon"
-	    title="Voltar à página anterior">&curvearrowleft;</a></li>
+     <li><a href="${page-parent-url}"
+	    title="Back to the parent page"><apply template="_icon_back"/></a></li>
   </if-parent>
-  <!--
-  <ifAdmin>
-    <li><a class="admin"
-	   title="Editar esta página" href="${file-url}">Editar</a></li>
-  </ifAdmin>
-  -->
 </apply>

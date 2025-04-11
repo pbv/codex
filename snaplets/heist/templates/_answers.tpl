@@ -6,24 +6,22 @@
 <bind tag="missmark"><span style="color:black; font-size: 133%;">&#x21e0;</span></bind>
 <bind tag="spinner"><img src="/static/images/spinner.svg"></bind>
 
-
-
 <apply template="_base">
   <mathjax-js/>
   <apply template="_browse">
     <li><a href="${page-url}"
-	   title="Voltar à página anterior">&curvearrowleft;</a></li>
+	   title="Back to the parent page"><apply template="_icon_back"/></a></li>
   </apply>
   
-  <h2>Submissão <submit-id/></h2>
-  <p>Enviada por <code><submit-user-id/></code> em <submit-time/>.</p>
+  <h2>Submission <submit-id/></h2>
+  <p>Submited by <code><submit-user-id/></code> in <submit-time/>.</p>
   <if-evaluating>
     <p><spinner/></p>
     <p class="info">Se a página não atualizar automaticamente,
       use o botão "reload" do "browser".</p>
     <else/>
-    <h3>Resultado: <em><result-status/></em></h3>
-    <if-valid><else/><icon-warning/>Inválida: <em><invalid-msg/></em></if-valid>
+    <h3>Result: <em><result-status/></em></h3>
+    <if-valid><else/><icon-warning/>Invalid submission: <em><invalid-msg/></em></if-valid>
     <if-show-feedback>
       <quiz-report-summary/>
       <questions>

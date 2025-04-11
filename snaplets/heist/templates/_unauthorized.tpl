@@ -1,17 +1,16 @@
 <apply template="_base">
-<h1>Acesso não autorizado!</h1>
+<h1>Unauthorized</h1>
 
 <ifLoggedIn>
   <ul>
-    <li>Não tem permissões para visualizar esta página.</li>
+    <li>You don't have permission to view this page.</li>
   </ul>
 </ifLoggedIn>
-
 <ifLoggedOut>
   <ul>
-    <li>Para visualizar esta página nessita de estar autenticado.</li>
-    <li>Volte à <a href="${login}">página de entrada</a>
-      para se autenticar.</li>
+    <li>You are not logged in.</li>
+    <li>Go back to the <a href="${login}">login page</a>
+      to authenticate.</li>
   </ul>
 </ifLoggedOut>
 <apply template="_browse"/>

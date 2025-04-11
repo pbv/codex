@@ -134,7 +134,7 @@ routes =
 routeAppUrl :: AppUrl -> Codex ()
 routeAppUrl appUrl =
   case appUrl of
-    App.Admin -> render "_admin"
+    App.Admin -> requireAdmin >> render "_admin"
     App.Login  -> handleLogin 
     App.Logout -> handleLogout
     App.Register -> handleRegister 
@@ -154,9 +154,10 @@ loggedInName authmgr = do
 
 -- | splice for current date & time
 nowSplice :: I.Splice Codex
-nowSplice = do tz<- liftIO getCurrentTimeZone
-               t <- liftIO getCurrentTime
-               localTimeSplice tz t
+nowSplice = do
+  tz<- liftIO getCurrentTimeZone
+  t <- liftIO getCurrentTime
+  localTimeSplice (utcToLocalTime tz t)
 
 versionSplice :: I.Splice Codex
 versionSplice = I.textSplice (T.pack (showVersion version))

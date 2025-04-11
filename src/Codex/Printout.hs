@@ -10,17 +10,19 @@ module Codex.Printout(
   ) where
 
 import           System.FilePath
+import           System.Process (callProcess)
 import           Data.Time.LocalTime
 import           System.Directory
 
 import qualified Data.Text as T
 import qualified Data.Text.IO as T
-import Data.Maybe ( fromMaybe )
+import           Data.Maybe ( fromMaybe )
 import           Control.Monad.State
 
 import qualified Data.Configurator as Configurator
 import           Snap.Snaplet
-import           Snap.Snaplet.Router
+
+import           Snap.Util.FileServe(serveFile)
 
 import           Codex.Utils
 import           Codex.Policy (formatLocalTime)
@@ -45,32 +47,38 @@ import           Data.List (sortBy)
 import           Data.Function(on)
 import           Data.Functor.Identity
 
+
+-- | cummulative summary of submissions
+-- for each user for each exercise (path)
+type Summary = HashMap UserLogin (HashMap FilePath Submission)
+
 -- | generate Markdown printouts for best submissions
 generatePrintouts :: Patterns -> Codex.Submission.Ordering -> Codex ()
 generatePrintouts patts order = do
   conf <- getSnapletUserConfig
   dir <- liftIO $ Configurator.require conf "printouts.directory"
-  liftIO $ createDirectoryIfMissing True dir
+  liftIO $ removePathForcibly dir
+  liftIO $ createDirectory dir
   tplPath <- liftIO $ Configurator.require conf "printouts.template"
   tplOut <- liftIO $ runIO $ getTemplate tplPath
   let tplText = case tplOut of
-                 Right txt -> txt
-                 Left err -> error (show err)
+                    Right txt -> txt
+                    Left err -> error (show err)
   let tpl = case runIdentity (compileTemplate tplPath tplText) of
               Right tpl -> tpl
               Left err -> error (show err)
   let opts = def { writerTemplate = Just tpl
-                  , writerExtensions = pandocExtensions
-                  , writerSetextHeaders = False
-                  , writerListings = True
-                  }
+                 , writerExtensions = pandocExtensions
+                 , writerSetextHeaders = False
+                 , writerListings = True
+                 }
   getSummary patts order >>= writePrintouts dir opts
-  redirectURL (Page ["index.md"])
+  liftIO $ callProcess "/usr/bin/tar" ["cf", "printouts.tar", dir]
+  serveFile "printouts.tar"
 
 
--- | cummulative summary of submissions
--- for each user for each exercise (path)
-type Summary = HashMap UserLogin (HashMap FilePath Submission)
+
+
 
 -- | best of two submissions
 best :: Submission -> Submission -> Submission

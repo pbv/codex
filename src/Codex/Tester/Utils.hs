@@ -6,7 +6,7 @@ module Codex.Tester.Utils
   ( RunProcessErr(..)
   , compileErrorHandler
   , match
-  , withTemp, withTempDir
+  , withTemp, withTempFile, withTempDir
   , assert
   , fileExists
   , removeFileIfExists
@@ -29,9 +29,9 @@ import           Control.Exception hiding (assert)
 import           Control.Monad       (when, unless)
 import           Control.Monad.Trans
 import           System.IO
-import           System.IO.Temp
+import           System.IO.Temp (withSystemTempFile, withSystemTempDirectory)
 import           System.Exit
-import           System.Directory (doesFileExist, removeFile)
+import           System.Directory (doesFileExist, copyFile, removeFile)
 import           System.Posix.Files
 import           System.Posix.Types (FileMode)
 import           System.FilePath.Glob(glob)
@@ -84,6 +84,12 @@ withTemp :: MonadIO m => FilePath -> Text -> (FilePath -> IO a) -> m a
 withTemp name contents k
   = liftIO $ withSystemTempFile name (\f h -> T.hPutStr h contents >> hClose h >> k f)
 
+
+-- | aquire a temporary file initialized with the contents of another file
+withTempFile :: MonadIO m
+  => FilePath -> FilePath -> (FilePath -> IO a) -> m a 
+withTempFile name orig k
+  = liftIO $ withSystemTempFile name (\f h -> hClose h >> copyFile orig f >> k f)
 
 withTempDir :: MonadIO m => FilePath -> (FilePath -> IO a) -> m a
 withTempDir name k
