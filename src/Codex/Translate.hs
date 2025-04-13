@@ -6,25 +6,22 @@ import Network.HTTP.Simple
 import Data.Aeson
 import qualified Data.Text as T
 import qualified Data.Text.Encoding as E
-import qualified Data.Text.IO as TIO
 import Control.Monad (mzero)
-import Data.List (foldl', minimumBy)
-import Data.Maybe (mapMaybe)
+import Text.Pandoc.Definition
+import Text.Pandoc.Walk (walkM)
+import Codex.Page (inlineText)
+import Codex.Types(Page)
 
--- DeepL API Key 
+-- DeepL API Key and URL
 deepLApiKey :: String
 deepLApiKey = "81796376-f600-4c84-ad13-db528d7c9141:fx"
 
--- DeepL API URL
 deepLUrl :: String
 deepLUrl = "https://api-free.deepl.com/v2/translate"
 
--- New type to extract the JSON response
+-- Response types
 newtype TranslationResponse = TranslationResponse { translations :: [Translation] }
-  deriving (Show)
-
 newtype Translation = Translation { text :: T.Text }
-  deriving (Show)
 
 instance FromJSON TranslationResponse where
   parseJSON (Object v) = TranslationResponse <$> v .: "translations"
@@ -34,72 +31,50 @@ instance FromJSON Translation where
   parseJSON (Object v) = Translation <$> v .: "text"
   parseJSON _ = mzero
 
-
--- Function to replace protected blocks with placeholders
-replaceProtectedBlocks :: T.Text -> (T.Text, [(T.Text, T.Text)])
-replaceProtectedBlocks text =
-    let patterns = [("---", ["...", "---"]), ("~~~", ["~~~"]), ("```", ["```"]), ("`", ["`"]), ("$", ["$"])] -- Delimiters
-    in go text patterns 1 []
-
+-- Main translation function
+translateMarkdown :: Page -> String -> IO (Maybe Page)
+translateMarkdown (Pandoc meta blocks) targetLang = do
+  translatedBlocks <- mapM (walkM translateBlock) blocks
+  return $ Just (Pandoc meta translatedBlocks)
   where
-    go :: T.Text -> [(T.Text, [T.Text])] -> Int -> [(T.Text, T.Text)] -> (T.Text, [(T.Text, T.Text)])
-    go txt [] _ placeholders = (txt, reverse placeholders)  -- When there are no more patterns, return the result
-    go txt ((startMarker, endMarkers):ps) counter placeholders =
-        case findNextBlock txt startMarker endMarkers counter [] of
-            (newTxt, newPlaceholders, newCounter) -> go newTxt ps newCounter (newPlaceholders ++ placeholders)
+    translateBlock :: Block -> IO Block
+    translateBlock (Plain inlines) = Plain <$> translateInlines inlines
+    translateBlock (Para inlines) = Para <$> translateInlines inlines
+    translateBlock (Header level attr inlines) = Header level attr <$> translateInlines inlines
+    translateBlock (OrderedList attr items) = OrderedList attr <$> mapM translateListItem items
+    translateBlock (BulletList items) = BulletList <$> mapM translateListItem items
+    translateBlock x = return x  -- Leave other blocks unchanged
 
-    -- Finds and replaces all blocks of a pattern in text
-    findNextBlock :: T.Text -> T.Text -> [T.Text] -> Int -> [(T.Text, T.Text)] -> (T.Text, [(T.Text, T.Text)], Int)
-    findNextBlock txt startMarker endMarkers counter acc =
-        case T.breakOn startMarker txt of
-            (before, rest) | T.null rest -> (txt, acc, counter)  -- No delimiters found
-            (_, rest) ->
-                let rest' = T.drop (T.length startMarker) rest
-                    chosenEndMarker = findFirstEndMarker rest' endMarkers
-                in case chosenEndMarker of
-                     Nothing -> (txt, acc, counter)  -- If there is no final delimiter, it does not replace
-                     Just endMarker ->
-                         let (content, afterContent) = T.breakOn endMarker rest'
-                         in if T.null afterContent
-                            then (txt, acc, counter)  -- If there is no final delimiter, it does not replace
-                            else 
-                                let placeholder = T.pack $ "{{PLACEHOLDER" ++ show counter ++ "}}"
-                                    fullMatch = startMarker <> content <> endMarker
-                                    newTxt = T.replace fullMatch placeholder txt
-                                in findNextBlock newTxt startMarker endMarkers (counter + 1) ((fullMatch, placeholder) : acc)
+    translateListItem :: [Block] -> IO [Block]
+    translateListItem = mapM (walkM translateInlineBlock)
 
-    -- Find which closing delimiter appears first in the text
-    findFirstEndMarker :: T.Text -> [T.Text] -> Maybe T.Text
-    findFirstEndMarker txt markers =
-        let positions = [(m, T.breakOn m txt) | m <- markers]
-            validPositions = [(m, T.length before) | (m, (before, after)) <- positions, not (T.null after)]
-        in if null validPositions
-           then Nothing
-           else Just (fst (minimumBy (\(_, i1) (_, i2) -> compare i1 i2) validPositions))
+    translateInlineBlock :: Inline -> IO Inline
+    translateInlineBlock (Str text) = Str <$> translateText text
+    translateInlineBlock x = return x
 
+    translateInlines :: [Inline] -> IO [Inline]
+    translateInlines = mapM translateInlineBlock
 
--- Function to restore placeholders with original values
-restoreProtectedBlocks :: T.Text -> [(T.Text, T.Text)] -> T.Text
-restoreProtectedBlocks text placeholders =
-  foldl' (\acc (orig, ph) -> T.replace ph orig acc) text placeholders
+    translateText :: T.Text -> IO T.Text
+    translateText text
+      | T.null text = return text
+      | otherwise = sendTranslationRequest text targetLang
 
--- Function to translate Markdown text using DeepL
-translateMarkdown :: String -> String -> IO (Maybe String)
-translateMarkdown text targetLang = do
-  let (safeText, placeholders) = replaceProtectedBlocks (T.pack text)
-      requestBody = object ["text" .= [safeText], "target_lang" .= T.pack targetLang]
-      request = setRequestMethod "POST"
-              $ setRequestSecure True
-              $ setRequestHeader "Authorization" [E.encodeUtf8 (T.pack ("DeepL-Auth-Key " ++ deepLApiKey))]
-              $ setRequestHeader "Content-Type" ["application/json"]
-              $ setRequestBodyJSON requestBody
-              $ parseRequest_ deepLUrl
-
+-- API communication
+sendTranslationRequest :: T.Text -> String -> IO T.Text
+sendTranslationRequest text targetLang = do
+  request <- prepareRequest text targetLang
   response <- httpLBS request
-  let responseBody = getResponseBody response
-  case decode responseBody of
-    Just (TranslationResponse translations) ->
-      case translations of
-        (Translation translatedText : _) -> return (Just (T.unpack (restoreProtectedBlocks translatedText placeholders)))
-        _ -> return Nothing
-    _ -> return Nothing
+  case decode (getResponseBody response) of
+    Just (TranslationResponse (Translation t:_)) -> return t
+    _ -> return text  -- Fallback to original text if translation fails
+
+prepareRequest :: T.Text -> String -> IO Request
+prepareRequest text targetLang = do
+  let requestBody = object ["text" .= [text], "target_lang" .= T.pack targetLang]
+  return $ setRequestMethod "POST"
+         $ setRequestSecure True
+         $ Network.HTTP.Simple.setRequestHeader "Authorization" [E.encodeUtf8 (T.pack ("DeepL-Auth-Key " ++ deepLApiKey))]
+         $ Network.HTTP.Simple.setRequestHeader "Content-Type" ["application/json"]
+         $ setRequestBodyJSON requestBody
+         $ parseRequest_ deepLUrl

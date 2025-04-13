@@ -348,7 +348,9 @@ whenM cond action = do
   when c action
 
 
--- | PI Improvements ++++++++++++++++++++++++++++
+-- ++++++++++++++++++++++++++++++++++++++++++++++++
+-- | PI Improvements                              
+-- ++++++++++++++++++++++++++++++++++++++++++++++++
 
 -- Function to add language code to file name
 addLanguage :: FilePath -> String -> FilePath

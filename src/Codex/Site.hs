@@ -92,7 +92,9 @@ handlePage rqpath = do
 --    -- serve the file if it is not markdown 
 --    serveFileAs mime filepath
 
--- | PI Improvements +++++++++++++++++++++++++++++++++++++++++
+-- ++++++++++++++++++++++++++++++++++++++++++++++++
+-- | PI Improvements                              
+-- ++++++++++++++++++++++++++++++++++++++++++++++++
 handleGet :: UserLogin -> FilePath -> Codex ()
 handleGet uid rqpath = do
   root <- getDocumentRoot
@@ -115,15 +117,24 @@ handleGet uid rqpath = do
         else do
           let originalFile = root </> rqpath
           guardFileExists originalFile
-          content <- liftIO $ readFile originalFile  -- Read the original Markdown file
-          translatedContent <- liftIO $ translateMarkdown content (mapLangCode lang)
+          page <- liftIO $ readMarkdownFile originalFile
 
-          case translatedContent of
-            Just text -> do
-              liftIO $ writeFile translatedFile text  -- Save translated file for reuse
+          -- Print meta information to server terminal
+          liftIO $ do
+            putStrLn "\n--- Translation Meta Information ---"
+            putStrLn $ "File: " ++ originalFile
+            putStrLn $ "Target language: " ++ lang
+            putStrLn $ "Metadata: " ++ show (pageMeta page)
+            putStrLn $ "Description: " ++ show (pageDescription page)
+            putStrLn "-----------------------------------\n"
+          
+          translatedPage <- liftIO $ translateMarkdown page (mapLangCode lang)
+
+          case translatedPage of
+            Just translated -> do
+              liftIO $ writeMarkdownFile translatedFile translated
               serveMarkdown uid translatedFile rqpath
             Nothing -> serveMarkdown uid originalFile rqpath  -- If translation fails, display the original
-
 
 serveMarkdown :: UserLogin -> FilePath -> FilePath -> Codex ()
 serveMarkdown uid filepath rqpath = do
