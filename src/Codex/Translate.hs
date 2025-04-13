@@ -7,17 +7,13 @@ import Data.Aeson
 import qualified Data.Text as T
 import qualified Data.Text.Encoding as E
 import Control.Monad (mzero)
-import Data.List (span)
 import Text.Pandoc.Definition
 import Text.Pandoc.Walk (walkM)
+
 import Codex.Types (Page)
+import Codex.Utils
+import Codex.Application
 
--- DeepL API Key and URL
-deepLApiKey :: String
-deepLApiKey = "81796376-f600-4c84-ad13-db528d7c9141:fx"
-
-deepLUrl :: String
-deepLUrl = "https://api-free.deepl.com/v2/translate"
 
 -- Response types
 newtype TranslationResponse = TranslationResponse { translations :: [Translation] }
@@ -31,13 +27,14 @@ instance FromJSON Translation where
   parseJSON (Object v) = Translation <$> v .: "text"
   parseJSON _ = mzero
 
+
 -- Main translation function
-translateMarkdown :: Page -> String -> IO (Maybe Page)
+translateMarkdown :: Page -> String -> Codex (Maybe Page)
 translateMarkdown (Pandoc meta blocks) targetLang = do
   translatedBlocks <- mapM (walkM (translateBlock targetLang)) blocks
   return $ Just (Pandoc meta translatedBlocks)
 
-translateBlock :: String -> Block -> IO Block
+translateBlock :: String -> Block -> Codex Block
 translateBlock lang (Plain inlines) = Plain <$> translateInlineGroup lang inlines
 translateBlock lang (Para inlines) = Para <$> translateInlineGroup lang inlines
 translateBlock lang (Header level attr inlines) = Header level attr <$> translateInlineGroup lang inlines
@@ -45,11 +42,12 @@ translateBlock lang (OrderedList attr items) = OrderedList attr <$> mapM (mapM (
 translateBlock lang (BulletList items) = BulletList <$> mapM (mapM (walkM (translateBlock lang))) items
 translateBlock _ blk = return blk
 
--- === INLINE TRANSLATION LOGIC === --
+
+-- === INLINE CONCATENATION === --
 
 data InlineChunk = Translatable [Inline] | Untranslatable [Inline]
 
--- Divide os inlines em blocos que devem ou não ser traduzidos
+-- Splits inlines into blocks that should or should not be translated
 chunkInlines :: [Inline] -> [InlineChunk]
 chunkInlines [] = []
 chunkInlines xs = go xs
@@ -66,20 +64,20 @@ chunkInlines xs = go xs
     isTranslatable LineBreak = True
     isTranslatable _ = False
 
--- Traduz blocos de texto, preservando os outros
-translateInlineGroup :: String -> [Inline] -> IO [Inline]
+-- Translates blocks of text while preserving others
+translateInlineGroup :: String -> [Inline] -> Codex [Inline]
 translateInlineGroup lang inlines = do
   translatedChunks <- mapM translateChunk (chunkInlines inlines)
   return $ mergeChunksWithSpacing translatedChunks
   where
-    translateChunk :: InlineChunk -> IO [Inline]
+    translateChunk :: InlineChunk -> Codex [Inline]
     translateChunk (Translatable is) = do
       let txt = inlinesToText is
       translated <- sendTranslationRequest txt lang
       return $ textToInlinesPreserveSpaces translated
     translateChunk (Untranslatable is) = return is
 
--- Junta os blocos de Inline, inserindo espaços inteligentes quando necessário
+-- Joins blocks inline
 mergeChunksWithSpacing :: [[Inline]] -> [Inline]
 mergeChunksWithSpacing = foldr insertChunk []
   where
@@ -108,7 +106,7 @@ mergeChunksWithSpacing = foldr insertChunk []
     startsWithSpace Space = True
     startsWithSpace _ = False
 
--- Concatena o texto dos inlines textuais
+-- Concatenates the text of the textual inlines
 inlinesToText :: [Inline] -> T.Text
 inlinesToText = T.concat . map inlineToText
   where
@@ -118,11 +116,11 @@ inlinesToText = T.concat . map inlineToText
     inlineToText LineBreak = "\n"
     inlineToText _ = ""
 
--- Divide o texto traduzido em inlines, preservando espaços
+-- Splits translated text into inlines
 textToInlinesPreserveSpaces :: T.Text -> [Inline]
 textToInlinesPreserveSpaces = map Str . splitPreservingSpaces
 
--- Divide texto mantendo espaços como elementos
+-- Split text keeping spaces as elements
 splitPreservingSpaces :: T.Text -> [T.Text]
 splitPreservingSpaces txt
   | T.null txt = []
@@ -133,23 +131,26 @@ splitPreservingSpaces txt
   where
     isSpaceLike c = c == ' ' || c == '\n' || c == '\t'
 
+
 -- === DEEPL API === --
 
-sendTranslationRequest :: T.Text -> String -> IO T.Text
+sendTranslationRequest :: T.Text -> String -> Codex T.Text
 sendTranslationRequest text targetLang = do
-  request <- prepareRequest text targetLang
+  (apiKey, url) <- getDeepLConfig
+  request <- prepareRequest text targetLang apiKey url
   response <- httpLBS request
   case decode (getResponseBody response) of
     Just (TranslationResponse (Translation t:_)) -> return t
-    _ -> return text  -- fallback
+    _ -> return text  
 
-prepareRequest :: T.Text -> String -> IO Request
-prepareRequest text targetLang = do
+prepareRequest :: T.Text -> String -> String -> String -> Codex Request
+prepareRequest text targetLang apiKey url = do
   let requestBody = object ["text" .= [text], "target_lang" .= T.pack targetLang]
   return $ setRequestMethod "POST"
          $ setRequestSecure True
-         $ setRequestHeader "Authorization" [E.encodeUtf8 (T.pack ("DeepL-Auth-Key " ++ deepLApiKey))]
+         $ setRequestHeader "Authorization" [E.encodeUtf8 (T.pack ("DeepL-Auth-Key " ++ apiKey))]
          $ setRequestHeader "Content-Type" ["application/json"]
          $ setRequestBodyJSON requestBody
-         $ parseRequest_ deepLUrl
+         $ parseRequest_ url
+
 

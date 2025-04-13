@@ -367,3 +367,12 @@ mapLangCode "pt" = "PT"
 mapLangCode "fr" = "FR"
 mapLangCode "es" = "ES"
 mapLangCode _    = "EN"  -- Default language: English
+
+
+getDeepLConfig :: Codex (String, String)
+getDeepLConfig = do
+  conf <- getSnapletUserConfig
+  apiKey <- liftIO $ Configurator.require conf "deepLApiKey"
+  url <- liftIO $ Configurator.require conf "deepLUrl"
+  return (apiKey, url)
+

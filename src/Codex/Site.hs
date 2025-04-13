@@ -118,17 +118,8 @@ handleGet uid rqpath = do
           let originalFile = root </> rqpath
           guardFileExists originalFile
           page <- liftIO $ readMarkdownFile originalFile
-
-          -- Print meta information to server terminal
-          liftIO $ do
-            putStrLn "\n--- Translation Meta Information ---"
-            putStrLn $ "File: " ++ originalFile
-            putStrLn $ "Target language: " ++ lang
-            putStrLn $ "Metadata: " ++ show (pageMeta page)
-            putStrLn $ "Description: " ++ show (pageDescription page)
-            putStrLn "-----------------------------------\n"
           
-          translatedPage <- liftIO $ translateMarkdown page (mapLangCode lang)
+          translatedPage <- translateMarkdown page (mapLangCode lang)
 
           case translatedPage of
             Just translated -> do
