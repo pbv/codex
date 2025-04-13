@@ -7,10 +7,10 @@ import Data.Aeson
 import qualified Data.Text as T
 import qualified Data.Text.Encoding as E
 import Control.Monad (mzero)
+import Data.List (span)
 import Text.Pandoc.Definition
 import Text.Pandoc.Walk (walkM)
-import Codex.Page (inlineText)
-import Codex.Types(Page)
+import Codex.Types (Page)
 
 -- DeepL API Key and URL
 deepLApiKey :: String
@@ -34,47 +34,122 @@ instance FromJSON Translation where
 -- Main translation function
 translateMarkdown :: Page -> String -> IO (Maybe Page)
 translateMarkdown (Pandoc meta blocks) targetLang = do
-  translatedBlocks <- mapM (walkM translateBlock) blocks
+  translatedBlocks <- mapM (walkM (translateBlock targetLang)) blocks
   return $ Just (Pandoc meta translatedBlocks)
+
+translateBlock :: String -> Block -> IO Block
+translateBlock lang (Plain inlines) = Plain <$> translateInlineGroup lang inlines
+translateBlock lang (Para inlines) = Para <$> translateInlineGroup lang inlines
+translateBlock lang (Header level attr inlines) = Header level attr <$> translateInlineGroup lang inlines
+translateBlock lang (OrderedList attr items) = OrderedList attr <$> mapM (mapM (walkM (translateBlock lang))) items
+translateBlock lang (BulletList items) = BulletList <$> mapM (mapM (walkM (translateBlock lang))) items
+translateBlock _ blk = return blk
+
+-- === INLINE TRANSLATION LOGIC === --
+
+data InlineChunk = Translatable [Inline] | Untranslatable [Inline]
+
+-- Divide os inlines em blocos que devem ou não ser traduzidos
+chunkInlines :: [Inline] -> [InlineChunk]
+chunkInlines [] = []
+chunkInlines xs = go xs
   where
-    translateBlock :: Block -> IO Block
-    translateBlock (Plain inlines) = Plain <$> translateInlines inlines
-    translateBlock (Para inlines) = Para <$> translateInlines inlines
-    translateBlock (Header level attr inlines) = Header level attr <$> translateInlines inlines
-    translateBlock (OrderedList attr items) = OrderedList attr <$> mapM translateListItem items
-    translateBlock (BulletList items) = BulletList <$> mapM translateListItem items
-    translateBlock x = return x  -- Leave other blocks unchanged
+    go [] = []
+    go (x:xs) =
+      let (grp, rest) = span (sameKind x) (x:xs)
+       in (if isTranslatable x then Translatable else Untranslatable) grp : go rest
 
-    translateListItem :: [Block] -> IO [Block]
-    translateListItem = mapM (walkM translateInlineBlock)
+    sameKind a b = isTranslatable a == isTranslatable b
+    isTranslatable (Str _) = True
+    isTranslatable Space = True
+    isTranslatable SoftBreak = True
+    isTranslatable LineBreak = True
+    isTranslatable _ = False
 
-    translateInlineBlock :: Inline -> IO Inline
-    translateInlineBlock (Str text) = Str <$> translateText text
-    translateInlineBlock x = return x
+-- Traduz blocos de texto, preservando os outros
+translateInlineGroup :: String -> [Inline] -> IO [Inline]
+translateInlineGroup lang inlines = do
+  translatedChunks <- mapM translateChunk (chunkInlines inlines)
+  return $ mergeChunksWithSpacing translatedChunks
+  where
+    translateChunk :: InlineChunk -> IO [Inline]
+    translateChunk (Translatable is) = do
+      let txt = inlinesToText is
+      translated <- sendTranslationRequest txt lang
+      return $ textToInlinesPreserveSpaces translated
+    translateChunk (Untranslatable is) = return is
 
-    translateInlines :: [Inline] -> IO [Inline]
-    translateInlines = mapM translateInlineBlock
+-- Junta os blocos de Inline, inserindo espaços inteligentes quando necessário
+mergeChunksWithSpacing :: [[Inline]] -> [Inline]
+mergeChunksWithSpacing = foldr insertChunk []
+  where
+    insertChunk [] acc = acc
+    insertChunk chunk [] = chunk
+    insertChunk chunk acc@(a:_)
+      | needsSpace (last chunk) a = chunk ++ (Space : acc)
+      | otherwise = chunk ++ acc
 
-    translateText :: T.Text -> IO T.Text
-    translateText text
-      | T.null text = return text
-      | otherwise = sendTranslationRequest text targetLang
+    needsSpace :: Inline -> Inline -> Bool
+    needsSpace x y =
+      not (endsWithSpace x || startsWithSpace y) &&
+      (isTextual x && not (isTextual y) || not (isTextual x) && isTextual y)
 
--- API communication
+    isTextual (Str _) = True
+    isTextual Space = True
+    isTextual SoftBreak = True
+    isTextual LineBreak = True
+    isTextual _ = False
+
+    endsWithSpace (Str t) = T.isSuffixOf " " t
+    endsWithSpace Space = True
+    endsWithSpace _ = False
+
+    startsWithSpace (Str t) = T.isPrefixOf " " t
+    startsWithSpace Space = True
+    startsWithSpace _ = False
+
+-- Concatena o texto dos inlines textuais
+inlinesToText :: [Inline] -> T.Text
+inlinesToText = T.concat . map inlineToText
+  where
+    inlineToText (Str t) = t
+    inlineToText Space = " "
+    inlineToText SoftBreak = " "
+    inlineToText LineBreak = "\n"
+    inlineToText _ = ""
+
+-- Divide o texto traduzido em inlines, preservando espaços
+textToInlinesPreserveSpaces :: T.Text -> [Inline]
+textToInlinesPreserveSpaces = map Str . splitPreservingSpaces
+
+-- Divide texto mantendo espaços como elementos
+splitPreservingSpaces :: T.Text -> [T.Text]
+splitPreservingSpaces txt
+  | T.null txt = []
+  | otherwise = case T.span (not . isSpaceLike) txt of
+      (w, rest) ->
+        let (spaces, rest') = T.span isSpaceLike rest
+         in [w | not (T.null w)] ++ [spaces | not (T.null spaces)] ++ splitPreservingSpaces rest'
+  where
+    isSpaceLike c = c == ' ' || c == '\n' || c == '\t'
+
+-- === DEEPL API === --
+
 sendTranslationRequest :: T.Text -> String -> IO T.Text
 sendTranslationRequest text targetLang = do
   request <- prepareRequest text targetLang
   response <- httpLBS request
   case decode (getResponseBody response) of
     Just (TranslationResponse (Translation t:_)) -> return t
-    _ -> return text  -- Fallback to original text if translation fails
+    _ -> return text  -- fallback
 
 prepareRequest :: T.Text -> String -> IO Request
 prepareRequest text targetLang = do
   let requestBody = object ["text" .= [text], "target_lang" .= T.pack targetLang]
   return $ setRequestMethod "POST"
          $ setRequestSecure True
-         $ Network.HTTP.Simple.setRequestHeader "Authorization" [E.encodeUtf8 (T.pack ("DeepL-Auth-Key " ++ deepLApiKey))]
-         $ Network.HTTP.Simple.setRequestHeader "Content-Type" ["application/json"]
+         $ setRequestHeader "Authorization" [E.encodeUtf8 (T.pack ("DeepL-Auth-Key " ++ deepLApiKey))]
+         $ setRequestHeader "Content-Type" ["application/json"]
          $ setRequestBodyJSON requestBody
          $ parseRequest_ deepLUrl
+
