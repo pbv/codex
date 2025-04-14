@@ -389,3 +389,15 @@ h1.question, h2.question, h3.question {
     font-size: 100%;
 }
 
+
+/* --- PI Improvements --- */
+#translation-select {
+    display: flex;
+    align-items: center;
+    margin-left: 0.5em;
+    margin-top: 0.625em;
+}
+
+#language-select {
+    margin-left: 0.5em;
+}
