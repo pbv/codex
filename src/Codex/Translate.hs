@@ -15,9 +15,9 @@ import Codex.Utils
 import Codex.Application
 
 
--- Response types
-newtype TranslationResponse = TranslationResponse { translations :: [Translation] }
-newtype Translation = Translation { text :: T.Text }
+-- | Response types
+newtype TranslationResponse = TranslationResponse { _translations :: [Translation] }
+newtype Translation = Translation { _text :: T.Text }
 
 instance FromJSON TranslationResponse where
   parseJSON (Object v) = TranslationResponse <$> v .: "translations"
@@ -28,7 +28,7 @@ instance FromJSON Translation where
   parseJSON _ = mzero
 
 
--- Main translation function
+-- | Main translation function
 translateMarkdown :: Page -> String -> Codex (Maybe Page)
 translateMarkdown (Pandoc meta blocks) targetLang = do
   translatedBlocks <- mapM (walkM (translateBlock targetLang)) blocks
@@ -43,11 +43,24 @@ translateBlock lang (BulletList items) = BulletList <$> mapM (mapM (walkM (trans
 translateBlock _ blk = return blk
 
 
--- === INLINE CONCATENATION === --
+-- | ++++++++++ INLINE CONCATENATION ++++++++++
 
 data InlineChunk = Translatable [Inline] | Untranslatable [Inline]
 
--- Splits inlines into blocks that should or should not be translated
+-- | Translates blocks of text while preserving others
+translateInlineGroup :: String -> [Inline] -> Codex [Inline]
+translateInlineGroup lang inlines = do
+  translatedChunks <- mapM translateChunk (chunkInlines inlines)
+  return $ mergeChunksWithSpacing translatedChunks
+  where
+    translateChunk :: InlineChunk -> Codex [Inline]
+    translateChunk (Translatable is) = do
+      let txt = inlinesToText is
+      translated <- sendTranslationRequest txt lang
+      return $ textToInlinesPreserveSpaces translated
+    translateChunk (Untranslatable is) = return is
+
+-- | Splits inlines into blocks that should or should not be translated
 chunkInlines :: [Inline] -> [InlineChunk]
 chunkInlines [] = []
 chunkInlines xs = go xs
@@ -64,20 +77,7 @@ chunkInlines xs = go xs
     isTranslatable LineBreak = True
     isTranslatable _ = False
 
--- Translates blocks of text while preserving others
-translateInlineGroup :: String -> [Inline] -> Codex [Inline]
-translateInlineGroup lang inlines = do
-  translatedChunks <- mapM translateChunk (chunkInlines inlines)
-  return $ mergeChunksWithSpacing translatedChunks
-  where
-    translateChunk :: InlineChunk -> Codex [Inline]
-    translateChunk (Translatable is) = do
-      let txt = inlinesToText is
-      translated <- sendTranslationRequest txt lang
-      return $ textToInlinesPreserveSpaces translated
-    translateChunk (Untranslatable is) = return is
-
--- Joins blocks inline
+-- | Joins blocks inline
 mergeChunksWithSpacing :: [[Inline]] -> [Inline]
 mergeChunksWithSpacing = foldr insertChunk []
   where
@@ -106,7 +106,7 @@ mergeChunksWithSpacing = foldr insertChunk []
     startsWithSpace Space = True
     startsWithSpace _ = False
 
--- Concatenates the text of the textual inlines
+-- | Concatenates the text of the textual inlines
 inlinesToText :: [Inline] -> T.Text
 inlinesToText = T.concat . map inlineToText
   where
@@ -116,11 +116,11 @@ inlinesToText = T.concat . map inlineToText
     inlineToText LineBreak = "\n"
     inlineToText _ = ""
 
--- Splits translated text into inlines
+-- | Splits translated text into inlines
 textToInlinesPreserveSpaces :: T.Text -> [Inline]
 textToInlinesPreserveSpaces = map Str . splitPreservingSpaces
 
--- Split text keeping spaces as elements
+-- | Split text keeping spaces as elements
 splitPreservingSpaces :: T.Text -> [T.Text]
 splitPreservingSpaces txt
   | T.null txt = []
@@ -132,7 +132,7 @@ splitPreservingSpaces txt
     isSpaceLike c = c == ' ' || c == '\n' || c == '\t'
 
 
--- === DEEPL API === --
+-- | ++++++++++ DEEPL API ++++++++++ 
 
 sendTranslationRequest :: T.Text -> String -> Codex T.Text
 sendTranslationRequest text targetLang = do

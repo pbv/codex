@@ -11,7 +11,7 @@ import           Text.Pandoc hiding (Code)
 import qualified Text.Pandoc ( Inline(Code) )
 import           Text.Pandoc.Walk
 -- import           Text.Pandoc.Highlighting (monochrome)
-import Text.Pandoc.Options (WriterOptions(..), def)
+
 import           Text.XmlHtml
 import           Text.Blaze.Renderer.XmlHtml
 
@@ -243,33 +243,62 @@ docWarnings msgs
 -- ++++++++++++++++++++++++++++++++++++++++++++++++
 
 -- | Write a Pandoc document to a Markdown file
-{-
-writeMarkdownFile :: MonadIO m => FilePath -> Pandoc -> m ()
-writeMarkdownFile filepath doc = liftIO $ do
-  let writerOpts = def
-        { writerExtensions = pandocExtensions
-        , writerSetextHeaders = False
-        }
-  case runPure (writeMarkdown writerOpts doc) of
-    Left err -> error $ "Erro ao escrever o ficheiro Markdown: " ++ show err
-    Right txt -> T.writeFile filepath txt
--}
 
 writeMarkdownFile :: MonadIO m => FilePath -> Pandoc -> m ()
-writeMarkdownFile filepath (Pandoc meta blocks) = liftIO $ do
-  let yamlText = renderYamlMeta meta
-      docWithYaml = Pandoc nullMeta (RawBlock "markdown" yamlText : blocks)
+writeMarkdownFile filepath (Pandoc (Meta metaMap) blocks) = liftIO $ do
+  let (blockMetaMap, yamlMetaMap) = Map.partition isMetaBlocks metaMap
+      yamlText = renderYamlMeta (Meta yamlMetaMap)
+
+      -- YAML on top + Normal blocks
+      contentBlocks = RawBlock "markdown" yamlText : blocks
+
+      -- Render each MetaBlock as a YAML section at the end
+      metaBlockTexts = map renderBlockMeta (reverse (Map.toList blockMetaMap))
+      metaBlockRawBlocks = map (RawBlock "markdown") metaBlockTexts
+
+      -- Builds the final document
+      fullDoc = Pandoc nullMeta (contentBlocks ++ metaBlockRawBlocks)
 
       writerOpts = def
         { writerExtensions = pandocExtensions
         , writerSetextHeaders = False
         }
 
-  case runPure (writeMarkdown writerOpts docWithYaml) of
+  case runPure (writeMarkdown writerOpts fullDoc) of
     Left err  -> error $ "Error writing Markdown file: " ++ show err
     Right txt -> T.writeFile filepath txt
 
--- | Render Meta (YAML metadata) into Text block manually
+  where
+    isMetaBlocks :: MetaValue -> Bool
+    isMetaBlocks (MetaBlocks _) = True
+    isMetaBlocks _              = False
+
+    renderBlockMeta :: (Text, MetaValue) -> Text
+    renderBlockMeta (key, MetaBlocks bs) =
+      let blockContent = stringifyBlocks bs
+          indented = T.unlines (map ("  " <>) (T.lines blockContent))
+      in "---\n" <> key <> ": |\n" <> indented <> "...\n"
+    renderBlockMeta _ = ""
+
+    stringifyBlocks :: [Block] -> Text
+    stringifyBlocks bs =
+      "~~~\n" <> T.concat (map blockToText bs) <> "~~~"
+
+    blockToText :: Block -> Text
+    blockToText (Plain ils)    = stringify ils <> "\n"
+    blockToText (Para ils)     = stringify ils <> "\n\n"
+    blockToText (CodeBlock _ c) = c <> "\n"
+    blockToText _              = ""  
+
+    stringify :: [Inline] -> Text
+    stringify = T.concat . map inlineToText
+
+    inlineToText :: Inline -> Text
+    inlineToText (Str t) = t
+    inlineToText Space   = " "
+    inlineToText _       = ""
+
+-- | Render YAML from normal metadata
 renderYamlMeta :: Meta -> Text
 renderYamlMeta (Meta metaMap) =
   let pairs = map renderPair (Map.toList metaMap)
@@ -280,26 +309,20 @@ renderYamlMeta (Meta metaMap) =
     renderPair (k, v) = k <> ": " <> renderValue v
 
     renderValue :: MetaValue -> Text
-    renderValue (MetaString s)   = s
-    renderValue (MetaBool True)  = "true"
-    renderValue (MetaBool False) = "false"
-    renderValue (MetaList xs)    = "[" <> T.intercalate ", " (map renderValue xs) <> "]"
+    renderValue (MetaString s)    = s
+    renderValue (MetaBool True)   = "true"
+    renderValue (MetaBool False)  = "false"
+    renderValue (MetaList xs)     = "[" <> T.intercalate ", " (map renderValue xs) <> "]"
     renderValue (MetaInlines ils) = stringify ils
-    renderValue (MetaBlocks bs)   = stringifyBlocks bs
     renderValue (MetaMap m)       = "{" <> T.intercalate ", " (map renderPair (Map.toList m)) <> "}"
+    renderValue (MetaBlocks _)    = "<block>"  
 
     stringify :: [Inline] -> Text
     stringify = T.concat . map inlineToText
 
-    stringifyBlocks :: [Block] -> Text
-    stringifyBlocks = T.concat . map blockToText
-
     inlineToText :: Inline -> Text
     inlineToText (Str t) = t
     inlineToText Space   = " "
-    inlineToText _       = ""  -- simples para já
+    inlineToText _       = ""
 
-    blockToText :: Block -> Text
-    blockToText (Plain ils) = stringify ils
-    blockToText _           = ""
 
