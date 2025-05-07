@@ -17,6 +17,7 @@ import           Text.XmlHtml
 import           Text.Blaze.Renderer.XmlHtml
 
 import           Data.Maybe
+import qualified Data.Map as Map
 import           Data.List (delete,intersperse)
 import           Data.Foldable(toList)
 import qualified Data.Text as T
@@ -162,12 +163,15 @@ blockText _               = T.empty
 
 
 metaText :: MetaValue -> Text
-metaText = query f
-  where f :: MetaValue -> Text
-        f (MetaString s)  = s
-        f (MetaInlines l) = T.concat (map inlineText l)
-        f (MetaBlocks l)  = T.concat (map blockText l)
-        f _               = T.empty
+metaText val
+  = case val of
+        MetaString s -> s
+        MetaInlines l -> T.concat (map inlineText l)
+        MetaBlocks l -> T.concat (map blockText l)
+        MetaBool b -> if b then "true" else "false"
+        MetaList l -> T.concat (map metaText l)
+        MetaMap kvs -> T.concat [ k <> "," <> metaText v
+                                | (k,v)<-Map.assocs kvs]
 
 
 

@@ -5,7 +5,6 @@ module Codex.Pythontutor (
   pythontutorSplices
   ) where
 
-import           Data.Text (Text)
 import qualified Data.Text as T
 
 import qualified Data.ByteString.UTF8 as B

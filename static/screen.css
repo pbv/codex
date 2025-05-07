@@ -156,15 +156,23 @@ ol.submissions:after {
 }
 
 .tooltip:hover .info {
-  visibility: visible;
-   
+    visibility: visible;
 }
 
 .tooltip {
- position: relative;
- display: inline-block;
+    position: relative;
+    display: inline-block;
+    padding: 0 5px;
+    margin-top: 1px;
+    margin-bottom: 1px;
+    border-radius: 5px;
+    border: solid;
+    border-width: 1px;
 }
 
+.tooltip a {
+    text-decoration: none;
+}
 
 
 .error {
