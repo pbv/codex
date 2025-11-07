@@ -10,7 +10,6 @@ module Codex.Tester.Result
    tagWith, hidePrivate
   ) where
 
-import           Data.Text(Text)
 import qualified Data.Text as T
 
 import           Database.SQLite.Simple.FromField
@@ -18,12 +17,6 @@ import           Database.SQLite.Simple.ToField
 
 import           Text.Pandoc.Definition
 import           Text.Pandoc.Builder
-import           Text.Pandoc.Readers.Markdown
-import           Text.Pandoc.Writers.Markdown
-import           Text.Pandoc.Options (def, pandocExtensions,
-                                      WriterOptions (writerExtensions),
-                                      ReaderOptions (readerExtensions))
-import Text.Pandoc.Class ( runPure )
 import           Text.Pandoc.Walk
 
 -- submission results
@@ -64,19 +57,13 @@ newtype Report = Report { getBlocks :: Blocks }
 
 instance ToField Report where
   toField (Report blocks)
-    = let doc = Pandoc nullMeta (toList blocks)
-      in
-        case runPure (writeMarkdown def{writerExtensions=pandocExtensions} doc) of
-          Right txt -> toField txt
-          Left err -> error (show err)
+    = toField (show $ doc blocks)
 
 instance FromField Report where
-  fromField f = fromField @Text f >>= parse
+  fromField f = fromField @String f >>= parse . reads
     where
-      parse txt = case runPure (readMarkdown def{readerExtensions=pandocExtensions} txt) of
-                    Right (Pandoc _ blocks) -> return (Report $ fromList blocks)
-                    Left _err -> returnError ConversionFailed f "invalid Report field"
-
+      parse ((Pandoc _ bs,""):_) = return (Report $ fromList bs)
+      parse _ = returnError ConversionFailed f "invalid Report field"
 
 -- combine two results, yielding the "worse" status and joining the reports
 instance Semigroup Result where
@@ -104,10 +91,8 @@ memoryLimitExceeded = Result MemoryLimitExceeded . Report
 miscError = Result MiscError . Report
 presentationError = Result PresentationError . Report  
 
-
 data Visibility = Public | Private
      deriving (Eq, Read, Show)
-
 
 onReport :: (Blocks -> Blocks) -> Result -> Result
 onReport f r = r { resultReport = Report $ f $ getBlocks $ resultReport r }
@@ -115,10 +100,10 @@ onReport f r = r { resultReport = Report $ f $ getBlocks $ resultReport r }
 tagWith :: Visibility -> Result -> Result
 tagWith _ r | r == mempty = r
 tagWith Public  r 
-    = onReport (header 3 "Public tests" <>) r
+    = onReport (header 2 "Public tests" <>) r
 tagWith Private r 
-    = onReport (\bs -> header 3 "Private tests" <> 
-                      divWith ("",["private"], []) bs) r
+    = onReport (\bs -> header 2 "Private tests" <> 
+                       divWith ("",["private"], []) bs) r
 
 hidePrivate :: Result -> Result
 hidePrivate r = onReport (walk hide) r

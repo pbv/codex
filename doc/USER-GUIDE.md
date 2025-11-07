@@ -1,7 +1,7 @@
 ---
 title: A Guide to Writting Codex Exercises
 author: Pedro Vasconcelos <pbv@dcc.fc.up.pt>, University of Porto, Portugal. 
-date: February 2025 (version 1.0.0)
+date: May 2025 (version 1.1.0)
 ...
 
 
@@ -35,7 +35,6 @@ to report failure example to students.
 
 :     Codex supports testing code in several programming language and also
 mutiple-choice and fill-in questionaries.
-
 
 Codex is intended for learning environments rather than programming
 contests (for the later, check out
@@ -160,6 +159,7 @@ exercise description shown to the student (and some metadata fields):
 ---
 tester: doctest
 language: python
+public-tests: ['sqroot.tst']
 ...
 
 # Compute rounded-down integer square roots
@@ -173,7 +173,7 @@ throw a `ValueError` exception.
 ~~~
 
 We also need a *doctest script* `sqroot.tst` specifying the
-tets cases to try and expected results:
+test cases to try:
 
 ~~~{.boxed}
 >>> root(0)
@@ -220,9 +220,10 @@ Some remarks on writting *doctest* cases:
    normalize floating-point results (e.g. using `round`)
 4. To discourage students from "overfitting" solutions to pass just
    the failing tests, it is best to generate a large number (50-100)
-   of cases (write a Python script);
-5. Alternatively, you can hide test cases by setting the metadata
-   field "`feedback: no`";
+   of cases (write a Python script); 
+5. Alternatively, you can include "private" test cases
+   that are not shown to the student using the 
+   metadata field `private-tests`;
 6. It is also possible test error handling by requiring that proper
    exceptions are thrown &mdash; see the [`doctest`
    documentation](https://docs.python.org/3/library/doctest.html#what-about-exceptions);
@@ -332,17 +333,17 @@ Grouping can also be combined with shuffling, changing the order of
 questions and/or answers.
 
 
-### Testing Haskell code using Quickcheck
+### Testing Haskell code using Hspec/Quickcheck
 
 A QuickCheck specification is a Haskell main module that acts as a
 "test harness" for the student's code. It can define properties and
-possibly data generators; the Codex QuickCheck library includes
+possibly data generators; the QuickCheck library includes
 default generators for basic types (tuples, lists, etc.)  and
 combinators for building custom ones.
 
 Consider an example exercise:
 
-> Write a Haskell function `strong :: String -> Bool`
+> Write a Haskell function `strongPasswd :: String -> Bool`
 > that checks if a string is a *strong password* using
 > the following criteria:
 >
@@ -353,63 +354,69 @@ The QuickCheck specification for this exercise is as follows:
 
 ~~~~{.boxed .haskell}
 module Main where
-
-import Codex.QuickCheck
+import Test.Hspec
+import Test.QuickCheck
 import Data.Char
-import Submission (strong) -- student's solution
 
--- | reference solution 
-strong_spec :: String -> Bool
-strong_spec xs
-   = length xs >= 6 && any isUpper xs && any isLower xs && any isDigit xs
+-- | student submission (in separate module)
+import Submission (strongPasswd) 
 
--- | a generator for suitable strings
-asciiString = listOf (choose ('0', 'z'))
+main :: IO ()                    
+main = hspec $ do
+  describe "strongPasswd" $
+    it "Exemplos aleatórios" $
+       property $
+       forAllShrink genPasswd shrinkPasswd $
+       \xs -> strongPasswd xs `shouldBe` spec xs
 
--- | correctness property: for all above strings,
--- the submission yields the same result as the reference solution
-prop_correct
-  = testing "strong" $ 
-    forAllShrink "str" asciiString shrink $
-    \xs -> strong xs ?== strong_spec xs 
-                    
-main = quickCheckMain prop_correct
+-- | reference solution
+spec :: String -> Bool
+spec xs =
+  length xs >= 6 && any isUpper xs && any isLower xs && any isDigit xs
+
+-- custom generator and shrinker
+genPasswd = listOf (choose ('0', 'z'))
+shrinkPasswd = shrinkMap (filter (\c -> c >= '0' && c<='z')) id
 ~~~~
 
 Some remarks:
 
-1. The student's code is always imported from a separate module; names
-   should be explicitly imported or qualified to prevent name
-   colisions;
-2. `asciiString` is a custom generator for strings with charateres
+1. The student's code is always imported from a separate `Submission`
+   module; names should be explicitly imported or qualified to prevent
+   name colisions;
+2. `genPasswd` is a custom generator for strings with charateres
    from `0` to `z`: this generate letters, digits and some other
    simbols as well;
-3. The operator `?==` asserts that the left-hand side equals the
+3. The function `shouldBe` asserts that the left-hand side equals the
    (expected) right-hand side
-4. The `quickCheckMain` main function handles
-   setting up of the testing parameters and checks the property.
+4. The `hspec` call in the main function handles
+   setting up of the testing parameters from command-line arguments.
 
 The use of shrinking simplifies failing test cases
 automatically; for example, consider the following submission
 exhibiting a common logical error:
 
 ~~~{.boxed .haskell}
-forte :: String -> Bool
+strongPasswd :: String -> Bool
    = length xs >= 6 && any (\x -> isUpper x || isLower x || isDigit x) xs
    -- WRONG!
 ~~~ 
 
-Because of shrinking, the specification above QuickCheck *always* finds a
+Because of shrinking, QuickCheck will *always* find a
 simple counter-example:
 
 ~~~{.boxed}
-*** Failed! (after 12 tests and 6 shrinks): 
-Expected:
-	False
-Got:
-	True
-Testing forte with:
-str = "aaaaaa"
+strongPasswd
+  Exemplos aleatórios [✘]
+
+Failures:
+
+  /tmp/codex-ab726aefbd94cb58/Main.hs:15:31: 
+  1) strongPasswd Exemplos aleatórios
+       Falsifiable (after 15 tests and 8 shrinks):
+         "aaaaaa"
+       expected: False
+        but got: True
 ~~~
 
 ### Testing C code Using QuickCheck 
@@ -434,39 +441,42 @@ The previous specification is adapted to test C as follows:
 
 ~~~{.boxed .haskell}
 module Main where
-
-import Codex.QuickCheck
-import Control.Monad
-import Control.Exception
+import Test.Hspec
+import Test.QuickCheck
 import System.IO.Unsafe
-import Data.Char
+import Foreign.C.Types
+import Foreign.C.String
+import Data.Char (isUpper, isLower, isDigit)
 
-foreign import ccall "forte" c_forte :: CString -> IO CInt
-   -- use FFI to import students' submission
 
--- | functional wrapper over C code
-c_forte_wrapper :: String -> CInt
-c_forte_wrapper str = unsafePerformIO $ 
-  withCString str $ \ptr -> do
-     r <- c_forte ptr
-     str' <- peekCAString ptr
-     unless (str == str') $
-          throwIO $ userError "modified argument string"
-     return r
+foreign import ccall "strong_passwd" c_strong_passwd :: CString -> IO CInt
 
--- | functional specification
-forte_spec :: String -> Bool
-forte_spec xs
-   = length xs >= 6 && any isUpper xs && any isLower xs && any isDigit xs
+-- | main entry point
+-- accepts command line arguments for controling pseudo-random generation,
+-- number of tests, etc. and then tests the property above
+main = hspec $
+  describe "strong_passwd" $
+    it "Exemplos aleatórios" $
+    forAllShrink genPasswd shrinkPasswd $
+    \xs -> strong_passwd xs `shouldBe` fromEnum (spec xs)
 
-prop_correct
-  = testing "forte(str)" $ 
-    forAllShrink "str" asciiString shrink $
-    \xs -> c_forte_wrapper xs ?== fromIntegral (fromEnum (forte_spec xs))
 
-asciiString = listOf (choose ('0', 'z'))
-                      
-main = quickCheckMain prop_correct
+-- | a Haskell wrapper to the C function;
+-- this simply allocates a C char buffer and runs the C code;
+-- deallocation is implicit at the end of the scope
+strong_passwd :: String -> Int
+strong_passwd str
+  = unsafePerformIO (fromIntegral <$> withCString str c_strong_passwd)
+
+
+-- | purely functional reference solution
+spec :: String -> Bool
+spec xs
+  = length xs>=6 && any isUpper xs && any isLower xs &&  any isDigit xs
+
+-- | custom generator program and shrinking function to simplify test cases
+genPasswd = listOf (choose ('0','z'))
+shrinkPasswd = shrinkMap (filter (\c -> c >= '0' && c<='z')) id
 ~~~
 
 Note that, along with function correctness, the wrapper code above
@@ -648,22 +658,29 @@ on `stdout`; specific fields:
     language: c
     ```
 
-`inputs`
+`public-inputs`
 
-:    List of input files in order; glob patterns are allowed; e.g.
+:    List of shown input files in order; glob patterns are allowed; e.g.
      
      ```
-     inputs: [ "exercise1/tests/example-in.txt", "exercise1/tests/input*.txt" ]
+     public-inputs: [ "exercise1/tests/example-in.txt", "exercise1/tests/input*.txt" ]
      ```
 
-`outputs`
+`public-outputs`
 
-:    List of expected output files in order; glob patterns are allowed; e.g.
+:    List of shown output files in order; glob patterns are allowed; e.g.
      
      ```
-     outputs: [ "exercise1/tests/example-out.txt", "exercise1/tests/output*.txt" ]
+     public-outputs: [ "exercise1/tests/example-out.txt", "exercise1/tests/output*.txt" ]
      ```
-     
+
+`private-inputs`
+
+:    List of hidden input files in order.
+
+`private-outputs`
+
+:    List of hidden output files in order.
      The number of output files much be the same as the number of inputs.
 
 `files`
@@ -671,11 +688,6 @@ on `stdout`; specific fields:
 :    List of extra files that will be copied to the temporary working
 directory while running the tests.
 
-`arguments`
-
-:    List of files with command-line arguments for each of the test cases
-defined by input/output pairs; by default, the command-line
-arguments are empty.
 
 ### `doctest`
 
@@ -687,10 +699,13 @@ unit-testing simple functions, methods or classes. Extra options:
 
 :     Should be `python` (must be included).
 
-`tests`
+`public-tests`
 
-:     Optional filename for doctests; by default this is the same
-file as the exercise with `.tst` as extension.
+:     List of shown doctest filenames.
+
+`private-tests`
+
+:     List of hidden doctest filenames.
 
 `linter`
 
@@ -705,12 +720,11 @@ file as the exercise with `.tst` as extension.
 :     Optional command-line arguments to pass the linter.
 
 
-### `quickcheck`
+### `hspec`
 
-Test Haskell or C code using a [custom
-version](https://github.com/pbv/codex-quickcheck) of the [QuickCheck
-library](http://hackage.haskell.org/package/QuickCheck).  Extra metata
-options:
+Test Haskell or C code using Hspec and
+the [QuickCheck library](http://hackage.haskell.org/package/QuickCheck).  
+Extra metata options:
 
 `language`
 
@@ -721,26 +735,22 @@ options:
 :     Haskell file with QuickCheck specification (generators and properties);
 defaults to the page filename with the extension replaced by `.hs`.
 
-`maxSuccess`
+`qc-max-success`
 
-:     Number of tests to run.
+:     Number of QuickCheck tests to run.
 
-`maxSize`
+`qc-max-size`
 
-:     Maximum size for generated test data.
+:     Maximum size for QuickCheck generated test data.
 
-`maxDiscardRatio`
+`qc-max-discard`
 
-:     For conditional generators: the maximum number of discarded tests per successful test before giving up.
+:     For QuickCheck conditional generators: the maximum number of discarded tests per successful test before giving up.
 
-`randSeed`
+`seed`
 
-:     Integer seed value for pseudo-random data generation;
+:     Integer seed value for QuickCheck pseudo-random data generation;
 use if you want to ensure reproducibility of tests.
-
-### `hspec` 
-
-Test Haskell code using the Hspec library. TODO: write documentation for this tester.
 
 
 ### `quiz`

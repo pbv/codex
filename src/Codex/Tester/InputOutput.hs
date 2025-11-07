@@ -121,7 +121,8 @@ haskellBuild = do
         T.writeFile hs_file code
         chmod (readable . writeable . executable) tmpdir
         chmod readable hs_file
-        runProcess (Just limits) ghc (ghc_args ++ [hs_file, "-o", exe_file])
+        runProcess (Just limits) ghc (ghc_args ++ ["-i"++tmpdir,
+                                                   hs_file, "-o", exe_file])
         return exe_file
   let run exe_file dir stdin = do
         safeExec limits exe_file dir [] stdin
@@ -168,82 +169,97 @@ stdioTester Build{..} = tester "stdio" $ do
         -- make executable
         exe_file <- makeExec tmpdir code
         -- run public and private tests
-        r1 <- runTests (runExec exe_file (Just tmpdir)) $
+        (s1, r1) <- runTests (runExec exe_file (Just tmpdir)) $
                           zip pub_ins pub_outs
-        r2 <- runTests (runExec exe_file (Just tmpdir)) $
+        (s2, r2) <- runTests (runExec exe_file (Just tmpdir)) $
                           zip priv_ins priv_outs
-        return (tagWith Public r1 <> tagWith Private r2)
+        return (tagWith Public s1 <> tagWith Private s2 <>
+                 tagWith Public r1 <> tagWith Private r2)
 
 
--- run tests until the 1st failure
 runTests :: (Text -> IO (ExitCode, Text, Text))   -- action 
-         -> [(FilePath, FilePath)]  -- ^ input file path, output file path
-         -> IO Result  
-runTests _ [] = mempty
+         -> [(FilePath, FilePath)]  -- ^ input and output file paths
+         -> IO (Result, Result)
+runTests _      [] = return (mempty, mempty)
 runTests action tests
-  = loop 1 tests
-  where
-    total = length tests
-    loop _ []
-      = return $ accepted $ P.plain $ P.text
-               $ T.pack (show total) <>  " tests passed."
-    loop n ((in_file, out_file) : tests) = do
-      result <- runTest action in_file out_file
-      if resultStatus result == Accepted then
-        loop (n+1) tests
-        else
-        return result
-               
+  = do rs <- mapM (runTest action) tests
+       let total  = length tests
+       let passed = length (filter ((==Accepted).resultStatus) rs)
+       let summary = P.bulletList 
+                     [ P.plain ("Test " <> 
+                                P.code (T.pack $ takeFileName i) <>
+                                P.space <>
+                                testResult r)
+                     | ((i,_), r) <- zip tests rs
+                     ]
+                     <>
+                     P.plain (P.str (T.pack $ show total) <>
+                              " tests, " <>
+                              P.str (T.pack $ show passed) <>
+                              " passed."
+                             )
+       return (accepted summary, mconcat rs)
+       
 
 -- run a single test case
 runTest :: (Text -> IO (ExitCode, Text, Text))
-        -> FilePath
-        -> FilePath
+        -> (FilePath, FilePath)
         -> IO Result
-runTest action in_file out_file = do
+runTest action (in_file, out_file) = do
       in_txt <- T.readFile in_file
       out_txt <- T.readFile out_file
-      classify in_txt out_txt <$> action in_txt
+      r <- classify in_txt out_txt <$> action in_txt
+      return $
+        case resultStatus r of
+        Accepted -> mempty  -- nothing to see here
+        _ ->  let msg = P.header 3
+                        ("FAILED:  " <>
+                          P.code (T.pack $ takeFileName in_file))
+              in accepted msg <> r 
     
 
 classify :: Text -> Text -> (ExitCode, Text, Text) -> Result
 classify input expected (ExitSuccess, out, _)
   | out == expected 
-      = accepted (P.plain $ P.str "OK")
+      = mempty
   | removeSpaces out == removeSpaces expected 
       = presentationError $ textDiff expected input out
   | otherwise 
       = wrongAnswer $ textDiff expected input out
-classify input _ (ExitFailure c, _, err)
+classify input _ (ExitFailure _, _, err)
   | match "Time Limit" err   
-      = timeLimitExceeded $ textInput input
+      = timeLimitExceeded (textInput input err) 
   | match "Memory Limit" err 
-      = memoryLimitExceeded $ textInput input
+      = memoryLimitExceeded (textInput input err)
   | match "Output Limit" err 
-      = runtimeError (textInput input <> P.codeBlock err)
-  | otherwise 
-      = let msg = "Program exited with non-zero status: " <> T.pack (show c)
-        in runtimeError  (textInput input <> 
-                          P.plain (P.str msg) <>
-                          P.codeBlock err)
+      = runtimeError (textInput input err)
+  | otherwise
+      = runtimeError (textInput input err)
                 
 removeSpaces :: Text -> Text
 removeSpaces = T.filter (not.isSpace)
 
-textInput :: Text -> P.Blocks
-textInput input  
-  = P.simpleTable []   
-    [ [P.plain $ P.strong $ P.str "Input", P.codeBlock input]
-    ]
+textInput :: Text -> Text -> P.Blocks
+textInput input err
+  = P.header 3 "Input" <> P.codeBlock input <>
+    P.header 3 "Runtime error" <> P.codeBlock err
+
 
 textDiff :: Text -> Text -> Text -> P.Blocks
-textDiff expected input out =
-    P.simpleTable []
-    [ [P.plain $ P.strong $ P.str "Input", P.codeBlock input]
-    , [P.plain $ P.strong $ P.str "Expected Output", P.codeBlock expected]
-    -- , [P.plain $ P.strong $ P.str "Obtained Output", P.codeBlock out]
-    , [P.plain $ P.strong $ P.str "Obtained Output", 
-       P.divWith ("", ["text-diffs"],[]) $ P.plain $ formatDiffs out expected]
-    ]
+textDiff expected input obtained =
+  P.header 3 "Input" <>
+  P.codeBlock input <>
+  P.header 3 "Expected" <>
+  P.codeBlock expected <>
+  P.header 3 "Obtained" <>
+  P.codeBlock obtained <>
+  P.header 3 "Differences" <>
+  P.divWith ("", ["text-diffs"],[])
+      (P.plain $ formatDiffs obtained expected)
 
 
+testResult :: Result -> P.Inlines
+testResult r
+  = case resultStatus r of
+      Accepted -> P.str "PASS"
+      _ -> P.str "FAIL"

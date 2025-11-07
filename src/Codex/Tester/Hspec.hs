@@ -1,4 +1,3 @@
-
 {-# LANGUAGE OverloadedStrings #-}
 --------------------------------------------------------------------------
 -- Test Haskell code using Hspec
@@ -10,14 +9,14 @@ module Codex.Tester.Hspec (
 import           Data.Text (Text)
 import qualified Data.Text as T
 import qualified Data.Text.IO as T
-import           Data.Maybe (fromMaybe)
+import           Data.Maybe (fromMaybe, isJust)
 import           Data.Map.Strict (fromList)
 import           Codex.Tester
 import           Text.Pandoc.Definition (Meta(..), MetaValue(..))
 import qualified Text.Pandoc.Builder as P
 import           Control.Exception(handle)
 import           System.Directory(copyFile)
-
+import           Text.Regex (mkRegex, matchRegex)
 
 -- | running and evaluating Haskell submissions
 hspecHaskellTester :: Tester Result
@@ -34,7 +33,17 @@ hspecHaskellTester = tester "hspec" $ do
   args <- (map T.unpack . getHspecArgs) <$> testMetadata
   ghc <- configured "language.haskell.compiler"
   limits <- configLimits "language.haskell.limits"
-  liftIO (haskellRunner limits ghc args files src spec)
+  forbid <- (fmap mkRegex) <$> metadata "forbid"
+  imports <- metadataWithDefault "imports" ""
+  let code = imports <> "\n" <> src
+  case forbid of
+    Nothing ->
+      liftIO (haskellRunner limits ghc args files code spec)
+    Just re ->
+      if isJust (matchRegex re (T.unpack src)) then
+        return invalidSubmission
+      else
+        liftIO (haskellRunner limits ghc args files code spec)
 
 
 -- | running and evaluaing C submissions
@@ -135,3 +144,13 @@ classify (ExitFailure _, stdout, stderr)
   | otherwise                    = miscError (P.codeBlock msg)
   where msg = stdout <> stderr
 
+
+
+invalidSubmission :: Result
+invalidSubmission
+  = miscError $
+    P.header 2 "Invalid submission" <>
+    P.plain "You submission was rejected because it uses some forbidden language feature."
+
+    
+    
