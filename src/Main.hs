@@ -39,6 +39,7 @@ import           Codex.Tester.Hspec
 import           Codex.Tester.InputOutput
 import           Codex.Tester.Quiz
 import           Codex.Tester.Sqlite
+import           Codex.Tester.Prolog
 import           Snap.Loader.Static
 
 
@@ -66,6 +67,7 @@ testers = foldr1 (<|>)
           , sqliteTester
             -- trivial tester (accepts all submissions)
           , nullTester
+          , prologTester
           ]
 
       

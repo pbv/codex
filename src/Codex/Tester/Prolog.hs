@@ -55,17 +55,18 @@ queryTester = tester "queries" $ do
   let normalize = (if ordering then sortLines else id) .
                   cutOutput outputLimit
   rs1 <- liftIO $
-         mapM (runTest limits prolog normalize answer code) pub_tests
+         zipWithM (runTest limits prolog normalize answer code) [1..] pub_tests
   rs2 <- liftIO $
-         mapM (runTest limits prolog normalize answer code) priv_tests
+         zipWithM (runTest limits prolog normalize answer code) [1..] priv_tests
   return (tagWith Public (mconcat rs1) <> tagWith Private (mconcat rs2))
 
 runTest :: Limits -> [String] -> (Text -> Text)
-        -> Text -> Text -> Text
+        -> Text -> Text -> Int -> Text
         -> IO Result
-runTest _     []            _         _      _    _
+runTest _     []      _     _         _      _    _
   = error "no prolog command; should not happen!"
-runTest limits (prolog:args) normalize answer code query = do
+runTest limits (prolog:args) normalize answer code number query = do
+  let test =  P.text ("Test " <> T.pack (show number)) <> P.space
   expectOut <- runQuery answer query normalize
   obtainOut <- runQuery code query normalize
   return $
@@ -73,10 +74,10 @@ runTest limits (prolog:args) normalize answer code query = do
       (Success out1, Success out2) ->
         if out1 == out2 then
           accepted $
-          P.para (P.text "Test passed: " <> P.code query)
+          P.para (test <> "passed: " <> P.code query)
         else
           wrongAnswer $
-          P.para (P.text "Test failed: " <> P.code query)
+          P.para (test <> "failed: " <> P.code query)
           <> P.para "Output mismatch"
           <>
            P.simpleTable [ P.plain "Expected",
@@ -87,10 +88,10 @@ runTest limits (prolog:args) normalize answer code query = do
       (Failure out1, Failure out2) ->
         if out1 == out2 then
           accepted $
-          P.para (P.text "Test passed: " <> P.code query)
+          P.para (test <> "passed: " <> P.code query)
         else
           wrongAnswer $ 
-          P.para (P.text "Test failed: " <> P.code query)
+          P.para (test <> "failed: " <> P.code query)
           <> P.para "Output mismatch"
           <>
           P.simpleTable [P.plain "Expected",
@@ -100,25 +101,26 @@ runTest limits (prolog:args) normalize answer code query = do
           ]
       (Success out1, Failure out2) ->
         wrongAnswer $
-        P.para (P.text "Test failed: " <> P.code query) <>
+        P.para (test <> "failed: " <> P.code query) <>
         P.para "Query failed, expecting success"
       (Failure out1, Success out2) ->
         wrongAnswer $
-        P.para (P.text "Test failed: " <> P.code query) <>
+        P.para (test <> "failed: " <> P.code query) <>
         P.para "Query succeeded, expecting failure" 
       (_, Error msg) ->
-        let result
+        let handler
+              | match "Syntax error" msg          = compileError
               | match "Memory Limit Exceeded" msg = memoryLimitExceeded
-              | match "Time Limit Exceeded" msg = timeLimitExceeded
+              | match "Time Limit Exceeded" msg   = timeLimitExceeded
               | otherwise = runtimeError
-        in result $
-           P.para (P.text "Test failed: " <> P.code query)
+        in handler $
+           P.para (test <> "failed: " <> P.code query)
            <>
            P.codeBlock msg
 
       (Error msg, _) ->
         miscError $
-        P.para (P.text "INVALID test case: " <> P.code query)
+        P.para (test <> "INVALID: " <> P.code query)
         <>
         P.codeBlock msg
 
