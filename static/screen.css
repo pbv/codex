@@ -165,9 +165,11 @@ ol.submissions:after {
     padding: 0 5px;
     margin-top: 1px;
     margin-bottom: 1px;
-    border-radius: 5px;
-    border: solid;
-    border-width: 1px;
+    /*
+      border-radius: 5px; 
+      border: solid;
+      border-width: 1px;
+   */
 }
 
 .tooltip a {
@@ -437,4 +439,15 @@ div.twocolumn div.left {
 div.twocolumn div.right {
     width: 50%;
     float: right;    
+}
+
+#translation-select {
+    display: block;
+    padding-top: 0.5em;
+    margin-left: 1em;
+}
+
+
+#language-select {
+    margin-left: 0.75em;
 }

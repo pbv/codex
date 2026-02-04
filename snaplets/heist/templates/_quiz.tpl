@@ -5,6 +5,7 @@
       <li><a href="${page-parent-url}" class="icon"
 	     title="Back to the parent page"><apply template="_icon_back"/></a></li>    
     </if-parent>
+    <li><apply template="_changelang"/></li>
   </apply>
     
   <div class="description">
@@ -63,6 +64,7 @@
     }; 
    
   </script>
+  <script type="text/javascript" src="/static/js/changelang.js"/>
 </apply>
 
 

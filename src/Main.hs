@@ -39,7 +39,8 @@ import           Codex.Tester.Hspec
 import           Codex.Tester.InputOutput
 import           Codex.Tester.Quiz
 import           Codex.Tester.Sqlite
-import           Codex.Tester.Prolog
+import           Codex.Tester.PrologREPL
+import           Codex.Tester.HaskellREPL
 import           Snap.Loader.Static
 
 
@@ -56,6 +57,9 @@ testers = foldr1 (<|>)
           , haskellQCTester
           , hspecHaskellTester
           , hspecClangTester
+          -- REPL testers
+          , prologREPL
+          , haskellREPL
             -- I/O testers
           , stdioTester =<< clangBuild
           , stdioTester =<< javaBuild
@@ -67,7 +71,6 @@ testers = foldr1 (<|>)
           , sqliteTester
             -- trivial tester (accepts all submissions)
           , nullTester
-          , prologTester
           ]
 
       

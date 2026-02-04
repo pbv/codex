@@ -4,10 +4,11 @@
 
 module Codex.Tester.Result
   (Result(..), Status(..), Report(..), Visibility(..),
+   isAccepted, isErrorResult,
    evaluating, received, accepted, presentationError,
    compileError, wrongAnswer, runtimeError,
    timeLimitExceeded, memoryLimitExceeded, miscError,
-   tagWith, hidePrivate
+   tagWith, private, label, hidePrivate
   ) where
 
 import qualified Data.Text as T
@@ -38,6 +39,12 @@ data Status = Evaluating
             | Received
             | Accepted
             deriving (Eq, Ord, Read, Show) 
+
+isAccepted :: Result -> Bool
+isAccepted r = resultStatus r == Accepted
+
+isErrorResult :: Result -> Bool
+isErrorResult = not . isAccepted
 
 -- | convertions to/from SQL
 instance ToField Status where
@@ -94,19 +101,34 @@ presentationError = Result PresentationError . Report
 data Visibility = Public | Private
      deriving (Eq, Read, Show)
 
-onReport :: (Blocks -> Blocks) -> Result -> Result
-onReport f r = r { resultReport = Report $ f $ getBlocks $ resultReport r }
+withReport :: (Blocks -> Blocks) -> Result -> Result
+withReport f r
+  = r { resultReport = Report $ f $ getBlocks $ resultReport r }
 
 tagWith :: Visibility -> Result -> Result
 tagWith _ r | r == mempty = r
 tagWith Public  r 
-    = onReport (header 2 "Public tests" <>) r
+    = withReport (header 2 "Public tests" <>) r
 tagWith Private r 
-    = onReport (\bs -> header 2 "Private tests" <> 
-                       divWith ("",["private"], []) bs) r
+    = withReport (\bs -> header 2 "Private tests" <> 
+                         divWith ("",["private"], []) bs) r
+
+
+label :: Inlines -> Result -> Result
+label msg = withReport (smart (header 2 msg <>))
+
+private :: Result -> Result
+private = withReport (smart (divWith ("",["private"],[])))
+
+smart :: (Blocks -> Blocks) -> Blocks -> Blocks
+smart f bs 
+  | bs == mempty = mempty
+  | otherwise    = f bs
+
+
 
 hidePrivate :: Result -> Result
-hidePrivate r = onReport (walk hide) r
+hidePrivate r = withReport (walk hide) r
   where
     hide :: Block -> Block
     hide (Div (_,classes,_) _)

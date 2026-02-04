@@ -8,7 +8,7 @@
 
   <table class="filelist">
     <tr>
-      <td/> <th>Nome</th> <th>Tipo</th>  <th>Última alteração</th>
+      <td/> <th>Name</th> <th>Type</th>  <th>Modified</th>
     </tr>
     <file-list>
       <tr>

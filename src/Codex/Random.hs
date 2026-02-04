@@ -1,5 +1,6 @@
 {-# LANGUAGE DeriveFunctor #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
+{-# LANGUAGE BangPatterns #-}
 --
 -- | A monad for computations that require pseudo-randomization
 --
@@ -12,6 +13,7 @@ import           System.Random
 import           Control.Monad.State.Strict
 import qualified Data.IntMap as IntMap
 import           Data.IntMap (IntMap, (!))
+import           Data.List (foldl')
 
 
 -- | state monad for random computations
@@ -35,7 +37,7 @@ shuffle xs = Rand $ do
 --
 fisherYatesStep ::
   RandomGen g => (IntMap a, g) -> (Int, a) -> (IntMap a, g)
-fisherYatesStep (m, gen) (i, x)
+fisherYatesStep (!m, !gen) (!i, !x)
   = ((IntMap.insert j x . IntMap.insert i (m ! j)) m, gen')
   where
     (j, gen') = randomR (0, i) gen
@@ -43,7 +45,7 @@ fisherYatesStep (m, gen) (i, x)
 fisherYates :: RandomGen g => g -> [a] -> ([a], g)
 fisherYates gen [] = ([], gen)
 fisherYates gen (x:xs) = 
-  toElems $ foldl fisherYatesStep (initial x) (zip [1..] xs)
+  toElems $ foldl' fisherYatesStep (initial x) (zip [1..] xs)
   where
     toElems (x, y) = (IntMap.elems x, y)
     initial x = (IntMap.singleton 0 x, gen)  

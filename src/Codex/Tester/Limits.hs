@@ -23,6 +23,8 @@ data Limits
            , maxFSize :: !(Maybe Int)     -- KB
            , maxCore :: !(Maybe Int)      -- KB
            , numProc :: !(Maybe Int)
+           , minUID :: !(Maybe Int)
+           , maxUID :: !(Maybe Int)
            } deriving (Eq, Show, Read)
 
 
@@ -36,6 +38,8 @@ instance Monoid Limits where
              , numProc      = Nothing
              , maxFSize     = Nothing
              , maxCore      = Nothing
+             , minUID       = Nothing
+             , maxUID       = Nothing
              }            
 
 instance Semigroup Limits where
@@ -47,7 +51,9 @@ instance Semigroup Limits where
                maxStack     = maxStack l `mplus` maxStack r,
                maxFSize     = maxFSize l `mplus` maxFSize r,
                maxCore      = maxCore l `mplus` maxCore r,
-               numProc      = numProc l `mplus` numProc r
+               numProc      = numProc l `mplus` numProc r,
+               minUID       = minUID l `mplus` minUID r,
+               maxUID       = maxUID l `mplus` maxUID r
              }
 
 
@@ -62,6 +68,8 @@ lookupLimits cfg = do
   nproc <- Configurator.lookup cfg "num_proc"
   max_fsize <- Configurator.lookup cfg "max_fsize"
   max_core <- Configurator.lookup cfg "max_core"
+  min_uid <- Configurator.lookup cfg "min_uid"
+  max_uid <- Configurator.lookup cfg "max_uid"
   return Limits  { maxCpuTime   = cpu
                  , maxClockTime = clock
                  , maxMemory    = mem
@@ -69,6 +77,8 @@ lookupLimits cfg = do
                  , numProc      = nproc
                  , maxFSize     = max_fsize
                  , maxCore      = max_core
+                 , minUID       = min_uid
+                 , maxUID       = max_uid
                  }
 
 

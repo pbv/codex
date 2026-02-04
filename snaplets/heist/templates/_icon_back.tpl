@@ -1,1 +1,1 @@
-<span class="icon">&curvearrowleft;</span>
+<span class="icon">↩</span>

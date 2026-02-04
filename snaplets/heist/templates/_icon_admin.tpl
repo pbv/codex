@@ -1,1 +1,2 @@
-<span class="icon">&#x2699;</span>
+Admin
+<!-- <span class="icon">&#x2699;</span> -->

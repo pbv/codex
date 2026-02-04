@@ -54,7 +54,9 @@ dependencies:
 - web-routes
 - xmlhtml
 - http-types
+- http-conduit
 - regex-compat
+- regex-tdfa
 - fast-myers-diff
 
 executables:

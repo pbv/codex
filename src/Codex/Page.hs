@@ -10,8 +10,10 @@ module Codex.Page where
 import           Text.Pandoc hiding (Code)
 import qualified Text.Pandoc ( Inline(Code) )
 import           Text.Pandoc.Walk
+
 import qualified Text.Pandoc.Builder as P
 
+-- import           Text.Pandoc.Highlighting (monochrome)
 
 import           Text.XmlHtml
 import           Text.Blaze.Renderer.XmlHtml
@@ -26,7 +28,7 @@ import qualified Data.Text.Read as T
 
 import           Control.Applicative
 import           Control.Monad.IO.Class
-import           Control.Exception  (IOException)
+import           Control.Exception  (IOException, throwIO)
 import           Control.Exception.Lifted  (try)
 
 import           Codex.Types
@@ -201,7 +203,19 @@ parseMarkdown :: Text -> Either PandocError Pandoc
 parseMarkdown txt = runPure $ do
   doc <- readMarkdown pandocReaderOptions txt 
   msgs <- getLog
-  return $ docWarnings msgs <> doc  
+  return $ docWarnings msgs <> cleanupCodeBlocks doc  
+
+-- | ensure all code blocks include some attribute
+-- this works around pandoc's default of using indented code blocks
+-- with empty attributes
+cleanupCodeBlocks :: Pandoc -> Pandoc
+cleanupCodeBlocks = walk cleanup
+  where
+    cleanup :: Block -> Block
+    cleanup (CodeBlock attrs code)
+      | attrs == nullAttr = CodeBlock ("",["default"],[]) code
+    cleanup blk = blk
+
 
 -- | process all include directives in code blocks 
 processIncludes :: FilePath -> Pandoc -> IO Pandoc
@@ -280,6 +294,7 @@ docWarnings msgs
       [Para [Str "WARNING:", Space, Str (T.pack $ show msg)] | msg <- msgs]]
 
 
+
 errorBlock :: [Block] -> Block
 errorBlock = Div ("", ["errors"],[]) 
 
@@ -346,4 +361,34 @@ hardenBreaks = walk harden
     harden :: P.Inline -> P.Inline
     harden P.SoftBreak = P.LineBreak
     harden i = i
-    
+
+
+-- ++++++++++++++++++++++++++++++++++++++++++++++++
+-- | PI Improvements                              
+-- ++++++++++++++++++++++++++++++++++++++++++++++++
+
+-- | Write a Pandoc document to a Markdown file
+
+writeMarkdownFile :: MonadIO m => FilePath -> Pandoc -> m ()
+writeMarkdownFile filepath doc = liftIO $ do
+  tplText <- runIOorExplode (getTemplate "template.md")
+  result <- compileTemplate "template.md" tplText
+  case result of
+    Left msg ->
+      throwIO $ userError msg
+    Right tpl -> do
+      result <- runIO (writeMarkdown (writerOptions tpl) doc)
+      case result of
+        Left msg ->
+          throwIO $ userError (show msg)
+        Right text ->
+          T.writeFile filepath text
+  
+writerOptions tpl
+  = def
+    { writerTemplate = Just tpl
+    , writerExtensions = pandocExtensions
+    , writerSetextHeaders = False
+    }
+
+-- ++++++++++++++++++++++++++++++++++++++++++++++++

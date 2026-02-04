@@ -343,3 +343,32 @@ whenM cond action = do
   c <- cond
   when c action
 
+
+-- ++++++++++++++++++++++++++++++++++++++++++++++++
+-- | PI Improvements                              
+-- ++++++++++++++++++++++++++++++++++++++++++++++++
+
+-- Function to add language code to file name
+addLanguage :: FilePath -> String -> FilePath
+addLanguage path lang =
+  let dir = takeDirectory path
+      name = takeBaseName path
+      ext = takeExtension path
+  in dir </> (name ++ "_" ++ lang ++ ext)
+
+
+
+data DeepLConfig
+  = DeepLConfig  { deepLAPIKey :: String
+                 , deepLURL :: String
+                 , defaultLanguage :: Maybe String
+                 }
+    deriving Show
+          
+getDeepLConfig :: Codex DeepLConfig
+getDeepLConfig = do
+  conf <- getSnapletUserConfig
+  apiKey <- liftIO $ Configurator.require conf "deepLConfig.APIKey"
+  url <- liftIO $ Configurator.require conf "deepLConfig.URL"
+  defLang <- liftIO $ Configurator.lookup conf "deepLConfig.defaultLanguage"
+  return (DeepLConfig apiKey url defLang)

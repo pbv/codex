@@ -210,6 +210,10 @@ safeExecBS Limits{..} exec dir args inbs = do
             ++
             mkArg "--nproc" numProc
             ++
+            mkArg "--minuid" minUID
+            ++
+            mkArg "--maxuid" maxUID
+            ++
             ["--exec", exec] 
 
 
