@@ -19,7 +19,7 @@ import           System.Directory(copyFile)
 
 -- | running and evaluating Haskell submissions
 hspecHaskellTester :: Tester Result
-hspecHaskellTester = tester "hspec" $ language "haskell" $ restrict $ do
+hspecHaskellTester = tester "hspec" $ language "haskell" $ checkForbidden $ do
   Code _ src <- testCode
   path <- testFilePath
   let dir = takeDirectory path

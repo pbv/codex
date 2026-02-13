@@ -48,8 +48,9 @@ import           Codex.Types
 import           Codex.Page
 import           Codex.Application
 
+import           Data.Time
 import           Data.Time.LocalTime
-import Data.Time.Format ( defaultTimeLocale, formatTime ) 
+import           Data.Time.Format ( defaultTimeLocale, formatTime ) 
 
 import           System.FilePath
 import qualified System.FastLogger as FastLogger
@@ -258,14 +259,12 @@ caseSplice v = tagCaseSplice (T.pack $ show v)
 checkboxInput :: [(Text,Text)] -> [X.Node] -> X.Node
 checkboxInput attrs = X.Element "input" (("type","checkbox") : attrs) 
 
-{-
 jsTimer :: String -> NominalDiffTime -> [X.Node]
 jsTimer id secs
-  = [X.Element "span" [("id",T.pack id),
+  = [X.Element "span" [("id", T.pack id),
                        ("class", "js-timer")] [],
      javascript $ T.pack $
-     "start_countdown(" ++ show id ++ "," ++ show (floor secs :: Int) ++ ");"]
--}
+     "start_countdown(" ++ show id ++ "," ++ show (ceiling secs :: Int) ++ ");"]
 
 javascript :: Text -> X.Node
 javascript txt

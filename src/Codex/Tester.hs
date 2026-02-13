@@ -3,7 +3,7 @@ module Codex.Tester (
   oneOf,
   tester,
   language,
-  restrict,
+  checkForbidden,
   nullTester,
   -- * module re-exports
   Meta, Code(..),
@@ -65,8 +65,8 @@ language name cont = do
   cont
 
 -- | check for restricted expressions in the code
-restrict :: Tester Result -> Tester Result
-restrict cont = do
+checkForbidden :: Tester Result -> Tester Result
+checkForbidden cont = do
   opt <- metadata "forbid" :: Tester (Maybe Text)
   case opt  of
     Nothing -> cont

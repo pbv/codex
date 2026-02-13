@@ -13,8 +13,9 @@
        <apply-content/>
     </ul>
     <span id="uppercorner">
-      <timeNow/>&nbsp;<loggedInName/>&nbsp;(<code><loggedInUser/></code>)
-      &nbsp;<a class="button" href="${logout}">Logout</a> 
+      <timeNow/>&nbsp;<timeRemaining/>&nbsp;
+      <loggedInName/>&nbsp;(<code><loggedInUser/></code>)
+      &nbsp;<a class="button" href="${logout}">Logout</a>
     </span>
   </ifLoggedIn>
 </div>

@@ -1,5 +1,6 @@
 {-# LANGUAGE OverloadedStrings   #-}
 {-# LANGUAGE NamedFieldPuns #-}
+{-# LANGUAGE BangPatterns #-}
 
 ------------------------------------------------------------------------------
 -- | This module is where all the routes and handlers are defined for your
@@ -44,6 +45,7 @@ import           Snap.Util.FileServe                         (fileType,
 
 import           Data.Time.Clock
 import           Data.Time.LocalTime
+import           Data.Time.Format
 
 import           System.FilePath
 
@@ -115,9 +117,9 @@ handleGetTranslation rqpath = do
         then readMarkdownFile translatedFile
         else do
         -- Make a new translation
-        page <- readMarkdownFile originalFile
+        !page <- readMarkdownFile originalFile
         let translatedFile = root </> addLanguage rqpath lang 
-        translated <- translateMarkdown page lang
+        !translated <- translateMarkdown page lang
         liftIO $ writeMarkdownFile translatedFile translated
         return translated
 
@@ -218,6 +220,14 @@ nowSplice = do
   t <- liftIO getCurrentTime
   localTimeSplice (utcToLocalTime tz t)
 
+timerSplice :: I.Splice Codex
+timerSplice = do
+  opt <- lift getRemainingTime
+  return $ case opt of
+    Nothing ->  []
+    Just diff -> jsTimer "remaining-time" diff
+        
+
 versionSplice :: I.Splice Codex
 versionSplice = I.textSplice (T.pack (showVersion version))
 
@@ -310,6 +320,7 @@ staticSplices = do
   "submissionList" ## urlSplice App.SubmissionList
   "version" ## versionSplice
   "timeNow" ## nowSplice
+  "timeRemaining" ## timerSplice
   "if-evaluating" ## return []
   "ifLoggedIn" ## ifLoggedIn App.auth
   "ifLoggedOut" ## ifLoggedOut App.auth

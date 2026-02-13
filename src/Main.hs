@@ -41,6 +41,7 @@ import           Codex.Tester.Quiz
 import           Codex.Tester.Sqlite
 import           Codex.Tester.PrologREPL
 import           Codex.Tester.HaskellREPL
+import           Codex.Tester.PythonREPL
 import           Snap.Loader.Static
 
 
@@ -60,6 +61,7 @@ testers = foldr1 (<|>)
           -- REPL testers
           , prologREPL
           , haskellREPL
+          , pythonREPL
             -- I/O testers
           , stdioTester =<< clangBuild
           , stdioTester =<< javaBuild

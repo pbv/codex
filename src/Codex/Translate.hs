@@ -14,6 +14,8 @@ import qualified Text.Pandoc.Builder as P
 import           Text.Pandoc.Walk (walkM)
 import           Data.Char(isSpace)
 
+import           Control.Monad.Trans(liftIO)
+
 import Codex.Types (Page)
 import Codex.Utils
 import Codex.Application
@@ -87,6 +89,7 @@ toText _         = Nothing
 
 sendTranslationRequest :: Text -> String -> Codex Text
 sendTranslationRequest text targetLang = do
+  liftIO $ print text
   conf <- getDeepLConfig
   let request = prepareRequest conf targetLang text
   response <- httpLBS request

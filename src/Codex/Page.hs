@@ -374,7 +374,7 @@ writeMarkdownFile filepath doc = liftIO $ do
   tplText <- runIOorExplode (getTemplate "template.md")
   result <- compileTemplate "template.md" tplText
   case result of
-    Left msg ->
+    Left msg -> 
       throwIO $ userError msg
     Right tpl -> do
       result <- runIO (writeMarkdown (writerOptions tpl) doc)
