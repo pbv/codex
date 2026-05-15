@@ -293,10 +293,18 @@ docWarnings msgs
     [Div ("", ["warnings"], [])
       [Para [Str "WARNING:", Space, Str (T.pack $ show msg)] | msg <- msgs]]
 
+docErrorMsg :: Text -> Pandoc
+docErrorMsg err
+  = Pandoc mempty
+    [Div ("", ["error"], []) [Para [Str "ERROR:", Space, Str err]]]
+  
 
 
 errorBlock :: [Block] -> Block
 errorBlock = Div ("", ["errors"],[]) 
+
+
+
 
 -- Format text differences as an inline Pandoc fragment
 -- tries both character and line differences and choose the shorter one

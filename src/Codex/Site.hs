@@ -16,8 +16,7 @@ import           Control.Applicative
 import           Control.Concurrent.MVar
 import           Control.Lens
 import           Control.Monad.State
-import           System.Directory (doesFileExist,removeFile)
-
+import           System.Directory (doesFileExist, removeFile)
 import           Data.Char (isAlphaNum)
 import           Data.ByteString.UTF8                        (ByteString)
 import qualified Data.ByteString.UTF8                        as B
@@ -45,7 +44,6 @@ import           Snap.Util.FileServe                         (fileType,
 
 import           Data.Time.Clock
 import           Data.Time.LocalTime
-import           Data.Time.Format
 
 import           System.FilePath
 
@@ -68,7 +66,6 @@ import           Codex.Types
 import           Codex.Utils
 import           Codex.Tester
 import           Codex.Tasks
-import           Codex.Translate (translateMarkdown)
 import           Data.Version                                (showVersion)
 import           Paths_codex                                 (version)
            
@@ -93,11 +90,12 @@ handleGet uid rqpath = do
     page <- handleGetTranslation rqpath
     Handlers{handleView} <- gets _handlers
     withSplices (urlSplices rqpath) $ handleView uid rqpath page
-  else
-    -- just serve the file if it is not markdown 
-    serveFileAs mime rqpath
+  else do
+    -- just serve the file if it is not markdowndo
+    root <- getDocumentRoot
+    serveFileAs mime (root </> rqpath)
 
--- | try to load an exercise page possibly translated
+-- | try to load a markdown possibly with translation
 handleGetTranslation :: FilePath -> Codex Page
 handleGetTranslation rqpath = do
   root <- getDocumentRoot
@@ -111,39 +109,18 @@ handleGetTranslation rqpath = do
 
     Just lang -> do  -- If there is ?lang=XX, translate
       let translatedFile = root </> addLanguage rqpath lang 
-      fileExists <- liftIO $ doesFileExist translatedFile
-      if fileExists 
-        -- If the translated file already exists, serve it
-        then readMarkdownFile translatedFile
+      check <- liftIO $ doesFileExist translatedFile
+      if check then 
+        readMarkdownFile translatedFile
         else do
-        -- Make a new translation
-        !page <- readMarkdownFile originalFile
-        let translatedFile = root </> addLanguage rqpath lang 
-        !translated <- translateMarkdown page lang
-        liftIO $ writeMarkdownFile translatedFile translated
-        return translated
+        doc <- readMarkdownFile originalFile
+        return (unavailableTranslation lang <> doc)
 
-  
+unavailableTranslation :: String -> Page
+unavailableTranslation lang
+  = docErrorMsg ("Translation for language " <> T.pack lang <> " not available.")
 
-
-{-
-translationMissing :: String -> Pandoc
-translationMissing lang
-  = P.doc $
-    P.divWith ("",["warnings"],[]) 
-     (P.para (P.text "Translation for language " <>
-              P.space <>
-               P.str (T.pack lang) <>
-               P.space <>
-               P.text "is not available"))
--}
-
-{-
-servePage :: UserLogin -> FilePath -> Page -> Codex ()
-servePage uid rqpath page = do
-  Handlers{handleView} <- gets _handlers
-  withSplices (urlSplices rqpath) $ handleView uid rqpath page
--}
+    
 
 -- ++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 
@@ -186,8 +163,6 @@ routes :: [(ByteString, Codex ())]
 routes =
   [ ("",        routeWith routeAppUrl)
   , ("/static", (getStaticRoot >>= serveDirectory) <|> notFound)
-  -- route to receive shibboleth idp response with user attributes
-  -- , ("/shibboleth-callback", handleShibbolethCallback)
   ]
 
 
@@ -200,7 +175,6 @@ routeAppUrl appUrl =
     App.Register -> handleRegister 
     App.Page path -> handlePage (joinPath path)
     App.Report sid -> handleGetReport sid 
-    -- App.Shibboleth -> handleShibbolethLogin
     App.Files path -> handleBrowse (joinPath path)
     App.SubmissionAdmin sid -> handleSubmissionAdmin sid
     App.SubmissionList-> handleSubmissionList
@@ -238,7 +212,7 @@ codexInit handlers tester =
   makeSnaplet "codex" "Web server for programming exercises." Nothing $ do
     conf <- getSnapletUserConfig
     prefix <- liftIO $ Conf.require conf "url_prefix"
-    dpl <- liftIO $ deepLSplices conf
+    dpl <- liftIO $ translateSplices conf
     h <- nestSnaplet "" App.heist $ heistInit "templates"
     r <- nestSnaplet "router" App.router (initRouter prefix)
     let sessName = sessionName prefix
@@ -299,14 +273,14 @@ configSplices conf = do
     "mathjax-js" ## return (map javascriptSrc mathjax_js)
     "ace-editor-js" ## return (map javascriptSrc ace_editor_js)
 
-deepLSplices :: Config -> IO ISplices
-deepLSplices conf = do
-  defaultLang <- Conf.lookup conf "deepLConfig.defaultLanguage"
-  langs <- Conf.require conf "deepLConfig.otherLanguages"
+translateSplices :: Config -> IO ISplices
+translateSplices conf = do
+  defaultLang <- Conf.lookup conf "translations.defaultLanguage"
+  langs <- Conf.require conf "translations.otherLanguages"
   let splice lang = "language" ## I.textSplice lang
   return $ do
-    "deepL-default-language" ##  I.textSplice (fromMaybe "default" defaultLang)
-    "deepL-languages" ## I.mapSplices (I.runChildrenWith . splice) langs
+    "translate-default-language" ##  I.textSplice (fromMaybe "default" defaultLang)
+    "translate-other-languages" ## I.mapSplices (I.runChildrenWith . splice) langs
 
 
 staticSplices :: ISplices

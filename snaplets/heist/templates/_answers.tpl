@@ -11,7 +11,6 @@
   <apply template="_browse">
     <li><a href="${page-url}"
 	   title="Back to the parent page"><apply template="_icon_back"/></a></li>
-  <li><apply template="_changelang"/></li>
   </apply>
   
   <h2>Submission <submit-id/></h2>

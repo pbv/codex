@@ -105,7 +105,7 @@ loginLdapUser ldapConf user passwd = do
       redirectURL home
 
 
--- register the timer start (if not set already)
+-- register the exam timer start (if not set already)
 registerTimer :: AuthUser -> Codex ()
 registerTimer au@AuthUser{..}
   | HM.member "timerStart" userMeta = return ()
@@ -148,17 +148,19 @@ getRemainingTime = do
           Just (duration + timerBonus - diffUTCTime now timerStart)
 
 
--- | newtype for converting time differences
+-- | a newtype for converting time differences
 newtype DiffTime = DiffTime NominalDiffTime
 
 instance Configurator.Configured DiffTime where
-  convert (Configurator.String txt) = DiffTime <$> parseDiffTime (T.unpack txt)
+  convert (Configurator.String txt)
+    = DiffTime <$> parseDiffTime (T.unpack txt)
   convert _ = Nothing
 
 instance FromJSON DiffTime where
-  parseJSON (String txt) = case parseDiffTime (T.unpack txt) of
-                             Nothing -> fail "invalid time diff"
-                             Just diff -> return (DiffTime diff)
+  parseJSON (String txt)
+    = case parseDiffTime (T.unpack txt) of
+        Nothing -> fail "invalid time diff"
+        Just diff -> return (DiffTime diff)
   parseJSON v = typeMismatch "String" v
                              
 

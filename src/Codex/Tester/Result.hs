@@ -128,13 +128,10 @@ smart f bs
 
 
 hidePrivate :: Result -> Result
-hidePrivate r = withReport (walk hide) r
+hidePrivate = withReport (walk hide) 
   where
     hide :: Block -> Block
     hide (Div (_,classes,_) _)
-      | "private"`elem`classes 
-           = Plain [Strong [Str $ T.pack $ show $ resultStatus r],
-                    Space,
-                    Emph [Str "(details hidden.)"]]
+      | "private"`elem`classes = Plain [Emph [Str "Hidden"]]
     hide block = block
 
