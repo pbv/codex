@@ -1,5 +1,6 @@
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE TypeApplications #-}
+{-# LANGUAGE RecordWildCards #-}
 --
 -- | Test SQL queries using the SQLite interpreter
 --
@@ -22,11 +23,11 @@ sqliteTester = queryTester <|> updateTester
 -- | Tester for queries
 --
 queryTester :: Tester Result
-queryTester = tester "sqlite-query" $ do
+queryTester = tester "sqlite-query" $ checkForbidden $ do
   Code lang query <- testCode
   guard (lang == "sql")
   ---
-  limits <- configLimits "language.sqlite.limits"
+  profile <- configured "language.sqlite.profile"
   sqlite <- parseArgs =<< configured "language.sqlite.command" 
   answer <- metadataWithDefault "answer" ""
   assert (pure $ answer /= "") "missing SQL query answer in metadata"
@@ -41,17 +42,17 @@ queryTester = tester "sqlite-query" $ do
   ordering <- metadataWithDefault "ignore-order" False
   let normalize = if ordering then sort else id
   rs1 <- liftIO $
-         mapM (runQuery limits sqlite normalize answer query) pub_dbs
+         mapM (runQuery profile sqlite normalize answer query) pub_dbs
   rs2 <- liftIO $
-         mapM (runQuery limits sqlite normalize answer query) priv_dbs
+         mapM (runQuery profile sqlite normalize answer query) priv_dbs
   return (tagWith Public (mconcat rs1) <> tagWith Private (mconcat rs2))
 
-runQuery :: Limits -> [String] -> ([Text] -> [Text])
+runQuery :: FilePath -> [String] -> ([Text] -> [Text])
          -> Text -> Text -> FilePath
          -> IO Result
 runQuery _      []               _         _           _         _ 
   = error "sqlite command not defined in config file"
-runQuery limits (sqlcmd:sqlargs) normalize answer_sql query_sql db = do
+runQuery profile (sqlcmd:sqlargs) normalize answer_sql query_sql db = do
   expected <- runSqlite answer_sql db 
   obtained <- runSqlite query_sql db
   return $
@@ -77,18 +78,18 @@ runQuery limits (sqlcmd:sqlargs) normalize answer_sql query_sql db = do
   where
     runSqlite :: Text -> FilePath -> IO (Either Text [Text])
     runSqlite sql db = do
-      (exitCode, stdout, stderr) <-
-        safeExec limits sqlcmd Nothing (sqlargs++["-readonly", "-column", "-header", db]) sql
-      return $ case exitCode of
+      ProcessRun{..} <-
+        sandboxExec profile sqlcmd (sqlargs++["-readonly", "-column", "-header", db]) sql
+      return $ case procExitCode of
         ExitFailure _ ->
-          Left stderr
+          Left procStderr
         ExitSuccess ->
           -- NB: SQLite can exit with zero code in many errors,
           -- so we need to check stderr
-          if match "Error" stderr then
-            Left stderr
+          if match "Error" procStderr then
+            Left procStderr
           else
-            Right (T.lines stdout)
+            Right (T.lines procStdout)
 
 
 maxOutput :: Int
@@ -113,7 +114,7 @@ updateTester = tester "sqlite-update" $ do
   Code lang update <- testCode
   guard (lang == "sql")
   ---
-  limits <- configLimits "language.sqlite.limits"
+  profile <- configured "language.sqlite.profile"
   sqlite <- parseArgs =<< configured "language.sqlite.command" 
   sqldiff<- parseArgs =<< configured "language.sqlite.diff" 
   answer <- metadataWithDefault "answer" ""
@@ -124,19 +125,19 @@ updateTester = tester "sqlite-update" $ do
   assert (pure $ not $ null pub_dbs && null priv_dbs)
         "no SQL databases specified in exercise metadata"
   rs1 <- liftIO $
-         mapM (runUpdate limits sqlite sqldiff answer update) pub_dbs
+         mapM (runUpdate profile sqlite sqldiff answer update) pub_dbs
   rs2 <- liftIO $
-         mapM (runUpdate limits sqlite sqldiff answer update) priv_dbs
+         mapM (runUpdate profile sqlite sqldiff answer update) priv_dbs
   return (tagWith Public (mconcat rs1) <> tagWith Private (mconcat rs2))
 
 
-runUpdate :: Limits -> [String] -> [String] -> Text -> Text -> FilePath
+runUpdate :: FilePath -> [String] -> [String] -> Text -> Text -> FilePath
           -> IO Result
 runUpdate  _     []            _               _      _      _  =
   error "sqlite command not defined in config file"
 runUpdate  _     _            []               _      _      _  =
   error "sqldiff command not defined in config file"
-runUpdate limits (sqlite:args) (sqldiff:args') answer update db = do
+runUpdate profile (sqlite:args) (sqldiff:args') answer update db = do
   withTempFile "expected.db" db $ \expected ->
     withTempFile "observed.db" db $ \observed -> do
       r1 <- runSql answer expected
@@ -167,27 +168,25 @@ runUpdate limits (sqlite:args) (sqldiff:args') answer update db = do
   where
     runSql :: Text -> FilePath -> IO (Either Text ())
     runSql sql db = do
-      (exitCode, _stdout, stderr) <-
-        safeExec limits sqlite Nothing (args ++ [db]) sql
-      return $ case exitCode of
+      ProcessRun{..} <- sandboxExec profile sqlite (args ++ [db]) sql
+      return $ case procExitCode of
         ExitFailure _ ->
-          Left stderr
+          Left procStderr
         ExitSuccess ->
-          if match "Error" stderr then
-            Left stderr
+          if match "Error" procStderr then
+            Left procStderr
           else
             Right ()
 
     runDiff :: FilePath -> FilePath -> IO (Either Text Text)
     runDiff db1 db2 = do
-      (exitCode, stdout, stderr) <-
-        safeExec limits sqldiff Nothing (args' ++ [db1, db2]) ""
-      return $ case exitCode of
+      ProcessRun{..} <- sandboxExec profile sqldiff (args' ++ [db1, db2]) ""
+      return $ case procExitCode of
         ExitSuccess ->
-          if match "Error" stderr
-          then Left stderr
-          else Right stdout
+          if match "Error" procStderr
+          then Left procStderr
+          else Right procStdout
         ExitFailure _ ->
-          Left stderr
+          Left procStderr
 
 

@@ -1,5 +1,6 @@
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE DeriveFunctor #-}
+{-# LANGUAGE RecordWildCards #-}
 --
 -- | Test Prolog programs
 --
@@ -15,11 +16,11 @@ import           Control.Concurrent.Async (concurrently)
 
 import qualified Text.Pandoc.Builder as P
 
--- a Prolog query with some output
+-- the result of a Prolog query 
 data Query a 
   = Success a       -- ^ query succeeded 
   | Failure a       -- ^ query failed
-  | Error Text      -- ^ runtime error (with stderr)
+  | Error Text      -- ^ runtime error 
   deriving (Eq, Show, Functor)
 
 -- normalize the query output
@@ -35,10 +36,10 @@ cutOutput n txt
 -- | Tester for Prolog queries
 --
 prologREPL :: Tester Result
-prologREPL = tester "repl" $ language "prolog" $ checkForbidden $ do
-  Code _ code <- testCode
+prologREPL = tester "repl" $ checkForbidden $ do
+  Code lang code <- testCode
+  guard (lang == "prolog")
   ---
-  limits <- configLimits "language.prolog.limits"
   cmdline <- parseArgs =<< configured "language.prolog.interpreter"
   assert (pure $ cmdline /= [])  "prolog interpreter not defined"
   answer <- metadataWithDefault "answer" ""
@@ -50,12 +51,15 @@ prologREPL = tester "repl" $ language "prolog" $ checkForbidden $ do
   outputLimit <- metadataWithDefault "output-limit" maxOutput
   let normalize = (if ordering then sortLines else id) .
                   cutOutput outputLimit
-  rs1 <- zipWithM (runTest limits cmdline normalize answer code)
+  profile <- configured "language.prolog.firejail"
+  rs1 <- zipWithM (runTest profile cmdline normalize answer code)
                            [1..] pub_tests
-  rs2 <- zipWithM (runTest limits cmdline normalize answer code)
+  rs2 <- zipWithM (runTest profile cmdline normalize answer code)
                            [length pub_tests+1..] priv_tests
-  return (label "Public tests" (mconcat rs1) <>
-          label "Private tests" (private (mconcat rs2)) <>
+  return (label "Public tests" (mconcat rs1)
+          <>
+          label "Private tests" (private (mconcat rs2))
+          <>
           label "Summary" (summary (rs1++rs2)))
 
 summary :: [Result] -> Result
@@ -68,12 +72,12 @@ summary rs
 
 
          
-runTest :: MonadIO m => Limits -> [String] -> (Text -> Text)
+runTest :: MonadIO m => FilePath -> [String] -> (Text -> Text)
         -> Text -> Text -> Int -> Text
         -> m Result
 runTest _     []      _     _         _      _    _
   = error "no prolog command; should not happen!"
-runTest limits (prolog:args) normalize answer code number query = do
+runTest profile (prolog:args) normalize answer code number query = do
   let test =  P.text ("Test " <> T.pack (show number)) <> P.space
   (expected,
    obtained) <- liftIO $ concurrently 
@@ -107,12 +111,12 @@ runTest limits (prolog:args) normalize answer code number query = do
           P.codeBlock out1 <>
           P.plain "Obtained" <>
           P.codeBlock out2
-      (Success out1, Failure out2) ->
+      (Success _, Failure _) ->
         wrongAnswer $
         P.para (P.strong (test <> "failed")) <>
         P.codeBlock query <>
         P.para "Query failed, expecting success"
-      (Failure out1, Success out2) ->
+      (Failure _, Success _) ->
         wrongAnswer $
         P.para (P.strong (test <> "failed")) <>
         P.codeBlock query <>
@@ -120,9 +124,9 @@ runTest limits (prolog:args) normalize answer code number query = do
       (_, Error msg) ->
         let handler
               | match "Syntax error" msg          = compileError
-              | match "Memory Limit Exceeded" msg = memoryLimitExceeded
-              | match "Time Limit Exceeded" msg   = timeLimitExceeded
-              | otherwise = runtimeError
+              | match "Stack limit" msg           = memoryLimitExceeded
+              | match "TimeLimitExceeded" msg     = timeLimitExceeded
+              | otherwise                         = runtimeError
         in handler $
            P.para (P.strong (test <> "failed")) <>
            P.codeBlock query <>
@@ -138,19 +142,18 @@ runTest limits (prolog:args) normalize answer code number query = do
     runQuery code query  =
       withTemp "code.pl" code $
       \file -> do
-        chmod readable file
-        (exitCode, stdout, stderr) <-
-          safeExec limits prolog Nothing (args ++ ["-q", "-l", file, "-g", T.unpack query]) ""
+        ProcessRun{..} <-
+          sandboxExec profile prolog (args ++ ["-q", "-l", file, "-g", T.unpack query]) ""
         return $
-          if match "ERROR:" stderr ||
-             match "Time Limit Exceeded" stderr ||
-             match "Memory Limit Exceeded" stderr
+          if match "TimeLimitExceeded" procStderr ||
+             match "Stack Limit" procStderr ||
+             match "ERROR:" procStderr 
           then
-            Error stderr
+            Error procStderr
           else
-            case exitCode of
-              ExitSuccess -> Success stdout
-              ExitFailure _ -> Failure stdout
+            case procExitCode of
+              ExitSuccess -> Success procStdout
+              ExitFailure _ -> Failure procStdout
 
 -- default maximum characters of output
 maxOutput :: Int
@@ -161,8 +164,8 @@ parseTests :: Text -> [Text]
 parseTests 
   = filter (not . T.null) . map T.strip . T.splitOn ">>>" 
 
-showTest :: Text -> Text
-showTest = (">>> " <>)
+-- showTest :: Text -> Text
+-- showTest = (">>> " <>)
 
 string :: String -> P.Inlines
 string = P.text . T.pack

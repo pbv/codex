@@ -2,7 +2,6 @@
 module Codex.Tester (
   oneOf,
   tester,
-  language,
   checkForbidden,
   nullTester,
   -- * module re-exports
@@ -11,7 +10,6 @@ module Codex.Tester (
   module Codex.Tester.Monad,
   module Codex.Tester.Result,
   module Codex.Tester.Utils,
-  module Codex.Tester.Limits,
   -- * generic stuff
   module Control.Monad,
   module Control.Monad.Trans,
@@ -25,7 +23,6 @@ import           Codex.Page (lookupFromMeta, formatDiffs)
 import           Text.Pandoc (Meta)
 import qualified Text.Pandoc.Builder as P
 import           Codex.Tester.Monad
-import           Codex.Tester.Limits
 import           Codex.Tester.Result
 import           Codex.Tester.Utils
 import           Control.Applicative
@@ -57,12 +54,6 @@ tester name cont = do
   guard (lookupFromMeta "tester" meta == Just name)
   cont
 
--- | check the submission language
-language :: Language -> Tester a -> Tester a
-language name cont = do
-  Code lang _ <- testCode
-  guard (lang == name)
-  cont
 
 -- | check for restricted expressions in the code
 checkForbidden :: Tester Result -> Tester Result
@@ -81,7 +72,7 @@ invalidSubmission :: Text -> Result
 invalidSubmission match
   = miscError $
     P.header 2 "Invalid submission" <>
-    P.plain "Rejected because of the following:" <>
+    P.plain "Rejected because of:" <>
     P.codeBlock match
           
 

@@ -1,4 +1,5 @@
 {-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE RecordWildCards #-}
 --
 -- | Test Python programs using the REPL
 --
@@ -14,23 +15,24 @@ import           Control.Concurrent.Async (concurrently)
 import qualified Text.Pandoc.Builder as P
 
 pythonREPL :: Tester Result
-pythonREPL = tester "repl" $ language "python" $ checkForbidden $ do
-  Code _ code <- testCode
-  limits <- configLimits "language.python.limits"
+pythonREPL = tester "repl" $ checkForbidden $ do
+  Code lang code <- testCode
+  guard (lang == "python")
   cmdline <- parseArgs =<< configured "language.python.interpreter"
   assert (pure $ cmdline /= [])  "python interpreter not defined"
+  profile <- configured "language.python.firejail"
   answer <- metadataWithDefault "answer" ""
   assert (pure $ answer /= "") "missing answer in metadata"
   -- public and private tests
   pub_tests <- parseTests <$> metadataWithDefault "public-tests" ""
   priv_tests <-parseTests <$> metadataWithDefault "private-tests" ""
-  check <- checkCompile limits cmdline code
+  check <- checkCompile profile cmdline code
   case check of
     Just err -> return (compileError $ P.codeBlock err)
     Nothing -> do
-      rs1 <- zipWithM (runTest limits cmdline answer code)
+      rs1 <- zipWithM (runTest profile cmdline answer code)
                            [1..] pub_tests
-      rs2 <- zipWithM (runTest limits cmdline answer code)
+      rs2 <- zipWithM (runTest profile cmdline answer code)
                            [1+length pub_tests..] priv_tests
       return (label "Public tests" (mconcat rs1) <>
               label "Private tests" (private (mconcat rs2)) <>
@@ -47,14 +49,14 @@ summary rs
 
 
 runTest :: MonadIO m =>
-           Limits -> [String] -> Text -> Text -> Int -> Text
+           FilePath -> [String] -> Text -> Text -> Int -> Text
         -> m Result
-runTest limits cmdline answer code number stdin = do
+runTest profile cmdline answer code number stdin = do
   let test =  P.text ("Test " <> T.pack (show number)) <> P.space
   (expected,
    obtained) <- liftIO $ concurrently
-                             (runPython limits cmdline answer stdin)
-                             (runPython limits cmdline code stdin)
+                             (runPython profile cmdline answer stdin)
+                             (runPython profile cmdline code stdin)
   return $
     case (expected, obtained) of
       (Right out1, Right out2) ->
@@ -71,11 +73,11 @@ runTest limits cmdline answer code number stdin = do
           P.codeBlock out1 <>
           P.plain "Obtained" <>
           P.codeBlock out2
-      (Right _, Left stderr) ->
+      (Right _,  Left stderr) ->
         let handler
-              | match "Memory Limit Exceeded" stderr = memoryLimitExceeded
-              | match "Time Limit Exceeded" stderr   = timeLimitExceeded
-              | otherwise                            = runtimeError
+              | match "TimeLimitExceeded" stderr   = timeLimitExceeded
+              | match "MemoryError" stderr         = memoryLimitExceeded
+              | otherwise                          = runtimeError
         in handler $
            P.para (P.strong (test <> "failed")) <>
            P.codeBlock (showTest stdin) <>
@@ -88,38 +90,33 @@ runTest limits cmdline answer code number stdin = do
         P.codeBlock (showTest stdin) <>
         P.plain "Error" <>
         P.codeBlock stderr
-        
-
-
-
-checkCompile :: MonadIO m => Limits -> [String] -> Text -> m (Maybe Text)
-checkCompile limits cmdline code = do
-      r <- runPython limits cmdline code ""
+     
+checkCompile :: MonadIO m => FilePath -> [String] -> Text -> m (Maybe Text)
+checkCompile profile cmdline code = do
+      r <- runPython profile cmdline code ""
       return $ case r of
         Left err -> Just err
         Right _ -> Nothing
     
 
 runPython :: MonadIO m =>
-           Limits -> [String] -> Text -> Text -> m (Either Text Text)
-runPython _      []          _    _
+             FilePath -> [String] -> Text -> Text -> m (Either Text Text)
+runPython _ [] _ _ 
   = error "runPython: empty command line"
-runPython limits (python:args) code stdin =
+runPython profile (python:args) code stdin =
   withTemp "submit.py" (code <> "\n\n" <> stdin) $
   \file -> do
-    chmod readable file
-    (exitCode, stdout, stderr) <-
-      safeExec limits python Nothing (args++[file]) ""
-    return $ case exitCode of
-                 ExitFailure _ -> Left stderr
+    ProcessRun{..} <- sandboxExec profile python (args++[file]) ""
+    return $ case procExitCode of
+                 ExitFailure _ -> Left procStderr
                  ExitSuccess ->              
-                   if T.length stdout > defaultMaxOutput then
+                   if T.length procStdout > defaultMaxOutput then
                      Left "*** Output limit exceeded ***"
                    else
-                     if match "Error:" stderr then
-                       Left stderr
+                     if match "Error:" procStderr then
+                       Left procStderr
                      else
-                       Right stdout
+                       Right procStdout
 
 
 -- default maximum characters of output

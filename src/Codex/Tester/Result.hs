@@ -11,8 +11,6 @@ module Codex.Tester.Result
    tagWith, private, label, hidePrivate
   ) where
 
-import qualified Data.Text as T
-
 import           Database.SQLite.Simple.FromField
 import           Database.SQLite.Simple.ToField
 

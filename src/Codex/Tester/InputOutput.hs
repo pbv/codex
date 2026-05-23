@@ -36,12 +36,11 @@ import qualified Text.Pandoc.Builder as P
 --
 data Build =
   forall exec.
-  Build { checkLanguage :: Language -> Bool
+  Build { language :: Language
         , makeExec :: FilePath -> Code -> IO exec
         , runExec  :: exec
-                   -> Maybe FilePath   -- working dir
                    -> Text             -- stdin
-                   -> IO (ExitCode, Text, Text)  -- status, stdout, stderr
+                   -> IO ProcessRun  -- exit code, stdout, stderr
         }
 
 
@@ -50,19 +49,17 @@ data Build =
 clangBuild :: Tester Build
 clangBuild = do
   cc_cmd <- configured "language.c.compiler"
-  limits <- configLimits "language.c.limits"
+  profile <- configured "language.c.firejail"
   cc:cc_args <- parseArgs cc_cmd
   let make tmpdir (Code _ code) = do
         let c_file = tmpdir </> "submit.c"
-        let exe_file = tmpdir </> "submit"
+        let exe_file = tmpdir </> "a.out"
         T.writeFile c_file code
-        chmod (executable . readable . writeable) tmpdir
-        chmod readable c_file
-        runProcess (Just limits) cc (cc_args ++ [c_file, "-o", exe_file])
+        runProcess profile cc (cc_args ++ [c_file, "-o", exe_file])
         return exe_file
-  let run exe_file dir stdin = do
-        safeExec limits exe_file dir [] stdin
-  return (Build (=="c") make run)
+  let run exe_file stdin = do
+        sandboxExec profile exe_file [] stdin
+  return (Build "c" make run)
 
 
 -- | builder for Python programs
@@ -70,16 +67,14 @@ clangBuild = do
 pythonBuild ::  Tester Build
 pythonBuild = do
   python <- configured "language.python.interpreter"
-  limits <- configLimits "language.python.limits"
+  profile <- configured "language.python.firejail"
   let make tmpdir (Code _ code)  = do
         let pyfile = tmpdir </> "submit.py"
         T.writeFile pyfile code
-        chmod (readable . executable) tmpdir
-        chmod readable pyfile
         return pyfile
-  let run pyfile dir stdin = do
-        safeExec limits python dir [pyfile] stdin
-  return (Build (=="python") make run)
+  let run pyfile stdin = do
+        sandboxExec profile python [pyfile] stdin
+  return (Build "python" make run)
 
 -- | builder for Java programs
 --
@@ -87,7 +82,7 @@ javaBuild :: Tester Build
 javaBuild = do
   javac_cmd <- configured "language.java.compiler"
   java_cmd <- configured "language.java.runtime"
-  limits <- configLimits "language.java.limits"
+  profile <- configured "language.java.firejail"
   -- name for public java class with the main method
   classname <- fromMaybe "Main" <$> metadata "java-main"
   javac:javac_args <- parseArgs javac_cmd
@@ -96,22 +91,20 @@ javaBuild = do
         let java_file = tmpdir </> classname <.> "java"
         let classfile = tmpdir </> classname <.> "class"
         T.writeFile java_file code
-        chmod (executable . readable . writeable) tmpdir
-        chmod readable java_file
-        runProcess (Just limits) javac (javac_args ++ [java_file])
+        runProcess profile javac (javac_args ++ [java_file])
         return classfile
-  let run classfile cwd stdin = do
+  let run classfile stdin = do
         let classpath = takeDirectory classfile
         let args' = java_args ++ ["-cp", classpath, classname] 
-        safeExec limits java cwd args' stdin
-  return (Build (=="java") make run)
+        sandboxExec profile java args' stdin
+  return (Build "java" make run)
 
 
 -- builder for Haskell programs
 haskellBuild :: Tester Build
 haskellBuild = do
   ghc_cmd <- configured "language.haskell.compiler"
-  limits <- configLimits "language.haskell.limits"
+  profile <- configured "language.haskell.firejail"
   -- name for the Haskell main module
   modname <- fromMaybe "Main" <$> metadata "haskell-main"
   ghc:ghc_args <- parseArgs ghc_cmd
@@ -119,14 +112,12 @@ haskellBuild = do
         let hs_file = tmpdir </> modname <.> "hs"
         let exe_file = tmpdir </> modname
         T.writeFile hs_file code
-        chmod (readable . writeable . executable) tmpdir
-        chmod readable hs_file
-        runProcess (Just limits) ghc (ghc_args ++ ["-i"++tmpdir,
+        runProcess profile ghc (ghc_args ++ ["-i"++tmpdir,
                                                    hs_file, "-o", exe_file])
         return exe_file
-  let run exe_file dir stdin = do
-        safeExec limits exe_file dir [] stdin
-  return (Build (=="haskell") make run)
+  let run exe_file stdin = do
+        sandboxExec profile exe_file  [] stdin
+  return (Build "haskell" make run)
 
 
 
@@ -135,22 +126,18 @@ haskellBuild = do
 stdioTester ::  Build -> Tester Result
 stdioTester Build{..} = tester "stdio" $ do
   code@(Code lang _) <- testCode
-  guard (checkLanguage lang)
+  guard (lang == language)
   dir <- takeDirectory <$> testFilePath
   -- input and output files
-  pub_ins <-  globPatterns dir =<<
-              metadataWithDefault "public-inputs" []
-  pub_outs <- globPatterns dir =<<
-              metadataWithDefault "public-outputs" [] 
+  pub_ins <-  globPatterns dir =<< metadataWithDefault "public-inputs" []
+  pub_outs <- globPatterns dir =<< metadataWithDefault "public-outputs" [] 
   let num_ins = length pub_ins
   let num_outs = length pub_outs
   assert (pure $ num_ins == num_outs)
     "different number of public inputs and outputs"
 
-  priv_ins <- globPatterns dir =<<
-                 metadataWithDefault "private-inputs" []
-  priv_outs <- globPatterns dir =<<
-                  metadataWithDefault "private-outputs" []
+  priv_ins <- globPatterns dir =<< metadataWithDefault "private-inputs" []
+  priv_outs <- globPatterns dir =<< metadataWithDefault "private-outputs" []
   let num_priv_ins = length priv_ins
   let num_priv_outs = length priv_outs
   assert (pure $ num_priv_ins == num_priv_outs) 
@@ -162,22 +149,18 @@ stdioTester Build{..} = tester "stdio" $ do
   -- run the test and agregate results
   liftIO $
     withTempDir "codex" $ \tmpdir -> handle compileErrorHandler $ do
-        -- make temp directory readable, writable and executable for user 
-        chmod (readable . writeable . executable) tmpdir
         -- copy extra files
         mapM_ (\f -> copyFile f (tmpdir </> takeFileName f)) files
         -- make executable
         exe_file <- makeExec tmpdir code
         -- run public and private tests
-        (s1, r1) <- runTests (runExec exe_file (Just tmpdir)) $
-                          zip pub_ins pub_outs
-        (s2, r2) <- runTests (runExec exe_file (Just tmpdir)) $
-                          zip priv_ins priv_outs
+        (s1, r1) <- runTests (runExec exe_file) $ zip pub_ins pub_outs
+        (s2, r2) <- runTests (runExec exe_file) $ zip priv_ins priv_outs
         return (tagWith Public s1 <> tagWith Private s2 <>
                  tagWith Public r1 <> tagWith Private r2)
 
 
-runTests :: (Text -> IO (ExitCode, Text, Text))   -- action 
+runTests :: (Text -> IO ProcessRun)   -- action 
          -> [(FilePath, FilePath)]  -- ^ input and output file paths
          -> IO (Result, Result)
 runTests _      [] = return (mempty, mempty)
@@ -202,8 +185,7 @@ runTests action tests
        
 
 -- run a single test case
-runTest :: (Text -> IO (ExitCode, Text, Text))
-        -> (FilePath, FilePath)
+runTest :: (Text -> IO ProcessRun) -> (FilePath, FilePath)
         -> IO Result
 runTest action (in_file, out_file) = do
       in_txt <- T.readFile in_file
@@ -218,16 +200,16 @@ runTest action (in_file, out_file) = do
               in accepted msg <> r 
     
 
-classify :: Text -> Text -> (ExitCode, Text, Text) -> Result
-classify input expected (ExitSuccess, out, _)
+classify :: Text -> Text -> ProcessRun -> Result
+classify input expected (ProcessRun ExitSuccess out _)
   | out == expected 
       = mempty
   | removeSpaces out == removeSpaces expected 
-      = presentationError $ textDiff expected input out
+      = presentationError (textDiff expected input out)
   | otherwise 
       = wrongAnswer $ textDiff expected input out
-classify input _ (ExitFailure _, _, err)
-  | match "Time Limit" err   
+classify input _ (ProcessRun (ExitFailure _) _ err)
+  | match "TimeLimitExceeded" err
       = timeLimitExceeded (textInput input err) 
   | match "Memory Limit" err 
       = memoryLimitExceeded (textInput input err)

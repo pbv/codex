@@ -10,12 +10,11 @@ import           Codex.Tester
 
 import           Data.Text(Text)
 import qualified Data.Text as T
-import qualified Data.Text.IO as T
+-- import qualified Data.Text.IO as T
 import           Data.Maybe(maybeToList)
 import           System.Directory (doesFileExist)
 
 import qualified Text.Pandoc.Builder as P
-
 
 pythonDocTester :: Tester Result
 pythonDocTester = tester "doctest" $ do
@@ -23,7 +22,7 @@ pythonDocTester = tester "doctest" $ do
   guard (lang == "python")
   python    <- configured "language.python.interpreter"
   runtests  <- configured "language.python.runtests"
-  limits    <- configLimits "language.python.limits"
+  profile   <- configured "language.python.firejail"
   dir <- takeDirectory <$> testFilePath
   -- "old-style" single doctest file
   old_tests <- fmap (dir</>) <$> metadata "tests"
@@ -35,38 +34,36 @@ pythonDocTester = tester "doctest" $ do
              filterM (fmap not . doesFileExist) (pub_tests ++ priv_tests)
   if null missing then
     withTemp "submit.py" src $ \pyfile -> do
-       chmod readable pyfile
-       r <- runDoctests limits python [runtests, pyfile] pub_tests
-       r'<- runDoctests limits python [runtests, pyfile] priv_tests
+       r <- runDoctests profile python [runtests, pyfile] pub_tests
+       r'<- runDoctests profile python [runtests, pyfile] priv_tests
        return (tagWith Public r <> tagWith Private r')
     else
        return
-         (miscError (P.plain (P.text ("Cannot find doctest files: " <>
+         (miscError (P.plain (P.text ("Cannot read doctest files: " <>
                                        T.pack (show missing)))))
 
 
-runDoctests :: Limits -> FilePath -> [String] -> [String] -> IO Result
-runDoctests _      _      _    []     = return mempty
-runDoctests limits python args tests = do
-  let cmdline = args ++ tests
-  classify <$> safeExec limits python Nothing cmdline ""
+runDoctests :: FilePath -> FilePath -> [String] -> [String] -> IO Result
+runDoctests _       _       _     []     = return mempty
+runDoctests profile python args tests = 
+  classify <$> sandboxExec profile python (args ++ tests) ""
 
 
--- classify a doctest run
-classify :: (ExitCode, Text, Text) -> Result
-classify (ExitSuccess, stdout, _)      = accepted (P.plain (P.str stdout))
-classify (ExitFailure _, stdout, stderr)
-  | match "Time Limit" stderr          = timeLimitExceeded (P.codeBlock stderr)
-  | match "Memory Limit" stderr        = memoryLimitExceeded (P.codeBlock stderr)
-  | match "SyntaxError" stderr         = compileError (P.codeBlock stderr)
-  | match "Exception raised" stdout    = runtimeError (P.codeBlock stdout')
-  | match "Failed" stdout              = wrongAnswer (P.codeBlock stdout')
-  | otherwise                          = miscError (P.codeBlock (stdout' <> stderr))
-  where stdout' = filterPaths stdout
+-- classify a doctest process run
+classify :: ProcessRun -> Result
+classify (ProcessRun ExitSuccess stdout _) = accepted (P.plain (P.str stdout))
+classify (ProcessRun (ExitFailure _) stdout stderr)
+  | match "TimeLimitExceeded" stderr = timeLimitExceeded (P.codeBlock msg)
+  | match "SyntaxError" msg          = compileError (P.codeBlock msg)
+  | match "MemoryError" msg          = memoryLimitExceeded (P.codeBlock msg)
+  | match "Exception raised" msg     = runtimeError (P.codeBlock msg)
+  | match "Failed" msg               = wrongAnswer (P.codeBlock msg)
+  | otherwise                        = miscError (P.codeBlock msg)
+  where msg = filterPaths stdout <> stderr
         
 
 -- filter doctest filepaths from report;
--- we need this to avoid leaking server info to students
+-- avoid leaking server info to students
 filterPaths :: Text -> Text
 filterPaths = T.unlines . filter (not . T.isPrefixOf "File \"") . T.lines
 
@@ -75,19 +72,21 @@ filterPaths = T.unlines . filter (not . T.isPrefixOf "File \"") . T.lines
 ---------------------------------------------------------------------------
 
 pythonMuDocTester :: Tester Result
+pythonMuDocTester = fail "temporarily disabled"
+{-
 pythonMuDocTester = tester "mudoctest" $ do
   Code lang src <- testCode
   guard (lang == "python")
   python    <- configured "language.python.interpreter"
   runtests  <- configured "language.python.runtests"
-  limits    <- configLimits "language.python.limits"
+  -- limits    <- configLimits "language.python.limits"
+  profile <- configured "language.python.firejail"
   dir <- takeDirectory <$> testFilePath
   limit_tests <- metadata "limit-tests"
   targetPath <- maybe undefined (dir</>) <$> metadata "target"
   target <- liftIO $ T.readFile targetPath
   mutants <- globPatterns dir =<< metadataWithDefault "mutants" []
   withTemp "submit.tst" src $ \tstfile -> do
-    chmod readable tstfile
     r <- runTarget target limits python runtests limit_tests tstfile targetPath
     case resultStatus r of
       MiscError -> return r
@@ -203,3 +202,4 @@ besides left right
 checkMark, crossMark :: P.Inlines
 checkMark = P.spanWith ("",["Accepted"],[]) (P.str "\x2713")
 crossMark = P.spanWith ("",["WrongAnswer"],[]) (P.str "\x2718")
+-}

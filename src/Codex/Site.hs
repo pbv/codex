@@ -90,10 +90,14 @@ handleGet uid rqpath = do
     page <- handleGetTranslation rqpath
     Handlers{handleView} <- gets _handlers
     withSplices (urlSplices rqpath) $ handleView uid rqpath page
-  else do
-    -- just serve the file if it is not markdowndo
-    root <- getDocumentRoot
-    serveFileAs mime (root </> rqpath)
+  else     -- check if we can serve the file
+     do checkServe rqpath
+        root <- getDocumentRoot
+        serveFileAs mime (root </> rqpath)
+     <|> unauthorized
+
+checkServe  :: FilePath -> Codex ()
+checkServe path = guard (takeExtension path /= ".tst")
 
 -- | try to load a markdown possibly with translation
 handleGetTranslation :: FilePath -> Codex Page

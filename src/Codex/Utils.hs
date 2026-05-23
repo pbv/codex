@@ -49,8 +49,8 @@ import           Codex.Page
 import           Codex.Application
 
 import           Data.Time
-import           Data.Time.LocalTime
-import           Data.Time.Format ( defaultTimeLocale, formatTime ) 
+-- import           Data.Time.LocalTime
+-- import           Data.Time.Format ( defaultTimeLocale, formatTime ) 
 
 import           System.FilePath
 import qualified System.FastLogger as FastLogger
@@ -67,6 +67,7 @@ getDocumentRoot :: Codex FilePath
 getDocumentRoot = do
   conf <- getSnapletUserConfig
   liftIO (Configurator.require conf "system.document_root")
+
 
 getStaticRoot :: Codex FilePath
 getStaticRoot = do

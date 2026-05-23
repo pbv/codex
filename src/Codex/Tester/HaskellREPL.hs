@@ -1,4 +1,5 @@
 {-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE RecordWildCards #-}
 --
 -- | Test Haskell programs using GHCi
 --
@@ -14,26 +15,25 @@ import           Control.Concurrent.Async (concurrently)
 import qualified Text.Pandoc.Builder as P
 
 
-
 haskellREPL :: Tester Result
-haskellREPL = tester "repl" $ language "haskell" $ checkForbidden $ do
-  Code _ code <- testCode
-  limits <- configLimits "language.haskell.limits"
-  -- verbosity <- metadataWithDefault "verbosity" 1
+haskellREPL = tester "repl" $ checkForbidden $ do
+  Code lang code <- testCode
+  guard (lang == "haskell")
   cmdline <- parseArgs =<< configured "language.haskell.interpreter"
   assert (pure $ cmdline /= [])  "haskell interpreter not defined"
+  profile <- configured "language.haskell.firejail"
   answer <- metadataWithDefault "answer" ""
   assert (pure $ answer /= "") "missing answer in metadata"
   -- public and private tests
   pub_tests <- parseTests <$> metadataWithDefault "public-tests" ""
   priv_tests <-parseTests <$> metadataWithDefault "private-tests" ""
-  check <- checkCompile limits cmdline code
+  check <- checkCompile profile cmdline code
   case check of
     Just err -> return (compileError $ P.codeBlock err)
     Nothing -> do
-      rs1 <- zipWithM (runTest limits cmdline answer code)
+      rs1 <- zipWithM (runTest profile cmdline answer code)
                            [1..] pub_tests
-      rs2 <- zipWithM (runTest limits cmdline answer code)
+      rs2 <- zipWithM (runTest profile cmdline answer code)
                            [1+length pub_tests..] priv_tests
       return (label "Public tests" (mconcat rs1) <>
               label "Private tests" (private (mconcat rs2)) <>
@@ -47,17 +47,15 @@ summary rs
        P.plain ("Total: " <> string (show numTests) <> " tests, " <>
                 string (show numPassed) <> " passed.") 
 
-
-
 runTest :: MonadIO m =>
-           Limits -> [String] -> Text -> Text -> Int -> Text
+           FilePath -> [String] -> Text -> Text -> Int -> Text
         -> m Result
-runTest limits cmdline answer code number stdin = do
-  let test =  P.text ("Test " <> T.pack (show number)) <> P.space
+runTest profile cmdline answer code number stdin = do
+  let test = P.text ("Test " <> T.pack (show number)) <> P.space
   (expected,
    obtained) <- liftIO $ concurrently
-                             (runGhci limits cmdline answer stdin)
-                             (runGhci limits cmdline code stdin)
+                             (runGhci profile cmdline answer stdin)
+                             (runGhci profile cmdline code stdin)
   return $
     case (expected, obtained) of
       (Right out1, Right out2) ->
@@ -76,10 +74,10 @@ runTest limits cmdline answer code number stdin = do
           P.codeBlock out2
       (Right _, Left stderr) ->
         let handler
-              | match "error:" stderr                = compileError
-              | match "Memory Limit Exceeded" stderr = memoryLimitExceeded
-              | match "Time Limit Exceeded" stderr   = timeLimitExceeded
-              | otherwise = runtimeError
+              | match "TimeLimitExceeded"   stderr = timeLimitExceeded
+              | match "out of memory" stderr       = memoryLimitExceeded
+              | match "error:" stderr              = compileError
+              | otherwise                          = runtimeError
         in handler $
            P.para (P.strong (test <> "failed")) <>
            P.codeBlock (showTest stdin) <>
@@ -96,34 +94,33 @@ runTest limits cmdline answer code number stdin = do
 
 
 
-checkCompile :: MonadIO m => Limits -> [String] -> Text -> m (Maybe Text)
-checkCompile limits cmdline code = do
-      r <- runGhci limits cmdline code ""
+checkCompile :: MonadIO m => FilePath -> [String] -> Text -> m (Maybe Text)
+checkCompile profile cmdline code = do
+      r <- runGhci profile cmdline code ""
       return $ case r of
         Left err -> Just err
         Right _ -> Nothing
     
 
 runGhci :: MonadIO m =>
-           Limits -> [String] -> Text -> Text -> m (Either Text Text)
+           FilePath -> [String] -> Text -> Text -> m (Either Text Text)
 runGhci _      []          _    _
   = error "runChci: empty command line"
-runGhci limits (ghci:args) code stdin =
+runGhci profile (ghci:args) code stdin =
   withTemp "submit.hs" code $
   \file -> do
-    chmod readable file
-    (exitCode, stdout, stderr) <-
-      safeExec limits ghci Nothing (args ++ ["-v0", "-ignore-dot-ghci", file]) stdin
-    return $ case exitCode of
-                 ExitFailure _ -> Left stderr
+    ProcessRun{..} <-
+      sandboxExec profile ghci (args ++ ["-v0", "-ignore-dot-ghci", file]) stdin
+    return $ case procExitCode of
+                 ExitFailure _ -> Left procStderr
                  ExitSuccess ->
-                    if match "error:" stderr then
-                      Left stderr
+                    if match "error:" procStderr then
+                      Left procStderr
                     else
-                      if T.length stdout > defaultMaxOutput then
+                      if T.length procStdout > defaultMaxOutput then
                         Left "*** Output limit exceeded ***"
                       else
-                        Right stdout
+                        Right procStdout
 
 
 -- default maximum characters of output

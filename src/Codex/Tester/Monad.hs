@@ -12,7 +12,6 @@ module Codex.Tester.Monad (
   runTester,
   configured,
   maybeConfigured,
-  configLimits,
   testConfig,
   testFilePath,
   testCode,
@@ -38,7 +37,6 @@ import           Codex.Types (Page, Code, UserLogin)
 import           Codex.Submission.Types
 import           Text.Pandoc (Meta)
 import           Codex.Page
-import           Codex.Tester.Limits
 import           System.FilePath
 import           Data.Maybe (fromMaybe)
 import           Data.Text (Text)
@@ -118,15 +116,6 @@ configured key = do
   liftIO $ Conf.require cfg key
 
 
--- | ask configured limits from the tester environment
--- overrides default config with the specific one
-configLimits :: Name -> Tester Limits
-configLimits key = do
-  cfg <- testConfig
-  liftIO $ do
-    def  <- lookupLimits (Conf.subconfig "limits" cfg)
-    spec <- lookupLimits (Conf.subconfig key cfg)
-    return (spec <> def)
                   
 
 

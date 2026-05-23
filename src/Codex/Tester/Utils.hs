@@ -3,7 +3,7 @@
 {-# LANGUAGE ScopedTypeVariables #-}
 
 module Codex.Tester.Utils
-  ( RunProcessErr(..)
+  ( ProcessRun(..)
   , compileErrorHandler
   , match
   , withTemp, withTempFile, withTempDir
@@ -11,11 +11,8 @@ module Codex.Tester.Utils
   , fileExists
   , removeFileIfExists
   , cleanupFiles
-  , chmod
-  , readable, executable, writeable
   , runProcess
-  , safeExec
-  , unsafeExec
+  , sandboxExec
   , getMetaArgs
   , parseArgs
   , globPatterns
@@ -32,14 +29,14 @@ import           System.IO
 import           System.IO.Temp (withSystemTempFile, withSystemTempDirectory)
 import           System.Exit
 import           System.Directory (doesFileExist, copyFile, removeFile)
-import           System.Posix.Files
-import           System.Posix.Types (FileMode)
+-- import           System.Posix.Files
+-- import           System.Posix.Types (FileMode)
 import           System.FilePath.Glob(glob)
 import           System.FilePath ((</>))
 
 import           Control.Concurrent (forkIO)
 import           Control.Concurrent.Async (concurrently)
-import           System.Process (readProcessWithExitCode,
+import           System.Process ( -- readProcessWithExitCode,
                                  waitForProcess)
 import           System.IO.Streams (InputStream, OutputStream)
 import qualified System.IO.Streams as Streams
@@ -55,7 +52,7 @@ import qualified Data.Text.Encoding.Error       as T
 
 import           Data.Int (Int64)
 import           Data.List (sort)
-import           Data.Bits
+-- import           Data.Bits
 import           Data.Maybe(catMaybes)
 
 
@@ -64,15 +61,19 @@ import qualified Text.Pandoc.Builder as P
 
 import           Codex.Page(lookupFromMeta)
 import           Codex.Tester.Result
-import           Codex.Tester.Limits
 
 import qualified ShellWords
 
-
-data RunProcessErr = RunProcessErr !Text !Text -- stdout, stderr
+-- | the output of running a process
+data ProcessRun
+  = ProcessRun { procExitCode :: !ExitCode
+               , procStdout :: !Text
+               , procStderr :: !Text
+               }
   deriving (Read, Show)
 
-instance Exception RunProcessErr  -- default instance
+-- | allow throwing as an exception; default instance
+instance Exception ProcessRun
 
 
 -- | match a piece of text
@@ -82,19 +83,22 @@ match = T.isInfixOf
 -- | aquire and release temporary files and directories
 withTemp :: MonadIO m => FilePath -> Text -> (FilePath -> IO a) -> m a
 withTemp name contents k
-  = liftIO $ withSystemTempFile name (\f h -> T.hPutStr h contents >> hClose h >> k f)
+  = liftIO $
+    withSystemTempFile name
+        (\f h -> T.hPutStr h contents >> hClose h >> k f)
 
 
 -- | aquire a temporary file initialized with the contents of another file
 withTempFile :: MonadIO m
   => FilePath -> FilePath -> (FilePath -> IO a) -> m a 
 withTempFile name orig k
-  = liftIO $ withSystemTempFile name (\f h -> hClose h >> copyFile orig f >> k f)
+  = liftIO $
+    withSystemTempFile name
+       (\f h -> hClose h >> copyFile orig f >> k f)
 
 withTempDir :: MonadIO m => FilePath -> (FilePath -> IO a) -> m a
 withTempDir name k
   = liftIO $ withSystemTempDirectory name k
-
 
 -- | ensure an test assertion; throws MiscError otherwise
 assert :: MonadIO m => IO Bool -> String -> m ()
@@ -105,7 +109,6 @@ assert chk msg = liftIO $ do
 fileExists :: FilePath -> IO Bool
 fileExists = doesFileExist
 
-
 -- | remove files if they exist, silently ignore otherwise
 removeFileIfExists :: FilePath -> IO ()
 removeFileIfExists f = do b<-doesFileExist f; when b (removeFile f)
@@ -113,48 +116,64 @@ removeFileIfExists f = do b<-doesFileExist f; when b (removeFile f)
 cleanupFiles :: [FilePath] -> IO ()
 cleanupFiles = mapM_ removeFileIfExists
 
-
-chmod :: MonadIO m => (FileMode -> FileMode) -> FilePath -> m ()
-chmod chg filepath = liftIO $ do
-  mode <- fileMode <$> getFileStatus filepath
-  setFileMode filepath (chg mode)
-
-
-readable :: FileMode -> FileMode
-readable mode =
-  mode .|. ownerReadMode .|. groupReadMode .|. otherReadMode
-
-executable :: FileMode -> FileMode
-executable mode =
-  mode .|. ownerExecuteMode .|. groupExecuteMode .|. otherExecuteMode
-
-writeable :: FileMode -> FileMode
-writeable mode =
-  mode .|. ownerWriteMode .|. groupWriteMode .|. otherWriteMode
-
-
--- | run an external process (e.g.compiler) possibly under a sandbox
-runProcess :: Maybe Limits -> FilePath -> [String] -> IO ()
-runProcess optLimits cmd args = do
-  (exitCode, stdout, stderr) <- case optLimits of
-    Nothing -> readTextProcessWithExitCode cmd args ""
-    Just limits -> safeExec limits cmd Nothing args ""
-  case exitCode of
-    ExitFailure _ -> 
-      throwIO (RunProcessErr stdout stderr)
+-- | run an external process (e.g.compiler) under a sandbox
+-- and throw an exception if it fails
+runProcess :: FilePath -> FilePath -> [String] -> IO ()
+runProcess profile exec args = do
+  out <- sandboxExec profile exec args ""
+  case procExitCode out of
+    ExitFailure _ ->
+      throwIO out
     ExitSuccess ->
       return ()
 
-compileErrorHandler :: RunProcessErr -> IO Result
-compileErrorHandler (RunProcessErr stdout stderr)
+compileErrorHandler :: ProcessRun -> IO Result
+compileErrorHandler (ProcessRun (ExitFailure 137) stdout stderr)
+  = return $ timeLimitExceeded (P.codeBlock stderr)
+compileErrorHandler (ProcessRun _ stdout stderr)
   = return $ compileError (P.codeBlock (stdout<>stderr))
+-- | sandbox execution of a subprocess
+sandboxExec :: FilePath           -- ^ path to profile
+            -> FilePath           -- ^ path to executable
+            -> [String]           -- ^ comand line arguments
+            -> Text               -- ^ stdin
+            -> IO ProcessRun
+sandboxExec profile exec args stdin = do
+  (code, out, err) <- sandboxExecBS profile exec args (T.encodeUtf8 stdin)
+  return ProcessRun { procExitCode = code
+                    , procStdout = T.decodeUtf8With T.lenientDecode out
+                    , procStderr =
+                        if code == ExitFailure 137 then
+                          "TimeLimitExceeded\n"
+                        else
+                          ""
+                          <>
+                          T.decodeUtf8With T.lenientDecode err
+                    }
 
+sandboxExecBS :: FilePath           -- ^ profile
+              -> FilePath           -- ^ command
+              -> [String]           -- ^ arguments
+              -> ByteString         -- ^ stdin
+              -> IO (ExitCode, ByteString, ByteString)
+              -- ^ code, stdout, stderr
+sandboxExecBS profile exec args inbs = do
+  let args' = ["--profile="++profile, exec] ++ args
+  let outputLimit = 50000 
+  (inp, outstream, errstream, pid) <-
+    Streams.runInteractiveProcess "firejail" args'  Nothing Nothing
+  (do forkIO (produceStream inp inbs)
+      (outbs, errbs) <- concurrently
+                         (consumeStream outputLimit outstream)
+                         (consumeStream outputLimit errstream)
+      code <- waitForProcess pid
+      return (code, outbs, errbs)
+   ) `catch` (\(e :: SomeException) ->
+                  do code <- waitForProcess pid
+                     return (code, "", B.pack $ show e)
+              ) 
 
-readTextProcessWithExitCode cmd args stdin = do
-  (exitCode, out, err) <- readProcessWithExitCode cmd args stdin
-  return (exitCode, T.pack out, T.pack err)
-
-
+{-
 -- | safeExec with text input/output
 safeExec :: Limits
          -> FilePath           -- ^ command
@@ -181,14 +200,15 @@ safeExecBS :: Limits
            -- ^ code, stdout, stderr
 safeExecBS Limits{..} exec dir args inbs = do
   (inp, outstream, errstream, pid) <-
-    Streams.runInteractiveProcess "safeexec" (args' ++ args) dir Nothing
+    Streams.runInteractiveProcess "firejail" ([ "--profile=/home/pbv/codex/codex.profile",
+                                                exec ] ++ args) dir Nothing
   (do forkIO (produceStream inp inbs)
       (outbs, errbs) <- concurrently
-                        (consumeStream outputLimit outstream)
-                        (consumeStream outputLimit errstream) 
+                         (consumeStream outputLimit outstream)
+                         (consumeStream outputLimit errstream)
       code <- waitForProcess pid
       return (code, outbs, errbs)
-    ) `catch` (\(e :: SomeException) ->
+   ) `catch` (\(e :: SomeException) ->
                   do code <- waitForProcess pid
                      return (code, "", B.pack $ show e)
               ) 
@@ -215,7 +235,7 @@ safeExecBS Limits{..} exec dir args inbs = do
             mkArg "--maxuid" maxUID
             ++
             ["--exec", exec] 
-
+-}
 
 
 produceStream :: OutputStream ByteString -> ByteString -> IO ()
@@ -236,6 +256,7 @@ consumeStream limit stream = do
                         then return builder
                         else return (builder <> B.byteString bs)) mempty stream
   
+{-
 unsafeExec :: FilePath                 -- ^ command
           -> [String]                  -- ^ arguments
           -> Text                      -- ^ stdin
@@ -244,7 +265,7 @@ unsafeExec exec args inp = do
   (code, out, err) <-
     readProcessWithExitCode exec args (T.unpack inp)
   return (code, T.pack out, T.pack err)
-
+-}
 
         
 --

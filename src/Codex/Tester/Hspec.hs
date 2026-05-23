@@ -19,8 +19,9 @@ import           System.Directory(copyFile)
 
 -- | running and evaluating Haskell submissions
 hspecHaskellTester :: Tester Result
-hspecHaskellTester = tester "hspec" $ language "haskell" $ checkForbidden $ do
-  Code _ src <- testCode
+hspecHaskellTester = tester "hspec" $ checkForbidden $ do
+  Code lang src <- testCode
+  guard (lang == "haskell")
   path <- testFilePath
   let dir = takeDirectory path
   specPath <- fromMaybe (replaceExtension path ".hs") <$> metadataPath "spec"
@@ -30,10 +31,10 @@ hspecHaskellTester = tester "hspec" $ language "haskell" $ checkForbidden $ do
   files <- globPatterns dir =<< metadataWithDefault "files" []
   args <- (map T.unpack . getHspecArgs) <$> testMetadata
   ghc <- configured "language.haskell.compiler"
-  limits <- configLimits "language.haskell.limits"
+  profile <- configured "language.haskell.firejail"
   imports <- metadataWithDefault "imports" ""
   let code = imports <> "\n" <> src
-  liftIO (haskellRunner limits ghc args files code spec)
+  liftIO (haskellRunner profile ghc args files code spec)
 
 
 -- | running and evaluaing C submissions
@@ -51,8 +52,8 @@ hspecClangTester = tester "hspec" $ do
   args <- (map T.unpack . getHspecArgs) <$> testMetadata
   ghc <- configured "language.haskell.compiler"
   gcc <- configured "language.c.compiler"
-  limits <- configLimits "language.haskell.limits"
-  liftIO (clangRunner limits gcc ghc args files src spec)
+  profile <- configured "language.haskell.firejail"
+  liftIO (clangRunner profile gcc ghc args files src spec)
 
 
 
@@ -68,9 +69,10 @@ defaultMeta = Meta $ fromList [ -- ("format", MetaString "failed-examples")
                                ("ignore-dot-hspec", MetaBool True)
                               ]
 
-haskellRunner :: Limits -> FilePath -> [String] -> [FilePath] -> Text -> Text
-              -> IO Result
-haskellRunner limits ghc qcArgs files code props =
+haskellRunner ::
+  FilePath -> FilePath -> [String] -> [FilePath] -> Text -> Text
+  -> IO Result
+haskellRunner profile ghc qcArgs files code props =
    withTempDir "codex" $ \dir -> handle compileErrorHandler $ do
      -- copy extra files
      mapM_ (\f -> copyFile f (dir </> takeFileName f)) files
@@ -81,18 +83,16 @@ haskellRunner limits ghc qcArgs files code props =
      let args' = args ++ ["-i"++dir, main_file, "-o", exe_file]
      T.writeFile hs_file (header <> code)
      T.writeFile main_file props
-     chmod executable dir
-     chmod writeable dir
-     chmod readable hs_file
-     runProcess (Just limits) cmd args'
-     classify <$> safeExec limits exe_file Nothing qcArgs ""
+     runProcess profile cmd args'
+     classify <$> sandboxExec profile exe_file qcArgs ""
 
 header :: Text
 header = "module Submission where\n\n"
 
-clangRunner :: Limits -> String -> String -> [String] -> [FilePath] -> Text -> Text
-            -> IO Result
-clangRunner limits gcc_cmd ghc_cmd qcArgs files c_code props =
+clangRunner ::
+  FilePath -> String -> String -> [String] -> [FilePath] -> Text -> Text
+  -> IO Result
+clangRunner profile gcc_cmd ghc_cmd qcArgs files c_code props =
   withTempDir "codex" $ \dir -> handle compileErrorHandler $ do
       -- copy extra files
       mapM_ (\f -> copyFile f (dir </> takeFileName f)) files
@@ -106,24 +106,18 @@ clangRunner limits gcc_cmd ghc_cmd qcArgs files c_code props =
       ghc:hc_args <- parseArgs ghc_cmd
       let cc_args'= cc_args ++ ["-c", c_file, "-o",  obj_file]
       let hc_args'= hc_args ++ ["-i"++dir, obj_file, hs_file, "-o",  exe_file]
-      chmod executable dir
-      chmod writeable dir
-      chmod readable c_file
       -- compile C code to object file
-      runProcess (Just limits) gcc cc_args'
+      runProcess profile gcc cc_args'
       -- compile Haskell quickcheck driver
-      runProcess Nothing ghc hc_args'
-      -- allow anyone to execute the binary (for safeExec)
-      chmod readable exe_file
-      -- execute and under safeExec and classify result
-      classify <$> safeExec limits exe_file Nothing qcArgs ""
+      runProcess profile ghc hc_args'
+      -- execute and under sandbox and classify result
+      classify <$> sandboxExec profile exe_file qcArgs ""
 
-
-classify :: (ExitCode, Text, Text) -> Result
-classify (ExitSuccess, stdout, _)  = accepted (P.codeBlock stdout)
-classify (ExitFailure _, stdout, stderr)
-  | match "Time Limit" stderr   = timeLimitExceeded (P.codeBlock msg)
-  | match "Memory Limit" stderr = memoryLimitExceeded (P.codeBlock msg)
+classify :: ProcessRun -> Result
+classify (ProcessRun ExitSuccess stdout _)  = accepted (P.codeBlock stdout)
+classify (ProcessRun (ExitFailure _) stdout stderr)
+  | match "TimeLimitExceeded" stderr = timeLimitExceeded (P.codeBlock msg)
+  | match "out of memory" stderr = memoryLimitExceeded (P.codeBlock msg)
   | match "Command terminated by signal" stderr
                                 = runtimeError (P.codeBlock msg)
   | match "Failed!" stdout       = wrongAnswer (P.codeBlock stdout) 
