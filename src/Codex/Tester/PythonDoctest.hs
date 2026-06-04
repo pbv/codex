@@ -10,9 +10,9 @@ import           Codex.Tester
 
 import           Data.Text(Text)
 import qualified Data.Text as T
--- import qualified Data.Text.IO as T
-import           Data.Maybe(maybeToList)
-import           System.Directory (doesFileExist)
+import qualified Data.Text.IO as T
+import           Data.Maybe(fromMaybe, maybeToList)
+-- import           System.Directory (copyFile)
 
 import qualified Text.Pandoc.Builder as P
 
@@ -23,30 +23,31 @@ pythonDocTester = tester "doctest" $ do
   python    <- configured "language.python.interpreter"
   runtests  <- configured "language.python.runtests"
   profile   <- configured "language.python.firejail"
-  dir <- takeDirectory <$> testFilePath
-  -- "old-style" single doctest file
-  old_tests <- fmap (dir</>) <$> metadata "tests"
-  new_tests <- maybe [] (map (dir</>)) <$> metadata "public-tests"
-  let pub_tests = maybeToList old_tests ++ new_tests  
-  priv_tests <- maybe [] (map (dir</>)) <$> metadata "private-tests"
-  --
-  missing <- liftIO $
-             filterM (fmap not . doesFileExist) (pub_tests ++ priv_tests)
-  if null missing then
-    withTemp "submit.py" src $ \pyfile -> do
-       r <- runDoctests profile python [runtests, pyfile] pub_tests
-       r'<- runDoctests profile python [runtests, pyfile] priv_tests
-       return (tagWith Public r <> tagWith Private r')
-    else
-       return
-         (miscError (P.plain (P.text ("Cannot read doctest files: " <>
-                                       T.pack (show missing)))))
+  testDir <- takeDirectory <$> testFilePath
+  -- old-style single doctest file
+  oldTests <- metadata "tests"
+  -- new-style lists of public and private tests
+  newTests <- fromMaybe []  <$> metadata "public-tests"
+  let pubTests = maybeToList oldTests ++ newTests 
+  privTests <- fromMaybe [] <$> metadata "private-tests"
+  extraFiles <- fromMaybe [] <$> metadata "extra-files"
+  withTempDir "codex" $ \tmpdir -> do
+    let pyfile = tmpdir </> "submit.py"
+    T.writeFile pyfile src
+    copyFiles (map (testDir</>) (pubTests ++ privTests ++ extraFiles))
+              tmpdir
+    r <- runDoctests profile python tmpdir [runtests, pyfile]
+                (map (tmpdir</>) pubTests)
+    r'<- runDoctests profile python tmpdir [runtests, pyfile]
+                (map (tmpdir</>) privTests)
+    return (tagWith Public r <> tagWith Private r')
 
 
-runDoctests :: FilePath -> FilePath -> [String] -> [String] -> IO Result
-runDoctests _       _       _     []     = return mempty
-runDoctests profile python args tests = 
-  classify <$> sandboxExec profile python (args ++ tests) ""
+runDoctests ::
+  FilePath -> FilePath -> FilePath -> [String] -> [String] -> IO Result
+runDoctests _   _       _       _     []     = return mempty
+runDoctests profile python dir args tests = 
+  classify <$> sandboxExec profile python (Just dir) (args ++ tests) ""
 
 
 -- classify a doctest process run

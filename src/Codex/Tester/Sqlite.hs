@@ -16,8 +16,10 @@ import           Data.List (sort)
 
 import qualified Text.Pandoc.Builder as P
 
+
+
 sqliteTester :: Tester Result
-sqliteTester = queryTester <|> updateTester
+sqliteTester = queryTester -- <|> updateTester
 
 --
 -- | Tester for queries
@@ -68,7 +70,7 @@ runQuery profile (sqlcmd:sqlargs) normalize answer_sql query_sql db = do
              P.plain (P.text "Query passed for database " <> P.str dbname)
            else
              wrongAnswer $
-             P.plain (P.text "Query failed for databse " <> P.str dbname)
+             P.plain (P.text "Query failed for database " <> P.str dbname)
              <>
              P.simpleTable [ P.plain (P.text "Expected"),
                              P.plain (P.text "Obtained") ]
@@ -79,7 +81,7 @@ runQuery profile (sqlcmd:sqlargs) normalize answer_sql query_sql db = do
     runSqlite :: Text -> FilePath -> IO (Either Text [Text])
     runSqlite sql db = do
       ProcessRun{..} <-
-        sandboxExec profile sqlcmd (sqlargs++["-readonly", "-column", "-header", db]) sql
+        sandboxExec profile sqlcmd Nothing (sqlargs++["-readonly", "-column", "-header", db]) sql
       return $ case procExitCode of
         ExitFailure _ ->
           Left procStderr
@@ -110,6 +112,7 @@ trimLines n ls
 --
 -- | Tester for updates
 --
+{-
 updateTester = tester "sqlite-update" $ do
   Code lang update <- testCode
   guard (lang == "sql")
@@ -168,7 +171,7 @@ runUpdate profile (sqlite:args) (sqldiff:args') answer update db = do
   where
     runSql :: Text -> FilePath -> IO (Either Text ())
     runSql sql db = do
-      ProcessRun{..} <- sandboxExec profile sqlite (args ++ [db]) sql
+      ProcessRun{..} <- sandboxExec profile sqlite Nothing (args ++ [db]) sql
       return $ case procExitCode of
         ExitFailure _ ->
           Left procStderr
@@ -180,7 +183,7 @@ runUpdate profile (sqlite:args) (sqldiff:args') answer update db = do
 
     runDiff :: FilePath -> FilePath -> IO (Either Text Text)
     runDiff db1 db2 = do
-      ProcessRun{..} <- sandboxExec profile sqldiff (args' ++ [db1, db2]) ""
+      ProcessRun{..} <- sandboxExec profile sqldiff Nothing (args' ++ [db1, db2]) ""
       return $ case procExitCode of
         ExitSuccess ->
           if match "Error" procStderr
@@ -188,5 +191,5 @@ runUpdate profile (sqlite:args) (sqldiff:args') answer update db = do
           else Right procStdout
         ExitFailure _ ->
           Left procStderr
-
+-}
 

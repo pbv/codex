@@ -7,7 +7,8 @@ module Codex.AuthHandlers (
   handleLogin,
   handleLogout,
   handleRegister,
-  getRemainingTime,
+  getTimeRemaining,
+  checkTimeRemaining,
   ) where
 
 import           Data.ByteString.UTF8 (ByteString)
@@ -47,6 +48,33 @@ import           Codex.Utils
 import           Codex.Application
 import           Codex.LdapAuth
 
+-- | a newtype for converting time differences into json/configuration text
+newtype DiffTime = DiffTime NominalDiffTime
+
+instance Configurator.Configured DiffTime where
+  convert (Configurator.String txt)
+    = DiffTime <$> parseDiffTime (T.unpack txt)
+  convert _ = Nothing
+
+instance FromJSON DiffTime where
+  parseJSON (String txt)
+    = case parseDiffTime (T.unpack txt) of
+        Just diff -> return (DiffTime diff)
+        Nothing -> fail "invalid time diff"
+  parseJSON v = typeMismatch "String" v
+                             
+parseDiffTime :: String -> Maybe NominalDiffTime
+parseDiffTime txt
+  = case ([t | (t,"")<-readSTime True defaultTimeLocale "%H:%M" txt] ++
+          [t | (t,"")<-readSTime True defaultTimeLocale "%ss" txt]) of
+      (diff:_) -> Just diff
+      _ -> Nothing
+
+
+-- | the exam time information for a particular user
+data Timer = Timer { firstLogin  :: UTCTime
+                   , timeDiffExtra :: NominalDiffTime 
+                   }
 
 ------------------------------------------------------------------------------
 -- | Handle login requests
@@ -84,7 +112,7 @@ handleLoginSubmit = do
     Right au -> do
       addr <- getsRequest rqClientAddr
       logMsg (user <> " logged in from " <> addr)
-      registerTimer au
+      registerFirstLogin au
       redirectURL home
     Left err -> case ldap of
       Nothing ->  loginForm "_login" (Just err)
@@ -101,91 +129,58 @@ loginLdapUser ldapConf user passwd = do
       addr <- getsRequest rqClientAddr
       logMsg (user <> " logged in from " <> addr)
       with auth (forceLogin au)
-      registerTimer au
+      registerFirstLogin au
       redirectURL home
 
 
--- register the exam timer start (if not set already)
-registerTimer :: AuthUser -> Codex ()
-registerTimer au@AuthUser{..}
-  | HM.member "timerStart" userMeta = return ()
+-- register the first login (if not set already)
+registerFirstLogin :: AuthUser -> Codex ()
+registerFirstLogin au@AuthUser{..}
+  | HM.member "firstLogin" userMeta = return ()
   | otherwise = do
       time <- liftIO getCurrentTime
-      let au' = au { userMeta = HM.insert "timerStart" (toJSON time) userMeta }
+      let au' = au { userMeta = HM.insert "firstLogin" (toJSON time) userMeta }
       result <- with auth (saveUser au')
       case result of
         Right _ -> 
-          logMsg (T.encodeUtf8 userLogin <> " started exam")
+          logMsg (T.encodeUtf8 userLogin <> " first login updated")
         Left _ -> 
-          logMsg (T.encodeUtf8 userLogin <> " update failed")
+          logMsg (T.encodeUtf8 userLogin <> " first login update FAILED")
 
 
-{-
--- get the elapsed time for the currently logged user
-getElapsedTime :: Codex (Maybe NominalDiffTime)
-getElapsedTime = do
-  au <- require (with auth currentUser) <|> unauthorized
-  now <- liftIO getCurrentTime
-  return $ case getUserTimer au of
-    Nothing -> Nothing
-    Just Timer{..} ->
-      Just (diffUTCTime now timerStart)
--}
   
 -- get the remaining time for the currently logged user
-getRemainingTime :: Codex (Maybe NominalDiffTime)
-getRemainingTime = do
+getTimeRemaining :: Codex (Maybe NominalDiffTime)
+getTimeRemaining = do
   au <- require (with auth currentUser) <|> unauthorized
   now <- liftIO getCurrentTime
   conf <- getSnapletUserConfig
-  opt <- liftIO $ Configurator.lookup conf "timer.duration"
-  return $ case opt of
-    Nothing -> Nothing
-    Just (DiffTime duration) -> 
-      case getUserTimer au of
-        Nothing -> Nothing
-        Just Timer{..} ->
-          Just (duration + timerBonus - diffUTCTime now timerStart)
+  optDuration <- liftIO $ Configurator.lookup conf "timer.duration"
+  return $ do
+    DiffTime duration <- optDuration
+    Timer start extra <- getUserTimer au
+    return (duration + extra - diffUTCTime now start)
 
 
--- | a newtype for converting time differences
-newtype DiffTime = DiffTime NominalDiffTime
+-- | check that the current use stil has time remaining
+checkTimeRemaining :: Codex Bool
+checkTimeRemaining = do
+  optDiff <- getTimeRemaining
+  return $ case optDiff of
+    Nothing -> True
+    Just diff -> diff>0
 
-instance Configurator.Configured DiffTime where
-  convert (Configurator.String txt)
-    = DiffTime <$> parseDiffTime (T.unpack txt)
-  convert _ = Nothing
-
-instance FromJSON DiffTime where
-  parseJSON (String txt)
-    = case parseDiffTime (T.unpack txt) of
-        Nothing -> fail "invalid time diff"
-        Just diff -> return (DiffTime diff)
-  parseJSON v = typeMismatch "String" v
-                             
-
-parseDiffTime :: String -> Maybe NominalDiffTime
-parseDiffTime txt
-  = case [ t | (t,"")<-readSTime True defaultTimeLocale "%H:%M" txt ] of
-      (t:_) -> Just t
-      _ -> Nothing
-
-data Timer = Timer { timerStart :: UTCTime
-                   , timerBonus :: NominalDiffTime 
-                   }
- 
 
 getUserTimer :: AuthUser -> Maybe Timer
 getUserTimer au = do
-  start <- getUserMeta "timerStart" au
-  let DiffTime bonus = fromMaybe (DiffTime 0) (getUserMeta "timerBonus" au)
-  return (Timer start bonus)
+  start <- getUserMeta "firstLogin" au
+  let DiffTime extra = fromMaybe (DiffTime 0) (getUserMeta "timeDiffExtra" au)
+  return Timer { firstLogin = start, timeDiffExtra = extra }
 
 getUserMeta :: FromJSON a => Text -> AuthUser -> Maybe a
 getUserMeta key au = do
   val <- HM.lookup key (userMeta au)
   resultToMaybe (fromJSON val)
-
 
 resultToMaybe :: Result a -> Maybe a
 resultToMaybe (Success x) = Just x

@@ -169,7 +169,8 @@ guardDirectoryExists f = guard =<< liftIO (doesDirectoryExist f)
 ---------------------------------------------------------------------
 -- | error handlers
 ---------------------------------------------------------------------
-unauthorized, badRequest, notFound :: Codex a
+forbidden, unauthorized, badRequest, notFound :: Codex a
+forbidden    = render "_forbidden" >> finishError 403 "Forbidden"
 unauthorized = render "_unauthorized" >> finishError 401 "Unauthorized"
 badRequest   = render "_badrequest" >> finishError 400 "Bad request"
 notFound     = render "_notfound" >> finishError 404 "Not found"
@@ -261,11 +262,11 @@ checkboxInput :: [(Text,Text)] -> [X.Node] -> X.Node
 checkboxInput attrs = X.Element "input" (("type","checkbox") : attrs) 
 
 jsTimer :: String -> NominalDiffTime -> [X.Node]
-jsTimer id secs
+jsTimer id diff
   = [X.Element "span" [("id", T.pack id),
-                       ("class", "js-timer")] [],
+                       ("class", "countdown")] [],
      javascript $ T.pack $
-     "start_countdown(" ++ show id ++ "," ++ show (ceiling secs :: Int) ++ ");"]
+     "start_countdown(" ++ show id ++ "," ++ show (ceiling diff :: Int) ++ ");"]
 
 javascript :: Text -> X.Node
 javascript txt

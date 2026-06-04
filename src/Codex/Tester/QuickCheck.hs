@@ -18,6 +18,12 @@ import           Control.Exception(handle)
 
 import qualified Text.Pandoc.Builder as P
 
+
+haskellQCTester :: Tester Result
+haskellQCTester = error "deprecated; use Hspec tester instead"
+clangQCTester = haskellQCTester
+
+{-
 -- | running and evaluating Haskell submissions
 haskellQCTester :: Tester Result
 haskellQCTester = tester "quickcheck" $ checkForbidden $ do
@@ -54,7 +60,7 @@ haskellRunner profile ghc qcArgs files code props =
      -- chmod writeable dir
      -- chmod readable hs_file
      runProcess profile cmd args'
-     classify <$> sandboxExec profile exe_file  qcArgs ""
+     classify <$> sandboxExec profile exe_file (Just dir) qcArgs ""
 
 header :: Text
 header = "module Submission where\n\n"
@@ -98,7 +104,7 @@ clangRunner profile gcc_cmd ghc_cmd qcArgs c_code props =
       -- compile Haskell quickcheck driver
       runProcess profile ghc hc_args'
       -- execute and under safeExec and classify result
-      classify <$> sandboxExec profile exe_file qcArgs ""
+      classify <$> sandboxExec profile exe_file (Just dir) qcArgs ""
 
 classify :: ProcessRun -> Result
 classify (ProcessRun ExitSuccess stdout _)  = accepted (P.codeBlock stdout)
@@ -118,3 +124,4 @@ getQuickCheckArgs :: Meta -> [String]
 getQuickCheckArgs 
   =  map T.unpack .
      getMetaArgs ["maxSucess", "maxSize", "maxDiscardRatio", "randSeed"] []
+-}

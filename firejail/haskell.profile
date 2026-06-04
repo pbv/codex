@@ -6,8 +6,6 @@
 quiet
 net none
 private
-whitelist /public/codex
-read-only /public/codex
 whitelist /tmp/codex
 read-write /tmp/codex
 

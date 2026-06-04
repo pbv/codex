@@ -17,9 +17,9 @@ import           Control.Concurrent.Async (concurrently)
 import qualified Text.Pandoc.Builder as P
 
 -- the result of a Prolog query 
-data Query a 
-  = Success a       -- ^ query succeeded 
-  | Failure a       -- ^ query failed
+data Answer a 
+  = Success a       -- ^ a query that succeeded 
+  | Failure a       -- ^ a query that failed
   | Error Text      -- ^ runtime error 
   deriving (Eq, Show, Functor)
 
@@ -45,22 +45,24 @@ prologREPL = tester "repl" $ checkForbidden $ do
   answer <- metadataWithDefault "answer" ""
   assert (pure $ answer /= "") "missing answer in metadata"
   -- public and private tests
-  pub_tests <- parseTests <$> metadataWithDefault "public-tests" ""
-  priv_tests <- parseTests <$> metadataWithDefault "private-tests" ""
+  pubTests <- parseTests <$> metadataWithDefault "public-tests" ""
+  privTests <- parseTests <$> metadataWithDefault "private-tests" ""
   ordering <- metadataWithDefault "ignore-order" False
   outputLimit <- metadataWithDefault "output-limit" maxOutput
-  let normalize = (if ordering then sortLines else id) .
-                  cutOutput outputLimit
+  let normalize = (if ordering then sortLines else id) . cutOutput outputLimit
   profile <- configured "language.prolog.firejail"
-  rs1 <- zipWithM (runTest profile cmdline normalize answer code)
-                           [1..] pub_tests
-  rs2 <- zipWithM (runTest profile cmdline normalize answer code)
-                           [length pub_tests+1..] priv_tests
-  return (label "Public tests" (mconcat rs1)
-          <>
-          label "Private tests" (private (mconcat rs2))
-          <>
-          label "Summary" (summary (rs1++rs2)))
+  dir <- takeDirectory <$> testFilePath  
+  files <- globPatterns dir =<< metadataWithDefault "extra-files" []  
+  withTempDir "codex" $ \tmpdir -> do
+    copyFiles files tmpdir
+    let runner = runTest profile cmdline normalize tmpdir answer code
+    rs1 <- zipWithM runner [1..] pubTests
+    rs2 <- zipWithM runner [length pubTests+1..] privTests
+    return (label "Public tests" (mconcat rs1)
+            <>
+            label "Private tests" (private (mconcat rs2))
+            <>
+            label "Summary" (summary (rs1++rs2)))
 
 summary :: [Result] -> Result
 summary rs
@@ -72,12 +74,13 @@ summary rs
 
 
          
-runTest :: MonadIO m => FilePath -> [String] -> (Text -> Text)
-        -> Text -> Text -> Int -> Text
-        -> m Result
-runTest _     []      _     _         _      _    _
-  = error "no prolog command; should not happen!"
-runTest profile (prolog:args) normalize answer code number query = do
+runTest ::
+  MonadIO m =>
+  FilePath -> [String] -> (Text -> Text) -> FilePath 
+  -> Text -> Text -> Int -> Text -> m Result
+runTest _     []      _     _         _      _    _ _
+  = error "internal error: empty prolog command"
+runTest profile (prolog:args) normalize dir answer code number query = do
   let test =  P.text ("Test " <> T.pack (show number)) <> P.space
   (expected,
    obtained) <- liftIO $ concurrently 
@@ -138,12 +141,12 @@ runTest profile (prolog:args) normalize answer code number query = do
         <> P.codeBlock msg
 
   where
-    runQuery :: MonadIO m => Text -> Text -> m (Query Text)
+    runQuery :: MonadIO m => Text -> Text -> m (Answer Text)
     runQuery code query  =
-      withTemp "code.pl" code $
+      withTempText "code.pl" code $
       \file -> do
         ProcessRun{..} <-
-          sandboxExec profile prolog (args ++ ["-q", "-l", file, "-g", T.unpack query]) ""
+          sandboxExec profile prolog (Just dir) (args ++ ["-q", "-l", file, "-g", T.unpack query]) ""
         return $
           if match "TimeLimitExceeded" procStderr ||
              match "Stack Limit" procStderr ||

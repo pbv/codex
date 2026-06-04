@@ -27,34 +27,34 @@ import qualified Text.Pandoc.Builder as P
 
 type Fraction = Ratio Int
 
--- | grading parameters
-data Weights
-  = Weights { correctWeight :: Maybe Fraction
-            , incorrectWeight :: Maybe Fraction
-            }
+-- | grading score parameters
+data Scores
+  = Scores { correctScore :: Maybe Fraction
+           , incorrectScore :: Maybe Fraction
+           }
     deriving Show
 
--- | scoring a Quiz
+-- | grading a Quiz
 -- invariant:  numOptions == numCorrect + numIncorrect
-data Scores
-  = Scores { numOptions :: !Int    -- ^ total number of options
+data Grades
+  = Grades { numOptions :: !Int    -- ^ total number of options
            , numCorrect :: !Int    -- ^ number of correct selections
            , numIncorrect :: !Int  -- ^ number of incorrect selections
-           , scoresList :: [Fraction] -- ^ scores for questions
+           , gradesList :: [Fraction] -- ^ grades for each question
            }
   deriving (Show)
 
--- | joining scorings
-instance Semigroup Scores where
+-- | joining grades 
+instance Semigroup Grades where
   s <> s'
-    = Scores { numOptions = numOptions s + numOptions s'
+    = Grades { numOptions = numOptions s + numOptions s'
              , numCorrect = numCorrect s + numCorrect s'
              , numIncorrect = numIncorrect s + numIncorrect s'
-             , scoresList = scoresList s ++ scoresList s'
+             , gradesList = gradesList s ++ gradesList s'
              }
 
-instance Monoid Scores where
-  mempty = Scores 0 0 0 []
+instance Monoid Grades where
+  mempty = Grades 0 0 0 []
 
 
 quizTester :: Tester Result
@@ -63,35 +63,35 @@ quizTester = tester "quiz" $ do
   guard (lang == "json")
   page <- testPage
   uid <- testUser
-  -- optional grading weights
-  weights <- Weights <$> metadata "correct-weight" <*>
-                         metadata "incorrect-weight"
+  -- optional grading scores
+  scores <- Scores <$> metadata "correct-score"
+                   <*> metadata "incorrect-score"
   let quiz = shuffleQuiz uid page
   let selected = maybe mempty answers (decodeText text)
-  let scores = scoreQuiz weights quiz selected
-  let summary = makeSummary weights scores
+  let grades = gradeQuiz scores quiz selected
+  let summary = makeSummary scores grades
   return $ accepted summary
 
 
-makeSummary :: Weights -> Scores -> P.Blocks
-makeSummary Weights{..} Scores{..}
+makeSummary :: Scores -> Grades -> P.Blocks
+makeSummary Scores{..} Grades{..}
   = P.bulletList $ map P.plain  
     [ P.text "Number of questions: " <> P.str (tshow numQuestions)
     , P.text "Total number of options: " <> P.str (tshow numOptions)
     , P.text "Number of correct choices: " <> P.str (tshow numCorrect) 
     , P.text "Number of incorrect choices: " <> P.str (tshow numIncorrect)
-    , P.text "Weight for correct choices: " <> P.str (showFraction' correctWeight)
-    , P.text "Weight for incorrect choices: " <> P.str (showFraction' incorrectWeight)
-    , P.text "Score: " <> P.str (T.pack $ printf "%.2f%%" (100*score)) 
+    , P.text "Score for correct choices: " <> P.str (showFraction' correctScore)
+    , P.text "Score for incorrect choices: " <> P.str (showFraction' incorrectScore)
+    , P.text "Grade: " <> P.str (T.pack $ printf "%.2f%%" (100*grade)) 
     ]
   where
     tshow :: Show a => a -> Text
     tshow = T.pack . show
     showFraction' :: (Integral a, Show a) => Maybe (Ratio a) -> Text
     showFraction' = maybe "default" showFraction
-    numQuestions = length scoresList
-    score = if numQuestions > 0
-            then fromFraction (sum scoresList / fromIntegral numQuestions)
+    numQuestions = length gradesList
+    grade = if numQuestions > 0
+            then fromFraction (sum gradesList / fromIntegral numQuestions)
             else 0
 
 
@@ -133,45 +133,45 @@ readFrac r =
   )
 
 
--- | score all questions in a quiz
+-- | grade all questions in a quiz
 --
-scoreQuiz :: Weights -> Quiz -> Answers -> Scores
-scoreQuiz weights (Quiz _ questions) answers
-  = mconcat [scoreQuestion weights q answers | q<-questions]
+gradeQuiz :: Scores -> Quiz -> Answers -> Grades
+gradeQuiz weights (Quiz _ questions) answers
+  = mconcat [gradeQuestion weights q answers | q<-questions]
 
--- | score a single question
+-- | grade a single question
 --
-scoreQuestion :: Weights -> Question -> Answers -> Scores
-scoreQuestion weights question answers
-  = scoreChoices weights (choices question) (lookupAnswer question answers)
+gradeQuestion :: Scores -> Question -> Answers -> Grades
+gradeQuestion weights question answers
+  = gradeChoices weights (choices question) (lookupAnswer question answers)
 
-scoreChoices :: Weights -> Choices -> [Key] -> Scores
-scoreChoices Weights{..} (Alternatives _ attrs alts) selected
+gradeChoices :: Scores -> Choices -> [Key] -> Grades
+gradeChoices Scores{..} (Alternatives _ attrs alts) selected
   | num_correct>0 && num_wrong>0
-  = Scores num_keys correct wrong [grade]
+  = Grades num_keys correct wrong [grade]
   | otherwise
   = mempty           -- invalid question; no score
   where key = [ label | (label,(True,_)) <- zip (listLabels attrs) alts ]
         num_keys = length key
         num_alts = length alts
-        num_correct = length key
+        num_correct = num_keys -- length key
         num_wrong = num_alts - num_correct
         correct = length (selected `intersect` key)
         wrong = length (selected \\ key)
         -- positive grade for correctly answered alternatives
-        positive = case correctWeight of
+        positive = case correctScore of
           Nothing -> correct%num_correct
           Just w -> w * fromIntegral correct
         -- negative grade for incorrectly answered alternatives    
-        negative = case incorrectWeight of
+        negative = case incorrectScore of
           Nothing -> - (wrong%num_wrong)
           Just w -> w * fromIntegral wrong
         -- combined grade for this question
         grade = (-1) `max` (positive + negative) `min` 1
 
 
-scoreChoices _ (FillIn keyText normalize) answers
-  = Scores 1 correct wrong [grade]
+gradeChoices _ (FillIn keyText normalize) answers
+  = Grades 1 correct wrong [grade]
   where grade = fromIntegral correct
         correct = if normalize answerText == normalize keyText
                   then 1 else 0

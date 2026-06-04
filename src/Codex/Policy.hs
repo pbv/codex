@@ -30,6 +30,7 @@ import           Codex.Page
 import           Codex.Application
 import           Codex.Submission
 import           Codex.Utils
+import           Codex.AuthHandlers
 
 import qualified Snap.Snaplet.SqliteSimple as S
 import           Heist.Splices     as I
@@ -406,6 +407,7 @@ policySplices page submitUser submitPath = do
   now <- liftIO getCurrentTime
   count <- countEarlier submitUser submitPath now
   let dummy = emptySubmission submitUser submitPath now
+  time <- checkTimeRemaining
   check <- checkPolicy env policy dummy
   let constrText
         = case normalizeConstr' env timeConstraint of
@@ -414,7 +416,7 @@ policySplices page submitUser submitPath = do
                               (formatLocalTime (timeZone env) <$> constr)
   return $ do
     "timing" ## I.textSplice constrText
-    "if-available" ## I.ifElseISplice (check == Valid || not lock)
+    "if-available" ## I.ifElseISplice (time && (check == Valid || not lock))
     "if-max-attempts" ## I.ifElseISplice (isJust maxAttempts)
     "submissions-attempts" ## I.textSplice (T.pack $ show count)
     "max-attempts" ## case maxAttempts of
@@ -424,4 +426,5 @@ policySplices page submitUser submitPath = do
       Nothing -> return []
       Just limit -> let remain = max 0 (limit-count)
                     in I.textSplice (T.pack $ show remain)
+
 

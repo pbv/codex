@@ -27,17 +27,20 @@ haskellREPL = tester "repl" $ checkForbidden $ do
   -- public and private tests
   pub_tests <- parseTests <$> metadataWithDefault "public-tests" ""
   priv_tests <-parseTests <$> metadataWithDefault "private-tests" ""
-  check <- checkCompile profile cmdline code
-  case check of
-    Just err -> return (compileError $ P.codeBlock err)
-    Nothing -> do
-      rs1 <- zipWithM (runTest profile cmdline answer code)
-                           [1..] pub_tests
-      rs2 <- zipWithM (runTest profile cmdline answer code)
-                           [1+length pub_tests..] priv_tests
-      return (label "Public tests" (mconcat rs1) <>
-              label "Private tests" (private (mconcat rs2)) <>
-              label "Summary" (summary (rs1 ++ rs2)))
+  dir <- takeDirectory <$> testFilePath  
+  files <- globPatterns dir =<< metadataWithDefault "extra-files" []
+  withTempDir "codex" $ \tmpdir -> do
+    copyFiles files tmpdir
+    check <- checkCompile profile tmpdir cmdline code
+    case check of
+      Just err -> return (compileError $ P.codeBlock err)
+      Nothing -> do
+        let runner = runTest profile tmpdir cmdline answer code
+        rs1 <- zipWithM runner [1..] pub_tests
+        rs2 <- zipWithM runner [1+length pub_tests..] priv_tests
+        return (label "Public tests" (mconcat rs1) <>
+                label "Private tests" (private (mconcat rs2)) <>
+                label "Summary" (summary (rs1 ++ rs2)))
 
 summary :: [Result] -> Result
 summary rs
@@ -48,14 +51,14 @@ summary rs
                 string (show numPassed) <> " passed.") 
 
 runTest :: MonadIO m =>
-           FilePath -> [String] -> Text -> Text -> Int -> Text
+           FilePath -> FilePath -> [String] -> Text -> Text -> Int -> Text
         -> m Result
-runTest profile cmdline answer code number stdin = do
+runTest profile tmpdir cmdline answer code number stdin = do
   let test = P.text ("Test " <> T.pack (show number)) <> P.space
   (expected,
    obtained) <- liftIO $ concurrently
-                             (runGhci profile cmdline answer stdin)
-                             (runGhci profile cmdline code stdin)
+                             (runGhci profile tmpdir cmdline answer stdin)
+                             (runGhci profile tmpdir cmdline code stdin)
   return $
     case (expected, obtained) of
       (Right out1, Right out2) ->
@@ -74,10 +77,10 @@ runTest profile cmdline answer code number stdin = do
           P.codeBlock out2
       (Right _, Left stderr) ->
         let handler
-              | match "TimeLimitExceeded"   stderr = timeLimitExceeded
-              | match "out of memory" stderr       = memoryLimitExceeded
-              | match "error:" stderr              = compileError
-              | otherwise                          = runtimeError
+              | match "TimeLimitExceeded"  stderr = timeLimitExceeded
+              | match "out of memory" stderr      = memoryLimitExceeded
+              | match "error:" stderr             = compileError
+              | otherwise                         = runtimeError
         in handler $
            P.para (P.strong (test <> "failed")) <>
            P.codeBlock (showTest stdin) <>
@@ -94,23 +97,25 @@ runTest profile cmdline answer code number stdin = do
 
 
 
-checkCompile :: MonadIO m => FilePath -> [String] -> Text -> m (Maybe Text)
-checkCompile profile cmdline code = do
-      r <- runGhci profile cmdline code ""
+checkCompile :: MonadIO m => FilePath -> FilePath -> [String] -> Text -> m (Maybe Text)
+checkCompile profile tmpdir cmdline code = do
+      r <- runGhci profile tmpdir cmdline code ""
       return $ case r of
         Left err -> Just err
         Right _ -> Nothing
     
 
-runGhci :: MonadIO m =>
-           FilePath -> [String] -> Text -> Text -> m (Either Text Text)
-runGhci _      []          _    _
+runGhci ::
+  MonadIO m =>
+  FilePath -> FilePath -> [String] -> Text -> Text
+  -> m (Either Text Text)
+runGhci _  _    []          _    _
   = error "runChci: empty command line"
-runGhci profile (ghci:args) code stdin =
-  withTemp "submit.hs" code $
+runGhci profile tmpdir (ghci:args) code stdin =
+  withTempText "submit.hs" code $
   \file -> do
     ProcessRun{..} <-
-      sandboxExec profile ghci (args ++ ["-v0", "-ignore-dot-ghci", file]) stdin
+      sandboxExec profile ghci (Just tmpdir) (args ++ ["-v0", "-ignore-dot-ghci", file]) stdin
     return $ case procExitCode of
                  ExitFailure _ -> Left procStderr
                  ExitSuccess ->

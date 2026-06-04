@@ -451,3 +451,8 @@ div.twocolumn div.right {
 #language-select {
     margin-left: 0.75em;
 }
+
+
+.countdown {
+    font-family: monospace;
+}

@@ -34,7 +34,6 @@ import           Codex.Handlers.Markdown
 
 import           Codex.Tester
 import           Codex.Tester.PythonDoctest
-import           Codex.Tester.QuickCheck
 import           Codex.Tester.Hspec
 import           Codex.Tester.InputOutput
 import           Codex.Tester.Quiz
@@ -45,7 +44,6 @@ import           Codex.Tester.PythonREPL
 import           Snap.Loader.Static
 
 
-
 app :: SnapletInit App App
 app = codexInit handler testers
 
@@ -53,9 +51,9 @@ handler =  markdownHandlers <> quizHandlers <> codeHandlers
 
 testers = foldr1 (<|>)
           [ pythonDocTester
-          , pythonMuDocTester
+           --  pythonMuDocTester
             -- quickcheck testers
-          , haskellQCTester
+           -- haskellQCTester
           , hspecHaskellTester
           , hspecClangTester
           -- REPL testers

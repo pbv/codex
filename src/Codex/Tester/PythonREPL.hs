@@ -26,17 +26,20 @@ pythonREPL = tester "repl" $ checkForbidden $ do
   -- public and private tests
   pub_tests <- parseTests <$> metadataWithDefault "public-tests" ""
   priv_tests <-parseTests <$> metadataWithDefault "private-tests" ""
-  check <- checkCompile profile cmdline code
-  case check of
-    Just err -> return (compileError $ P.codeBlock err)
-    Nothing -> do
-      rs1 <- zipWithM (runTest profile cmdline answer code)
-                           [1..] pub_tests
-      rs2 <- zipWithM (runTest profile cmdline answer code)
-                           [1+length pub_tests..] priv_tests
-      return (label "Public tests" (mconcat rs1) <>
-              label "Private tests" (private (mconcat rs2)) <>
-              label "Summary" (summary (rs1 ++ rs2)))
+  dir <- takeDirectory <$> testFilePath  
+  files <- globPatterns dir =<< metadataWithDefault "extra-files" []
+  withTempDir "codex" $ \tmpdir -> do
+    copyFiles files tmpdir
+    check <- checkCompile profile tmpdir cmdline code
+    case check of
+      Just err -> return (compileError $ P.codeBlock err)
+      Nothing -> do
+        let runner = runTest profile tmpdir cmdline answer code
+        rs1 <- zipWithM runner [1..] pub_tests
+        rs2 <- zipWithM runner [1+length pub_tests..] priv_tests
+        return (label "Public tests" (mconcat rs1) <>
+                label "Private tests" (private (mconcat rs2)) <>
+                label "Summary" (summary (rs1 ++ rs2)))
 
 summary :: [Result] -> Result
 summary rs
@@ -49,14 +52,14 @@ summary rs
 
 
 runTest :: MonadIO m =>
-           FilePath -> [String] -> Text -> Text -> Int -> Text
+           FilePath -> FilePath -> [String] -> Text -> Text -> Int -> Text
         -> m Result
-runTest profile cmdline answer code number stdin = do
+runTest profile tmpdir cmdline answer code number stdin = do
   let test =  P.text ("Test " <> T.pack (show number)) <> P.space
   (expected,
    obtained) <- liftIO $ concurrently
-                             (runPython profile cmdline answer stdin)
-                             (runPython profile cmdline code stdin)
+                             (runPython profile tmpdir cmdline answer stdin)
+                             (runPython profile tmpdir cmdline code stdin)
   return $
     case (expected, obtained) of
       (Right out1, Right out2) ->
@@ -91,22 +94,24 @@ runTest profile cmdline answer code number stdin = do
         P.plain "Error" <>
         P.codeBlock stderr
      
-checkCompile :: MonadIO m => FilePath -> [String] -> Text -> m (Maybe Text)
-checkCompile profile cmdline code = do
-      r <- runPython profile cmdline code ""
+checkCompile :: MonadIO m =>
+  FilePath -> FilePath -> [String] -> Text -> m (Maybe Text)
+checkCompile profile tmpdir cmdline code = do
+      r <- runPython profile tmpdir cmdline code ""
       return $ case r of
         Left err -> Just err
         Right _ -> Nothing
     
 
-runPython :: MonadIO m =>
-             FilePath -> [String] -> Text -> Text -> m (Either Text Text)
-runPython _ [] _ _ 
+runPython ::
+  MonadIO m =>
+  FilePath -> FilePath -> [String] -> Text -> Text -> m (Either Text Text)
+runPython _ _ [] _ _ 
   = error "runPython: empty command line"
-runPython profile (python:args) code stdin =
-  withTemp "submit.py" (code <> "\n\n" <> stdin) $
+runPython profile tmpdir (python:args) code stdin =
+  withTempText "submit.py" (code <> "\n\n" <> stdin) $
   \file -> do
-    ProcessRun{..} <- sandboxExec profile python (args++[file]) ""
+    ProcessRun{..} <- sandboxExec profile python (Just tmpdir) (args++[file]) ""
     return $ case procExitCode of
                  ExitFailure _ -> Left procStderr
                  ExitSuccess ->              

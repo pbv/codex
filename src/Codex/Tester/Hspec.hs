@@ -15,7 +15,7 @@ import           Codex.Tester
 import           Text.Pandoc.Definition (Meta(..), MetaValue(..))
 import qualified Text.Pandoc.Builder as P
 import           Control.Exception(handle)
-import           System.Directory(copyFile)
+
 
 -- | running and evaluating Haskell submissions
 hspecHaskellTester :: Tester Result
@@ -23,12 +23,12 @@ hspecHaskellTester = tester "hspec" $ checkForbidden $ do
   Code lang src <- testCode
   guard (lang == "haskell")
   path <- testFilePath
-  let dir = takeDirectory path
   specPath <- fromMaybe (replaceExtension path ".hs") <$> metadataPath "spec"
   assert (fileExists specPath)
       ("spec file not found: " <> show specPath)
   spec <- liftIO $ T.readFile specPath
-  files <- globPatterns dir =<< metadataWithDefault "files" []
+  let dir = takeDirectory path
+  files <- globPatterns dir =<< metadataWithDefault "extra-files" []
   args <- (map T.unpack . getHspecArgs) <$> testMetadata
   ghc <- configured "language.haskell.compiler"
   profile <- configured "language.haskell.firejail"
@@ -48,7 +48,7 @@ hspecClangTester = tester "hspec" $ do
   assert (fileExists specPath)
       ("spec file not found: " <> show specPath)
   spec <- liftIO $ T.readFile specPath
-  files <- globPatterns dir =<< metadataWithDefault "files" []
+  files <- globPatterns dir =<< metadataWithDefault "extra-files" []
   args <- (map T.unpack . getHspecArgs) <$> testMetadata
   ghc <- configured "language.haskell.compiler"
   gcc <- configured "language.c.compiler"
@@ -74,17 +74,16 @@ haskellRunner ::
   -> IO Result
 haskellRunner profile ghc qcArgs files code props =
    withTempDir "codex" $ \dir -> handle compileErrorHandler $ do
-     -- copy extra files
-     mapM_ (\f -> copyFile f (dir </> takeFileName f)) files
-     let hs_file   = dir </> "Submission.hs"
-     let main_file = dir </> "Main.hs"
-     let exe_file = dir </> "Main"
+     copyFiles files dir
+     let hsFile   = dir </> "Submission.hs"
+     let mainFile = dir </> "Main.hs"
+     let exeFile = dir </> "Main"
      cmd:args <- parseArgs ghc
-     let args' = args ++ ["-i"++dir, main_file, "-o", exe_file]
-     T.writeFile hs_file (header <> code)
-     T.writeFile main_file props
+     let args' = args ++ ["-i"++dir, mainFile, "-o", exeFile]
+     T.writeFile hsFile (header <> code)
+     T.writeFile mainFile props
      runProcess profile cmd args'
-     classify <$> sandboxExec profile exe_file qcArgs ""
+     classify <$> sandboxExec profile exeFile (Just dir) qcArgs ""
 
 header :: Text
 header = "module Submission where\n\n"
@@ -94,24 +93,23 @@ clangRunner ::
   -> IO Result
 clangRunner profile gcc_cmd ghc_cmd qcArgs files c_code props =
   withTempDir "codex" $ \dir -> handle compileErrorHandler $ do
-      -- copy extra files
-      mapM_ (\f -> copyFile f (dir </> takeFileName f)) files
-      let c_file  = dir </> "submit.c"
-      let hs_file = dir </> "Main.hs"
-      let obj_file = dir </> "submit.o"
-      let exe_file = dir </> "Main"
-      T.writeFile c_file c_code
-      T.writeFile hs_file props
+      copyFiles files dir       -- copy extra files
+      let cFile  = dir </> "submit.c"
+      let hsFile = dir </> "Main.hs"
+      let objFile = dir </> "submit.o"
+      let exeFile = dir </> "Main"
+      T.writeFile cFile c_code
+      T.writeFile hsFile props
       gcc:cc_args <- parseArgs gcc_cmd
       ghc:hc_args <- parseArgs ghc_cmd
-      let cc_args'= cc_args ++ ["-c", c_file, "-o",  obj_file]
-      let hc_args'= hc_args ++ ["-i"++dir, obj_file, hs_file, "-o",  exe_file]
+      let cc_args'= cc_args ++ ["-c", cFile, "-o",  objFile]
+      let hc_args'= hc_args ++ ["-i"++dir, objFile, hsFile, "-o",  exeFile]
       -- compile C code to object file
       runProcess profile gcc cc_args'
       -- compile Haskell quickcheck driver
       runProcess profile ghc hc_args'
       -- execute and under sandbox and classify result
-      classify <$> sandboxExec profile exe_file qcArgs ""
+      classify <$> sandboxExec profile exeFile (Just dir) qcArgs ""
 
 classify :: ProcessRun -> Result
 classify (ProcessRun ExitSuccess stdout _)  = accepted (P.codeBlock stdout)

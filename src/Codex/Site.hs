@@ -80,9 +80,6 @@ handlePage rqpath = do
 
 
 -- | handle GET requests
--- ++++++++++++++++++++++++++++++++++++++++++++++++
--- | PI Improvements                              
--- ++++++++++++++++++++++++++++++++++++++++++++++++
 handleGet :: UserLogin -> FilePath -> Codex ()
 handleGet uid rqpath = do
   let mime = fileType mimeTypes rqpath
@@ -91,13 +88,17 @@ handleGet uid rqpath = do
     Handlers{handleView} <- gets _handlers
     withSplices (urlSplices rqpath) $ handleView uid rqpath page
   else     -- check if we can serve the file
-     do checkServe rqpath
+     do let ext = takeExtension rqpath
+        guard (ext `elem` allowedExtensions)
         root <- getDocumentRoot
         serveFileAs mime (root </> rqpath)
      <|> unauthorized
 
-checkServe  :: FilePath -> Codex ()
-checkServe path = guard (takeExtension path /= ".tst")
+allowedExtensions :: [FilePath]
+allowedExtensions
+  = [ ".txt", ".jpg", ".jpeg", ".png", ".svg",
+      ".pdf", ".ps", ".zip",".tar", ".gz", ".tgz", ".bz2" ]
+
 
 -- | try to load a markdown possibly with translation
 handleGetTranslation :: FilePath -> Codex Page
@@ -136,10 +137,15 @@ handlePost uid rqpath = do
   -- check file exists and is markdown
   guardFileExists filepath
   let mime = fileType mimeTypes rqpath
-  guard (mime == "text/markdown") 
-  page <- readMarkdownFile filepath
-  Handlers{handleSubmit} <- gets _handlers
-  handleSubmit uid rqpath page
+  guard (mime == "text/markdown")
+  -- check that the user is still allowed to submit
+  check <- checkTimeRemaining
+  if check then do
+    page <- readMarkdownFile filepath
+    Handlers{handleSubmit} <- gets _handlers
+    handleSubmit uid rqpath page
+    else
+    forbidden
 
   
 -- | handle GET requests for submission reports
@@ -191,19 +197,19 @@ loggedInName authmgr = do
     maybe (return []) I.textSplice (u >>= authFullname)
 
 
--- | splice for current date & time
-nowSplice :: I.Splice Codex
-nowSplice = do
+-- | splices for time
+timeNowSplice :: I.Splice Codex
+timeNowSplice = do
   tz<- liftIO getCurrentTimeZone
   t <- liftIO getCurrentTime
   localTimeSplice (utcToLocalTime tz t)
 
-timerSplice :: I.Splice Codex
-timerSplice = do
-  opt <- lift getRemainingTime
+timeRemainSplice :: I.Splice Codex
+timeRemainSplice = do
+  opt <- lift getTimeRemaining
   return $ case opt of
     Nothing ->  []
-    Just diff -> jsTimer "remaining-time" diff
+    Just diff -> jsTimer "time-remain" diff
         
 
 versionSplice :: I.Splice Codex
@@ -297,8 +303,8 @@ staticSplices = do
   "files" ## urlSplice (App.Files [])
   "submissionList" ## urlSplice App.SubmissionList
   "version" ## versionSplice
-  "timeNow" ## nowSplice
-  "timeRemaining" ## timerSplice
+  "timeNow" ## timeNowSplice
+  "timeRemaining" ## timeRemainSplice
   "if-evaluating" ## return []
   "ifLoggedIn" ## ifLoggedIn App.auth
   "ifLoggedOut" ## ifLoggedOut App.auth

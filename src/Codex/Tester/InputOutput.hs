@@ -24,7 +24,6 @@ import qualified Data.Text.IO as T
 import           Data.Maybe (fromMaybe)
 import           Data.Char (isSpace)
 import           Control.Exception(handle)
-import           System.Directory(copyFile)
 
 
 import qualified Text.Pandoc.Builder as P
@@ -39,7 +38,7 @@ data Build =
   Build { language :: Language
         , makeExec :: FilePath -> Code -> IO exec
         , runExec  :: exec
-                   -> Text             -- stdin
+                   -> Text           -- stdin
                    -> IO ProcessRun  -- exit code, stdout, stderr
         }
 
@@ -52,13 +51,14 @@ clangBuild = do
   profile <- configured "language.c.firejail"
   cc:cc_args <- parseArgs cc_cmd
   let make tmpdir (Code _ code) = do
-        let c_file = tmpdir </> "submit.c"
-        let exe_file = tmpdir </> "a.out"
-        T.writeFile c_file code
-        runProcess profile cc (cc_args ++ [c_file, "-o", exe_file])
-        return exe_file
-  let run exe_file stdin = do
-        sandboxExec profile exe_file [] stdin
+        let cFile = tmpdir </> "submit.c"
+        let outFile = tmpdir </> "a.out"
+        T.writeFile cFile code
+        runProcess profile cc (cc_args ++ [cFile, "-o", outFile])
+        return outFile
+  let run outFile stdin = do
+        let dir = takeDirectory outFile
+        sandboxExec profile outFile (Just dir) [] stdin
   return (Build "c" make run)
 
 
@@ -73,7 +73,8 @@ pythonBuild = do
         T.writeFile pyfile code
         return pyfile
   let run pyfile stdin = do
-        sandboxExec profile python [pyfile] stdin
+        let dir = takeDirectory pyfile
+        sandboxExec profile python (Just dir) [pyfile] stdin
   return (Build "python" make run)
 
 -- | builder for Java programs
@@ -94,9 +95,9 @@ javaBuild = do
         runProcess profile javac (javac_args ++ [java_file])
         return classfile
   let run classfile stdin = do
-        let classpath = takeDirectory classfile
-        let args' = java_args ++ ["-cp", classpath, classname] 
-        sandboxExec profile java args' stdin
+        let dir = takeDirectory classfile
+        let args' = java_args ++ ["-cp", dir, classname] 
+        sandboxExec profile java (Just dir) args' stdin
   return (Build "java" make run)
 
 
@@ -115,8 +116,9 @@ haskellBuild = do
         runProcess profile ghc (ghc_args ++ ["-i"++tmpdir,
                                                    hs_file, "-o", exe_file])
         return exe_file
-  let run exe_file stdin = do
-        sandboxExec profile exe_file  [] stdin
+  let run outFile stdin = do
+        let dir = takeDirectory dir
+        sandboxExec profile outFile (Just dir) [] stdin
   return (Build "haskell" make run)
 
 
@@ -140,22 +142,20 @@ stdioTester Build{..} = tester "stdio" $ do
   priv_outs <- globPatterns dir =<< metadataWithDefault "private-outputs" []
   let num_priv_ins = length priv_ins
   let num_priv_outs = length priv_outs
-  assert (pure $ num_priv_ins == num_priv_outs) 
-     "different number of private inputs and outputs"
+  assert (pure $ num_priv_ins == num_priv_outs)
+    "different number of private inputs and outputs"
   assert (pure $ num_ins + num_priv_ins > 0)
     "no test cases defined"
   --- extra files to copy to temp directory
-  files <- globPatterns dir =<< metadataWithDefault "files" []
+  files <- globPatterns dir =<< metadataWithDefault "extra-files" []
   -- run the test and agregate results
-  liftIO $
-    withTempDir "codex" $ \tmpdir -> handle compileErrorHandler $ do
-        -- copy extra files
-        mapM_ (\f -> copyFile f (tmpdir </> takeFileName f)) files
+  withTempDir "codex" $ \tmpdir -> handle compileErrorHandler $ do
+        copyFiles files tmpdir         -- copy extra files
         -- make executable
-        exe_file <- makeExec tmpdir code
+        exeFile <- makeExec tmpdir code
         -- run public and private tests
-        (s1, r1) <- runTests (runExec exe_file) $ zip pub_ins pub_outs
-        (s2, r2) <- runTests (runExec exe_file) $ zip priv_ins priv_outs
+        (s1, r1) <- runTests (runExec exeFile) $ zip pub_ins pub_outs
+        (s2, r2) <- runTests (runExec exeFile) $ zip priv_ins priv_outs
         return (tagWith Public s1 <> tagWith Private s2 <>
                  tagWith Public r1 <> tagWith Private r2)
 
