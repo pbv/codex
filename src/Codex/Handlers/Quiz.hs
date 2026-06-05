@@ -81,18 +81,10 @@ questionSplices answers question@Question{..} = do
   "question-name" ##  I.textSplice identifier
   "question-description" ## return (blocksToHtml description)
   let answer = lookupAnswer question answers
-  choicesSplices choices answer
+  choicesSplices options answer
 
-choicesSplices :: Monad m => Choices -> [Key] -> Splices (I.Splice m)
-choicesSplices (FillIn keyText normalize) answers = do
-  let answerText = T.concat answers
-  "question-answer" ## I.textSplice answerText
-  "question-answer-key" ##  I.textSplice keyText
-  "if-correct" ## I.ifElseISplice (normalize answerText ==
-                                   normalize keyText)
-  "question-fillin" ## I.ifElseISplice True
-
-choicesSplices (Alternatives selection attrs alts) selected = do
+choicesSplices :: Monad m => Options -> [Key] -> Splices (I.Splice m)
+choicesSplices (Options selection attrs alts) selected = do
   let lalts = zip (listLabels attrs) alts
   let keys = sort [ label| (label, (True, _)) <- lalts ]
   let keyText = T.concat $ intersperse "," keys
@@ -110,7 +102,6 @@ choicesSplices (Alternatives selection attrs alts) selected = do
         "if-checked" ## I.ifElseISplice (label `elem` selected)
         "if-correct" ## I.ifElseISplice truth
   "alternatives" ## I.mapSplices (I.runChildrenWith . laltSplices) lalts
-  "question-fillin" ## I.ifElseISplice False
 
 
 
@@ -177,15 +168,6 @@ quizReport rqpath page sub = do
 summarySplice :: Result -> ISplices 
 summarySplice Result{..} =
   "quiz-report-summary" ## return (blocksToHtml $ P.toList $ getBlocks resultReport) 
-    -- maybe (return []) (I.textSplice . reportSummary) (decodeText resultReport)
-
-
-verbosePrintout :: Page -> Bool
-verbosePrintout = fromMaybe True . lookupFromMeta "printout" . pageMeta
-
--------------------------------------------------------------------
--- Summary
--------------------------------------------------------------------
 
 
 
@@ -197,31 +179,38 @@ quizPrintout _ page Submission{..}  = do
   guard (isQuiz page)
   return (content <> getBlocks report)
   where
-    content = if verbosePrintout page then ppQuiz quiz answers
-              else mempty
+    content = if checkPrintout page then
+                ppQuiz quiz answers
+              else
+                mempty
     report = resultReport submitResult
     quiz = shuffleQuiz submitUser page
     answers = fromMaybe mempty $ decodeAnswers $ codeText submitCode
 
+
+checkPrintout :: Page -> Bool
+checkPrintout = fromMaybe True . lookupFromMeta "printout" . pageMeta
+
+
 ppQuiz :: Quiz -> Answers -> P.Blocks
 ppQuiz (Quiz _ questions) answers
-  = mconcat (map (`ppQuestion` answers) questions)
+  = mconcat (map (flip ppQuestion answers) questions)
 
 ppQuestion :: Question -> Answers -> P.Blocks
 ppQuestion question@Question{..} answers
   = P.fromList description <>
-    ppChoices choices (lookupAnswer question answers)
+    ppOptions options (lookupAnswer question answers) <>
+    ppKey options
 
+ppKey :: Options -> P.Blocks
+ppKey options
+  = P.plain ("Correct answers: " <>
+              mconcat (intersperse "," $ map P.text (answerKeys options)))
 
-ppChoices :: Choices -> [Key] -> P.Blocks
-ppChoices (FillIn keyText _) answers
-  = P.plain (mconcat $ map P.text answers) <>
-    P.plain (P.emph "Answer:" <> P.text keyText)
-
-ppChoices (Alternatives _ attrs alts) selected
+ppOptions :: Options -> [Key] -> P.Blocks
+ppOptions (Options _ attrs alts) selected
   | correct = P.orderedListWith attrs (map (ppAlternative selected) lalts)
-        --- disabled question
-  | otherwise =
+  | otherwise =  --- disabled question
       P.plain (P.emph "Disabled question") <>
       P.orderedListWith attrs (map (ppAlternative []) lalts)
   where
@@ -231,16 +220,16 @@ ppChoices (Alternatives _ attrs alts) selected
 
 ppAlternative :: [Key] -> (Key, (Bool, [P.Block])) -> P.Blocks
 ppAlternative selected (label, (truth, blocks))
-  = label1 <> P.fromList blocks <> label2
+  = label1 <> P.plain P.space <> P.fromList blocks <> P.plain P.space <> label2
   where
     reply = label `elem` selected
-    label1 = P.plain $ P.math $ if reply then "\\bullet" else "\\circ"
-    label2 | reply && truth = P.plain $ P.strong $ P.text "OK"
-           | reply && not truth = P.plain $ P.strong $ P.text "WRONG"
-           | not reply && truth = P.plain $ P.strong $ P.text "MISS"
+    label1 = P.plain $ P.math $ if reply then "☒" else "☐"
+    label2 | reply && truth = P.plain $ P.strong $ P.text "✅"
+           | reply && not truth = P.plain $ P.strong $ P.text "❌"
+           | not reply && truth = P.plain $ P.strong $ P.text ""
            | otherwise = mempty
 
-
+    
 -- | record with quiz handlers
 quizHandlers :: Handlers Codex
 quizHandlers

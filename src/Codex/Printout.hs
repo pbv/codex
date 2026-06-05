@@ -144,19 +144,25 @@ userPrintout uid  submissions = do
 submissionPrintout :: TimeZone -> Page -> Submission -> Blocks -> Blocks
 submissionPrintout tz page Submission{..}  content
   = mconcat [ header 1 title
-            , headline
+            , if verbose then
+                fromList (pageUntitledBlocks page)
+                else
+                mempty
+            , summary
             , content
             , horizontalRule
             ]
   where
     title = maybe (text $ T.pack submitPath) fromList (pageTitle page)
-    headline
+    summary
       = header 2 (strong (text $ T.pack $ show $ resultStatus submitResult) <>
                   space <>
                   emph (text $ "(" <> checkText submitCheck <> ")")) <>
         para (text ("Submission " <> T.pack (show submitId) <> "; " <>
                     formatLocalTime tz submitTime)
              )
+    verbose = fromMaybe False
+              (lookupFromMeta "verbose-printout" (pageMeta page))
 
 checkText :: Validity -> Text
 checkText Valid         = "Valid"

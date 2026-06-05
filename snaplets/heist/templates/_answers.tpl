@@ -27,10 +27,6 @@
       <questions>
 	<fieldset>
 	  <question-description/>
-	  <question-fillin>
-	    <p><question-answer/>&nbsp;<if-correct><checkmark/><else/><crossmark/></if-correct></p>
-	    <if-correct><else/><p><em>Answer</em>: <em><question-answer-key/></em></p></if-correct>
-	    <else/>
 	    <ol class="answers" type="${list-type}" start="${list-start}">
 	      <alternatives>
 		<li><if-checked>
@@ -51,7 +47,6 @@
 	      </alternatives>
 	    </ol>
 	<p><em>Answers</em>: <em><question-answer-key/></em></p>
-	  </question-fillin>
       </fieldset>
       </questions>
     </if-show-feedback>

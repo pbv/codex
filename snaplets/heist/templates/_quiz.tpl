@@ -21,11 +21,7 @@
       <questions>
 	<fieldset>
 	  <question-description/>
-	  <question-fillin>
-	  <apply template="_fillin"/>
-	  <else/>
 	  <apply template="_choices"/>	  
-	  </question-fillin>
 	</fieldset>
       </questions>
       <p><input type="submit" value="Submit"

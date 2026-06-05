@@ -13,8 +13,6 @@ import           Text.Pandoc.Walk
 
 import qualified Text.Pandoc.Builder as P
 
--- import           Text.Pandoc.Highlighting (monochrome)
-
 import           Text.XmlHtml
 import           Text.Blaze.Renderer.XmlHtml
 
@@ -28,7 +26,7 @@ import qualified Data.Text.Read as T
 
 import           Control.Applicative
 import           Control.Monad.IO.Class
-import           Control.Exception  (IOException, throwIO)
+import           Control.Exception  (IOException)
 import           Control.Exception.Lifted  (try)
 
 import           Codex.Types
@@ -49,23 +47,27 @@ pageMeta (Pandoc meta _) = meta
 pageDescription :: Page -> [Block]
 pageDescription (Pandoc _ blocks) = blocks
 
+-- title is the first header (if any)
 pageTitle :: Page -> Maybe [Inline]
-pageTitle p
-  = case pageTitleBlocks p of
+pageTitle p  
+  = case pageDescription p of
       (Header _ _ h : _) -> Just h
       _                  -> Nothing
 
--- | lookup title in metadata or take the first header (if any)
+
+-- extract the page descriptions sans title
+pageUntitledBlocks :: Page -> [Block]
+pageUntitledBlocks p
+  = case pageDescription p of
+      (Header _ _ _ : blks) -> blks
+      blks -> blks
+
+-- extract the page title as a list of blocks
 pageTitleBlocks :: Page -> [Block]
 pageTitleBlocks p
-  = case docTitle (pageMeta p) of
-      [] -> firstHeader (pageDescription p)
-      inlines -> [Header 1 nullAttr inlines]
-  where
-    firstHeader :: [Block] -> [Block]
-    firstHeader blocks = take 1 [block | block@(Header {}) <- blocks]
-
-
+  = case pageTitle p of
+      Nothing -> []
+      Just inlines -> [Header 1 nullAttr inlines]
 
 
 -- list of accepted languages for an exercise
@@ -371,32 +373,3 @@ hardenBreaks = walk harden
     harden i = i
 
 
--- ++++++++++++++++++++++++++++++++++++++++++++++++
--- | PI Improvements                              
--- ++++++++++++++++++++++++++++++++++++++++++++++++
-
--- | Write a Pandoc document to a Markdown file
-
-writeMarkdownFile :: MonadIO m => FilePath -> Pandoc -> m ()
-writeMarkdownFile filepath doc = liftIO $ do
-  tplText <- runIOorExplode (getTemplate "template.md")
-  result <- compileTemplate "template.md" tplText
-  case result of
-    Left msg -> 
-      throwIO $ userError msg
-    Right tpl -> do
-      result <- runIO (writeMarkdown (writerOptions tpl) doc)
-      case result of
-        Left msg ->
-          throwIO $ userError (show msg)
-        Right text ->
-          T.writeFile filepath text
-  
-writerOptions tpl
-  = def
-    { writerTemplate = Just tpl
-    , writerExtensions = pandocExtensions
-    , writerSetextHeaders = False
-    }
-
--- ++++++++++++++++++++++++++++++++++++++++++++++++

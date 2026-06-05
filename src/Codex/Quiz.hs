@@ -3,12 +3,12 @@
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE DeriveGeneric #-}
 
--- | Quizzes with multiple choice & fill-in questions
+-- | Quizzes with multiple-choice questions
 --
 module Codex.Quiz
   ( Quiz(..)
   , Question(..)
-  , Choices(..)
+  , Options(..)
   , Selection(..)
   , Answers(..)
   , Key
@@ -18,6 +18,7 @@ module Codex.Quiz
   , listLabels
   , quizToDocument
   , quizToText
+  , answerKeys
   ) where
 
 import           Codex.Types
@@ -31,9 +32,7 @@ import qualified Text.Pandoc.Writers.Markdown as P
 import qualified Text.Pandoc.Class as P
 import qualified Text.Pandoc.Options as P
 
-
 import qualified Data.Text as T
-import           Data.Char
 import           Data.Monoid
 import           Data.Maybe (fromMaybe)
 import           Data.Hashable
@@ -55,16 +54,13 @@ data Quiz
 data Question
   = Question { identifier :: Text
              , description :: [P.Block]
-             , choices :: Choices
+             , options :: Options
              }
 
-data Choices
-  = FillIn Text (Text -> Text)
-  -- ^ fill-in answer key and a normalization function
-  | Alternatives Selection P.ListAttributes Alts
-  -- ^ list of multiple choices
+data Options = Options Selection P.ListAttributes Alts
+             -- ^ list of multiple choices
 
-data Selection = Single | Multiple
+data Selection = Single | Multiple  -- single/multiple choice
 
 type Alts =  [(Bool, [P.Block])]
   -- ^ alternatives: right/wrong and description
@@ -74,13 +70,9 @@ type Alts =  [(Bool, [P.Block])]
 newtype Answers = Answers (Map Text [Key])
   deriving (Show, Semigroup, Monoid, ToJSON, FromJSON)
 
-
-answerKeys :: Choices -> [Key]
-answerKeys (FillIn key _)
-  = [key]
-answerKeys (Alternatives _ attrs alts)
+answerKeys :: Options -> [Key]
+answerKeys (Options _ attrs alts)
   = [key | (key, (True,_)) <- zip (listLabels attrs) alts]
-
 
 type Key = Text
 
@@ -107,8 +99,8 @@ quizToDocument Quiz{..}
 
 questionDoc :: Question -> P.Blocks
 questionDoc Question{..}
-  =  P.fromList (choicesHeader description (answerKeys choices)) <>
-     choicesAlts choices
+  =  P.fromList (choicesHeader description (answerKeys options)) <>
+     choicesAlts options
 
 choicesHeader
   (P.Header n (id,classes,kvs) inlines : rest) answers
@@ -117,9 +109,8 @@ choicesHeader
 choicesHeader _ _
   = error "choicesHeader: question must begin with header"
 
-choicesAlts :: Choices -> P.Blocks
-choicesAlts (FillIn _ _) = mempty
-choicesAlts (Alternatives _ attrs alts)
+choicesAlts :: Options -> P.Blocks
+choicesAlts (Options _ attrs alts)
   = P.orderedListWith attrs [P.fromList blocks | (_, blocks)<-alts]
 
 
@@ -215,15 +206,11 @@ makeQuestion :: P.Block -> [P.Block] -> Question
 makeQuestion header rest
   = Question { identifier = fromMaybe "" (headerIdent header)
              , description = (header':prefix) ++ posfix
-             , choices =
-                 if  "fillin" `elem` headerClasses header
-                 then FillIn (T.concat answers) normalize
-                 else Alternatives multiples attrs alts
+             , options = Options multiples attrs alts
              }
   where
     header' = removeKey "answer" header
     answers = [a | ("answer",a) <- headerAttrs header]
-    normalize = T.filter (not.isSpace)
     prefix = takeWhile (not . isList) rest
     posfix = drop 1 $ dropWhile (not . isList) rest
     (attrs,items) = fromMaybe (emptyAttrs,[]) $
@@ -253,12 +240,10 @@ shuffleAlternatives :: Quiz -> Rand Quiz
 shuffleAlternatives (Quiz preamble questions)
   = Quiz preamble <$> mapM shuffle questions
   where
-    shuffle q@Question{..} = case choices of
-      FillIn{} ->
-        return q   -- no shuffling required
-      Alternatives multiples attrs alts -> do
+    shuffle q@Question{..} = case options of
+      Options multiples attrs alts -> do
         alts' <- Rand.shuffle alts -- shuffle alternatives
-        return q { choices = Alternatives multiples attrs alts' }
+        return q { options = Options multiples attrs alts' }
 
 -----------------------------------------------------------
 -- Pandoc stuff
