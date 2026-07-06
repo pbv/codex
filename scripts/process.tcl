@@ -8,7 +8,7 @@ foreach file $argv {
 	continue
     }
     
-    exec pandoc -s -f markdown --pdf-engine=xelatex -o $output header.md $file 
+    exec pandoc -s -f markdown --pdf-engine=typst -o $output header.md $file 
 }
 
 

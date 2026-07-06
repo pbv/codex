@@ -5,6 +5,7 @@
 
 import argparse
 import subprocess
+import random
 import sys
 import json
 
@@ -31,6 +32,36 @@ class NominalDiffTime:
     def __repr__(self):
         return f'{self.value}s'
 
+def load_meta(user, db):
+    "Load the meta data for a user; create the user if does not exist."
+    cmdline = ['snap-auth-cli', '-r', '-u', user, '-s', '-f', db]
+    print(' '.join(cmdline))
+    out = subprocess.run(cmdline, capture_output=True)
+    if out.returncode != 0:
+        # user does not exist, create one
+        # choose a dummy random local password;
+        # this is just so that snap-auth-cli creates the user
+        # the user will be able to login with the LDAP password
+        passwd = str(random.randint(1000000, 9999999))
+        cmdline = ['snap-auth-cli', '-c', '-u', user, '-p', passwd, '-s', '-f', db]
+        print(' '.join(cmdline))
+        subprocess.run(cmdline)
+        meta = dict()
+    else:
+        obj = json.loads(out.stdout)
+        meta = dict()
+        for k,v in obj['meta'].items():
+            meta[k] = v
+    return meta
+
+def store_meta(user, db, meta):
+    "Store the meta data for a user."
+    cmdline = ['snap-auth-cli', '-m', '-u', user, '-s', '-f', db]
+    for k,v in meta.items():
+        cmdline.extend(['-k', k, '-v', v])
+    print(' '.join(cmdline))
+    subprocess.run(cmdline)
+    
 
 def main():
     global parser
@@ -42,37 +73,40 @@ def main():
         print("no user or database specified; exiting")
         sys.exit(-1)
 
-    if args.add is None and args.remove is None:
-        print("no time to add of remove; exiting")
-        sys.exit(-1)
-
-    if args.remove is None:
+    meta = load_meta(user, db)       
+    if args.reset_start:
+        if 'firstLogin' in meta:
+            print(f'deleting firstLogin for user {user}')        
+            del meta['firstLogin']
+            store_meta(user, db, meta)                        
+        else:
+            print(f'no firstLogin for user {user}; exiting')
+            sys.exit(-1)
+    elif args.reset_offset:
+        if 'timeDiffExtra' in meta:
+            print(f'deleting timeDiffExtra for user {user}')
+            del meta['timeDiffExtra']
+            store_meta(user, db, meta)            
+        else:
+            print(f'no timeDiffExtra for user {user}; exiting')
+            sys.exit(-1)            
+    elif args.add is not None:
+        print(f'adding {args.add} offset for user {user}')
         offset = NominalDiffTime(args.add)
-    else:
-        offset = NominalDiffTime('-' + args.remove)
-        
-    out = subprocess.run(['snap-auth-cli', '-r', '-u', user, '-s', '-f', db], capture_output=True)
-    obj = json.loads(out.stdout)
+        time = NominalDiffTime(meta.get('timeDiffExtra','0s'))
+        meta['timeDiffExtra'] = str(offset + time)
+        store_meta(user, db, meta)
+        sys.exit(0)
 
-    meta = {}
-    for k,v in obj['meta'].items():
-        meta[k] = v
-    old = NominalDiffTime(meta.get('timeDiffExtra','0s'))
-    meta['timeDiffExtra'] = str(offset + old)
 
-    cmdline = ['snap-auth-cli', '-m', '-u', user, '-s', '-f', db]
-    for k,v in meta.items():
-        cmdline.extend(['-k', k, '-v', v])
-
-    print(' '.join(cmdline))
-    subprocess.run(cmdline)
 
 parser = argparse.ArgumentParser(prog='Add Timer bonus',
                                  description='Add time bonus Codex user')
 parser.add_argument('-u', '--user')
 parser.add_argument('-d', '--database')
 parser.add_argument('-a', '--add', help='time offset to add')
-parser.add_argument('-r', '--remove', help='time offset to remove')
+parser.add_argument('-z', '--reset-offset', action='store_true', help='reset the time offset')
+parser.add_argument('-x', '--reset-start', action='store_true', help='reset the start time')
 
 if __name__=='__main__':
     main()
