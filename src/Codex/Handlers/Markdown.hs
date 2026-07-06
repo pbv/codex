@@ -11,6 +11,8 @@ module Codex.Handlers.Markdown
 import           Codex.Types
 import           Codex.Application
 import           Codex.Handlers
+import           Codex.AuthHandlers (getUserTranslate)
+
 import           Codex.Page
 import           Codex.Random(Rand)
 import qualified Codex.Random as Rand
@@ -86,18 +88,20 @@ shuffle' limit xs = maybe id take limit <$> Rand.shuffle xs
 fillExerciseLinks :: UserLogin -> FilePath -> Page -> Codex Page
 fillExerciseLinks uid rqdir page = do
     root <- getDocumentRoot
-    walkM (exerciseLinks uid root rqdir) page
+    lang <- getUserTranslate
+    walkM (exerciseLinks uid lang root rqdir) page
 
 -- | fetch title and submissions count for exercise links
-exerciseLinks :: UserLogin -> FilePath -> FilePath -> Inline -> Codex Inline
-exerciseLinks uid root rqdir (Link attr@(_, classes,_) _ target@(url,_))
+exerciseLinks :: UserLogin -> Maybe String
+              -> FilePath -> FilePath -> Inline -> Codex Inline
+exerciseLinks uid lang root rqdir (Link attr@(_, classes,_) _ target@(url,_))
   | "ex" `elem` classes = do
       let path = normalise (rqdir </> T.unpack url)
-      title <- readMarkdownTitle (root </> path)
+      title <- readMarkdownTitle (root </> addLanguage path lang)
       submitted <- countSubmissions uid path
       accepted <- countAccepted uid path
       return (formatExerciseLink attr title target submitted accepted)
-exerciseLinks _uid _root _rqdir elm
+exerciseLinks _uid _lang _root _rqdir elm
   = return elm
 
 -- | format an exercise link with a tooltip

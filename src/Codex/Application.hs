@@ -35,12 +35,12 @@ import Codex.Tester.Result
 
 -- | URLs for our application
 data AppUrl =
-    Admin                  -- ^ admin operations page
-  | Login                  -- ^ session login / logout
+    Admin                   -- ^ admin operations page
+  | Login                   -- ^ session login / logout
   | Logout
   | Register
-  | Page [FilePath]        -- ^ exercise page or other file
-  | Report SubmitId        -- ^ report for previous submission
+  | Page [FilePath]         -- ^ exercise page or other file
+  | Report SubmitId         -- ^ report for previous submission
   -- following are for adminstrator only
   | Files [FilePath]          -- ^ file browser 
   | SubmissionList            -- ^ submissions list

@@ -17,10 +17,24 @@
       <td>Password:</td><td><input type="password" name="password" size="20" /></td>
     </tr>
     <tr>
+      <td>
+        <label>Language:</label>
+      </td>
+      <td>
+        <select name="translate">
+          <option value=""><translate-default-language/></option>
+          <translate-other-languages>
+            <option value="${language}"><language/></option>
+          </translate-other-languages>
+        </select>
+      </td>
+    </tr>
+    <tr>
+      <td/>
       <td></td>
-      <td><input type="submit" value="Begin session" /></td>
     </tr>
   </table>
+  <p><input type="submit" value="Begin session" /></p>
 </form>
 
 <div class="errors"><p><loginError/></p></div>

@@ -8,7 +8,10 @@ module Codex.AuthHandlers (
   handleLogout,
   handleRegister,
   getTimeRemaining,
+  getUserTranslate,
   checkTimeRemaining,
+  getUserMeta,
+  setUserMeta
   ) where
 
 import           Data.ByteString.UTF8 (ByteString)
@@ -20,7 +23,7 @@ import qualified Data.HashMap.Strict as HM
 import           Data.Aeson.Types (typeMismatch)
 import           Data.Aeson (Value(..), Result(..),
                               fromJSON, toJSON, parseJSON,
-                              FromJSON)
+                              FromJSON, ToJSON)
 import           Data.Maybe (fromMaybe)
 
 import           Control.Applicative
@@ -100,27 +103,39 @@ getLdap = do
   liftIO $ getLdapConf (Configurator.subconfig "users.ldap" conf)
 
 
+-- | get the desired translation language from the login page
+getTranslate :: Codex (Maybe String)
+getTranslate = 
+  fmap
+    (\bs -> if bs == "" then Nothing else Just (B.toString bs))
+    (require $ getParam "translate")
+
+    
+
 -- | handler for login attempts
 -- first try local user DB, then LDAP (if enabled)
 handleLoginSubmit :: Codex ()
 handleLoginSubmit = do
   user  <-  require (getParam "login")
   passwd <- require (getParam "password")
+  translate <- getTranslate
   ldap <- getLdap
   r <- with auth $ loginByUsername (T.decodeUtf8 user) (ClearText passwd) False
   case r of
     Right au -> do
       addr <- getsRequest rqClientAddr
       logMsg (user <> " logged in from " <> addr)
-      registerFirstLogin au
+      au' <- registerFirstLogin au
+      _ <- setUserMeta "translate" translate au'
       redirectURL home
     Left err -> case ldap of
       Nothing ->  loginForm "_login" (Just err)
-      Just cfg -> loginLdapUser cfg user passwd
+      Just cfg -> loginLdapUser cfg user passwd translate
 
 
-loginLdapUser :: LdapConf -> ByteString -> ByteString -> Codex ()
-loginLdapUser ldapConf user passwd = do
+loginLdapUser :: LdapConf -> ByteString -> ByteString -> Maybe String
+              -> Codex ()
+loginLdapUser ldapConf user passwd translate = do
   r <- with auth $ withBackend (\r -> liftIO $ ldapAuth r ldapConf user passwd)
   case r of
     Left err -> 
@@ -129,23 +144,25 @@ loginLdapUser ldapConf user passwd = do
       addr <- getsRequest rqClientAddr
       logMsg (user <> " logged in from " <> addr)
       with auth (forceLogin au)
-      registerFirstLogin au
+      au' <- registerFirstLogin au
+      _ <- setUserMeta "translate" translate au'
       redirectURL home
 
 
 -- register the first login (if not set already)
-registerFirstLogin :: AuthUser -> Codex ()
+registerFirstLogin :: AuthUser -> Codex AuthUser
 registerFirstLogin au@AuthUser{..}
-  | HM.member "firstLogin" userMeta = return ()
+  | HM.member "firstLogin" userMeta = return au
   | otherwise = do
       time <- liftIO getCurrentTime
-      let au' = au { userMeta = HM.insert "firstLogin" (toJSON time) userMeta }
-      result <- with auth (saveUser au')
+      result <- setUserMeta "firstLogin" time au
       case result of
-        Right _ -> 
+        Right au' -> do
           logMsg (T.encodeUtf8 userLogin <> " first login updated")
-        Left _ -> 
+          return au'
+        Left _ -> do
           logMsg (T.encodeUtf8 userLogin <> " first login update FAILED")
+          return au
 
 
   
@@ -160,6 +177,12 @@ getTimeRemaining = do
     DiffTime duration <- optDuration
     Timer start extra <- getUserTimer au
     return (duration + extra - diffUTCTime now start)
+
+
+getUserTranslate :: Codex (Maybe String)
+getUserTranslate =  do
+  au <- require (with auth currentUser) <|> unauthorized
+  return (getUserMeta "translate" au)
 
 
 -- | check that the current use stil has time remaining
@@ -181,6 +204,12 @@ getUserMeta :: FromJSON a => Text -> AuthUser -> Maybe a
 getUserMeta key au = do
   val <- HM.lookup key (userMeta au)
   resultToMaybe (fromJSON val)
+
+setUserMeta :: ToJSON a
+            => Text -> a -> AuthUser -> Codex (Either AuthFailure AuthUser)
+setUserMeta key val au = do
+  let au' = au { userMeta = HM.insert key (toJSON val) (userMeta au) }
+  with auth (saveUser au')
 
 resultToMaybe :: Result a -> Maybe a
 resultToMaybe (Success x) = Just x

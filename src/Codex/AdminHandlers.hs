@@ -228,7 +228,7 @@ handleSubmissionList = do
     <|>
     method (Method "EXPORT") (exportSubmissions patts order)
     <|>
-    method (Method "PRINT") (generatePrintouts patts order)
+    method (Method "PRINT") generatePrintouts
 
 
 -- | List submissions
@@ -328,9 +328,10 @@ handleSubmissionAdmin sid = do
     report :: Submission -> Codex ()
     report sub = do
       root <- getDocumentRoot
-      page <- readMarkdownFile (root </>submitPath sub)
+      optLang <- fmap T.unpack <$> queryUserMeta (submitUser sub) "translate"
+      page <- readMarkdownFile (root</>submitPath sub) optLang
       tz <- liftIO getCurrentTimeZone
-      userName <- queryFullname (submitUser sub)
+      userName <- queryUserMeta (submitUser sub) "fullname"
       renderWithSplices "_submission_admin" $ do
         pageSplices page
         submissionSplices tz sub

@@ -3,7 +3,7 @@
 {-# LANGUAGE NamedFieldPuns #-}
 
 {-
-   Produce printouts for exams, etc.
+   Produce printouts for exams
 -}
 module Codex.Printout(
   generatePrintouts
@@ -18,6 +18,7 @@ import qualified Data.Text as T
 import qualified Data.Text.IO as T
 import           Data.Maybe ( fromMaybe )
 import           Control.Monad.State
+import           Control.Exception
 
 import qualified Data.Configurator as Configurator
 import           Snap.Snaplet
@@ -29,32 +30,22 @@ import           Codex.Policy (formatLocalTime)
 import           Codex.Types
 import           Codex.Application
 import           Codex.Handlers
-import Codex.Submission
-    ( Patterns,
-      Ordering,
-      Submission(..),
-      Validity(..),
-      withFilterSubmissions )
+import           Codex.Submission ( Submission(..),
+                                    Validity(..),
+                                    getUsersSubmitted,
+                                    getBestSubmissions )
 import           Codex.Page
 import           Codex.Tester.Result
 
 import           Text.Pandoc hiding (getCurrentTimeZone, getZonedTime)
 import           Text.Pandoc.Builder
-
-import           Data.HashMap.Strict (HashMap)
-import qualified Data.HashMap.Strict as HM
-import           Data.List (sortBy)
-import           Data.Function(on)
 import           Data.Functor.Identity
 
 
--- | cummulative summary of submissions
--- for each user for each exercise (path)
-type Summary = HashMap UserLogin (HashMap FilePath Submission)
 
 -- | generate Markdown printouts for best submissions
-generatePrintouts :: Patterns -> Codex.Submission.Ordering -> Codex ()
-generatePrintouts patts order = do
+generatePrintouts :: Codex ()
+generatePrintouts = do
   conf <- getSnapletUserConfig
   dir <- liftIO $ Configurator.require conf "printouts.directory"
   liftIO $ removePathForcibly dir
@@ -72,55 +63,23 @@ generatePrintouts patts order = do
                  , writerSetextHeaders = False
                  , writerListings = True
                  }
-  getSummary patts order >>= writePrintouts dir opts
+  writePrintouts dir opts
   liftIO $ callProcess "/usr/bin/tar" ["cf", "printouts.tar", dir]
   serveFile "printouts.tar"
 
 
 
 
-
--- | best of two submissions
-best :: Submission -> Submission -> Submission
-best s1 s2
-  = let class1 = resultStatus (submitResult s1)
-        class2 = resultStatus (submitResult s2)
-    in case (class1, class2) of
-         (Accepted, Accepted) -> latest s1 s2
-         (Accepted, _)        -> s1
-         (_       , Accepted) -> s2
-         (_       , _)        -> latest s1 s2
-
-latest :: Submission -> Submission -> Submission
-latest s1 s2
-  = if submitTime s1 < submitTime s2 then s2 else s1
-
-
--- | add a submision into the summary
-addSubmission :: Summary -> Submission -> Summary
-addSubmission summary sub@Submission{..}
-  = HM.insertWith (HM.unionWith best) submitUser (HM.singleton submitPath sub) summary
-
-
--- | get a summary of relevant submissions in the DB
-getSummary :: Patterns -> Codex.Submission.Ordering -> Codex Summary
-getSummary patts order
-  = withFilterSubmissions patts order HM.empty (\x y -> return (addSubmission x y))
-
-
--- | generate printouts from the summary
-writePrintouts :: FilePath -> WriterOptions -> Summary -> Codex [FilePath]
-writePrintouts dir opts  summary = do
-  forM (HM.toList summary) $
-    \(uid, submap) -> do
-        let filepath = dir </> T.unpack (fromLogin uid) <.> "md"
-        let sorted = sortBy (compare`on`submitPath) $ HM.elems submap
-        report <- userPrintout uid sorted
-        case runPure (writeMarkdown opts report) of
-          Right txt ->  do liftIO $ T.writeFile filepath txt
-                           return filepath
-          Left err -> error (show err)
-
+writePrintouts :: FilePath -> WriterOptions -> Codex ()
+writePrintouts dir opts = do
+  uids <- getUsersSubmitted
+  forM_ uids $ \uid -> do
+    subs <- getBestSubmissions uid
+    report <- userPrintout uid subs
+    let filepath = dir </> T.unpack (fromLogin uid) <.> "md"
+    liftIO $ case runPure (writeMarkdown opts report) of
+      Right txt -> T.writeFile filepath txt
+      Left err -> throwIO $ userError $ show err
 
 
 userPrintout :: UserLogin -> [Submission] -> Codex Pandoc
@@ -130,10 +89,12 @@ userPrintout uid  submissions = do
   tz <- liftIO getCurrentTimeZone
   now <- liftIO getZonedTime
   let login = fromLogin uid
-  fullname <- fromMaybe login <$> queryFullname uid
+  fullname <- fromMaybe login <$> queryUserMeta uid "fullname"
+  optLang <- fmap T.unpack <$> queryUserMeta uid "translate"
   blocks <- forM submissions $
             \sub -> do
-              page <- readMarkdownFile (root </> submitPath sub)
+              let original = root </> submitPath sub
+              page <- readMarkdownFile original optLang
               content <- handlePrintout uid page sub
               return (submissionPrintout tz page sub content)
   return (setAuthors [text $ fullname <> " (" <> login <> ")"] $

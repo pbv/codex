@@ -224,9 +224,8 @@ ppAlternative selected (label, (truth, blocks))
   where
     reply = label `elem` selected
     label1 = P.plain $ P.math $ if reply then "☒" else "☐"
-    label2 | reply && truth = P.plain $ P.strong $ P.text "✅"
-           | reply && not truth = P.plain $ P.strong $ P.text "❌"
-           | not reply && truth = P.plain $ P.strong $ P.text ""
+    label2 | reply && truth = P.plain $ P.text "✅"
+           | reply && not truth = P.plain $ P.text "❌"
            | otherwise = mempty
 
     

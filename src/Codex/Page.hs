@@ -24,6 +24,7 @@ import qualified Data.Text as T
 import qualified Data.Text.IO as T
 import qualified Data.Text.Read as T
 
+import           Control.Monad (when)
 import           Control.Applicative
 import           Control.Monad.IO.Class
 import           Control.Exception  (IOException)
@@ -31,10 +32,9 @@ import           Control.Exception.Lifted  (try)
 
 import           Codex.Types
 import           System.FilePath
+import           System.Directory(doesFileExist)
 
 import           Myers.Diff
-
-
 
 emptyPage :: Page
 emptyPage = Pandoc nullMeta []
@@ -44,21 +44,20 @@ pageMeta :: Page -> Meta
 pageMeta (Pandoc meta _) = meta
 
 -- extract document description (blocks)
-pageDescription :: Page -> [Block]
-pageDescription (Pandoc _ blocks) = blocks
+pageBlocks :: Page -> [Block]
+pageBlocks (Pandoc _ blocks) = blocks
 
 -- title is the first header (if any)
 pageTitle :: Page -> Maybe [Inline]
 pageTitle p  
-  = case pageDescription p of
+  = case pageBlocks p of
       (Header _ _ h : _) -> Just h
       _                  -> Nothing
-
 
 -- extract the page descriptions sans title
 pageUntitledBlocks :: Page -> [Block]
 pageUntitledBlocks p
-  = case pageDescription p of
+  = case pageBlocks p of
       (Header _ _ _ : blks) -> blks
       blks -> blks
 
@@ -75,12 +74,11 @@ pageLanguages :: Page -> [Language]
 pageLanguages = languages . pageMeta
 
 languages :: Meta -> [Language]
-languages meta =
-  fromMaybe []
-  (lookupFromMeta "languages" meta
-   <|>
-   do lang <- lookupFromMeta "language" meta
-      return [lang])
+languages meta
+  = fromMaybe [] (lookupFromMeta "languages" meta
+                  <|>
+                  do lang <- lookupFromMeta "language" meta
+                     return [lang])
 
 
 -- text for submission filled in by default
@@ -125,6 +123,19 @@ instance FromMetaValue Int where
       (Right (n, "")) -> Just n
       _ -> Nothing
   fromMeta _ = Nothing
+
+instance FromMetaValue Double where
+  fromMeta (MetaString s) =
+    case T.double s of
+      (Right (f,"")) -> Just f
+      _ -> Nothing
+  fromMeta (MetaInlines [Str txt]) =
+    case T.double txt of
+      (Right (f,"")) -> Just f
+      _ -> Nothing      
+  fromMeta _  = Nothing    
+      
+
 
 instance {-# OVERLAPPABLE #-} FromMetaValue a => FromMetaValue [a] where
   fromMeta (MetaList l) = mapM fromMeta l
@@ -194,22 +205,54 @@ blocksToHtml blocks = pageToHtml (Pandoc nullMeta blocks)
 
 
 -- | read a file and parse markdown to a Pandoc document
-readMarkdownFile :: MonadIO m => FilePath -> m Pandoc
-readMarkdownFile filepath = do
-  txt <- liftIO $ T.readFile filepath 
+-- second argument is the optional translation language 
+readMarkdownFile :: MonadIO m => FilePath -> Maybe String -> m Pandoc
+readMarkdownFile filepath Nothing = do
+  txt <- liftIO (T.readFile filepath)
   case parseMarkdown txt of
-    Left err  -> return (docError err)
+    Left err  -> return (docErrors [T.pack $ show err])
     Right doc -> liftIO $ processIncludes filepath doc
+
+readMarkdownFile filepath optLang = do
+  let translated = addLanguage filepath optLang
+  check <- liftIO $ doesFileExist translated
+  if check then do
+      txt1 <- liftIO (T.readFile filepath)
+      txt2 <- liftIO (T.readFile translated)
+      case parseMarkdown2 txt1 txt2 of
+        Left err -> return (docErrors [T.pack $ show err])
+        Right doc -> liftIO $ processIncludes filepath doc        
+    else do
+     txt <- liftIO (T.readFile filepath)
+     case parseMarkdown txt of
+        Left err -> return (docErrors [T.pack $ show err])
+        Right doc ->
+          let warn = docWarnings ["Translation " <>
+                                  T.pack translated <> " not found"]
+          in liftIO $ processIncludes filepath (doc <> warn)
 
 parseMarkdown :: Text -> Either PandocError Pandoc
 parseMarkdown txt = runPure $ do
   doc <- readMarkdown pandocReaderOptions txt 
   msgs <- getLog
-  return $ docWarnings msgs <> cleanupCodeBlocks doc  
+  let warnings = docWarnings (map showLogMessage msgs)
+  return $ cleanupCodeBlocks doc <> warnings 
+
+parseMarkdown2 :: Text -> Text -> Either PandocError Pandoc
+parseMarkdown2 original translation = runPure $ do
+  setVerbosity INFO
+  Pandoc meta  _      <- readMarkdown pandocReaderOptions original
+  Pandoc meta' blocks <- readMarkdown pandocReaderOptions translation
+  when (meta' /=  mempty) $
+    report (IgnoredIOError "metadata in translation")
+  msgs <- getLog
+  let doc = cleanupCodeBlocks (Pandoc meta blocks)
+  let warnings = docWarnings (map showLogMessage msgs)
+  return (doc <> warnings)
 
 -- | ensure all code blocks include some attribute
--- this works around pandoc's default of using indented code blocks
--- with empty attributes
+-- this works around Pandoc's default formating of code blocks
+-- with empty attributes as indented rather than fenced
 cleanupCodeBlocks :: Pandoc -> Pandoc
 cleanupCodeBlocks = walk cleanup
   where
@@ -255,7 +298,6 @@ processIncludes filepath
                 errorBlock [Plain [Str ("failed to read file " <> to)]]
       -- catch-all
       include block = return block
-  
 
 
 -- | read just the title of a markdown document
@@ -269,9 +311,9 @@ readMarkdownTitle filepath = liftIO $ do
               Left _  -> brokenLink filepath
               Right doc -> fromMaybe (brokenLink filepath) (pageTitle doc) 
 
+
 brokenLink :: FilePath -> [Inline]
 brokenLink path = [Text.Pandoc.Code nullAttr (T.pack path)]
-
 
 pandocReaderOptions :: ReaderOptions
 pandocReaderOptions
@@ -280,32 +322,33 @@ pandocReaderOptions
         }
 
 
--- | report error and warning messages
-docError :: PandocError -> Pandoc
-docError err
+-- | format error and warning messages as documents
+docErrors :: [Text] -> Pandoc
+docErrors [] = mempty
+docErrors msgs
   = Pandoc mempty
     [Div ("", ["errors"], [])
-     [Para [Str "ERROR:", Space, Str (T.pack $ show err)]]]
+     [Para [Str "ERROR:", Space, Str msg]] | msg <- msgs]
 
-docWarnings :: [LogMessage] -> Pandoc
-docWarnings []
-  = mempty
+docWarnings :: [Text] -> Pandoc
+docWarnings [] = mempty
 docWarnings msgs
   = Pandoc mempty
     [Div ("", ["warnings"], [])
-      [Para [Str "WARNING:", Space, Str (T.pack $ show msg)] | msg <- msgs]]
-
-docErrorMsg :: Text -> Pandoc
-docErrorMsg err
-  = Pandoc mempty
-    [Div ("", ["error"], []) [Para [Str "ERROR:", Space, Str err]]]
-  
+      [Para [Str "WARNING:", Space, Str msg] | msg <- msgs]]
 
 
 errorBlock :: [Block] -> Block
 errorBlock = Div ("", ["errors"],[]) 
 
-
+-- Function to add language to file name
+addLanguage :: FilePath -> Maybe String -> FilePath
+addLanguage path Nothing     = path
+addLanguage path (Just lang) =
+  let dir = takeDirectory path
+      name = takeBaseName path
+      ext = takeExtension path
+  in dir </> (name ++ "_" ++ lang ++ ext)
 
 
 -- Format text differences as an inline Pandoc fragment

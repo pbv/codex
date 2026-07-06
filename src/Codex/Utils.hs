@@ -75,25 +75,28 @@ getStaticRoot = do
   liftIO (Configurator.require conf "system.static_root")
 
 
--- | lookup full name for a user login from the DB
+-- | lookup user meta data from the DB
 -- performs a fist query to check if the metadata exists; this hack
 -- is needed because the Sqlite backend inserts NULL for empty metadata
 --
-queryFullname :: UserLogin -> Codex (Maybe Text)
-queryFullname uid = do
+queryUserMeta ::  UserLogin -> Text -> Codex (Maybe Text)
+queryUserMeta uid key = do
   Only check:_ <- query "SELECT meta_json is NULL \
                         \ from snap_auth_user WHERE login = ?" (Only uid) 
-  if check  then
+  if check then
     return Nothing
     else do
     list <- query "SELECT meta_json \
                   \ FROM snap_auth_user WHERE login = ?" (Only uid)
     return $ case list of
+      [] -> Nothing
       (txt:_) -> do
         hm <- Aeson.decodeStrict (T.encodeUtf8 txt)
-                :: Maybe (HM.HashMap Text Text)
-        HM.lookup "fullname" hm
-      _ -> Nothing
+                           :: Maybe (HM.HashMap Text Text)
+        HM.lookup key hm
+
+
+  
 
 
 -- | Get current logged in user ID (if any)
@@ -345,16 +348,6 @@ whenM cond action = do
   when c action
 
 
--- ++++++++++++++++++++++++++++++++++++++++++++++++
--- | PI Improvements                              
--- ++++++++++++++++++++++++++++++++++++++++++++++++
 
--- Function to add language code to file name
-addLanguage :: FilePath -> String -> FilePath
-addLanguage path lang =
-  let dir = takeDirectory path
-      name = takeBaseName path
-      ext = takeExtension path
-  in dir </> (name ++ "_" ++ lang ++ ext)
 
 

@@ -87,10 +87,11 @@ evaluateWith taskGroup submission@Submission{..} = do
   tester <- gets _tester
   root <- getDocumentRoot
   let filepath = root </> submitPath
+  optLang <- fmap T.unpack <$> queryUserMeta submitUser "translate"
   forkTask taskGroup $ do
     -- run the tester code asynchronously
     runSqlite conn $ updateResult submitId evaluating pending
-    page <- readMarkdownFile filepath
+    page <- readMarkdownFile filepath optLang
     let policy = getPolicy page
     check <- runSqlite conn $ checkPolicy timeEnv policy submission 
     result <- testWrapper tester conf filepath page submission

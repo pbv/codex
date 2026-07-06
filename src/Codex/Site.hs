@@ -41,7 +41,6 @@ import           Snap.Util.FileServe                         (fileType,
                                                               serveDirectory,
                                                               serveFileAs)
 
-
 import           Data.Time.Clock
 import           Data.Time.LocalTime
 
@@ -87,7 +86,7 @@ handleGet uid rqpath = do
     page <- handleGetTranslation rqpath
     Handlers{handleView} <- gets _handlers
     withSplices (urlSplices rqpath) $ handleView uid rqpath page
-  else     -- check if we can serve the file
+  else -- check if we can serve the file
      do let ext = takeExtension rqpath
         guard (ext `elem` allowedExtensions)
         root <- getDocumentRoot
@@ -97,7 +96,8 @@ handleGet uid rqpath = do
 allowedExtensions :: [FilePath]
 allowedExtensions
   = [ ".txt", ".jpg", ".jpeg", ".png", ".svg",
-      ".pdf", ".ps", ".zip",".tar", ".gz", ".tgz", ".bz2" ]
+      ".pdf", ".ps", ".zip",".tar", ".gz", ".tgz", ".bz2"
+    ]
 
 
 -- | try to load a markdown possibly with translation
@@ -106,24 +106,10 @@ handleGetTranslation rqpath = do
   root <- getDocumentRoot
   let originalFile = root </> rqpath
   guardFileExists originalFile
-  -- Get the optional language from the URL (?lang=PT)
-  optLang <- fmap B.toString <$> getParam "lang" 
-  case optLang of
-    Nothing ->  -- If there is no ?lang=XX in the URL, display the original
-      readMarkdownFile originalFile
+  optLang <-getUserTranslate
+  readMarkdownFile originalFile optLang
 
-    Just lang -> do  -- If there is ?lang=XX, translate
-      let translatedFile = root </> addLanguage rqpath lang 
-      check <- liftIO $ doesFileExist translatedFile
-      if check then 
-        readMarkdownFile translatedFile
-        else do
-        doc <- readMarkdownFile originalFile
-        return (unavailableTranslation lang <> doc)
-
-unavailableTranslation :: String -> Page
-unavailableTranslation lang
-  = docErrorMsg ("Translation for language " <> T.pack lang <> " not available.")
+  
 
     
 
@@ -141,7 +127,8 @@ handlePost uid rqpath = do
   -- check that the user is still allowed to submit
   check <- checkTimeRemaining
   if check then do
-    page <- readMarkdownFile filepath
+    optLang <- fmap T.unpack <$> queryUserMeta uid "translate"
+    page <- readMarkdownFile filepath optLang
     Handlers{handleSubmit} <- gets _handlers
     handleSubmit uid rqpath page
     else
@@ -157,8 +144,6 @@ handleGetReport sid = method GET $ do
   unless (isAdmin usr || submitUser sub == uid)
       unauthorized
   let rqpath = submitPath sub
-  -- root <- getDocumentRoot
-  -- page <- readMarkdownFile (root </> rqpath)
   page <- handleGetTranslation rqpath
   Handlers{handleReport} <- gets _handlers
   handleReport uid rqpath page sub

@@ -1,5 +1,7 @@
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE RecordWildCards #-}
+{-# LANGUAGE QuasiQuotes #-}
+{-# LANGUAGE TemplateHaskell #-}
 {-
    Evaluating, storing and fetching submissions to/from database
 -}
@@ -12,6 +14,8 @@ module Codex.Submission (
   updateResult,
   getSubmission,
   getSubmissions,
+  getUsersSubmitted,
+  getBestSubmissions,
   deleteSubmission,
   countSubmissions,
   countEarlier,
@@ -42,6 +46,7 @@ import           Snap.Snaplet.SqliteSimple
 import           Snap.Snaplet.Router
 import qualified Database.SQLite.Simple as S
 import           Database.SQLite.Simple (NamedParam(..))
+import           Database.SQLite.Simple.QQ (sql)
 import           Heist.Splices     as I
 
 import qualified Heist.Interpreted as I
@@ -70,9 +75,9 @@ newSubmission uid path time code result val = do
   let (Result status report) = result
   withSqlite $ \conn -> do
       S.execute conn
-        "INSERT INTO submissions \
-         \ (user_id, path, received, language, code, status, policy, report) \
-         \ VALUES(?, ?, ?, ?, ?, ?, ?, ?)"
+        [sql| INSERT INTO submissions 
+              (user_id, path, received, language, code, status, policy, report) 
+              VALUES(?, ?, ?, ?, ?, ?, ?, ?) |]
           (uid, path, time, lang, text, status, val, report)
       sid <- fmap SubmitId (S.lastInsertRowId conn)
       return (Submission sid uid path time code result val)
@@ -81,8 +86,8 @@ newSubmission uid path time code result val = do
 updateResult :: HasSqlite m =>
                 SubmitId -> Result -> Validity -> m ()
 updateResult sid Result{..} val  =
-  execute "UPDATE submissions SET status=?, policy=?, report=? \
-           \ where id = ?" (resultStatus, val, resultReport, sid)
+  execute [sql| UPDATE submissions SET status=?, policy=?, report=? 
+            where id = ? |] (resultStatus, val, resultReport, sid)
 
 
 -- | get a single submission
@@ -94,15 +99,62 @@ getSubmission sid =
 -- | get all submissions for a user and exercise page
 getSubmissions :: HasSqlite m => UserLogin -> FilePath -> m [Submission]
 getSubmissions uid path =
-  query "SELECT * FROM submissions \
-       \ WHERE user_id = ? AND path = ? ORDER BY received" (uid, path)
+  query [sql| SELECT * FROM submissions 
+              WHERE user_id = ? AND path = ? ORDER BY received |] (uid, path)
+
+
+-- | get all user ids who have submitted
+getUsersSubmitted :: HasSqlite m => m [UserLogin]
+getUsersSubmitted =
+  query_ "SELECT DISTINCT user_id FROM submissions"
+
+{-
+-- | get best submissions, i.e. the last accepted 
+-- or the last one if none is accepted
+getBestSubmissions :: HasSqlite m => UserLogin -> m [Submission]
+getBestSubmissions uid  = 
+  query "WITH RankedSubmissions AS (\
+        \ SELECT *,\
+        \  ROW_NUMBER() OVER (\
+        \    PARTITION BY path\
+        \      ORDER BY\
+        \        CASE WHEN status = 'Accepted' THEN 1 ELSE 0 END DESC,\
+        \         received DESC \
+        \ ) as rn\
+        \ FROM submissions\
+        \ WHERE user_id = ?\
+        \ )\
+        \ SELECT id, user_id, path, received, language, code, status, policy, report FROM RankedSubmissions \
+        \ WHERE rn = 1 \
+        \ ORDER BY path ASC" (Only uid)
+
+-}
+
+  -- | get best submissions, i.e. the last accepted 
+-- or the last one if none is accepted
+getBestSubmissions :: HasSqlite m => UserLogin -> m [Submission]
+getBestSubmissions uid  = 
+  query [sql|
+          WITH RankedSubmissions AS (
+           SELECT *, ROW_NUMBER() OVER (
+            PARTITION BY path
+            ORDER BY
+              CASE WHEN status = 'Accepted' THEN 1 ELSE 0 END DESC,
+              received DESC 
+             ) as rn
+             FROM submissions
+             WHERE user_id = ?)
+             SELECT id, user_id, path, received, language, code, status, policy, report FROM RankedSubmissions 
+             WHERE rn = 1 
+             ORDER BY path ASC|] (Only uid)
+
 
 
 -- | count user submissions to an exercise page
 countSubmissions :: HasSqlite m => UserLogin -> FilePath -> m Int
 countSubmissions uid path = do
-  r <- query "SELECT COUNT(*) FROM submissions \
-            \ WHERE user_id = ?  AND path = ?" (uid,path)
+  r <- query [sql| SELECT COUNT(*) FROM submissions 
+                   WHERE user_id = ?  AND path = ?|] (uid,path)
   case r of
     [Only c] -> return c
     _  -> error "countPageSubmissions: invalid result"
@@ -110,9 +162,10 @@ countSubmissions uid path = do
 
 countAccepted :: HasSqlite m => UserLogin -> FilePath -> m Int
 countAccepted uid path =  do
-  r <- query "SELECT COUNT(*) FROM submissions \
-            \ WHERE user_id = ?  AND path = ? \
-            \ AND status = 'Accepted'" (uid,path)
+  r <- query [sql|
+                 SELECT COUNT(*) FROM submissions 
+                 WHERE user_id = ?  AND path = ? 
+                 AND status = 'Accepted' |] (uid,path)
   case r of
     [Only c] -> return c
     _  -> error "countAccepted: invalid result"
@@ -120,9 +173,9 @@ countAccepted uid path =  do
 countEarlier ::
   HasSqlite m => UserLogin -> FilePath -> UTCTime -> m Int
 countEarlier uid path time = do
-    r <- query "SELECT COUNT(*) FROM submissions \
-                \ WHERE user_id = ? AND path = ? AND received < ?"
-                          (uid, path, time)
+    r <- query [sql|
+                   SELECT COUNT(*) FROM submissions 
+                   WHERE user_id = ? AND path = ? AND received < ? |]                          (uid, path, time)
     case r of
       [Only c] -> return c
       _ -> error "countEarlier: invalid result"
@@ -202,6 +255,11 @@ withSubmissions ::
 withSubmissions a f = do
   let sql = "SELECT * FROM submissions ORDER BY id ASC"
   withSqlite (\conn -> S.fold_ conn sql a f)
+
+
+
+              
+
 
 -- | splices relating to a single submission
 submissionSplices :: TimeZone -> Submission -> ISplices

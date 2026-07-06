@@ -53,31 +53,37 @@ quizTester = tester "quiz" $ do
   guard (lang == "json")
   page <- testPage
   uid <- testUser
+  offset <- metadataWithDefault "grade-offset" 0.0
   let quiz = shuffleQuiz uid page
   let selected = maybe mempty answers (decodeText text)
   let grades = gradeQuiz quiz selected
-  let summary = makeSummary grades
+  let summary = makeSummary offset grades
   return $ accepted summary
 
 
-makeSummary :: Grades -> P.Blocks
-makeSummary Grades{..}
+makeSummary :: Double -> Grades -> P.Blocks
+makeSummary offset Grades{..}
   = P.bulletList $ map P.plain  
     [ P.text "Number of questions: " <> P.str (tshow numQuestions)
     , P.text "Total number of options: " <> P.str (tshow numOptions)
     , P.text "Number of correct choices: " <> P.str (tshow numCorrect) 
     , P.text "Number of incorrect choices: " <> P.str (tshow numIncorrect)
-    , P.text "Grade: " <> P.str (T.pack $ printf "%.2f%%" (100*grade)) 
+    , P.text "Total score: " <>
+      P.str (T.pack $ printf "%.2f%%" (100*total))
+    , P.text "Grade: " <>
+      P.str (T.pack $ printf "%.2f%%" (100*grade)) 
     ]
   where
     tshow :: Show a => a -> Text
     tshow = T.pack . show
     numQuestions = length gradesList
-    grade = if numQuestions > 0
+    total, grade :: Double
+    total = if numQuestions > 0
             then fromFraction (sum gradesList / fromIntegral numQuestions)
             else 0
+    grade = max 0 ((total-offset)/(1-offset))
 
-fromFraction :: Fraction -> Float
+fromFraction :: Fraction -> Double
 fromFraction f = fromIntegral (numerator f) / fromIntegral (denominator f)
 
 
@@ -96,7 +102,7 @@ gradeQuestion question answers
 gradeOptions :: Options -> [Key] -> Grades
 gradeOptions (Options kind attrs alts) selected
   | numCorrect>0 && numIncorrect>0
-  = Grades numSelected choseCorrect choseIncorrect [grade]
+  = Grades numSelected choseCorrect choseIncorrect [score]
   | otherwise = mempty           -- invalid question; no grading
   where keys = [label | (label,(True,_)) <- zip (listLabels attrs) alts]
         numAlts = length alts
@@ -105,7 +111,7 @@ gradeOptions (Options kind attrs alts) selected
         numSelected = length selected
         choseCorrect = length (selected `intersect` keys)
         choseIncorrect = length (selected \\ keys)
-        grade = case kind of
+        score = case kind of
           Single ->
             if choseCorrect>0 then 1 else 0
           Multiple ->
