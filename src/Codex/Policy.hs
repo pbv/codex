@@ -20,6 +20,7 @@ import qualified Data.Configurator.Types as Configurator
 
 import           Text.ParserCombinators.ReadP
 
+import           Control.Monad
 import           Control.Monad.Reader
 import           Control.Monad.Writer
 import           Control.Monad.State

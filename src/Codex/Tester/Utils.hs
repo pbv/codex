@@ -17,6 +17,9 @@ module Codex.Tester.Utils
   , getMetaArgs
   , parseArgs
   , globPatterns
+  , parseTests
+  , showTest
+  , parsePrompt
   ) where
 
 
@@ -250,6 +253,45 @@ globPattern patt = do
 globPatterns :: MonadIO m => FilePath -> [String] -> m [FilePath]
 globPatterns dir patts = concat <$> mapM (globPattern . (dir</>)) patts
 
+--------------------------------------------------------------------
+-- parsing doctest-like unit tests
 
-       
+parseTests :: Text -> [Text]
+parseTests = parsePrompt ">>>"
+
+showTest :: Text -> Text
+showTest = unparsePrompt ">>> "
+
+parsePrompt :: Text -> Text -> [Text]
+parsePrompt prompt text
+  = map T.unlines $ filter (not.null) $ go 0 (T.lines text) []
+  where
+    len = T.length prompt
+    -- first argument is the indentation count from previous lines
+    go :: Int -> [Text] -> [Text] -> [[Text]]
+    go _ [] acc = [reverse acc]
+    go indent (line:rest) acc
+      | Just suffix <- T.stripPrefix prompt line
+             = let suffix' = T.stripStart suffix
+                   indent' = len + T.length suffix - T.length suffix'
+               in reverse acc : go indent' rest [suffix']
+      | otherwise = let line' = stripStart' indent line
+                    in go indent rest (line':acc)
+
+
+-- | strip at most some whitespace charaters from the start of a text
+stripStart' :: Int -> Text -> Text
+stripStart' len txt = T.drop (min len len') txt
+  where len' = T.length txt - T.length (T.stripStart txt)
+
+
+-- introduce the prompt back into a doctest string
+unparsePrompt :: Text -> Text -> Text
+unparsePrompt prompt text
+  = T.unlines $
+    case T.lines text of
+      (first:rest) -> (prompt<>first) : map (indent<>) rest
+      [] -> []
+  where indent = T.replicate (T.length prompt) " "
+
     

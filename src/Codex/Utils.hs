@@ -38,6 +38,7 @@ import qualified Heist.Interpreted as I
 
 import qualified Text.XmlHtml as X
 
+import           Control.Monad
 import           Control.Monad.State
 import           Control.Applicative 
 import           Control.Exception (SomeException(..))
@@ -49,15 +50,15 @@ import           Codex.Page
 import           Codex.Application
 
 import           Data.Time
--- import           Data.Time.LocalTime
--- import           Data.Time.Format ( defaultTimeLocale, formatTime ) 
+import           Data.HashMap.Strict (HashMap)
 
 import           System.FilePath
 import qualified System.FastLogger as FastLogger
 import           System.Directory (doesFileExist, doesDirectoryExist)
 
 
-
+-- user meta data in the snap_auth_user DB table
+type UserMeta = HashMap Text (Maybe Text)
 
 -- interpreted splices for handlers
 type ISplices = Splices (I.Splice Codex)
@@ -79,23 +80,25 @@ getStaticRoot = do
 -- performs a fist query to check if the metadata exists; this hack
 -- is needed because the Sqlite backend inserts NULL for empty metadata
 --
-queryUserMeta ::  UserLogin -> Text -> Codex (Maybe Text)
-queryUserMeta uid key = do
+
+queryMeta :: UserLogin -> Codex UserMeta
+queryMeta uid = do
   Only check:_ <- query "SELECT meta_json is NULL \
                         \ from snap_auth_user WHERE login = ?" (Only uid) 
   if check then
-    return Nothing
+    return HM.empty
     else do
     list <- query "SELECT meta_json \
                   \ FROM snap_auth_user WHERE login = ?" (Only uid)
     return $ case list of
-      [] -> Nothing
-      (txt:_) -> do
-        hm <- Aeson.decodeStrict (T.encodeUtf8 txt)
-                           :: Maybe (HM.HashMap Text Text)
-        HM.lookup key hm
+               [] -> HM.empty
+               (txt:_) -> fromMaybe HM.empty (Aeson.decodeStrict (T.encodeUtf8 txt))
 
-
+queryUserMeta :: UserLogin -> Text -> Codex (Maybe Text)
+queryUserMeta uid key = do
+  meta <- queryMeta uid
+  return (join (HM.lookup key meta))
+       
   
 
 

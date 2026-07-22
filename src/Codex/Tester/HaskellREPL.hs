@@ -135,10 +135,3 @@ defaultMaxOutput = 1000
 string :: String -> P.Inlines
 string = P.text . T.pack
 
--- parse tests
-parseTests :: Text -> [Text]
-parseTests 
-  = filter (not . T.null) . map T.strip . T.splitOn ">>>" 
-
-showTest :: Text -> Text
-showTest = (">>> " <>)

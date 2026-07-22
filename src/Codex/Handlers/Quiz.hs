@@ -220,10 +220,10 @@ ppOptions (Options _ attrs alts) selected
 
 ppAlternative :: [Key] -> (Key, (Bool, [P.Block])) -> P.Blocks
 ppAlternative selected (label, (truth, blocks))
-  = label1 <> P.plain P.space <> P.fromList blocks <> P.plain P.space <> label2
+  = label1 <> P.fromList blocks <> label2
   where
     reply = label `elem` selected
-    label1 = P.plain $ P.math $ if reply then "☒" else "☐"
+    label1 = P.plain $ P.text $ if reply then  "☒" else "☐"
     label2 | reply && truth = P.plain $ P.text "✅"
            | reply && not truth = P.plain $ P.text "❌"
            | otherwise = mempty

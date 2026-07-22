@@ -58,7 +58,8 @@ def store_meta(user, db, meta):
     "Store the meta data for a user."
     cmdline = ['snap-auth-cli', '-m', '-u', user, '-s', '-f', db]
     for k,v in meta.items():
-        cmdline.extend(['-k', k, '-v', v])
+        if v != None:
+            cmdline.extend(['-k', k, '-v', v])
     print(' '.join(cmdline))
     subprocess.run(cmdline)
     

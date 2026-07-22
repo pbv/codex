@@ -131,43 +131,4 @@ defaultMaxOutput = 1000
 string :: String -> P.Inlines
 string = P.text . T.pack
 
--- parse tests
--- parseTests :: Text -> [Text]
--- parseTests 
---  = filter (not . T.null) . map T.strip . T.splitOn ">>>"
-parseTests :: Text -> [Text]
-parseTests = parsePrompt ">>>"
-
-showTest :: Text -> Text
-showTest = unparsePrompt ">>> "
-
-unparsePrompt :: Text -> Text -> Text
-unparsePrompt prompt text
-  = T.unlines $
-    case T.lines text of
-      (first:rest) -> (prompt<>first) : map (padding<>) rest
-      [] -> []
-  where padding = T.replicate (T.length prompt) " "
-
-parsePrompt :: Text -> Text -> [Text]
-parsePrompt prompt text
-  = case T.splitOn prompt text of
-      (_:rest) -> map unindent rest
-      _ -> []
-  where
-    unindent txt
-      = T.unlines $
-        case T.lines txt of
-          [] -> [""]
-          (first:rest) ->
-            let
-              first' = T.dropWhile (==' ') first
-              len = T.length prompt + T.length first - T.length first'
-            in
-              first' : map (dropSpaces len) rest
-
--- | drop at most len spaces from the start of a text
-dropSpaces :: Int -> Text -> Text
-dropSpaces len txt = T.drop (min len len') txt
-  where len' = T.length (T.takeWhile (==' ') txt)
 

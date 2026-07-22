@@ -162,13 +162,6 @@ runTest profile (prolog:args) normalize dir answer code number query = do
 maxOutput :: Int
 maxOutput = 1000
 
--- parse tests
-parseTests :: Text -> [Text]
-parseTests 
-  = filter (not . T.null) . map T.strip . T.splitOn ">>>" 
-
--- showTest :: Text -> Text
--- showTest = (">>> " <>)
 
 string :: String -> P.Inlines
 string = P.text . T.pack

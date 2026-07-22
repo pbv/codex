@@ -17,6 +17,7 @@ import           System.Directory
 import qualified Data.Text as T
 import qualified Data.Text.IO as T
 import           Data.Maybe ( fromMaybe )
+import           Control.Monad
 import           Control.Monad.State
 import           Control.Exception
 
@@ -41,6 +42,7 @@ import           Text.Pandoc hiding (getCurrentTimeZone, getZonedTime)
 import           Text.Pandoc.Builder
 import           Data.Functor.Identity
 
+import qualified Data.HashMap.Strict as HM
 
 
 -- | generate Markdown printouts for best submissions
@@ -57,7 +59,7 @@ generatePrintouts = do
                     Left err -> error (show err)
   let tpl = case runIdentity (compileTemplate tplPath tplText) of
               Right tpl -> tpl
-              Left err -> error (show err)
+              Left err -> error (show err)        
   let opts = def { writerTemplate = Just tpl
                  , writerExtensions = pandocExtensions
                  , writerSetextHeaders = False
@@ -89,8 +91,9 @@ userPrintout uid  submissions = do
   tz <- liftIO getCurrentTimeZone
   now <- liftIO getZonedTime
   let login = fromLogin uid
-  fullname <- fromMaybe login <$> queryUserMeta uid "fullname"
-  optLang <- fmap T.unpack <$> queryUserMeta uid "translate"
+  meta <- queryMeta uid
+  let fullname = fromMaybe login (join (HM.lookup "fullname" meta))
+  let optLang = fmap T.unpack (join (HM.lookup "translate" meta))
   blocks <- forM submissions $
             \sub -> do
               let original = root </> submitPath sub
