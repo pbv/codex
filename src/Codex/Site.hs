@@ -16,7 +16,9 @@ import           Control.Applicative
 import           Control.Concurrent.MVar
 import           Control.Lens
 import           Control.Monad.State
-import           System.Directory (doesFileExist, removeFile)
+import           System.Directory (doesFileExist,
+                                    removeFile,
+                                    createDirectoryIfMissing)
 import           Data.Char (isAlphaNum)
 import           Data.ByteString.UTF8                        (ByteString)
 import qualified Data.ByteString.UTF8                        as B
@@ -109,9 +111,7 @@ handleGetTranslation rqpath = do
   optLang <-getUserTranslate
   readMarkdownFile originalFile optLang
 
-  
 
-    
 
 -- ++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 
@@ -221,8 +221,9 @@ codexInit handlers tester =
     js <- liftIO $ configSplices conf
     addConfig h (mempty & scInterpretedSplices .~ (staticSplices <> dpl <> js))
     -- auto-reload config file for events
-    (evcfg, _) <- liftIO $ Conf.autoReload Conf.autoConfig [Conf.Required "events.cfg"]
+    (evcfg, _) <- liftIO $ Conf.autoReload Conf.autoConfig [Conf.Optional "events.cfg"]
     -- create a logger for user authentication
+    liftIO $ createDirectoryIfMissing False "log"
     logger <- liftIO $ newLogger "log/auth.log"
     onUnload (stopLogger logger)
     -- Grab the DB connection pool from the sqlite snaplet and call
