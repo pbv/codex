@@ -2,12 +2,14 @@
   <apply template="_browse"/>
 <script>
 function reevaluate() {
+  if (!confirm("Re-evaluate the selected submissions?")) return;
   var form = document.getElementById("listform");
   var param = document.getElementById("_method");
   param.value = "PATCH";
   form.submit();
 }
 function cancel() {
+  if (!confirm("Cancel pending re-evaluations?")) return;
   var form = document.getElementById("listform");
   var param = document.getElementById("_method");
   param.value = "CANCEL";
