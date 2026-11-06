@@ -112,44 +112,48 @@ getTranslate =
     (require $ getParam "translate")
 
     
-
 -- | handler for login attempts
 -- first try local user DB, then LDAP (if enabled)
 handleLoginSubmit :: Codex ()
 handleLoginSubmit = do
   user  <-  require (getParam "login")
   passwd <- require (getParam "password")
-  twoFaToken <- getParam "twoFaToken"
   enabledTwoFa <- isTwoFactorEnabled
   if enabledTwoFa then do
-      case twoFaToken of
-          Nothing ->
-            loginForm "_login" (Just (AuthError "Two-factor token required"))
-          Just tok -> do
+      twoFaToken <- require (getParam "twoFaToken")
+      result <- loginBackends user passwd
+      case result of
+        Left err ->
+          loginForm "_login" (Just err)
+        Right au -> do
             let ul = UserLogin (T.decodeUtf8 user)
-            result <- validateTwoFaToken (T.decodeUtf8 tok) ul
+            result <- validateTwoFaToken (T.decodeUtf8 twoFaToken) ul
             case result of
-              Left msg ->  
+              Left msg -> do
+                with auth logout
                 loginForm "_login" (Just (AuthError msg))
-              Right _twoFaToken -> 
-                validatePassword user passwd
-    else
-        validatePassword user passwd
+              Right _ -> 
+                finishLogin au 
+    else do
+      result <- loginBackends user passwd
+      case result of
+        Left err ->
+          loginForm "_login" (Just err)
+        Right au -> 
+          finishLogin au
+          
+        
 
--- | check the password and register language choice and first-time login (if needed)
-validatePassword :: ByteString -> ByteString -> Codex ()
-validatePassword user passwd = do               
-  reply <- loginBackends user passwd
-  case reply of
-    Left err -> 
-      loginForm "_login" (Just err)
-    Right au -> do
-        language <- getTranslate
-        addr <- getsRequest rqClientAddr
-        logMsg (user <> " logged in from " <> addr)
-        au' <- registerFirstLogin au
-        _ <- setUserMeta "translate" language au'
-        redirectURL home
+-- | register a user first-time login (if needed)
+finishLogin :: AuthUser -> Codex ()
+finishLogin au = do               
+  language <- getTranslate
+  addr <- getsRequest rqClientAddr
+  let user = T.encodeUtf8 (userLogin au)
+  logMsg (user <> " logged in from " <> addr)
+  au' <- registerFirstLogin au
+  _ <- setUserMeta "translate" language au'
+  redirectURL home
     
   
 -- | try to login with the local DB or LDAP backends 

@@ -100,6 +100,7 @@ validateTwoFaToken tok ul =
 
 
 
+
 isTwoFactorEnabled :: Codex Bool
 isTwoFactorEnabled = do
   conf <- getSnapletUserConfig
