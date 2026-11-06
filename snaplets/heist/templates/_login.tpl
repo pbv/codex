@@ -16,6 +16,11 @@
     <tr>
       <td>Password:</td><td><input type="password" name="password" size="20" /></td>
     </tr>
+    <if-two-factor-enabled>
+      <tr>
+      <td>2FA Token:</td><td><input type="text" name="twoFaToken" size="20" placeholder="Enter your token" /></td>
+      </tr> 
+    </if-two-factor-enabled>
     <tr>
       <td>
         <label>Language:</label>

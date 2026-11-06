@@ -67,6 +67,7 @@ import           Codex.Types
 import           Codex.Utils
 import           Codex.Tester
 import           Codex.Tasks
+import           Codex.TwoFactor
 import           Data.Version                                (showVersion)
 import           Paths_codex                                 (version)
            
@@ -230,6 +231,8 @@ codexInit handlers tester =
     -- into the Model to create all the DB tables if necessary.
     let c = S.sqliteConn $ d ^# snapletValue
     liftIO $ withMVar c $ \conn -> Db.createTables conn
+    -- Also create the two-factor-auth token table (if not already present).
+    liftIO $ initTwoFaTable d
     addRoutes routes
     -- | semaphore for limimit concurrent evaluations
     nslots <- liftIO $ Conf.require conf "system.max_concurrent"
@@ -265,9 +268,11 @@ configSplices :: Config -> IO ISplices
 configSplices conf = do
   mathjax_js <- Conf.require conf "mathjax_js"
   ace_editor_js <- Conf.require conf "ace_editor_js"
+  twoFactor <- fromMaybe False <$> Conf.lookup conf "users.two_factor"
   return $ do
     "mathjax-js" ## return (map javascriptSrc mathjax_js)
     "ace-editor-js" ## return (map javascriptSrc ace_editor_js)
+    "if-two-factor-enabled" ## I.ifElseISplice twoFactor 
 
 translateSplices :: Config -> IO ISplices
 translateSplices conf = do

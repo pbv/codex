@@ -50,6 +50,7 @@ import           Codex.Types
 import           Codex.Utils
 import           Codex.Application
 import           Codex.LdapAuth
+import           Codex.TwoFactor
 
 -- | a newtype for converting time differences into json/configuration text
 newtype DiffTime = DiffTime NominalDiffTime
@@ -118,35 +119,51 @@ handleLoginSubmit :: Codex ()
 handleLoginSubmit = do
   user  <-  require (getParam "login")
   passwd <- require (getParam "password")
-  translate <- getTranslate
-  ldap <- getLdap
-  r <- with auth $ loginByUsername (T.decodeUtf8 user) (ClearText passwd) False
-  case r of
-    Right au -> do
-      addr <- getsRequest rqClientAddr
-      logMsg (user <> " logged in from " <> addr)
-      au' <- registerFirstLogin au
-      _ <- setUserMeta "translate" translate au'
-      redirectURL home
-    Left err -> case ldap of
-      Nothing ->  loginForm "_login" (Just err)
-      Just cfg -> loginLdapUser cfg user passwd translate
-
-
-loginLdapUser :: LdapConf -> ByteString -> ByteString -> Maybe String
-              -> Codex ()
-loginLdapUser ldapConf user passwd translate = do
-  r <- with auth $ withBackend (\r -> liftIO $ ldapAuth r ldapConf user passwd)
-  case r of
+  twoFaToken <- getParam "twoFaToken"
+  enabledTwoFa <- isTwoFactorEnabled
+  language <- getTranslate
+  reply <- loginBackends user passwd
+  case reply of
     Left err -> 
       loginForm "_login" (Just err)
     Right au -> do
-      addr <- getsRequest rqClientAddr
-      logMsg (user <> " logged in from " <> addr)
-      with auth (forceLogin au)
-      au' <- registerFirstLogin au
-      _ <- setUserMeta "translate" translate au'
-      redirectURL home
+      if enabledTwoFa then
+        case twoFaToken of
+          Nothing ->
+            loginForm "_login" (Just (AuthError "Two-factor token required"))
+          Just tok -> do
+            let ul = UserLogin (T.decodeUtf8 user)
+            result <- validateTwoFaToken (T.decodeUtf8 tok) ul
+            case result of
+              Left msg ->
+                loginForm "_login" (Just (AuthError msg))
+              Right _token -> do
+                addr <- getsRequest rqClientAddr
+                logMsg (user <> " logged in from " <> addr)
+                au' <- registerFirstLogin au
+                _ <- setUserMeta "translate" language au'
+                redirectURL home
+      else do
+        addr <- getsRequest rqClientAddr
+        logMsg (user <> " logged in from " <> addr)
+        au' <- registerFirstLogin au
+        _ <- setUserMeta "translate" language au'
+        redirectURL home
+
+-- | try to login with the local DB or LDAP backends 
+loginBackends :: ByteString -> ByteString -> Codex (Either AuthFailure AuthUser)        
+loginBackends user passwd = do
+  optLdap <- getLdap
+  -- try the local DB first
+  reply <- with auth $ loginByUsername (T.decodeUtf8 user) (ClearText passwd) False
+  case reply of
+    Right _ -> return reply
+    -- try the LDAP backend if configured
+    Left err -> case optLdap of
+      Just ldapConf ->
+        with auth $ withBackend (\r -> liftIO $ ldapAuth r ldapConf user passwd)
+      Nothing -> return reply
+
 
 
 -- register the first login (if not set already)
@@ -158,10 +175,10 @@ registerFirstLogin au@AuthUser{..}
       result <- setUserMeta "firstLogin" time au
       case result of
         Right au' -> do
-          logMsg (T.encodeUtf8 userLogin <> " first login updated")
+          logMsg (T.encodeUtf8 userLogin <> " first login register suceeded")
           return au'
         Left _ -> do
-          logMsg (T.encodeUtf8 userLogin <> " first login update FAILED")
+          logMsg (T.encodeUtf8 userLogin <> " first login register failed")
           return au
 
 
