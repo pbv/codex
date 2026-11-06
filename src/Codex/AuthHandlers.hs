@@ -121,35 +121,37 @@ handleLoginSubmit = do
   passwd <- require (getParam "password")
   twoFaToken <- getParam "twoFaToken"
   enabledTwoFa <- isTwoFactorEnabled
-  language <- getTranslate
-  reply <- loginBackends user passwd
-  case reply of
-    Left err -> 
-      loginForm "_login" (Just err)
-    Right au -> do
-      if enabledTwoFa then
-        case twoFaToken of
+  if enabledTwoFa then do
+      case twoFaToken of
           Nothing ->
             loginForm "_login" (Just (AuthError "Two-factor token required"))
           Just tok -> do
             let ul = UserLogin (T.decodeUtf8 user)
             result <- validateTwoFaToken (T.decodeUtf8 tok) ul
             case result of
-              Left msg ->
+              Left msg ->  
                 loginForm "_login" (Just (AuthError msg))
-              Right _token -> do
-                addr <- getsRequest rqClientAddr
-                logMsg (user <> " logged in from " <> addr)
-                au' <- registerFirstLogin au
-                _ <- setUserMeta "translate" language au'
-                redirectURL home
-      else do
+              Right _twoFaToken -> 
+                validatePassword user passwd
+    else
+        validatePassword user passwd
+
+-- | check the password and register language choice and first-time login (if needed)
+validatePassword :: ByteString -> ByteString -> Codex ()
+validatePassword user passwd = do               
+  reply <- loginBackends user passwd
+  case reply of
+    Left err -> 
+      loginForm "_login" (Just err)
+    Right au -> do
+        language <- getTranslate
         addr <- getsRequest rqClientAddr
         logMsg (user <> " logged in from " <> addr)
         au' <- registerFirstLogin au
         _ <- setUserMeta "translate" language au'
         redirectURL home
-
+    
+  
 -- | try to login with the local DB or LDAP backends 
 loginBackends :: ByteString -> ByteString -> Codex (Either AuthFailure AuthUser)        
 loginBackends user passwd = do

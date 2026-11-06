@@ -34,16 +34,14 @@ def generate_tokens(count):
 
 def cmd_generate(conn, args):
     """Generate a number of unique random tokens."""
-    print(args)
-    if args.seed:
-        random.seed(args.seed)
-    tokens = generate_tokens(args.count)
+    [count] = args.gen
+    tokens = generate_tokens(count)
     cursor = conn.cursor()
     for token in tokens:
         cursor.execute(
             """INSERT INTO two_fa_tokens (token, used, used_by, used_at) 
                VALUES (?, ?, ?, ?)""", (token,0,None,None))
-    print(f"Generated {args.count} tokens.")
+    print(f"Generated {count} tokens.")
 
 
 def cmd_list(conn, args):
@@ -106,7 +104,7 @@ def main():
     parser.add_argument('--database', default='submissions.db',
                         help='Path to the SQLite database')
     group = parser.add_mutually_exclusive_group(required=True)
-    group.add_argument('--gen', nargs=1, metavar='NUMBER', 
+    group.add_argument('--gen', nargs=1, type=int, metavar='NUMBER', 
                        help='Generate new tokens')
     group.add_argument('--list', action='store_true',
                        help='List all users and their token status')

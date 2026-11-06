@@ -72,22 +72,23 @@ rowToToken (tokid, token, used, by, at) =
 -- if unused then assign to the user; else check that the assigned user matches
 -- this is all done atomically because we grab the connection MVar
 validateTwoFaToken :: Text -> UserLogin -> Codex (Either String TwoFaToken)
-validateTwoFaToken txt ul = 
+validateTwoFaToken tok ul = 
     withSqlite $ \conn -> do
       rows <- S.query conn
         "SELECT id, token, used, used_by, used_at \
         \FROM two_fa_tokens WHERE token = ?"
-        (Only txt)
+        (Only tok)
       let opt2Fa = fmap rowToToken (listToMaybe rows)
       case opt2Fa of
         Nothing -> return (Left "Invalid token")
         Just twoFa -> case tokenUsedBy twoFa of
           Just ul' -> if ul == ul' 
-                        then return (Right twoFa)
-                        else return (Left "Token already used by another user")
+                        then return (Left "Token already used")
+                        else do
+                          return (Left "Token already used")
           Nothing -> do
             -- assign the token to the current user
-            time <- liftIO getCurrentTime
+            time <- getCurrentTime
             S.execute conn 
                 "UPDATE two_fa_tokens SET used = 1, used_by = ?, used_at = ? \
                 \WHERE id = ?" 
