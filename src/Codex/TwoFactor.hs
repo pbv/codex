@@ -99,7 +99,16 @@ validateTwoFaToken tok ul =
                                  } 
 
 
-
+-- clear the useage of a token;
+-- used to undo token assignment after an unsucessful login
+clearTwoFaToken :: Text -> Codex ()
+clearTwoFaToken tok
+  = withSqlite $
+    \conn ->
+      S.execute conn 
+      "UPDATE two_fa_tokens SET used = 0, used_by = NULL, used_at = NULL \
+      \WHERE token = ?" 
+      (Only tok)
 
 isTwoFactorEnabled :: Codex Bool
 isTwoFactorEnabled = do

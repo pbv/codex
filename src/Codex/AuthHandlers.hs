@@ -113,37 +113,35 @@ getTranslate =
 
     
 -- | handler for login attempts
--- first try local user DB, then LDAP (if enabled)
 handleLoginSubmit :: Codex ()
 handleLoginSubmit = do
   user  <-  require (getParam "login")
   passwd <- require (getParam "password")
   enabledTwoFa <- isTwoFactorEnabled
   if enabledTwoFa then do
-      twoFaToken <- require (getParam "twoFaToken")
-      result <- loginBackends user passwd
-      case result of
-        Left err ->
-          loginForm "_login" (Just err)
-        Right au -> do
-            let ul = UserLogin (T.decodeUtf8 user)
-            result <- validateTwoFaToken (T.decodeUtf8 twoFaToken) ul
-            case result of
-              Left msg -> do
-                with auth logout
-                loginForm "_login" (Just (AuthError msg))
-              Right _ -> 
-                finishLogin au 
+      twoFaToken <- T.decodeUtf8 <$> require (getParam "twoFaToken")
+      let ul = UserLogin (T.decodeUtf8 user)
+      rtok <- validateTwoFaToken twoFaToken ul
+      case rtok of
+        Left msg ->
+          loginForm "_login" (Just (AuthError msg))
+        Right _ -> do
+           rpass <- loginBackends user passwd
+           case rpass of
+             Left err -> do
+               clearTwoFaToken twoFaToken
+               loginForm "_login" (Just err)
+             Right au -> 
+               finishLogin au 
     else do
-      result <- loginBackends user passwd
-      case result of
+      rpass <- loginBackends user passwd
+      case rpass of
         Left err ->
           loginForm "_login" (Just err)
         Right au -> 
           finishLogin au
           
         
-
 -- | register a user first-time login (if needed)
 finishLogin :: AuthUser -> Codex ()
 finishLogin au = do               
@@ -157,14 +155,16 @@ finishLogin au = do
     
   
 -- | try to login with the local DB or LDAP backends 
-loginBackends :: ByteString -> ByteString -> Codex (Either AuthFailure AuthUser)        
+-- first try local user DB, then LDAP (if enabled)
+loginBackends :: ByteString -> ByteString
+              -> Codex (Either AuthFailure AuthUser)        
 loginBackends user passwd = do
   optLdap <- getLdap
-  -- try the local DB first
+  -- try the local DB 
   reply <- with auth $ loginByUsername (T.decodeUtf8 user) (ClearText passwd) False
   case reply of
     Right _ -> return reply
-    -- try the LDAP backend if configured
+    -- try the LDAP backend (if configured)
     Left err -> case optLdap of
       Just ldapConf ->
         with auth $ withBackend (\r -> liftIO $ ldapAuth r ldapConf user passwd)
