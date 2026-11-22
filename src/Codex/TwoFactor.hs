@@ -28,7 +28,10 @@ import Database.SQLite.Simple (Only (..))
 import qualified Database.SQLite.Simple as S
 
 import Codex.Application
-import Codex.Types (UserLogin (..)) 
+import Codex.Types (UserLogin (..))
+import Codex.Utils (logMsg)
+import qualified Data.Text.Encoding as T
+import           Data.ByteString (ByteString)
 
 -- | Represents a stored 2FA token.
 data TwoFaToken = TwoFaToken
@@ -69,23 +72,27 @@ rowToToken (tokid, token, used, by, at) =
 
 
 -- | Check that a token is valid for a given user
--- if unused then assign to the user; else check that the assigned user matches
+-- if unused then assign to the user; otherwise reject 
 -- this is all done atomically because we grab the connection MVar
 validateTwoFaToken :: Text -> UserLogin -> Codex (Either String TwoFaToken)
-validateTwoFaToken tok ul = 
-    withSqlite $ \conn -> do
+validateTwoFaToken tok ul = do 
+    (response, postaction) <- withSqlite $ \conn -> do
       rows <- S.query conn
         "SELECT id, token, used, used_by, used_at \
         \FROM two_fa_tokens WHERE token = ?"
         (Only tok)
       let opt2Fa = fmap rowToToken (listToMaybe rows)
       case opt2Fa of
-        Nothing -> return (Left "Invalid token")
+        Nothing -> return (Left "Invalid token", pure ())
         Just twoFa -> case tokenUsedBy twoFa of
-          Just ul' -> if ul == ul' 
-                        then return (Left "Token already used")
-                        else do
-                          return (Left "Token already used")
+          Just ul' -> return (Left "Token already used",
+                              if ul == ul' 
+                              then pure ()
+                              else 
+                                logMsg ("WARNING: " <>
+                                         loginToBS ul <>
+                                         " attempted to reuse token from " <>
+                                         loginToBS ul'))
           Nothing -> do
             -- assign the token to the current user
             time <- getCurrentTime
@@ -93,10 +100,17 @@ validateTwoFaToken tok ul =
                 "UPDATE two_fa_tokens SET used = 1, used_by = ?, used_at = ? \
                 \WHERE id = ?" 
                 (ul, time, tokenId twoFa)
-            return $ Right twoFa { tokenUsed = True
+            return (Right twoFa { tokenUsed = True
                                  , tokenUsedBy = Just ul
                                  , tokenUsedAt = Just time 
-                                 } 
+                                 }
+                   , pure ())
+    postaction
+    return response
+                     
+
+loginToBS :: UserLogin -> ByteString
+loginToBS = T.encodeUtf8. fromLogin
 
 
 -- clear the useage of a token;
