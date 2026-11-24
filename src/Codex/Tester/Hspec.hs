@@ -83,10 +83,15 @@ haskellRunner profile ghc qcArgs files code props =
      T.writeFile hsFile (header <> code)
      T.writeFile mainFile props
      runProcess profile cmd args'
+     removeFile mainFile
      classify <$> sandboxExec profile exeFile (Just dir) qcArgs ""
 
 header :: Text
-header = "module Submission where\n\n"
+header
+  = T.unlines [ "{-# LANGUAGE Haskell2010 #-}"
+              , "{-# LANGUAGE Safe #-}"
+              , "module Submission where"
+              ]
 
 clangRunner ::
   FilePath -> String -> String -> [String] -> [FilePath] -> Text -> Text
@@ -108,6 +113,7 @@ clangRunner profile gcc_cmd ghc_cmd qcArgs files c_code props =
       runProcess profile gcc cc_args'
       -- compile Haskell quickcheck driver
       runProcess profile ghc hc_args'
+      removeFile hsFile
       -- execute and under sandbox and classify result
       classify <$> sandboxExec profile exeFile (Just dir) qcArgs ""
 
