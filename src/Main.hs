@@ -38,7 +38,7 @@ import           Codex.Tester.Hspec
 import           Codex.Tester.InputOutput
 import           Codex.Tester.Quiz
 import           Codex.Tester.Sqlite
-import           Codex.Tester.PrologREPL
+import           Codex.Tester.PrologUnit
 import           Codex.Tester.HaskellREPL
 import           Codex.Tester.PythonREPL
 import           Snap.Loader.Static
@@ -56,8 +56,9 @@ testers = foldr1 (<|>)
            -- haskellQCTester
           , hspecHaskellTester
           , hspecClangTester
+          , plUnitTester
           -- REPL testers
-          , prologREPL
+          -- , prologREPL
           , haskellREPL
           , pythonREPL
             -- I/O testers
