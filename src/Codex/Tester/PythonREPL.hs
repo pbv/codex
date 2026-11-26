@@ -10,6 +10,7 @@ module Codex.Tester.PythonREPL (
 import           Codex.Tester
 import qualified Data.Text as T
 import           Data.Text (Text)
+import           Data.List.NonEmpty(NonEmpty(..))
 import           Control.Concurrent.Async (concurrently)
 
 import qualified Text.Pandoc.Builder as P
@@ -18,8 +19,7 @@ pythonREPL :: Tester Result
 pythonREPL = tester "repl" $ checkForbidden $ do
   Code lang code <- testCode
   guard (lang == "python")
-  cmdline <- parseArgs =<< configured "language.python.interpreter"
-  assert (pure $ cmdline /= [])  "python interpreter not defined"
+  cmdline <- parseArgs1 =<< configured "language.python.interpreter"
   profile <- configured "language.python.firejail"
   answer <- metadataWithDefault "answer" ""
   assert (pure $ answer /= "") "missing answer in metadata"
@@ -52,7 +52,7 @@ summary rs
 
 
 runTest :: MonadIO m =>
-           FilePath -> FilePath -> [String] -> Text -> Text -> Int -> Text
+           FilePath -> FilePath -> NonEmpty String -> Text -> Text -> Int -> Text
         -> m Result
 runTest profile tmpdir cmdline answer code number stdin = do
   let test =  P.text ("Test " <> T.pack (show number)) <> P.space
@@ -95,7 +95,7 @@ runTest profile tmpdir cmdline answer code number stdin = do
         P.codeBlock stderr
      
 checkCompile :: MonadIO m =>
-  FilePath -> FilePath -> [String] -> Text -> m (Maybe Text)
+  FilePath -> FilePath -> NonEmpty String -> Text -> m (Maybe Text)
 checkCompile profile tmpdir cmdline code = do
       r <- runPython profile tmpdir cmdline code ""
       return $ case r of
@@ -105,10 +105,8 @@ checkCompile profile tmpdir cmdline code = do
 
 runPython ::
   MonadIO m =>
-  FilePath -> FilePath -> [String] -> Text -> Text -> m (Either Text Text)
-runPython _ _ [] _ _ 
-  = error "runPython: empty command line"
-runPython profile tmpdir (python:args) code stdin =
+  FilePath -> FilePath -> NonEmpty String -> Text -> Text -> m (Either Text Text)
+runPython profile tmpdir (python:|args) code stdin =
   withTempText "submit.py" (code <> "\n\n" <> stdin) $
   \file -> do
     ProcessRun{..} <- sandboxExec profile python (Just tmpdir) (args++[file]) ""

@@ -16,6 +16,7 @@ module Codex.Tester.Utils
   , sandboxExec
   , getMetaArgs
   , parseArgs
+  , parseArgs1
   , globPatterns
   , parseTests
   , showTest
@@ -65,6 +66,9 @@ import           Codex.Page(lookupFromMeta)
 import           Codex.Tester.Result
 
 import qualified ShellWords
+
+import           Data.List.NonEmpty (NonEmpty(..))
+
 
 -- | the output of running a process
 data ProcessRun
@@ -233,14 +237,24 @@ getMetaArgs argKeys switchKeys meta
                  
 
 -- | parse a command line string
-parseArgs :: MonadIO m => String -> m [String]
+parseArgs :: MonadFail m => String -> m [String]
 parseArgs ""
   = return [] -- special case to signal empty arguments
 parseArgs txt = case ShellWords.parse txt of
   Left msg ->
-    liftIO $ throwIO $ userError ("parse error in command-line arguments: " <> msg)
+    fail ("parse error in command-line arguments: " <> msg)
   Right args ->
     return args
+
+-- | same as above, but ensures the command line is non-empty
+parseArgs1 :: MonadFail m => String -> m (NonEmpty String)
+parseArgs1 str = do
+  cmdline <- parseArgs str
+  case cmdline of
+    [] -> fail "empty command-line arguments"
+    (x:xs) -> return (x :| xs)
+
+
 
 
 globPattern :: MonadIO m => String -> m [FilePath]

@@ -12,7 +12,6 @@ import           Data.Text(Text)
 import qualified Data.Text as T
 import qualified Data.Text.IO as T
 import           Data.Maybe(fromMaybe, maybeToList)
--- import           System.Directory (copyFile)
 
 import qualified Text.Pandoc.Builder as P
 

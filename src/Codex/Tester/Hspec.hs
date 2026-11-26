@@ -15,6 +15,8 @@ import           Codex.Tester
 import           Text.Pandoc.Definition (Meta(..), MetaValue(..))
 import qualified Text.Pandoc.Builder as P
 import           Control.Exception(handle)
+import           System.Directory (removeFile)
+import           Data.List.NonEmpty (NonEmpty(..))
 
 
 -- | running and evaluating Haskell submissions
@@ -30,7 +32,7 @@ hspecHaskellTester = tester "hspec" $ checkForbidden $ do
   let dir = takeDirectory path
   files <- globPatterns dir =<< metadataWithDefault "extra-files" []
   args <- (map T.unpack . getHspecArgs) <$> testMetadata
-  ghc <- configured "language.haskell.compiler"
+  ghc <- configured "language.haskell.compiler" >>= parseArgs1
   profile <- configured "language.haskell.firejail"
   imports <- metadataWithDefault "imports" ""
   let code = imports <> "\n" <> src
@@ -50,8 +52,8 @@ hspecClangTester = tester "hspec" $ do
   spec <- liftIO $ T.readFile specPath
   files <- globPatterns dir =<< metadataWithDefault "extra-files" []
   args <- (map T.unpack . getHspecArgs) <$> testMetadata
-  ghc <- configured "language.haskell.compiler"
-  gcc <- configured "language.c.compiler"
+  ghc <- parseArgs1 =<< configured "language.haskell.compiler"
+  gcc <- parseArgs1 =<< configured "language.c.compiler" 
   profile <- configured "language.haskell.firejail"
   liftIO (clangRunner profile gcc ghc args files src spec)
 
@@ -70,15 +72,14 @@ defaultMeta = Meta $ fromList [ -- ("format", MetaString "failed-examples")
                               ]
 
 haskellRunner ::
-  FilePath -> FilePath -> [String] -> [FilePath] -> Text -> Text
+  FilePath -> NonEmpty String -> [String] -> [FilePath] -> Text -> Text
   -> IO Result
-haskellRunner profile ghc qcArgs files code props =
+haskellRunner profile (cmd:|args) qcArgs files code props =
    withTempDir "codex" $ \dir -> handle compileErrorHandler $ do
      copyFiles files dir
      let hsFile   = dir </> "Submission.hs"
      let mainFile = dir </> "Main.hs"
      let exeFile = dir </> "Main"
-     cmd:args <- parseArgs ghc
      let args' = args ++ ["-i"++dir, mainFile, "-o", exeFile]
      T.writeFile hsFile (header <> code)
      T.writeFile mainFile props
@@ -93,10 +94,10 @@ header
               , "module Submission where"
               ]
 
-clangRunner ::
-  FilePath -> String -> String -> [String] -> [FilePath] -> Text -> Text
-  -> IO Result
-clangRunner profile gcc_cmd ghc_cmd qcArgs files c_code props =
+clangRunner :: FilePath -> NonEmpty String -> NonEmpty String
+            -> [String] -> [FilePath] -> Text -> Text
+            -> IO Result
+clangRunner profile (gcc:|cc_args) (ghc:|hc_args) qcArgs files c_code props =
   withTempDir "codex" $ \dir -> handle compileErrorHandler $ do
       copyFiles files dir       -- copy extra files
       let cFile  = dir </> "submit.c"
@@ -105,8 +106,6 @@ clangRunner profile gcc_cmd ghc_cmd qcArgs files c_code props =
       let exeFile = dir </> "Main"
       T.writeFile cFile c_code
       T.writeFile hsFile props
-      gcc:cc_args <- parseArgs gcc_cmd
-      ghc:hc_args <- parseArgs ghc_cmd
       let cc_args'= cc_args ++ ["-c", cFile, "-o",  objFile]
       let hc_args'= hc_args ++ ["-i"++dir, objFile, hsFile, "-o",  exeFile]
       -- compile C code to object file

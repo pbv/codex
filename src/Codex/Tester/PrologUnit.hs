@@ -12,13 +12,15 @@ import qualified Data.Text as T
 import qualified Data.Text.IO as T
 import           Text.Regex.TDFA ( Regex, makeRegex, matchTest )
 import           Data.Maybe(fromMaybe, maybeToList)
-import qualified Text.Pandoc.Builder as P 
+import           Data.List.NonEmpty(NonEmpty(..))
+import qualified Text.Pandoc.Builder as P
+
 
 plUnitTester :: Tester Result
 plUnitTester = tester "plunit" $ do
   Code lang src <- testCode
   guard (lang == "prolog")
-  prolog <- configured "language.prolog.interpreter" 
+  prolog <- parseArgs1 =<< configured "language.prolog.interpreter" 
   profile <- configured "language.prolog.firejail"
   testDir <- takeDirectory <$> testFilePath
   -- public and private tests
@@ -35,14 +37,14 @@ plUnitTester = tester "plunit" $ do
     r'<- runTests prolog profile tmpdir (takeFileName <$> privTests)
     return (tagWith Public r <> tagWith Private r')
 
-
-runTests :: FilePath -> FilePath -> FilePath -> Maybe String -> IO Result
-runTests prolog profile dir optTest
+ 
+runTests :: NonEmpty String -> FilePath -> FilePath -> Maybe String -> IO Result
+runTests (prolog:|args) profile dir optTest
   = case optTest of
       Nothing -> return mempty
       Just test ->
         classify <$>
-        sandboxExec profile prolog (Just dir) ["--nologo", "-l", test] ""
+        sandboxExec profile prolog (Just dir) (args ++ ["-l", test]) ""
 
 
 -- classify a PL-unit process run
@@ -56,7 +58,9 @@ classify (ProcessRun ExitSuccess stdout stderr)
   | match "! Syntax error" stderr = compileError (P.codeBlock msg)
   | match "tests failed" stderr ||
     match "test failed" stderr = wrongAnswer (P.codeBlock msg)
-  | otherwise                  = accepted (P.codeBlock msg)
+  | match "tests passed" stderr ||
+    match "test passed" stderr = accepted (P.codeBlock msg)
+  | otherwise                  = miscError (P.codeBlock msg)
   where msg = filterOutput (stdout <> stderr)
     
 

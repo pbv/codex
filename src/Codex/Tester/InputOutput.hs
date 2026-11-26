@@ -23,9 +23,8 @@ import qualified Data.Text as T
 import qualified Data.Text.IO as T
 import           Data.Maybe (fromMaybe)
 import           Data.Char (isSpace)
+import           Data.List.NonEmpty (NonEmpty(..))
 import           Control.Exception(handle)
-
-
 
 import qualified Text.Pandoc.Builder as P
 
@@ -48,9 +47,8 @@ data Build =
 --
 clangBuild :: Tester Build
 clangBuild = do
-  cc_cmd <- configured "language.c.compiler"
+  (cc :| cc_args) <- parseArgs1 =<< configured "language.c.compiler" 
   profile <- configured "language.c.firejail"
-  cc:cc_args <- parseArgs cc_cmd
   let make tmpdir (Code _ code) = do
         let cFile = tmpdir </> "submit.c"
         let outFile = tmpdir </> "a.out"
@@ -82,13 +80,11 @@ pythonBuild = do
 --
 javaBuild :: Tester Build
 javaBuild = do
-  javac_cmd <- configured "language.java.compiler"
-  java_cmd <- configured "language.java.runtime"
+  (javac :| javac_args) <- parseArgs1 =<< configured "language.java.compiler" 
+  (java :| java_args) <- parseArgs1 =<< configured "language.java.runtime" 
   profile <- configured "language.java.firejail"
   -- name for public java class with the main method
   classname <- fromMaybe "Main" <$> metadata "java-main"
-  javac:javac_args <- parseArgs javac_cmd
-  java:java_args <- parseArgs java_cmd
   let make tmpdir (Code _ code) = do
         let java_file = tmpdir </> classname <.> "java"
         let classfile = tmpdir </> classname <.> "class"
@@ -105,17 +101,16 @@ javaBuild = do
 -- builder for Haskell programs
 haskellBuild :: Tester Build
 haskellBuild = do
-  ghc_cmd <- configured "language.haskell.compiler"
+  (ghc :| ghc_args) <- parseArgs1 =<< configured "language.haskell.compiler" 
   profile <- configured "language.haskell.firejail"
   -- name for the Haskell main module
   modname <- fromMaybe "Main" <$> metadata "haskell-main"
-  ghc:ghc_args <- parseArgs ghc_cmd
   let make tmpdir (Code _ code) = do
         let hs_file = tmpdir </> modname <.> "hs"
         let exe_file = tmpdir </> modname
         T.writeFile hs_file code
         runProcess profile ghc (ghc_args ++ ["-i"++tmpdir,
-                                                   hs_file, "-o", exe_file])
+                                              hs_file, "-o", exe_file])
         return exe_file
   let run outFile stdin = do
         let dir = takeDirectory outFile
