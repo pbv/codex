@@ -54,8 +54,9 @@ classify (ProcessRun (ExitFailure _) stdout stderr)
   where msg = filterOutput (stdout <> stderr)
 classify (ProcessRun ExitSuccess stdout stderr)
   | match "! Syntax error" stderr = compileError (P.codeBlock msg)
-  | match "tests failed" stderr = wrongAnswer (P.codeBlock msg)
-  | otherwise                   = accepted (P.codeBlock msg)
+  | match "tests failed" stderr ||
+    match "test failed" stderr = wrongAnswer (P.codeBlock msg)
+  | otherwise                  = accepted (P.codeBlock msg)
   where msg = filterOutput (stdout <> stderr)
     
 

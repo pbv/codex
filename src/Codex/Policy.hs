@@ -18,7 +18,7 @@ import qualified Data.HashMap.Strict as HM
 import qualified Data.Configurator as Configurator
 import qualified Data.Configurator.Types as Configurator
 
-import           Text.ParserCombinators.ReadP
+import           Text.ParserCombinators.ReadP 
 
 import           Control.Monad
 import           Control.Monad.Reader
@@ -39,17 +39,13 @@ import qualified Heist.Interpreted as I
 import           Data.Map.Syntax
 
 
--- | type for policy restrictions
-
+-- | type for exercise restrictions
 data Policy t
   = Policy
-    { maxAttempts :: Maybe Int
-    , timeConstraint :: Constr' t
+    { maxAttempts :: Maybe Int     -- ^ optional maximum attempts
+    , timeConstraint :: Either Text (Constr t) -- ^ constraint or parse error
     } deriving (Show, Functor)
 
-
-type Constr' t = Either Text (Constr t)
-   -- ^ constraint (Right) or an error messsage (Left)
 
 -- | time constraints 
 data Constr t
@@ -57,11 +53,11 @@ data Constr t
   | After t                    -- ^ after this time
   | Conj (Constr t) (Constr t) -- ^ conjunction
   | Disj (Constr t) (Constr t) -- ^ disjunction
-  | Always
-  | Never
+  | Always                     -- ^ no constraint
   deriving (Show, Functor)
 
--- | time expressions
+
+-- | symbolic time expressions
 data Time
   = Event Name               -- ^ named event 
   | Local LocalTime          -- ^ local time constant
@@ -82,24 +78,23 @@ data Unit
   deriving (Eq, Read, Show)
 
 
+
 emptySubmission :: UserLogin -> FilePath -> UTCTime -> Submission
 emptySubmission user path time
   = Submission undefined user path time undefined undefined undefined
 
--------------------------------------------------------------------------
--- geting policy from metadata
--------------------------------------------------------------------------
-getPolicy :: Page -> Policy Time
-getPolicy page =
-  Policy { maxAttempts = lookupFromMeta "attempts" meta
-         , timeConstraint = constr'
-         }
-  where
-    meta = pageMeta page
-    constr' = case lookupFromMeta "valid" meta of
-                Nothing -> Right Always
-                Just txt -> parseConstraint txt
 
+getPolicy :: Page -> Policy Time
+getPolicy page
+  = let meta = pageMeta page
+        attempts = lookupFromMeta "attempts" meta
+        optConstr = case lookupFromMeta "valid" meta of
+                      Nothing -> Right Always
+                      Just txt -> parseConstraint txt 
+    in 
+      Policy { maxAttempts = attempts
+             , timeConstraint = optConstr
+             }
 
 --------------------------------------------------------------------------          
 -- Semantics 
@@ -141,34 +136,26 @@ evalDiff (Diff value un) = fromIntegral value * toSeconds un
 
 
 -- | simplify a time constraint
-normalizeConstr' :: MonadError Text m
-                 => TimeEnv -> Constr' Time -> m (Constr UTCTime)
-normalizeConstr' _   (Left msg) = throwError msg
-normalizeConstr' env (Right constr) = go constr
-  where
-    go Always
-      = pure Always
-    go Never
-      = pure Never
-    go (Before t)
-      = Before <$> evalTime env t
-    go (After t)
-      = After <$> evalTime env t
-    go (Conj c1 c2)
-      = Conj <$> go c1 <*> go c2
-    go (Disj c1 c2)
-      = Disj <$> go c1 <*> go c2
+normalizeConstr :: MonadError Text m
+                => TimeEnv -> Constr Time -> m (Constr UTCTime)
+normalizeConstr env constr = case constr of
+    Always -> pure Always
+    Before t ->  Before <$> evalTime env t
+    After t ->  After <$> evalTime env t
+    Conj c1 c2 ->
+      Conj <$> normalizeConstr env c1 <*> normalizeConstr env c2
+    Disj c1 c2 ->
+      Disj <$> normalizeConstr env c1 <*> normalizeConstr env c2
 
 
--- | evaluate a time constraint
-evalConstr :: MonadWriter [Text] m
-           => TimeEnv -> UTCTime -> Constr UTCTime -> m Bool
-evalConstr TimeEnv{..} timeNow constr = go constr
+
+-- | check a UTC time against a constraint
+checkConstrUTC :: MonadWriter [Text] m
+            => TimeEnv -> UTCTime -> Constr UTCTime -> m Bool
+checkConstrUTC TimeEnv{..} timeNow constr = go constr
   where
     go Always
       = pure True
-    go Never
-      = pure False
     go (Before limit) = do
       unless (timeNow <= limit) $ do
         tell ["Submissions until " <> formatLocalTime timeZone limit]
@@ -184,7 +171,7 @@ evalConstr TimeEnv{..} timeNow constr = go constr
       r <- go c1
       if r then return True else go c2
 
-
+-- | check maximum attempts 
 checkMaxAttempts :: ( MonadError Text m, S.HasSqlite m )
                  => Submission
                  -> Int
@@ -195,17 +182,17 @@ checkMaxAttempts Submission{..} limit = do
     throwError ("Maximum " <> T.pack (show limit) <> " attempts exceeded")
 
 
-checkConstr' :: MonadError Text m
-             => TimeEnv -> UTCTime -> Constr' Time -> m ()
-checkConstr'  env time constr'
-  = case normalizeConstr' env constr' of
+checkConstr :: MonadError Text m
+            => TimeEnv -> UTCTime -> Constr Time -> m ()
+checkConstr  env time constr
+  = case normalizeConstr env constr of
       Left msg -> throwError msg
-      Right constr -> case runWriter (evalConstr env time constr) of
+      Right constr' -> case runWriter (checkConstrUTC env time constr') of
                          (True,  _) -> pure ()
                          (False, msgs) -> throwError (T.unlines msgs)
 
 
-checkPolicy :: ( S.HasSqlite m )
+checkPolicy :: S.HasSqlite m 
             => TimeEnv
             -> Policy Time
             -> Submission
@@ -222,7 +209,11 @@ checkPolicy' env Policy{..} Submission{..} = do
   case maxAttempts of
     Nothing -> pure ()
     Just limit -> checkMaxAttempts Submission{..} limit
-  checkConstr' env submitTime timeConstraint
+  case timeConstraint of
+    Left msg ->
+      throwError msg
+    Right c ->
+      checkConstr env submitTime c
 
 
 instance S.HasSqlite m => S.HasSqlite (ExceptT e m) where
@@ -248,9 +239,12 @@ getTimeEnv = do
 parseConstraint :: String -> Either Text (Constr Time)
 parseConstraint str
   = case readP_to_S (skipSpaces >> parseConstraintP) str of
-       ((c, ""):_) -> return c
-       ((_, txt):_) -> throwError ("can't parse constraint: " <> T.pack (show txt))
-       _   -> throwError "can't parse constraint"
+       ((c, ""):_) ->
+         return c
+       ((_, txt):_) ->
+         throwError ("can't parse constraint: " <> T.pack (show txt))
+       _  ->
+         throwError ("can't parse constraint: " <> T.pack str)
 
 
 -- | parse a list of constraints
@@ -336,8 +330,6 @@ unit = do
   <++
   do (symbol "second" <++ symbol "s"); return Second
 
-
-
 -- | ignore trailing spaces
 --
 token :: ReadP a -> ReadP a
@@ -364,10 +356,10 @@ chainl1' p op = p >>= rest
 -------------------------------------------------------------
 -- pretty printing
 -------------------------------------------------------------
+prettyConstr :: Show t => Constr t -> Text
 prettyConstr Always = "open"
-prettyConstr Never = "closed"
-prettyConstr (After t) = "after " <> t
-prettyConstr (Before t) = "before " <> t
+prettyConstr (After t) = "after " <> T.pack (show t)
+prettyConstr (Before t) = "before " <> T.pack (show t)
 prettyConstr (Conj c1 c2)
   = prettyConstr c1 <> " and " <> prettyConstr c2
 prettyConstr (Disj c1 c2)
@@ -407,16 +399,18 @@ policySplices page submitUser submitPath = do
   env <- getTimeEnv
   now <- liftIO getCurrentTime
   count <- countEarlier submitUser submitPath now
-  let dummy = emptySubmission submitUser submitPath now
   time <- checkTimeRemaining
+  let dummy = emptySubmission submitUser submitPath now
   check <- checkPolicy env policy dummy
-  let constrText
-        = case normalizeConstr' env timeConstraint of
-            Left msg -> msg
-            Right constr -> prettyConstr
+  let constrMsg
+        = case timeConstraint of
+            Left err -> err
+            Right constr ->  case normalizeConstr env constr of
+              Left msg -> msg
+              Right constr -> prettyConstr
                               (formatLocalTime (timeZone env) <$> constr)
   return $ do
-    "timing" ## I.textSplice constrText
+    "timing" ## I.textSplice constrMsg
     "if-available" ## I.ifElseISplice (time && (check == Valid || not lock))
     "if-max-attempts" ## I.ifElseISplice (isJust maxAttempts)
     "submissions-attempts" ## I.textSplice (T.pack $ show count)

@@ -26,6 +26,7 @@ import           Data.Char (isSpace)
 import           Control.Exception(handle)
 
 
+
 import qualified Text.Pandoc.Builder as P
 
 --
@@ -117,7 +118,7 @@ haskellBuild = do
                                                    hs_file, "-o", exe_file])
         return exe_file
   let run outFile stdin = do
-        let dir = takeDirectory dir
+        let dir = takeDirectory outFile
         sandboxExec profile outFile (Just dir) [] stdin
   return (Build "haskell" make run)
 
